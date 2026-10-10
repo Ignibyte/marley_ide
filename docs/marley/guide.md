@@ -307,12 +307,25 @@ A project's `+` ("New in this project") starts things in that project.
 |---|---|
 | New Terminal | A shell in the project's directory, in the main area |
 | New Browser Tab | Shows the project and opens a blank page in a new Browser tab, the cursor in the address bar, starting Chromium if it must |
-| New Agent Thread | A submenu with the Zed Agent and each external agent configured in Zed, by name; starts a thread in this project's Agent Panel |
+| New Agent… | The New Agent picker, below, opened on this project |
+| New Agent Thread | A submenu with the Zed Agent and each external agent configured in Zed, by name; starts a thread in a tab of this project (#734) |
 | Agent CLIs | Under their own header, each agent CLI found on the PATH; starts it in a new terminal at the project root |
 
-Ctrl+Alt+N opens the same choices in the New Agent picker ("Start an agent in this project…"),
-in either layout. Zed's agents are marked Thread and the CLIs Terminal, and typing filters the
-list. With AI turned off the key opens nothing.
+Ctrl+Alt+N opens the New Agent picker ("Start an agent…") in either layout. Zed's agents are
+marked Thread and the CLIs Terminal, and typing filters the list. After the agent, it asks where
+(#735):
+
+- **The guess** comes first: the active terminal's folder, else the active file's project, else
+  the shown project's root, else your home folder. Enter twice starts the agent where you are.
+- Then the window's open projects, your recent projects, and **Browse…**, Zed's own folder prompt
+  (a file picked there means its folder).
+- A thread opens in a tab of the shown group (#734), a CLI in a new terminal there, each working in
+  the folder you picked.
+
+**Open Agent Here…** asks only which agent: on a terminal's row in the rail, it starts in the
+terminal's folder; in the project panel's right-click menu, in that folder, or a file's folder.
+`marley::NewAgent` takes the folder too: `["marley::NewAgent", {"folder": "/srv/stacks/x"}]`. With
+AI turned off the key opens nothing.
 
 A folder you open for the first time in the Marley layout starts with a terminal at its root,
 focused (#455). A project you opened before comes back as you left it, with its saved terminals
@@ -341,9 +354,9 @@ its last tab closes, the page comes back.
 
 - **Start:** New Terminal (a terminal in Home, in your home folder), Open Folder…, Clone
   Repository… and Command Palette.
-- **New Agent:** a button for each agent CLI on your PATH (Claude Code, Codex, Gemini CLI,
-  OpenCode), started in a terminal in Home, in your home folder. Agent Panel threads need a
-  project folder, so start those from a project.
+- **New Agent:** New Agent…, the picker that asks which agent and where (#735), then a button for
+  each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a terminal in
+  Home, in your home folder.
 - **Recent Projects:** the projects you opened lately; a click opens one.
 - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
   failed, with its project; a click opens it where it lives.

@@ -19,21 +19,23 @@ use futures::channel::oneshot;
 use fuzzy::{StringMatch, StringMatchCandidate};
 use git_ui_core::askpass_modal::AskPassModal;
 use gpui::{
-    AnyWindowHandle, App, AsyncApp, AsyncWindowContext, Context, DismissEvent, Entity,
-    EventEmitter, FocusHandle, Focusable, Global, Render, Task, WeakEntity, Window,
+    Action, AnyWindowHandle, App, AsyncApp, AsyncWindowContext, Context, DismissEvent, Entity,
+    EntityId, EventEmitter, FocusHandle, Focusable, Global, PathPromptOptions, Render, Task,
+    WeakEntity, Window,
 };
 use marley_agent::{AgentKind, LaunchMode};
 use picker::{Picker, PickerDelegate};
-use project::{AgentId, AgentRegistryStore, DisableAiSettings, Project};
+use project::{AgentId, AgentRegistryStore, DirectoryLister, DisableAiSettings, Project};
+use schemars::JsonSchema;
+use serde::Deserialize;
 use settings::{ClaudeCodePermissions, CodexPermissions, MarleySettingsContent, Settings as _};
 use terminal::Terminal;
+use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
-use workspace::{ModalView, MultiWorkspace, Workspace};
-
-use crate::NewAgent;
+use workspace::{ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace, WorkspaceDb};
 
 /// Makes the `Terminal` behind a new center terminal, started in the given directory with the
 /// given variables of its own.
@@ -660,11 +662,39 @@ fn fix_askpass_program() {
     });
 }
 
+/// Opens the New Agent picker: Zed's agents and the installed agent CLIs, then where to start the
+/// one chosen (#735).
+///
+/// With `folder`, the agent starts there and the picker asks only which agent, as Open Agent Here
+/// on a terminal's row or in the project panel does.
+#[derive(Clone, Debug, Default, PartialEq, Eq, JsonSchema, Action)]
+#[action(namespace = marley)]
+pub struct NewAgent {
+    /// The folder the agent starts in; none asks where.
+    pub folder: Option<PathBuf>,
+}
+
+/// `NewAgent`'s fields as a keymap writes them, read through this struct for the reason
+/// `rusty::OpenPage` gives (clippy's `unsafe_derive_deserialize` on a derived `Deserialize`).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewAgentFields {
+    #[serde(default)]
+    folder: Option<PathBuf>,
+}
+
+impl<'de> Deserialize<'de> for NewAgent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let NewAgentFields { folder } = NewAgentFields::deserialize(deserializer)?;
+        Ok(Self { folder })
+    }
+}
+
 /// `marley::NewAgent`: the New Agent picker, or nothing while AI is disabled, as Zed shows none
 /// of its own agent entry points then.
 fn new_agent(
     workspace: &mut Workspace,
-    _: &NewAgent,
+    action: &NewAgent,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
@@ -675,7 +705,7 @@ fn new_agent(
     if let Some(view) = crate::blocks::focused_terminal(workspace, window, cx) {
         let workspace_entity = cx.entity();
         crate::shortcut_note::taken(
-            &NewAgent,
+            action,
             "opened Marley's New Agent picker",
             &view.focus_handle(cx),
             &workspace_entity,
@@ -683,15 +713,150 @@ fn new_agent(
             cx,
         );
     }
+    show_picker(workspace, action.folder.clone(), window, cx);
+}
+
+/// Opens the New Agent picker in `workspace`: it asks where the agent starts unless `folder`
+/// says (#735).
+pub(crate) fn show_picker(
+    workspace: &mut Workspace,
+    folder: Option<PathBuf>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if DisableAiSettings::get_global(cx).disable_ai {
+        return;
+    }
     let handle = workspace.weak_handle();
     let project = workspace.project().clone();
+    let places = match folder {
+        Some(_) => Vec::new(),
+        None => places_for(workspace, cx.entity_id(), window, cx),
+    };
+    let fs = Arc::clone(&workspace.app_state().fs);
     workspace.toggle_modal(window, cx, |window, cx| {
-        NewAgentPicker::new(handle, &project, window, cx)
+        NewAgentPicker::new(handle, &project, folder, places, fs, window, cx)
     });
 }
 
-/// The New Agent picker: Zed's agents, then the agent CLIs on the search path. The choice starts
-/// in the workspace the picker opened in.
+/// Where the picker offers to start an agent: the guess first, then the window's open projects,
+/// then Browse…; recent projects join before Browse… once they load. `workspace` is being updated,
+/// so it is read through its reference, never through its entity (`current`).
+fn places_for(workspace: &Workspace, current: EntityId, window: &Window, cx: &App) -> Vec<Place> {
+    let (guess, note) = guess(workspace, cx);
+    let mut places = vec![Place::folder(guess, note)];
+    let open = window
+        .root::<MultiWorkspace>()
+        .flatten()
+        .map(|multi_workspace| {
+            multi_workspace
+                .read(cx)
+                .workspaces()
+                .filter_map(|member| {
+                    let roots = if member.entity_id() == current {
+                        workspace.root_paths(cx)
+                    } else {
+                        member.read(cx).root_paths(cx)
+                    };
+                    roots.first().map(|root| root.to_path_buf())
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    for root in open {
+        if !places.iter().any(|place| place.path() == Some(&root)) {
+            places.push(Place::folder(root, "open project"));
+        }
+    }
+    places.push(Place::Browse);
+    places
+}
+
+/// The folder an agent most likely belongs in: the active terminal's folder, else the active
+/// file's project, else the workspace's first root, else the home folder.
+fn guess(workspace: &Workspace, cx: &App) -> (PathBuf, &'static str) {
+    if let Some(item) = workspace.active_item(cx) {
+        if let Some(folder) = item
+            .downcast::<TerminalView>()
+            .and_then(|view| view.read(cx).terminal().read(cx).working_directory())
+        {
+            return (folder, "this terminal's folder");
+        }
+        let project = workspace.project().read(cx);
+        if let Some(root) = item
+            .project_path(cx)
+            .and_then(|path| project.worktree_for_id(path.worktree_id, cx))
+            .map(|worktree| worktree.read(cx).abs_path().to_path_buf())
+        {
+            return (root, "this file's project");
+        }
+    }
+    let note = if workspace.root_paths(cx).is_empty() {
+        "your home folder"
+    } else {
+        "this project"
+    };
+    (crate::thread_tab::default_folder(workspace, cx), note)
+}
+
+/// `path` as the picker shows it: under the home folder as `~/…`.
+fn shown_path(path: &Path) -> String {
+    path.strip_prefix(util::paths::home_dir()).map_or_else(
+        |_| path.display().to_string(),
+        |rest| {
+            if rest.as_os_str().is_empty() {
+                "~".to_string()
+            } else {
+                format!("~/{}", rest.display())
+            }
+        },
+    )
+}
+
+/// One place Where lists.
+#[derive(Clone)]
+enum Place {
+    /// A folder, with its name, and what it is: the guess, an open or a recent project.
+    Folder {
+        name: SharedString,
+        path: PathBuf,
+        note: &'static str,
+    },
+    /// Zed's path prompt, for any folder.
+    Browse,
+}
+
+impl Place {
+    fn folder(path: PathBuf, note: &'static str) -> Self {
+        let name = path.file_name().map_or_else(
+            || shown_path(&path),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        Self::Folder {
+            name: name.into(),
+            path,
+            note,
+        }
+    }
+
+    const fn path(&self) -> Option<&PathBuf> {
+        match self {
+            Self::Folder { path, .. } => Some(path),
+            Self::Browse => None,
+        }
+    }
+
+    /// The text the query matches: the folder's name and where it is.
+    fn text(&self) -> String {
+        match self {
+            Self::Folder { name, path, .. } => format!("{name} {}", shown_path(path)),
+            Self::Browse => "Browse…".to_string(),
+        }
+    }
+}
+
+/// The New Agent picker: Zed's agents, then the agent CLIs on the search path; then, unless the
+/// folder is given, where to start the one chosen. It starts in the workspace the picker opened in.
 struct NewAgentPicker {
     picker: Entity<Picker<NewAgentDelegate>>,
 }
@@ -700,6 +865,9 @@ impl NewAgentPicker {
     fn new(
         workspace: WeakEntity<Workspace>,
         project: &Entity<Project>,
+        folder: Option<PathBuf>,
+        places: Vec<Place>,
+        fs: Arc<dyn fs::Fs>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -717,18 +885,68 @@ impl NewAgentPicker {
                 icon: AgentIcon::Named(cli_icon(kind)),
                 start: Start::Cli(kind),
             });
+        let asks = folder.is_none();
         let delegate = NewAgentDelegate {
             modal: cx.entity().downgrade(),
             workspace,
             choices: threads.chain(clis).collect(),
+            fixed: folder,
+            places,
+            fs: Arc::clone(&fs),
+            chosen: None,
             matches: Vec::new(),
             selected_index: 0,
         };
-        Self {
-            picker: cx.new(|cx| Picker::uniform_list(delegate, window, cx)),
+        let picker = cx.new(|cx| Picker::uniform_list(delegate, window, cx));
+        if asks {
+            load_recent(&picker, fs, window, cx);
         }
+        Self { picker }
     }
 }
+
+/// Adds the recent local projects to Where's places once the workspace database gives them, and
+/// shows them if Where is already up.
+fn load_recent(
+    picker: &Entity<Picker<NewAgentDelegate>>,
+    fs: Arc<dyn fs::Fs>,
+    window: &Window,
+    cx: &Context<NewAgentPicker>,
+) {
+    let db = WorkspaceDb::global(cx);
+    let picker = picker.downgrade();
+    cx.spawn_in(window, async move |_, cx| {
+        let recent: Vec<PathBuf> = db
+            .recent_project_workspaces(fs.as_ref())
+            .await
+            .log_err()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|recent| matches!(recent.location, SerializedWorkspaceLocation::Local))
+            .filter_map(|recent| recent.paths.paths().first().cloned())
+            .take(RECENT_PLACES)
+            .collect();
+        picker
+            .update_in(cx, |picker, window, cx| {
+                let places = &mut picker.delegate.places;
+                let browse = places.len().saturating_sub(1);
+                let fresh: Vec<Place> = recent
+                    .into_iter()
+                    .filter(|path| !places.iter().any(|place| place.path() == Some(path)))
+                    .map(|path| Place::folder(path, "recent project"))
+                    .collect();
+                places.splice(browse..browse, fresh);
+                if picker.delegate.chosen.is_some() {
+                    picker.refresh(window, cx);
+                }
+            })
+            .log_err();
+    })
+    .detach();
+}
+
+/// How many recent projects Where lists.
+const RECENT_PLACES: usize = 8;
 
 impl ModalView for NewAgentPicker {}
 
@@ -758,7 +976,7 @@ struct Choice {
 
 #[derive(Clone)]
 enum Start {
-    /// A thread of this agent in the Agent Panel.
+    /// A thread of this agent in a center tab (#734).
     Thread(AgentId),
     /// This agent CLI in a new center terminal.
     Cli(AgentKind),
@@ -773,17 +991,31 @@ impl Start {
         }
     }
 
-    fn run(
+    /// Starts the choice in `folder`, in `workspace`: a thread in a tab, or the CLI in a new
+    /// terminal, as a launch config starts one (#527).
+    fn run_in(
         self,
+        folder: PathBuf,
         workspace: &mut Workspace,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Workspace>,
-    ) -> anyhow::Result<()> {
+    ) {
         match self {
-            Self::Thread(agent) => start_thread(workspace, &agent, window, cx),
+            Self::Thread(agent) => {
+                crate::thread_tab::start(workspace, Some(agent), Some(folder), window, cx);
+            }
             Self::Cli(kind) => {
-                start_cli(workspace, kind, window, cx);
-                Ok(())
+                let (line, joining) = launch_input(workspace, kind, &folder, cx);
+                start_in_terminal(
+                    workspace,
+                    Some(folder),
+                    Some(kind),
+                    Some(line),
+                    joining,
+                    window,
+                    cx,
+                )
+                .detach_and_log_err(cx);
             }
         }
     }
@@ -793,9 +1025,78 @@ struct NewAgentDelegate {
     modal: WeakEntity<NewAgentPicker>,
     workspace: WeakEntity<Workspace>,
     choices: Vec<Choice>,
-    /// The choices the query matches, in order, each naming its choice by index.
+    /// The folder the agent starts in without asking: Open Agent Here's.
+    fixed: Option<PathBuf>,
+    /// The places Where lists.
+    places: Vec<Place>,
+    fs: Arc<dyn fs::Fs>,
+    /// The agent chosen and its name, once the picker asks where.
+    chosen: Option<(Start, SharedString)>,
+    /// The entries the query matches, in order, each naming its entry by index: a choice, or
+    /// once an agent is chosen, a place.
     matches: Vec<StringMatch>,
     selected_index: usize,
+}
+
+impl NewAgentDelegate {
+    /// Asks Zed's path prompt for a folder, then starts `start` there; a file picked means its
+    /// folder. Deferred: the prompt is a modal that takes this picker's place, and the modal layer
+    /// reads the picker, which the confirm that calls this is updating.
+    fn browse(&self, start: Start, window: &Window, cx: &mut Context<Picker<Self>>) {
+        let fs = Arc::clone(&self.fs);
+        let workspace = self.workspace.clone();
+        window.defer(cx, move |window, cx| {
+            Self::prompt_and_run(&workspace, start, fs, window, cx);
+        });
+    }
+
+    fn prompt_and_run(
+        workspace: &WeakEntity<Workspace>,
+        start: Start,
+        fs: Arc<dyn fs::Fs>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let started = workspace.update(cx, |workspace, cx| {
+            let lister = DirectoryLister::Local(workspace.project().clone(), Arc::clone(&fs));
+            let paths = workspace.prompt_for_open_path(
+                PathPromptOptions {
+                    files: false,
+                    directories: true,
+                    multiple: false,
+                    prompt: Some(SharedString::new_static("Start Here")),
+                },
+                lister,
+                window,
+                cx,
+            );
+            cx.spawn_in(window, async move |workspace, cx| {
+                let Some(path) = paths
+                    .await
+                    .log_err()
+                    .flatten()
+                    .and_then(|paths| paths.into_iter().next())
+                else {
+                    return;
+                };
+                let folder = if fs.is_dir(&path).await {
+                    Some(path)
+                } else {
+                    path.parent().map(Path::to_path_buf)
+                };
+                let Some(folder) = folder else {
+                    return;
+                };
+                workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        start.run_in(folder, workspace, window, cx);
+                    })
+                    .log_err();
+            })
+            .detach();
+        });
+        started.log_err();
+    }
 }
 
 impl PickerDelegate for NewAgentDelegate {
@@ -818,7 +1119,11 @@ impl PickerDelegate for NewAgentDelegate {
     }
 
     fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
-        "Start an agent in this project…".into()
+        match (&self.chosen, &self.fixed) {
+            (Some((_, name)), _) => format!("Where should {name} start?").into(),
+            (None, Some(folder)) => format!("Start an agent in {}…", shown_path(folder)).into(),
+            (None, None) => "Start an agent…".into(),
+        }
     }
 
     fn update_matches(
@@ -827,16 +1132,23 @@ impl PickerDelegate for NewAgentDelegate {
         window: &mut Window,
         cx: &mut Context<Picker<Self>>,
     ) -> Task<()> {
-        let candidates: Vec<StringMatchCandidate> = self
-            .choices
+        let texts: Vec<String> = if self.chosen.is_some() {
+            self.places.iter().map(Place::text).collect()
+        } else {
+            self.choices
+                .iter()
+                .map(|choice| choice.name.to_string())
+                .collect()
+        };
+        let candidates: Vec<StringMatchCandidate> = texts
             .iter()
             .enumerate()
-            .map(|(index, choice)| StringMatchCandidate::new(index, &choice.name))
+            .map(|(index, text)| StringMatchCandidate::new(index, text))
             .collect();
         let executor = cx.background_executor().clone();
         cx.spawn_in(window, async move |picker, cx| {
-            // An empty query keeps every choice in its own order; fuzzy matching would sort
-            // them by score.
+            // An empty query keeps every entry in its own order; fuzzy matching would sort them
+            // by score.
             let matches = if query.is_empty() {
                 candidates
                     .into_iter()
@@ -862,23 +1174,51 @@ impl PickerDelegate for NewAgentDelegate {
     }
 
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        let start = self
-            .matches
-            .get(self.selected_index)
-            .and_then(|found| self.choices.get(found.candidate_id))
-            .map(|choice| choice.start.clone());
-        if let Some(start) = start {
-            let started = self
-                .workspace
-                .update(cx, |workspace, cx| start.run(workspace, window, cx));
-            Task::ready(started.and_then(|started| started)).detach_and_prompt_err(
-                "Could not start the agent",
-                window,
-                cx,
-                |_, _, _| None,
-            );
+        let Some(found) = self.matches.get(self.selected_index) else {
+            return;
+        };
+        let index = found.candidate_id;
+        match self.chosen.clone() {
+            None => {
+                let Some(choice) = self.choices.get(index) else {
+                    return;
+                };
+                let (start, name) = (choice.start.clone(), choice.name.clone());
+                if let Some(folder) = self.fixed.clone() {
+                    self.workspace
+                        .update(cx, |workspace, cx| {
+                            start.run_in(folder, workspace, window, cx);
+                        })
+                        .log_err();
+                    self.dismissed(window, cx);
+                    return;
+                }
+                // Where: the same picker, emptied, lists the places.
+                self.chosen = Some((start, name));
+                self.selected_index = 0;
+                cx.defer_in(window, |picker, window, cx| {
+                    picker.set_query("", window, cx);
+                    picker.refresh_placeholder(window, cx);
+                    picker.refresh(window, cx);
+                });
+            }
+            Some((start, _)) => {
+                let Some(place) = self.places.get(index).cloned() else {
+                    return;
+                };
+                self.dismissed(window, cx);
+                match place {
+                    Place::Folder { path, .. } => {
+                        self.workspace
+                            .update(cx, |workspace, cx| {
+                                start.run_in(path, workspace, window, cx);
+                            })
+                            .log_err();
+                    }
+                    Place::Browse => self.browse(start, window, cx),
+                }
+            }
         }
-        self.dismissed(window, cx);
     }
 
     fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<Self>>) {
@@ -895,6 +1235,41 @@ impl PickerDelegate for NewAgentDelegate {
         _: &mut Context<Picker<Self>>,
     ) -> Option<Self::ListItem> {
         let found = self.matches.get(index)?;
+        if self.chosen.is_some() {
+            let place = self.places.get(found.candidate_id)?;
+            let item = ListItem::new(index)
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .toggle_state(selected);
+            return Some(match place {
+                Place::Folder { name, path, note } => {
+                    // The highlight's positions run over the name, then the path after a space.
+                    let name_end = name.len();
+                    let positions = found
+                        .positions
+                        .iter()
+                        .copied()
+                        .filter(|position| *position < name_end)
+                        .collect();
+                    item.start_slot(Icon::new(IconName::Folder).color(Color::Muted))
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(HighlightedLabel::new(name.clone(), positions))
+                                .child(
+                                    Label::new(shown_path(path))
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted)
+                                        .truncate(),
+                                ),
+                        )
+                        .end_slot(Label::new(*note).size(LabelSize::Small).color(Color::Muted))
+                }
+                Place::Browse => item
+                    .start_slot(Icon::new(IconName::FolderOpen).color(Color::Muted))
+                    .child(Label::new("Browse…")),
+            });
+        }
         let choice = self.choices.get(found.candidate_id)?;
         let icon = match &choice.icon {
             AgentIcon::Named(name) => Icon::new(*name),

@@ -3632,3 +3632,20 @@ and typed "hello" into it before checking: one real turn on Chad's login ("Hi Ch
 project's step checked the scripted agent's session first; the Home step had been reordered to type
 first while it was being debugged. Fixed in #734's scenario: every thread is checked to have started
 a scripted session before anything is typed, and the Home step's submenu is shot.
+
+## F-claude-735-the-picker-read-the-workspace-it-was-opened-in-001
+*severity: high · found in: pipeline 735's Code phase (its first visual run) · class: an entity read while it is being updated · prevented by: PR-claude-735-code-in-a-workspaces-update-reads-it-by-reference-001*
+
+`show_picker` runs inside the workspace's own update (an action handler), and `places_for` listed
+the window's open projects by reading every workspace of the `MultiWorkspace`, that one included.
+gpui panicked, "cannot read Workspace while it is already being updated", and Marley quit at
+Ctrl+Alt+N. Fixed in #735: the workspace being updated is read through the `&Workspace` the
+handler holds, matched by `cx.entity_id()`.
+
+## F-claude-735-browse-opened-a-modal-from-inside-the-picker-001
+*severity: high · found in: pipeline 735's Code phase (its second visual run) · class: a modal swapped from inside the modal's own update*
+
+Browse… called `Workspace::prompt_for_open_path` from the picker's `confirm`. Zed's path prompt is
+a modal; showing it hides the current one, and `ModalLayer::hide_modal` reads the picker's focus
+handle while the picker is being updated. gpui panicked and Marley quit. Fixed in #735: Browse… runs
+from `window.defer`, after the confirm's update.

@@ -131,6 +131,7 @@ use workspace::dock::{Dock, Panel as _};
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, ProjectGroup, Sidebar as _, Toast, Workspace};
 
+pub use agents::NewAgent;
 pub use rail::{KeptSidebar, Rail};
 
 actions!(
@@ -145,10 +146,6 @@ actions!(
         /// Opens the Settings window on Marley's page.
         #[derive(Eq)]
         OpenSettings,
-        /// Opens the New Agent picker: Zed's agents and the installed agent CLIs, started in
-        /// this project.
-        #[derive(Eq)]
-        NewAgent,
         /// Selects the block before the focused terminal's selected one, or its newest block,
         /// and scrolls it into view.
         #[derive(Eq)]

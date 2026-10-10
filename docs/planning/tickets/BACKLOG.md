@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-735](open/TICKET-735-the-new-agent-picker.md) | feature | agents anywhere: `marley: new agent` — agent, thread or CLI, and where (a guess, recent, Browse…); Open Agent Here |
 | [TICKET-736](open/TICKET-736-thread-tabs-after-a-restart.md) | feature | agents anywhere: a thread tab comes back after a restart in its group |
 | [TICKET-737](open/TICKET-737-the-threads-page.md) | feature | agents anywhere: the Threads page, every conversation, searchable, Marley and Rusty first |
 | [TICKET-738](open/TICKET-738-marley-and-rusty-in-tabs.md) | feature | agents anywhere: Marley and Rusty open in a tab where you are, on a private folder |

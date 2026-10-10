@@ -391,6 +391,9 @@ actions!(
         Duplicate,
         /// Reveals the selected item in the system file manager.
         RevealInFileManager,
+        // Marley: Open Agent Here opens Marley's New Agent picker on the entry's folder (#735).
+        /// Starts an agent in the selected folder, or the selected file's folder.
+        OpenAgentHere,
         /// Removes the selected folder from the project.
         RemoveFromProject,
         /// Cuts the selected file or directory.
@@ -1200,6 +1203,8 @@ impl ProjectPanel {
                                 menu.action("Open in Default App", Box::new(OpenWithSystem))
                             })
                             .action("Open in Terminal", Box::new(OpenInTerminal))
+                            // Marley: starts an agent in this folder (#735).
+                            .action("Open Agent Here", Box::new(OpenAgentHere))
                             .when(is_markdown, |menu| {
                                 menu.action("Open Markdown Preview", Box::new(OpenMarkdownPreview))
                             })
@@ -4167,6 +4172,33 @@ impl ProjectPanel {
                     cx,
                 )
             }
+        }
+    }
+
+    // Marley: Marley's New Agent picker on the entry's folder, as `open_in_terminal` takes it
+    // (#735). The action is built by name so this crate needs no Marley dependency.
+    fn open_agent_here(&mut self, _: &OpenAgentHere, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((worktree, entry)) = self.selected_sub_entry(cx) else {
+            return;
+        };
+        let abs_path = match &entry.canonical_path {
+            Some(canonical_path) => canonical_path.to_path_buf(),
+            None => worktree.read(cx).absolutize(&entry.path),
+        };
+        let folder = if entry.is_dir() {
+            Some(abs_path)
+        } else {
+            abs_path.parent().map(|path| path.to_path_buf())
+        };
+        let Some(folder) = folder else {
+            return;
+        };
+        match cx.build_action(
+            "marley::NewAgent",
+            Some(serde_json::json!({ "folder": folder })),
+        ) {
+            Ok(action) => window.dispatch_action(action, cx),
+            Err(error) => log::error!("Open Agent Here: {error}"),
         }
     }
 
@@ -7642,6 +7674,8 @@ impl Render for ProjectPanel {
                         el.on_action(cx.listener(Self::reveal_in_finder))
                             .on_action(cx.listener(Self::open_system))
                             .on_action(cx.listener(Self::open_in_terminal))
+                            // Marley: Open Agent Here (#735).
+                            .on_action(cx.listener(Self::open_agent_here))
                     },
                 )
                 .when(project.is_via_remote_server(), |el| {

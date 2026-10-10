@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **New Agent asks where** (#735, 2026-10-10). After the agent, Ctrl+Alt+N's picker asks where it
+  starts. Its first guess is where you are: the active terminal's folder, else the active file's
+  project, else the project's root, else your home folder. Below the guess come the window's open
+  projects, your recent projects and Browse…, Zed's own folder prompt. A thread opens in a tab and
+  a CLI in a terminal, each in that folder. **Open Agent Here…** on a terminal's rail row and in the
+  project panel's right-click menu skips the question. Every `+` menu and Home's New Agent card
+  offer New Agent…, and `marley::NewAgent` takes a folder for a key of your own.
+
 - **An agent thread starts in a tab, anywhere** (#734, 2026-10-10). A project's or a group's `+` →
   New Agent Thread now starts the thread in a tab of that project or group, groups with no folder
   included (Home, Rusty and named groups), working in the project's root or your home folder.

@@ -2914,3 +2914,12 @@ Code that adds a folder to a project as a hidden worktree (`find_or_create_workt
 `create_worktree(path, false)`) keeps the `Entity<Worktree>` it gets back for as long as the folder
 must resolve, in the item or task that needs it. The project keeps a hidden worktree only weakly,
 so a dropped handle drops the worktree, and every later path lookup under it fails.
+
+## PR-claude-735-code-in-a-workspaces-update-reads-it-by-reference-001
+*severity: high · prevents: F-claude-735-the-picker-read-the-workspace-it-was-opened-in-001, F-claude-735-browse-opened-a-modal-from-inside-the-picker-001*
+
+Code that runs inside an entity's update (an action handler on a workspace, a picker's `confirm`)
+never reaches that entity through a handle: when it walks a collection that holds it (the window's
+workspaces), it uses the reference it was given for the matching id; and when it would show a
+modal or close one from a picker's own callback, it defers the call (`window.defer`), since the
+modal layer reads the current modal while it swaps it.

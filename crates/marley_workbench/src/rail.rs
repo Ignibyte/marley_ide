@@ -3003,6 +3003,22 @@ impl Rail {
         .detach_and_log_err(cx);
     }
 
+    /// Shows `workspace` and opens the New Agent picker there, asking where unless `folder` says
+    /// (#735).
+    fn new_agent_picker(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        folder: Option<PathBuf>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            agents::show_picker(workspace, folder, window, cx);
+        });
+        Ok(())
+    }
+
     /// Shows `workspace` and starts a thread of `agent` in a center tab of it, working in its
     /// root, or the home folder for a group with no folder (#734).
     fn new_agent_thread(
@@ -5095,6 +5111,8 @@ impl Rail {
                             let browser_workspace = workspace.clone();
                             let cli_rail = rail.clone();
                             let cli_workspace = workspace.clone();
+                            let picker_rail = rail.clone();
+                            let picker_workspace = workspace.clone();
                             let menu = menu
                                 .entry("New Terminal", None, move |window, cx| {
                                     terminal_rail
@@ -5112,6 +5130,14 @@ impl Rail {
                                         .flatten()
                                         .log_err();
                                 });
+                            let menu = menu.entry("New Agent…", None, move |window, cx| {
+                                picker_rail
+                                    .update(cx, |rail, cx| {
+                                        rail.new_agent_picker(&picker_workspace, None, window, cx)
+                                    })
+                                    .flatten()
+                                    .log_err();
+                            });
                             // A thread starts in a tab, so a group with no folder has one too (#734).
                             let menu = menu.submenu("New Agent Thread", move |menu, _, cx| {
                                 Self::agent_menu(menu, &rail, &workspace, cx)
@@ -5538,9 +5564,9 @@ impl Rail {
         v_flex().child(menu).children(turns)
     }
 
-    /// A terminal row's right-click menu: Rename, Move to Project (#613) when the window has
-    /// another open project, and Close. `moves` is the terminal's id and the projects it may move
-    /// to, by their place in the rail and their names.
+    /// A terminal row's right-click menu: Rename, Open Agent Here… (#735), Move to Project (#613)
+    /// when the window has another open project, and Close. `moves` is the terminal's id and the
+    /// projects it may move to, by their place in the rail and their names.
     fn terminal_context_menu(
         rail: &WeakEntity<Self>,
         workspace: &WeakEntity<Workspace>,
@@ -5552,17 +5578,32 @@ impl Rail {
         let (rename_rail, rename_workspace, rename_view) =
             (rail.clone(), workspace.clone(), view.clone());
         let (close_workspace, close_view) = (workspace.clone(), view.clone());
+        let (here_rail, here_workspace, here_view) =
+            (rail.clone(), workspace.clone(), view.clone());
         let (terminal, targets) = (moves.0, moves.1.to_vec());
         let move_rail = rail.clone();
         ContextMenu::build(window, cx, move |menu, _, _| {
-            let menu = menu.entry("Rename", None, move |window, cx| {
-                rename_rail
-                    .update(cx, |rail, cx| {
-                        rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
-                    })
-                    .flatten()
-                    .log_err();
-            });
+            let menu = menu
+                .entry("Rename", None, move |window, cx| {
+                    rename_rail
+                        .update(cx, |rail, cx| {
+                            rail.rename_terminal(&rename_workspace, &rename_view, window, cx)
+                        })
+                        .flatten()
+                        .log_err();
+                })
+                // The terminal's folder; a remote terminal has none, and the picker asks (#735).
+                .entry("Open Agent Here…", None, move |window, cx| {
+                    let folder = here_view
+                        .upgrade()
+                        .and_then(|view| view.read(cx).terminal().read(cx).working_directory());
+                    here_rail
+                        .update(cx, |rail, cx| {
+                            rail.new_agent_picker(&here_workspace, folder, window, cx)
+                        })
+                        .flatten()
+                        .log_err();
+                });
             let targets = targets.clone();
             let move_rail = move_rail.clone();
             menu.when(!targets.is_empty(), move |menu| {

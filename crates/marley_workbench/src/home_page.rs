@@ -235,16 +235,25 @@ impl MarleyHome {
             }))
     }
 
-    /// A button per agent CLI on the search path, each started in a terminal in Home's home folder.
-    /// Zed's Agent Panel runs no thread in a folderless workspace, so Home starts agents this way.
+    /// New Agent…, the picker that asks which agent and where (#735), then a button per agent CLI
+    /// on the search path, each started in a terminal in Home's home folder.
     fn render_agents(&self, cx: &App) -> AnyElement {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
-        if kinds.is_empty() {
-            return muted("No agent CLI is on your PATH.");
-        }
+        let picker_workspace = self.workspace.clone();
+        let picker = Button::new("marley-home-new-agent", "New Agent…")
+            .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
+            .style(ButtonStyle::Filled)
+            .on_click(move |_, window, cx| {
+                picker_workspace
+                    .update(cx, |workspace, cx| {
+                        agents::show_picker(workspace, None, window, cx);
+                    })
+                    .log_err();
+            });
         h_flex()
             .flex_wrap()
             .gap_2()
+            .child(picker)
             .children(kinds.into_iter().enumerate().map(|(index, kind)| {
                 let workspace = self.workspace.clone();
                 Button::new(("marley-home-agent", index), kind.display_name())

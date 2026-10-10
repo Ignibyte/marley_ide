@@ -595,6 +595,27 @@ alike.
   wins over it. A keymap that fails to load binds nothing and is logged. No Zed default uses
   the chord in any context; JetBrains's base keymap does, and wins inside its editors.
 
+### Where the agent starts (#735)
+
+- **`NewAgent { folder }`** is a data action now (read through `NewAgentFields`), re-exported as
+  `crate::NewAgent`; a bare binding builds from `{}`, so `ctrl-alt-n` is unchanged. With a folder
+  the picker asks only which agent.
+- **Two steps in one picker.** The delegate keeps `chosen: Option<(Start, name)>`; confirming an
+  agent with no `fixed` folder sets it, then a deferred `set_query("")`, `refresh_placeholder` and
+  `refresh` list the `places` instead of the choices. `places_for` builds them while the workspace
+  is being updated, so it reads that workspace through its reference and only the others through
+  their entities: the guess (`guess`: the active terminal's `working_directory()`, else the active
+  item's worktree root, else `thread_tab::default_folder`), the window's open projects, Browse….
+  `load_recent` adds up to eight local recent projects from `WorkspaceDb` before Browse….
+- **Starting.** `Start::run_in(folder)`: a thread through `thread_tab::start` (#734), a CLI
+  through `launch_input` and `start_in_terminal` with the folder, as a launch config starts one.
+  Browse… runs from `window.defer`: Zed's path prompt is a modal that replaces the picker, and the
+  modal layer reads the picker, which the confirm is updating.
+- **Open Agent Here.** The rail's terminal row passes the terminal's `working_directory()`; the
+  project panel's entry (a Zed touch, `zed-touchpoints.md`) builds `marley::NewAgent` by name with
+  the entry's folder. `Rail::new_agent_picker` shows the row's workspace first; Home's NEW AGENT
+  card opens the picker on Home.
+
 ## Worktree agents (`src/worktree_agents.rs`, #510)
 
 - The rail's `+` has New Agent in Worktree (`worktree_agent_entries`), a submenu of the installed

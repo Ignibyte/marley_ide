@@ -61,7 +61,7 @@ async fn open_project(
 /// Dispatches `action` from the workspace's center pane, as a key press there would.
 fn dispatch_from_center(
     workspace: &Entity<Workspace>,
-    action: impl gpui::Action,
+    action: impl Action,
     cx: &mut VisualTestContext,
 ) {
     workspace.update_in(cx, |workspace, window, cx| {
@@ -71,7 +71,7 @@ fn dispatch_from_center(
 }
 
 /// Dispatches `action` from whatever has focus.
-fn dispatch(action: impl gpui::Action, cx: &mut VisualTestContext) {
+fn dispatch(action: impl Action, cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
     cx.dispatch_action(action);
     cx.run_until_parked();
@@ -90,7 +90,7 @@ fn open_picker(
     workspace: &Entity<Workspace>,
     cx: &mut VisualTestContext,
 ) -> Entity<NewAgentPicker> {
-    dispatch_from_center(workspace, NewAgent, cx);
+    dispatch_from_center(workspace, NewAgent::default(), cx);
     picker_of(workspace, cx).expect("the picker opens")
 }
 
@@ -229,7 +229,7 @@ async fn with_ai_disabled_new_agent_opens_nothing(cx: &mut TestAppContext) {
         });
     });
     cx.run_until_parked();
-    dispatch_from_center(&workspace, NewAgent, cx);
+    dispatch_from_center(&workspace, NewAgent::default(), cx);
     assert!(picker_of(&workspace, cx).is_none());
 }
 

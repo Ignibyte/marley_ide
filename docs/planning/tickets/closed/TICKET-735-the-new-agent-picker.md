@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #735 (feature, the Marley layout: agents anywhere)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [735-the-new-agent-picker.spec.md](../../pipeline/completed/735-the-new-agent-picker.spec.md)
 - **Source ticket:** Chad, 2026-10-10: "it should auto detect what project you are in or you need
   to Open Agent In Path or something like that. Or open agent in a path finder." Plan:
   [agents-anywhere shelf](../../design-notes/agents-anywhere-2026-10-10.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `marley: new agent` asks three things: the agent, how (a thread in a tab, or the CLI in a terminal)

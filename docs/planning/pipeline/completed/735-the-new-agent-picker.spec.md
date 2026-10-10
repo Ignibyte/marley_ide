@@ -1,7 +1,7 @@
 ---
 pipeline_id: 124e0ebc-5072-4db8-960e-b73f5aea9062
-ticket: docs/planning/tickets/open/TICKET-735-the-new-agent-picker.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-735-the-new-agent-picker.md
+status: Phase 4 — Complete PASS
 title: The New Agent picker
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -27,11 +27,14 @@ agent in a path finder."
 - A thread choice opens #734's tab in the shown group on that folder; a CLI choice opens a new
   terminal of the shown group in that folder (`agents::start_in_terminal` with the directory, as
   `launch.rs` does).
-- **Open Agent Here…**: on a terminal's rail row (its folder), and on a folder in the project panel
-  (a Zed touch: one menu entry and a workspace action). Both open the picker with Where already
-  answered.
+- `marley::NewAgent` gains an optional `folder`: with one, the picker skips Where. A bare binding
+  (`ctrl-alt-n`) still opens the whole picker.
+- **Open Agent Here…**: on a terminal's rail row (its folder), and on an entry of the project panel
+  (a folder, or a file's folder). The project panel's is a Zed touch: an `OpenAgentHere` action, its
+  menu entry beside Open in Terminal, and a handler that dispatches `marley::NewAgent` with the
+  folder by name, so `project_panel` takes no dependency on Marley.
 - **New Agent…** heads the agent part of every `+` menu in the rail, and Home's New Agent card gets
-  it too; Home's line "Agent Panel threads need a project folder" goes.
+  it first; the guide's line "Agent Panel threads need a project folder" goes.
 - `docs/marley/guide.md`: the picker, Open Agent Here.
 
 ### Out (explicitly deferred)
@@ -65,8 +68,8 @@ workspace action) for Open Agent Here. Behavior kept: Zed's own prompt and its o
 
 ## UI proof
 `script/e2e/735-the-new-agent-picker.sh`, under `compositor sway` (the rail's rows and the project
-panel take clicks). A fake `claude` on the PATH logs its working folder; the Marley entry runs the
-scripted agent, which logs `session/new`'s `cwd`.
+panel take clicks), with Zed's system path prompts off (D5). A fake `claude` first on the PATH logs
+its working folder; the Marley entry runs #734's scripted agent, which logs `session/new`'s `cwd`.
 
 Shots:
 - `735-01-where`: after choosing Claude Code (CLI) with a terminal active in `repo/sub`, the Where
@@ -85,8 +88,11 @@ Shots:
 - **D2:** the guess is the first row, so Enter twice starts the agent where you are.
 - **D3:** Browse… uses Zed's own prompt (native or Zed's picker, as Zed's setting says); a file
   picked means its folder.
-- **D4:** Open Agent Here in the project panel is a Zed touch of three hunks (an action carrying
-  the folder, a menu entry for folders, its handler), each with a ledger row.
+- **D4:** Open Agent Here in the project panel is a Zed touch in one file: an action, a menu
+  entry, its handler and its registration, with a ledger row. The handler builds
+  `marley::NewAgent` by name (`cx.build_action`), as a keymap does.
+- **D5:** a run turns Zed's system path prompts off (`use_system_path_prompts: false`): the desktop
+  portal's chooser would open on the user's own session, not in the run's sway.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
@@ -96,7 +102,7 @@ Shots:
 | REQ-003 | WHEN Browse… confirms a folder for an agent CLI, the system shall start the CLI in a new terminal of the shown group, in that folder. | Shot 735-02 and the fake CLI's log |
 | REQ-004 | WHEN a thread agent is chosen with a folder, the system shall open its thread in a tab of the shown group, with its session in that folder. | Shot 735-03 and the agent log |
 | REQ-005 | WHEN Open Agent Here… is chosen on a terminal's rail row, the picker shall skip Where and start the agent in that terminal's folder. | Shot 735-04 |
-| REQ-006 | WHEN Open Agent Here is chosen on a folder in the project panel, the picker shall skip Where and start the agent in that folder. | Shot 735-05 |
+| REQ-006 | WHEN Open Agent Here is chosen on a folder in the project panel, the picker shall skip Where and start the agent in that folder. | Shot 735-05 and the fake CLI's log |
 | REQ-007 | The `+` menus and Home shall offer New Agent…, and Home shall no longer say threads need a project folder. | Shot 735-01's rail and the review |
 
 ## Phase Plan
