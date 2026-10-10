@@ -694,11 +694,46 @@ pub fn read_skill_body_from_content(
 /// Content of the built-in `create-skill` SKILL.md, embedded at compile time.
 const CREATE_SKILL_CONTENT: &str = include_str!("builtin/create-skill/SKILL.md");
 
+// Marley: built-in skills a caller registers at run time (#725), so Marley gives Zed's agent its
+// `rustal-ste` skill without a permission prompt while the skill's text stays in a Marley crate.
+static REGISTERED_BUILTINS: std::sync::RwLock<Vec<(&'static str, &'static str)>> =
+    std::sync::RwLock::new(Vec::new());
+
+/// Adds `content`, a SKILL.md, as the built-in skill `name`, replacing one registered under it.
+pub fn register_builtin_skill(name: &'static str, content: &'static str) {
+    let mut registered = REGISTERED_BUILTINS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    registered.retain(|(existing, _)| *existing != name);
+    registered.push((name, content));
+}
+
+/// Removes the built-in skill `register_builtin_skill` added as `name`.
+pub fn unregister_builtin_skill(name: &str) {
+    REGISTERED_BUILTINS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .retain(|(existing, _)| *existing != name);
+}
+
+fn registered_builtins() -> Vec<(&'static str, &'static str)> {
+    REGISTERED_BUILTINS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
 /// Returns the set of skills that are compiled into the Zed binary.
 pub fn builtin_skills() -> Vec<Skill> {
     let mut skills = Vec::new();
     if let Ok(skill) = parse_builtin_skill("create-skill", CREATE_SKILL_CONTENT) {
         skills.push(skill);
+    }
+    // Marley: then the registered ones (#725).
+    for (name, content) in registered_builtins() {
+        if let Ok(skill) = parse_builtin_skill(name, content) {
+            skills.push(skill);
+        }
     }
     skills
 }
@@ -733,10 +768,15 @@ const BUILTIN_SKILL_ENTRIES: &[(&str, &str)] = &[("create-skill", CREATE_SKILL_C
 /// synthetic file path. Returns `None` if the path doesn't match any
 /// built-in skill.
 pub fn builtin_skill_content(skill_file_path: &Path) -> Option<&'static str> {
-    BUILTIN_SKILL_ENTRIES.iter().find_map(|(name, content)| {
-        let expected = PathBuf::from(format!("<built-in>/{}", name)).join(SKILL_FILE_NAME);
-        (expected == skill_file_path).then_some(*content)
-    })
+    BUILTIN_SKILL_ENTRIES
+        .iter()
+        .copied()
+        // Marley: the registered ones too (#725).
+        .chain(registered_builtins())
+        .find_map(|(name, content)| {
+            let expected = PathBuf::from(format!("<built-in>/{}", name)).join(SKILL_FILE_NAME);
+            (expected == skill_file_path).then_some(content)
+        })
 }
 
 /// Returns the global skills directory: `~/.agents/skills`.

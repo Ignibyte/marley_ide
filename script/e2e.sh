@@ -672,6 +672,9 @@ marley["rail_containers"] = False
 # The Marley agent is on by default and looks for the user's signed-in agent at start (#696);
 # the copy turns it off. #696's own scenario takes the key out again.
 marley["assistant"] = {"enabled": False}
+# The rustal-ste skill is on by default and writes a copy into Codex's skills folder (#725); the
+# copy turns it off. #725's own scenario turns it on, with CODEX_HOME in the run's folder.
+marley["rustal_ste_skill"] = False
 for font in ("ui_font_size", "ui_font_family", "buffer_font_size", "buffer_font_family",
              "agent_ui_font_size", "agent_buffer_font_size"):
     settings.pop(font, None)
@@ -688,6 +691,8 @@ export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 # Marley reads the version of the codex it would run (#648); a run reads no codex of the user's
 # unless its scenario names a stand-in.
 export MARLEY_CODEX=$E2E_WORK/no-codex
+# Nor does it write into the user's Codex home (#725): a run's Codex home is its own.
+export CODEX_HOME=$E2E_WORK/codex-home
 cp -r "$data/db" "$E2E_PROFILE/db"
 # The user's graph settings stay out of every run: their groups name the user's tags and folders
 # (R-D8), and their sliders would change what a scenario sees (#657).

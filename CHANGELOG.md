@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's agents get the rustal-ste skill** (#725, 2026-10-09). Simplified Technical English with
+  Rustal's glossary, verbs and message shapes, for what one agent writes to another, now reaches
+  every agent Marley runs:
+  - **Zed's agent:** as a built-in skill, with no permission prompt;
+  - **Claude Code:** in Marley's terminals and the Marley entry, through a read-only plugin folder;
+  - **Codex:** as a copy in its skills folder, which Marley marks as its own.
+
+  Settings → Marley → Agents → Rustal STE Skill (on by default) turns it all off, and Marley never
+  touches a skill folder it didn't write. The e2e runner keeps runs out of the user's Codex home.
+
 - **Agents stop and remove harness seats** (#710, 2026-10-09). `seat_stop` and `seat_remove` on
   Marley's MCP server propose to stop a seat (its profile stays) or remove it (its profile is
   deleted, so the name is free). Marley asks you, and runs harness TICKET-114's `seat stop` or

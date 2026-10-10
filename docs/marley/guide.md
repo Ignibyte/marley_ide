@@ -1510,6 +1510,23 @@ one Decisions tab per window. System One's log is another tab, System One calls.
     date for one, its words show in the form and nothing is written. Escape, or a click outside,
     closes the form without recording.
 
+## The rustal-ste skill for Marley's agents
+
+Marley gives its agents the `rustal-ste` skill out of the box (#725): Simplified Technical English
+(ASD-STE100) with Rustal's glossary, verbs, identifiers and message shapes, for what one agent
+writes to another (a message, a report, a handoff, a tool description).
+- **Zed's agent** has it as a built-in skill, which asks no permission.
+- **Claude Code** in Marley's local terminals, and the Marley entry on Claude Code, load it from a
+  plugin folder under Marley's data directory, named by its files' digest and written read-only,
+  through `CLAUDE_CODE_PLUGIN_DIRS` beside the shared plugin (#709). New terminals load it.
+- **Codex** finds a copy in `$CODEX_HOME/skills/rustal-ste` (`~/.codex/skills` by default), which
+  Marley marks as its own with a `.marley-owned` file. A `rustal-ste` folder Marley didn't write is
+  left alone.
+
+**Rustal STE Skill** in the Agents section (`marley.rustal_ste_skill`, on by default) turns it all
+off: no built-in, no plugin folder in new terminals, and Marley removes its own Codex copy. The
+skill's files are a copy of Rusty's skill store; its `SOURCE.md` says where it came from.
+
 ## The Marley agent
 
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and

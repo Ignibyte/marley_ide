@@ -1881,6 +1881,12 @@
     // state (working, waiting on you and for what, idle) to the rail. Applies to terminals opened
     // after the change. A Claude Code under a managed disableSideloadFlags refuses to start with it.
     "claude_code_shared_plugin": false,
+    // The rustal-ste skill for Marley's agents (#725): Simplified Technical English with Rustal's
+    // glossary, verbs and message shapes, for what one agent writes to another. Zed's agent gets it
+    // built in, Claude Code in Marley's terminals and the Marley entry through a plugin folder, and
+    // Codex as a copy in $CODEX_HOME/skills that Marley marks as its own. Off, no agent gets it from
+    // Marley, and Marley removes only its own Codex copy.
+    "rustal_ste_skill": true,
     // Voice in Marley (#642), off until you turn it on. On, the agent bar shows a microphone where
     // Voxtype is on your PATH, and `marley: toggle dictation` dictates through it; off, Marley
     // shows no microphone and starts no voxtype. Marley never touches the audio.

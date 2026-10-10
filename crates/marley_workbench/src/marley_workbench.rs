@@ -81,6 +81,7 @@ pub mod review_notes;
 pub mod rich_input;
 pub mod routing;
 pub mod running_errors;
+pub mod rustal_skill;
 pub mod rusty;
 pub mod send_block;
 pub mod send_selection;
@@ -882,6 +883,7 @@ pub fn init(cx: &mut App) {
     claude_plugin::init(cx);
     claude_ide::init(cx);
     shared_plugin::init(cx);
+    rustal_skill::init(cx);
     notifications::init(cx);
     close_guard::init(cx);
     terminal_ids::init(cx);

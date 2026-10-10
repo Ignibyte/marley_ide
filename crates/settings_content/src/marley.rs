@@ -207,6 +207,14 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub claude_code_shared_plugin: Option<bool>,
+    /// Whether Marley's agents get the `rustal-ste` skill (#725): Simplified Technical English with
+    /// Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent
+    /// gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin
+    /// folder, and Codex as a copy in its skills folder. Off, Marley gives no agent the skill and
+    /// removes its own Codex copy.
+    ///
+    /// Default: true
+    pub rustal_ste_skill: Option<bool>,
     /// Voice in Marley (#480, #642): dictation through Voxtype. Off until it is turned on.
     pub voice: Option<MarleyVoiceSettingsContent>,
     /// Agents' use of Marley's write tools (#703): the kill switch, with every call listed in the

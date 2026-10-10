@@ -8,7 +8,8 @@
 //! hands the saved id to the builder under [`RESTORED_ID_VARIABLE`]. Beside the id, a local
 //! interactive terminal names Marley's `marley-agent` program as [`BIN_VARIABLE`], through which
 //! an agent reports its state to Marley (#652), and, while it is wanted, the Claude Code plugin
-//! Marley shares with rustal-harness first in [`PLUGIN_DIRS_VARIABLE`] (#709).
+//! Marley shares with rustal-harness first in [`PLUGIN_DIRS_VARIABLE`] (#709), then the `rustal-ste`
+//! skill's plugin folder (#725).
 
 /// The variable holding a terminal's id.
 pub const TERMINAL_ID_VARIABLE: &str = "MARLEY_TERMINAL_ID";
@@ -75,7 +76,7 @@ pub fn agent_environment(
     env.extend([(BIN_VARIABLE.to_string(), value)]);
     if named {
         let inherited = std::env::var(PLUGIN_DIRS_VARIABLE).unwrap_or_default();
-        let plugin_dirs = plugin_dirs(&inherited, shared_plugin().as_deref());
+        let plugin_dirs = plugin_dirs(&inherited, &marley_plugins());
         if plugin_dirs != inherited {
             env.extend([(PLUGIN_DIRS_VARIABLE.to_string(), plugin_dirs)]);
         }
@@ -105,18 +106,56 @@ pub fn shared_plugin() -> Option<std::path::PathBuf> {
         .clone()
 }
 
-/// `inherited`'s folders with `plugin` first and any other copy of it (a folder beside it, under
+/// The `rustal-ste` skill's plugin folder that terminals started from now on load (#725).
+static SKILL_PLUGIN: std::sync::RwLock<Option<std::path::PathBuf>> = std::sync::RwLock::new(None);
+
+/// Sets the `rustal-ste` skill's plugin folder that local interactive terminals started from now on
+/// load, after the shared plugin, or `None` for none (#725).
+pub fn set_skill_plugin(folder: Option<std::path::PathBuf>) {
+    *SKILL_PLUGIN
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = folder;
+}
+
+/// The `rustal-ste` skill's plugin folder new local interactive terminals load, if Marley wants one.
+#[must_use]
+pub fn skill_plugin() -> Option<std::path::PathBuf> {
+    SKILL_PLUGIN
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+/// The plugin folders Marley wants its terminals to load, in order: the shared plugin, then the
+/// skill's.
+fn marley_plugins() -> Vec<std::path::PathBuf> {
+    shared_plugin().into_iter().chain(skill_plugin()).collect()
+}
+
+/// `inherited`'s folders with `plugins` first and any other copy of one (a folder beside it, under
 /// the same parent) left out, so a Marley started from a Marley terminal doesn't load two.
-fn plugin_dirs(inherited: &str, plugin: Option<&std::path::Path>) -> String {
-    let parent = plugin.and_then(std::path::Path::parent);
+fn plugin_dirs(inherited: &str, plugins: &[std::path::PathBuf]) -> String {
+    let parents: Vec<&std::path::Path> = plugins
+        .iter()
+        .filter_map(|plugin| plugin.parent())
+        .collect();
     let kept = inherited.split(':').filter(|folder| {
         !folder.is_empty()
-            && parent.is_none_or(|parent| !std::path::Path::new(folder).starts_with(parent))
+            && !parents
+                .iter()
+                .any(|parent| std::path::Path::new(folder).starts_with(parent))
     });
-    plugin
+    plugins
+        .iter()
         .map(|plugin| plugin.to_string_lossy().into_owned())
-        .into_iter()
         .chain(kept.map(str::to_string))
         .collect::<Vec<_>>()
         .join(":")
+}
+
+/// `inherited`'s folders with Marley's plugin folders first, for a process Marley starts outside a
+/// terminal, such as the Agent Panel's Marley entry on Claude Code (#725).
+#[must_use]
+pub fn plugin_dirs_for(inherited: &str) -> String {
+    plugin_dirs(inherited, &marley_plugins())
 }

@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #725 (feature; agents in Marley)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [725-marleys-agents-get-rustal-ste.spec.md](../../pipeline/completed/725-marleys-agents-get-rustal-ste.spec.md)
 - **Source ticket:** Chad, 2026-10-09: "for the skill lets adapt it and take it and use it for rustal
   specific instructions across agents", then "have the agents in zed install it by default as well".
-- **Status:** open (waits on the skill: `rustal-ste`, adapted from ASD-STE100 with Rustal's glossary)
+- **Status:** closed
 
 ## Summary
 Every agent Marley runs gets `rustal-ste` with no setup, behind a setting that is on by default

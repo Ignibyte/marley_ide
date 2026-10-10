@@ -12,6 +12,9 @@ extend-exclude = [
     "docs/warp_architecture/",
     "docs/zed_architecture/",
     "docs/marley/history/",
+    # Marley: the rustal-ste skill, copied from Rusty's store (#725). Its linter's regexes hold
+    # word endings ("ment") and its glossary names Rustal's "workd".
+    "crates/marley_workbench/agent_skills/",
 
     # Typewriter model names used for agent branch names aren't typos.
     "crates/agent_ui/src/branch_names.rs",

@@ -5259,3 +5259,16 @@ between areas (the nav, the Reference tables), so those are the merger's to do.
 **Filter scenarios.** The guide's contents filter matches every word anywhere in an article. A
 scenario's query should be checked against the page's matching, by a script that emulates it,
 before the run, so its first match is the article meant.
+
+## L-claude-725-a-default-on-feature-that-writes-outside-marley-must-be-off-in-e2e-001
+*category: testing · topic: the e2e runner and the user's files · from: pipeline 725*
+
+Scenarios start a real Marley with the user's own `HOME`; only Marley's data and config move to the
+run's profile. So a feature that is on by default and writes outside Marley's data directory
+writes into the user's real files from every scenario. Here that was `rustal_ste_skill`'s Codex copy
+in `~/.codex/skills`.
+
+**Before such a feature runs anywhere:**
+- the runner's settings copy turns it off (`script/e2e.sh`, as for the assistant);
+- the runner points the outside location at the run's folder, here `CODEX_HOME`;
+- only the feature's own scenario turns it on.

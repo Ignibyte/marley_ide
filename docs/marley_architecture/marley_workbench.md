@@ -1846,6 +1846,21 @@ alike.
 - **The area.** All four pass `agent_control::Area::Threads` (`marley.agent_control.threads`).
   List and read are Read, post is Act, and answer is Sensitive.
 
+## The rustal-ste skill for agents (`src/rustal_skill.rs`, #725)
+
+- **The files.** `FILES` embeds `agent_skills/rustal-ste/` (a copy of Rusty's store). `digest`
+  names the plugin folder, and the Codex copy's `.marley-owned` mark holds the same digest.
+- **`reconcile`** runs on start and on every settings change, as `marley.rustal_ste_skill` says.
+  - On:
+    - `agent_skills::register_builtin_skill` (Zed's hook, #725);
+    - `install_plugin_in` (`<data>/claude-code/rustal-ste/<digest>/`, read-only, staged and
+      renamed), then `identity::set_skill_plugin`;
+    - `write_codex_copy_in` (`$CODEX_HOME/skills`).
+  - Off: unregister, clear the plugin folder, and `remove_codex_copy_in`, only when the mark is
+    there.
+- **`plugin_folder`** gives the digest path for the Marley entry's `CLAUDE_CODE_PLUGIN_DIRS`
+  (`assistant.rs`). Terminals take it through `identity::plugin_dirs`, after the shared plugin.
+
 ## Palette actions for agents (`src/action_tools.rs`, #707)
 
 - **Who may run what:** `ALLOWED` (37 names) and the user's

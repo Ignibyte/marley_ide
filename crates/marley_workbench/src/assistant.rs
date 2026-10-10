@@ -751,6 +751,26 @@ fn set_entry(
                 program(AgentKind::Claude, cx).display().to_string(),
             );
             env.insert("ANTHROPIC_API_KEY".to_string(), String::new());
+            // The rustal-ste skill's plugin folder, as Marley's terminals load it (#725).
+            if let Some(folder) = crate::rustal_skill::plugin_folder(cx) {
+                let inherited = env
+                    .get(marley_terminal::identity::PLUGIN_DIRS_VARIABLE)
+                    .cloned()
+                    .unwrap_or_default();
+                let dirs = std::iter::once(folder.to_string_lossy().into_owned())
+                    .chain(
+                        inherited
+                            .split(':')
+                            .filter(|dir| !dir.is_empty())
+                            .map(str::to_string),
+                    )
+                    .collect::<Vec<_>>()
+                    .join(":");
+                env.insert(
+                    marley_terminal::identity::PLUGIN_DIRS_VARIABLE.to_string(),
+                    dirs,
+                );
+            }
         }
         MarleyAssistantAgent::Codex => {
             env.insert("INITIAL_AGENT_MODE".to_string(), "read-only".to_string());

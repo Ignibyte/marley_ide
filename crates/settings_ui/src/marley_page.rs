@@ -167,7 +167,7 @@ fn layout_section() -> [SettingsPageItem; 6] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 18] {
+fn agents_section() -> [SettingsPageItem; 19] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -509,6 +509,29 @@ fn agents_section() -> [SettingsPageItem; 18] {
                         .marley
                         .get_or_insert_default()
                         .claude_code_shared_plugin = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the rustal-ste skill for Marley's agents, on by default (#725).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rustal STE Skill",
+            description: "Give Marley's agents the rustal-ste skill: Simplified Technical English with Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin folder, and Codex as a copy in its skills folder. Off, no agent gets it from Marley, and Marley removes only its own Codex copy.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rustal_ste_skill"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rustal_ste_skill.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rustal_ste_skill = value;
                 },
             }),
             metadata: None,
