@@ -1543,18 +1543,18 @@ th { background: var(--panel); font-weight: 650; }
 
 <article id="marley-agent-limits">
 <h3>What the Marley agent may do <span class="ticket">#683 · #692 · #698</span></h3>
-<p class="what"><strong>What it is.</strong> The Marley agent works through eight of Marley's tools and is kept from file edits, commands and Marley's other tools. How firmly depends on what it runs on.</p>
+<p class="what"><strong>What it is.</strong> The Marley agent works through ten of Marley's tools and is kept from file edits, commands and Marley's other tools. How firmly depends on what it runs on.</p>
 <h4>Its tools</h4>
 <ul class="points">
 <li><code>docs_search</code> and <code>docs_read</code>: this guide and Zed's docs, as this Marley ships them.</li>
 <li><code>settings_schema</code>, <code>settings_read</code> and <code>actions_list</code>: what a setting is and is set to, and which key runs a command.</li>
-<li><code>settings_change</code>, <code>keymap_change</code> and <code>seat_add</code>: a setting, a key binding or a <a href="#harness-seat">harness seat</a>, each waiting for your Apply.</li>
+<li><code>settings_change</code>, <code>keymap_change</code>, <code>seat_add</code>, <code>seat_stop</code> and <code>seat_remove</code>: a setting, a key binding or a <a href="#harness-seat">harness seat</a>, each waiting for your Apply.</li>
 </ul>
 <h4>Its limits</h4>
 <ul class="points">
 <li><strong>Claude Code:</strong> Bash, Edit, Write, NotebookEdit and MultiEdit are off, and so is bypass mode. Every other Marley tool is off too, <code>terminal_run</code>, <code>terminal_type</code> and the browser's tools among them, and a tool Marley adds later stays off until the agent's list names it.</li>
 <li><strong>Codex:</strong> it starts in Codex's read-only mode, which asks before any edit or network use. Codex's adapter cannot turn off single Marley tools, so only the agent's instructions keep it to its eight.</li>
-<li><strong>Zed's agent:</strong> the Marley profile has no built-in tools and, of the context servers' tools, only the eight. Picking it makes it your default profile; when the profile goes away, a default of Marley goes back to Write.</li>
+<li><strong>Zed's agent:</strong> the Marley profile has no built-in tools and, of the context servers' tools, only the ten. Picking it makes it your default profile; when the profile goes away, a default of Marley goes back to Write.</li>
 </ul>
 </article>
 
@@ -1664,6 +1664,8 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>settings_change</code></td><td>Proposes a value for one of your settings; Marley asks you, and writes it only on Apply</td></tr>
 <tr><td><code>keymap_change</code></td><td>Proposes a key binding; Marley asks you, and adds it to your keymap only on Apply</td></tr>
 <tr><td><code>seat_add</code></td><td>Proposes a seat on the harness Marley follows: a name, Claude Code or Codex, a folder and a role. Marley asks you; Apply adds the seat and starts it, and it shows in the rail. Refused while <code>marley.harness_writes</code> is off</td></tr>
+<tr><td><code>seat_stop</code></td><td>Proposes to stop a seat by its name: the harness ends its sessions and their supervision, and the profile stays. Marley asks you, and runs the harness's <code>seat stop</code> only on Apply</td></tr>
+<tr><td><code>seat_remove</code></td><td>The same, then the harness deletes the seat's profile, so the name is free again</td></tr>
 </table>
 <h4>The browser</h4>
 <table>

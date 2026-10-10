@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents stop and remove harness seats** (#710, 2026-10-09). `seat_stop` and `seat_remove` on
+  Marley's MCP server propose to stop a seat (its profile stays) or remove it (its profile is
+  deleted, so the name is free). Marley asks you, and runs harness TICKET-114's `seat stop` or
+  `seat remove` only on Apply; a refusal comes back by the harness's code. The Marley agent has
+  both, so the Manager's requests to take agents off the fleet go through it.
+
 - **One docs search over Zed's and Marley's docs** (#723, 2026-10-09). `docs_search` and
   `docs_read`, on Marley's MCP server for every agent, now cover Zed's docs and Marley's guide,
   walkthrough and changelog.

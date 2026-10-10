@@ -578,6 +578,10 @@ fn answer(mut call: AppCall, cx: &mut App) {
         crate::harness_seat::answer_seat_add(call, cx);
         return;
     }
+    if call.tool == "seat_stop" || call.tool == "seat_remove" {
+        crate::harness_seat::answer_seat_end(call, cx);
+        return;
+    }
     if call.tool.starts_with("settings_") || call.tool.starts_with("actions_") {
         crate::settings_tools::answer(call, cx);
         return;

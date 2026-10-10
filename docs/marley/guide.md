@@ -1514,8 +1514,8 @@ one Decisions tab per window. System One's log is another tab, System One calls.
 
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and
 settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_schema`,
-`settings_read`, `actions_list`, `settings_change`, `keymap_change` and `seat_add` (#692). Every
-change it proposes waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
+`settings_read`, `actions_list`, `settings_change`, `keymap_change`, `seat_add` (#692), and
+`seat_stop` and `seat_remove` (#710). Every change it proposes waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
 picks what it runs on:
 
 - **Auto** (`auto`, the default, #696): the first found a second after start. That is Claude Code
@@ -1531,7 +1531,7 @@ picks what it runs on:
   **Marley** entry. It starts in Codex's read-only mode, which asks before any edit or network use.
   The instructions go in as Codex's `developer_instructions`.
 - **Zed's agent** (`zed`): a **Marley** profile for Zed's own agent, with no built-in tools and,
-  of the context servers' tools, only the eight above. Zed's agent has no prompt per profile, so
+  of the context servers' tools, only the ten above. Zed's agent has no prompt per profile, so
   the tools' own descriptions guide it.
 
 - **Turning it off.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), on by
@@ -1742,6 +1742,8 @@ One write tool sits with them (#682):
 |---|---|
 | `keymap_change` | Proposes a key binding: `keystrokes` as Zed's keymap writes them (`ctrl-alt-m`), an `action` (actions_list finds its name), an optional `context` (`Workspace`) and optional `arguments`. The same notification names the keys, the action's palette name and the context; Apply adds the binding to your `keymap.json` through Zed's keymap updater, comments and other bindings kept, and it works at once. An action Marley lacks is refused with `no_action` and close names, keystrokes or a context that do not parse with `bad_argument` (#686) |
 | `seat_add` | Proposes a seat on the harness Marley follows: `name`, `agent` (`claude` or `codex`), `cwd` and an optional `role`. The same notification as a settings change shows the seat and the command it runs through. Apply runs the harness's `seat add` and answers `starting`, then starts the seat, which then shows in the rail. A start that fails comes up as a notification. Refused with the harness's own code (`seat_exists`, `seat_role_reserved`, `claude_signin_undeclared` …), or `tool_off` while `marley.harness_writes` is off (#692) |
+| `seat_stop` | Proposes to stop a seat on the harness by its `name` (#710): the harness ends its sessions and their supervision, and the profile stays, so the seat can start again. Marley asks you, and runs the harness's `seat stop` only on Apply; the answer lists the stopped sessions. A refusal carries the harness's code (`seat_unknown`, `seat_runtime`, `seat_stop_failed`) |
+| `seat_remove` | The same, then the harness deletes the seat's profile, so the name is free again (#710): `seat remove` on Apply, and the answer adds the removed profile's path; `seat_profile` when the file can't be deleted |
 | `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
 
 The browser family, reading:

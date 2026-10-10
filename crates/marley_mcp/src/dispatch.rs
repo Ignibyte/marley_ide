@@ -136,9 +136,9 @@ open in Marley.
 For questions about Marley or Zed (how a feature works, what a setting does or is set to, \
 which key runs a command), docs_search and docs_read, settings_schema and settings_read, and \
 actions_list answer from this Marley's own docs and settings. settings_change proposes a value \
-for one of the user's settings, keymap_change a key binding, and seat_add a seat on the harness \
-Marley follows (such as a manager working in a folder): Marley asks the user and acts only when \
-they accept.
+for one of the user's settings, keymap_change a key binding, seat_add a seat on the harness \
+Marley follows (such as a manager working in a folder), and seat_stop and seat_remove an end to \
+one: Marley asks the user and acts only when they accept.
 
 A refused call carries a `code` and `next_steps`: follow them rather than repeating the call.";
 

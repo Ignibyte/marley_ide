@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #710 (feature; the counterpart of #692's `seat_add`)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [710-the-marley-agent-removes-a-seat.spec.md](../../pipeline/completed/710-the-marley-agent-removes-a-seat.spec.md)
 - **Source ticket:** Chad, 2026-10-09: on Marley's tools for the Manager, "we can communicate still
   via our harness to remove agents and so forth right?"; offered as a small thing, then "lets do
   the small things".
-- **Status:** open (waits on the harness)
+- **Status:** closed
 
 ## Summary
 `seat_remove` on Marley's MCP server takes a seat's name and asks the user as `seat_add` does.

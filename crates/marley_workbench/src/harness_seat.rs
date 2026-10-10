@@ -7,6 +7,8 @@
 //! `seat_add` on Marley's MCP server (#692) does the same for an agent: it asks the user as
 //! `settings_change` does, runs `seat add` on Apply and answers, then runs `seat start`, which can
 //! take a minute for Claude Code, after the answer; a start that fails is a notification.
+//! `seat_stop` and `seat_remove` (#710) ask the same way and run the harness's `seat stop` or
+//! `seat remove` (its TICKET-114).
 //!
 //! The command is `harness::Harness::seat_command`'s: a `marley.harness` command up to its `mcp`,
 //! so a harness reached over SSH is set up over SSH, or the embedded runtime's `rh --state
@@ -176,6 +178,89 @@ pub(crate) fn answer_seat_add(call: AppCall, cx: &App) {
                     cx.new(|cx| MessageNotification::new(message.clone(), cx))
                 });
             });
+        }
+    })
+    .detach();
+}
+
+/// Answers `seat_stop` and `seat_remove` (#710): asks the user, and on Apply runs the harness's
+/// `seat stop` or `seat remove` (its TICKET-114) and answers its object with `result`.
+pub(crate) fn answer_seat_end(call: AppCall, cx: &App) {
+    let removes = call.tool == "seat_remove";
+    if !writes_on(cx) {
+        call.answer(Err(Refusal::new(
+            "tool_off",
+            "Marley's harness writes are off (`marley.harness_writes`), or it follows no harness",
+        )
+        .next(
+            "ask the user to turn on marley.harness_writes and name their harness",
+        )));
+        return;
+    }
+    let name = call
+        .arguments
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
+    if name.is_empty() {
+        call.answer(Err(Refusal::new("bad_argument", "give the seat's `name`")));
+        return;
+    }
+    let Some((program, base)) = Harness::seat_command(cx) else {
+        call.answer(Err(Refusal::new(
+            "unavailable",
+            "Marley follows no harness it can reach",
+        )));
+        return;
+    };
+    let asker = call
+        .caller()
+        .client
+        .clone()
+        .unwrap_or_else(|| "An agent".to_string());
+    let (verb, change) = if removes {
+        (
+            "remove",
+            format!("{name} · stop its sessions and delete its profile"),
+        )
+    } else {
+        (
+            "stop",
+            format!("{name} · stop its sessions; the profile stays, so it can start again"),
+        )
+    };
+    let question = crate::settings_change::Question {
+        headline: format!("{asker} wants to {verb} the harness seat {name}"),
+        change,
+        file: format!("through {} {}", program.display(), base.join(" ")),
+    };
+    let mut command = base;
+    command.extend(["seat".to_string(), verb.to_string(), name.clone()]);
+    cx.spawn(async move |cx| {
+        if let Err(refusal) = crate::settings_change::ask_user(question, cx).await {
+            call.answer(Err(refusal));
+            return;
+        }
+        match run_seat(&program, &command).await {
+            Ok(mut answer) => {
+                if let Some(fields) = answer.as_object_mut() {
+                    fields.insert(
+                        "result".into(),
+                        Value::from(if removes { "removed" } else { "stopped" }),
+                    );
+                    fields
+                        .entry("seat")
+                        .or_insert_with(|| Value::from(name.clone()));
+                }
+                call.answer::<Refusal>(Ok(ToolAnswer {
+                    structured: answer,
+                    text: None,
+                    image: None,
+                }));
+            }
+            Err(said) => call.answer(Err(refusal_of(&said))),
         }
     })
     .detach();

@@ -588,6 +588,32 @@ const REGISTRY: &[ToolSpec] = &[
                       `marley.harness_writes` is off, `declined`, or `no_answer` after 25 seconds.",
     },
     ToolSpec {
+        family: Family::Seat,
+        verb: "stop",
+        tier: Tier::Write,
+        grant_class: "harness.write",
+        description: "Propose to stop a seat on the harness Marley follows, by its `name`. The \
+                      harness ends the seat's sessions and their supervision. The profile stays, \
+                      so the seat can start again. Marley asks the user and runs the harness's \
+                      `seat stop` only on Apply. The answer lists the stopped sessions. A \
+                      refusal has the harness's code (`seat_unknown`, `seat_runtime`, \
+                      `seat_stop_failed`), `tool_off` while `marley.harness_writes` is off, \
+                      `declined`, or `no_answer` after 25 seconds.",
+    },
+    ToolSpec {
+        family: Family::Seat,
+        verb: "remove",
+        tier: Tier::Write,
+        grant_class: "harness.write",
+        description: "Propose to remove a seat on the harness Marley follows, by its `name`. \
+                      The harness stops the seat, then deletes its profile, so the name is free \
+                      again. Marley asks the user and runs the harness's `seat remove` only on \
+                      Apply. The answer lists the stopped sessions and the removed profile. A \
+                      refusal has the harness's code (`seat_unknown`, `seat_runtime`, \
+                      `seat_stop_failed`, `seat_profile`), `tool_off`, `declined`, or \
+                      `no_answer`.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -699,7 +725,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Settings => settings_schemas(spec.verb),
         Family::Actions => actions_list_schemas(),
         Family::Keymap => keymap_change_schemas(),
-        Family::Seat => seat_add_schemas(),
+        Family::Seat => seat_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1740,6 +1766,35 @@ fn keymap_change_schemas() -> (Value, Value) {
     )
 }
 
+/// The seat family: `seat_add` (#692), and `seat_stop` and `seat_remove` (#710): a seat's name; the
+/// harness's answer, with `result`.
+fn seat_schemas(verb: &str) -> (Value, Value) {
+    if verb == "add" {
+        return seat_add_schemas();
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "minLength": 1, "description": "The seat's name, as `seat add` took it." }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "result": { "type": "string", "enum": ["stopped", "removed"] },
+                "seat": { "type": "string" },
+                "stopped": { "type": "array", "items": { "type": "object" } },
+                "supervision_ended": { "type": "array", "items": { "type": "string" } },
+                "removed": { "type": "string", "description": "The deleted profile's path." }
+            },
+            "required": ["result", "seat"]
+        }),
+    )
+}
+
 /// `seat_add` (#692): a seat's name, agent, folder and role; the seat added and starting.
 fn seat_add_schemas() -> (Value, Value) {
     (
@@ -2566,10 +2621,12 @@ mod tests {
                 "settings_change",
                 "keymap_change",
                 "seat_add",
+                "seat_stop",
+                "seat_remove",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 52);
+        assert_eq!(registry().len(), 54);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

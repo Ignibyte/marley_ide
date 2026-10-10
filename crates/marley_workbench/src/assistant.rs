@@ -75,8 +75,8 @@ actions!(
 const DISALLOWED_TOOLS: [&str; 5] = ["Bash", "Edit", "Write", "NotebookEdit", "MultiEdit"];
 
 /// Marley's tools the Marley profile turns on for Zed's own agent: the ones that read the docs and
-/// the settings, and the three that propose a change the user accepts.
-const PROFILE_TOOLS: [&str; 8] = [
+/// the settings, and the five that propose a change the user accepts.
+const PROFILE_TOOLS: [&str; 10] = [
     "docs_search",
     "docs_read",
     "settings_schema",
@@ -84,6 +84,8 @@ const PROFILE_TOOLS: [&str; 8] = [
     "settings_change",
     "keymap_change",
     "seat_add",
+    "seat_stop",
+    "seat_remove",
     "actions_list",
 ];
 
@@ -122,7 +124,8 @@ path, the value now and where it is set.
 change and accepts or declines it; say what you proposed and why, and never claim a change was \
 made before it answers applied.
 - To set up a seat on the harness Marley follows, such as a manager working in a folder, use \
-seat_add. The user accepts it first; it then starts and shows in the rail.
+seat_add. The user accepts it first; it then starts and shows in the rail. To stop a seat, use \
+seat_stop; to stop it and delete its profile, use seat_remove. The user accepts each first.
 - To find which key runs a command, use actions_list.
 
 You do not edit files, run commands or change code here. When the user asks for that, say so and \
