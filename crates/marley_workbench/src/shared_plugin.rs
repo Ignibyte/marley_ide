@@ -1,7 +1,7 @@
 //! The Claude Code plugin Marley shares with rustal-harness (#709), loaded in Marley's terminals.
 //!
-//! Its six files are rustal-harness's, carried unchanged at the revision with Marley's host (its
-//! TICKET-108, MIT OR Apache-2.0). Their digest names a read-only folder under Marley's data
+//! Its sixteen files are rustal-harness's, carried unchanged at its TICKET-115 (`cda7c24`, MIT OR
+//! Apache-2.0): the hooks of its TICKET-108 and the `rustal-ste` skill (#724). Their digest names a read-only folder under Marley's data
 //! directory, and while `marley.claude_code_shared_plugin` is on and the installed Claude Code is
 //! one the plugin was tested on (#648), each new local terminal puts that folder first in
 //! `CLAUDE_CODE_PLUGIN_DIRS`. The plugin's mod then reports the session's state through
@@ -20,7 +20,7 @@ use util::ResultExt as _;
 
 /// The plugin's files, by their path in the plugin, in rustal-harness's order, which the digest
 /// follows.
-const FILES: [(&str, &str); 6] = [
+const FILES: [(&str, &str); 16] = [
     (
         ".claude-plugin/plugin.json",
         include_str!("../claude_shared_plugin/.claude-plugin/plugin.json"),
@@ -44,6 +44,46 @@ const FILES: [(&str, &str); 6] = [
     (
         "claude-code-versions.json",
         include_str!("../claude_shared_plugin/claude-code-versions.json"),
+    ),
+    (
+        "skills/rustal-ste/SKILL.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/SKILL.md"),
+    ),
+    (
+        "skills/rustal-ste/SOURCE.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/SOURCE.md"),
+    ),
+    (
+        "skills/rustal-ste/LICENSE",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/LICENSE"),
+    ),
+    (
+        "skills/rustal-ste/references/glossary.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/references/glossary.md"),
+    ),
+    (
+        "skills/rustal-ste/references/message-shapes.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/references/message-shapes.md"),
+    ),
+    (
+        "skills/rustal-ste/references/writing-rules.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/references/writing-rules.md"),
+    ),
+    (
+        "skills/rustal-ste/examples/before-after.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/examples/before-after.md"),
+    ),
+    (
+        "skills/rustal-ste/examples/linter-edge-cases.md",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/examples/linter-edge-cases.md"),
+    ),
+    (
+        "skills/rustal-ste/scripts/ste-lint.py",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/scripts/ste-lint.py"),
+    ),
+    (
+        "skills/rustal-ste/scripts/rustal-terms.json",
+        include_str!("../claude_shared_plugin/skills/rustal-ste/scripts/rustal-terms.json"),
     ),
 ];
 

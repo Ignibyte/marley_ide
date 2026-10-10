@@ -17,7 +17,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-724](open/TICKET-724-the-shared-plugin-with-ste100.md) | chore | the shared Claude Code plugin with the `rustal-ste` skill; waits on rustal-harness shipping it (asked 2026-10-09) |
 | [TICKET-714](open/TICKET-714-undo-a-turn.md) | feature | from MonoCode (usemono.dev), for future use: undo a turn (small to medium) |
 | [TICKET-715](open/TICKET-715-usage-meter-and-resume-at-reset.md) | feature | from MonoCode (usemono.dev), for future use: a usage meter, and resume at the reset (medium) |
 | [TICKET-716](open/TICKET-716-delegation-tools.md) | feature | from MonoCode (usemono.dev), for future use: delegation tools on marley's mcp server (medium) |

@@ -126,10 +126,11 @@ pub fn skill_plugin() -> Option<std::path::PathBuf> {
         .clone()
 }
 
-/// The plugin folders Marley wants its terminals to load, in order: the shared plugin, then the
-/// skill's.
+/// The plugin folders Marley wants its terminals to load: the shared plugin, which carries the
+/// `rustal-ste` skill itself (#724), else the skill's own folder, so a Claude Code lists the skill
+/// once.
 fn marley_plugins() -> Vec<std::path::PathBuf> {
-    shared_plugin().into_iter().chain(skill_plugin()).collect()
+    shared_plugin().or_else(skill_plugin).into_iter().collect()
 }
 
 /// `inherited`'s folders with `plugins` first and any other copy of one (a folder beside it, under

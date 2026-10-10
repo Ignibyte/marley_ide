@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #724 (chore; #709's carry)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [724-the-shared-plugin-with-rustal-ste.spec.md](../../pipeline/completed/724-the-shared-plugin-with-rustal-ste.spec.md)
 - **Source ticket:** Chad, 2026-10-09: "also for harness communication we should use this:
   https://github.com/danyuchn/asd-ste100-skill".
-- **Status:** open (waits on rustal-harness)
+- **Status:** closed
 
 ## Summary
 The skill is in Rusty's store as `rustal-ste` (adapted from ASD-STE100 at 32511c6, with Rustal's

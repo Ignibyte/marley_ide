@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The shared Claude Code plugin carries rustal-ste** (#724, 2026-10-10). Marley now carries
+  rustal-harness's plugin at its TICKET-115 (version 0.3.0, with the `rustal-ste` skill), at the
+  harness's own digest. While the plugin is on, a terminal gets the skill from it and Marley's own
+  skill folder (#725) steps aside, so Claude Code lists the skill once.
+
 - **Marley's agents get the rustal-ste skill** (#725, 2026-10-09). Simplified Technical English with
   Rustal's glossary, verbs and message shapes, for what one agent writes to another, now reaches
   every agent Marley runs:

@@ -15,6 +15,8 @@ extend-exclude = [
     # Marley: the rustal-ste skill, copied from Rusty's store (#725). Its linter's regexes hold
     # word endings ("ment") and its glossary names Rustal's "workd".
     "crates/marley_workbench/agent_skills/",
+    # The same skill inside the plugin Marley carries from rustal-harness (#724).
+    "crates/marley_workbench/claude_shared_plugin/skills/",
 
     # Typewriter model names used for agent branch names aren't typos.
     "crates/agent_ui/src/branch_names.rs",

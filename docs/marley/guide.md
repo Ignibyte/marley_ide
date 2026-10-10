@@ -1007,6 +1007,9 @@ Marley → Agents (`marley.claude_code_shared_plugin`).
   folder, and won't load a copy that was changed.
 - A Claude Code under a managed `disableSideloadFlags` refuses to start with the plugin loaded;
   leave the setting off there.
+- Since #724 the plugin is rustal-harness's 0.3.0 (its TICKET-115), which carries the `rustal-ste`
+  skill. While it is on, a terminal gets the skill from it, and Marley's own skill folder (#725)
+  steps aside, so Claude Code lists the skill once.
 
 ### Per-turn diffs
 

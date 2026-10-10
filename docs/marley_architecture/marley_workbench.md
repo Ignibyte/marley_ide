@@ -2097,9 +2097,14 @@ alike.
 
 ## The shared Claude Code plugin (`src/shared_plugin.rs`, `marley_terminal::identity`, #709)
 
-- `claude_shared_plugin/` carries rustal-harness's six plugin files unchanged (its TICKET-108,
-  version 0.2.0, MIT OR Apache-2.0). `FILES` embeds them with `include_str!` in `rh`'s order, and
-  `digest()` hashes each path and text after its length as a little-endian u64 (`83d0bb8f…0303`).
+- `claude_shared_plugin/` carries rustal-harness's plugin files unchanged:
+  - at first, its TICKET-108's six (version 0.2.0, MIT OR Apache-2.0);
+  - since #724, its TICKET-115's sixteen at `cda7c24` (version 0.3.0, with `skills/rustal-ste/`).
+
+  `FILES` embeds them with `include_str!` in `rh`'s order. `digest()` hashes each path and text
+  after its length as a little-endian u64; the folder is `eebd8a51…b1d0`, the harness's own.
+- `identity::marley_plugins` gives terminals the shared plugin when it is set, else #725's skill
+  folder, so the skill loads once (#724).
 - `install_in(<data>/claude-code/shared)` gives the digest's folder. One already there is checked
   byte for byte (`check_in`); otherwise it is staged in `.staged-<uuid>` (folders 0700, files 0400,
   `create_new`, `sync_all`) and renamed into place.

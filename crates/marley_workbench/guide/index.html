@@ -1189,7 +1189,7 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Turn on <strong>Shared Claude Code Plugin</strong> in Settings → Marley → Agents (<code>marley.claude_code_shared_plugin</code>, off by default).</li>
-<li>Open a new local terminal and start <code>claude</code>, 2.1.287 or later. Marley loads the plugin (<code>rustal-harness</code> 0.2.0) through <code>CLAUDE_CODE_PLUGIN_DIRS</code>; terminals opened before the change do not get it.</li>
+<li>Open a new local terminal and start <code>claude</code>, 2.1.287 or later. Marley loads the plugin (<code>rustal-harness</code> 0.3.0, with the <code>rustal-ste</code> skill) through <code>CLAUDE_CODE_PLUGIN_DIRS</code>; terminals opened before the change do not get it.</li>
 <li>Read the row: the state Claude Code reports, with the prompt and the tool in flight still read from Marley's own plugin. A Claude Code waiting on a permission is in Needs you.</li>
 </ol>
 <h4>Reports from your own wrapper</h4>
