@@ -10,6 +10,15 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-734](open/TICKET-734-an-agent-thread-starts-in-a-tab.md) | feature | agents anywhere: an Agent Panel style thread starts in a tab of any group, on a folder Marley names (a hidden worktree) |
+| [TICKET-735](open/TICKET-735-the-new-agent-picker.md) | feature | agents anywhere: `marley: new agent` — agent, thread or CLI, and where (a guess, recent, Browse…); Open Agent Here |
+| [TICKET-736](open/TICKET-736-thread-tabs-after-a-restart.md) | feature | agents anywhere: a thread tab comes back after a restart in its group |
+| [TICKET-737](open/TICKET-737-the-threads-page.md) | feature | agents anywhere: the Threads page, every conversation, searchable, Marley and Rusty first |
+| [TICKET-738](open/TICKET-738-marley-and-rusty-in-tabs.md) | feature | agents anywhere: Marley and Rusty open in a tab where you are, on a private folder |
+| [TICKET-739](open/TICKET-739-rustal-icons-in-the-status-bar.md) | feature | agents anywhere: Home, Rusty, Threads and Marley at the status bar's right, each opening its tab where you are |
+| [TICKET-740](open/TICKET-740-one-harness-per-host.md) | feature | agents anywhere, bonus: Marley follows a harness on each host the settings list |
+| [TICKET-741](open/TICKET-741-a-new-agent-on-a-remote-host.md) | feature | agents anywhere, bonus: New Agent on a harness host makes a seat and attaches a terminal over SSH |
+| [TICKET-742](open/TICKET-742-a-thread-on-a-remote-seat.md) | feature | agents anywhere, bonus: a thread tab on a remote seat through `rh acp --seat` (needs rustal-harness TICKET-116) |
 | [TICKET-712](open/TICKET-712-lsp-tools-for-agents.md) | feature | `editor_diagnostics`, `editor_definition`, `editor_references`, `editor_hover` for every agent, over Zed's LSP store |
 | [TICKET-713](open/TICKET-713-rail-cleanup.md) | chore | the rail: unregister a swapped sidebar, refresh only on row changes, a silent swap, save after restore |
 
