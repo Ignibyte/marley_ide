@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley and Rusty in tabs** (#738, 2026-10-10). `marley: talk to marley` brings the Marley
+  agent's latest conversation forward where it is, or opens it in a tab of the group you are in, or
+  starts one; `marley: new marley conversation` always starts a new one; `talk to rusty` and `new
+  rusty conversation` do the same for Rusty. Each works in a folder of its own under Marley's data
+  folder, so neither needs a project. On Zed's agent each talk starts a new conversation with the
+  entry's profile.
+
 - **The Threads page** (#737, 2026-10-10). `marley: open threads` lists every agent conversation
   from every project, group and folder in a tab: Marley's and Rusty's first, then the rest, each
   with its agent, folder and time, newest first, and the archived ones behind a button. A search

@@ -392,7 +392,7 @@ thread into a center tab beside the terminals, and back, from the palette or a t
 #734 starts a thread in a tab of any group, groups with no folder included, on a folder Marley names;
 #735 lets the New Agent picker ask where, with Open Agent Here on terminal rows and in the project
 panel; #736 brings thread tabs back after a restart; #737 adds the Threads page, every conversation in
-a tab;
+a tab; #738 opens Marley and Rusty in tabs anywhere;
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
 listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
 CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.

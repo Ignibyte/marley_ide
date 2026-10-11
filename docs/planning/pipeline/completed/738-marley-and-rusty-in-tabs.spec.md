@@ -1,7 +1,7 @@
 ---
 pipeline_id: e1b0abab-6804-4092-89de-ce0b18a997c9
-ticket: docs/planning/tickets/open/TICKET-738-marley-and-rusty-in-tabs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-738-marley-and-rusty-in-tabs.md
+status: Phase 4 — Complete PASS
 title: Marley and Rusty in tabs
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -70,7 +70,11 @@ Shots:
   than moving it, since a thread view belongs to the project of the group it opened in.
 - **D2:** each entry has its own folder, so their records never mix with a project's threads.
 - **D3:** "latest" is the entry's conversation with the newest `updated_at`, archived ones left
-  out.
+  out. On Zed's own agent every thread carries the Zed Agent's id, so an entry's conversations
+  cannot be told apart there: talk-to starts a new conversation each time, with the profile.
+- **D4:** an open conversation comes forward through the Threads page's `open_thread` (#737), run
+  from `window.defer`: the command's handler runs inside the workspace's update, and
+  `open_thread` reads every workspace of the window (PR-claude-735).
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |

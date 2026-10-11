@@ -1576,6 +1576,12 @@ picks what it runs on:
   command. You can also ask it to change a setting or bind a key. Picking the profile makes it
   your default profile, as any pick does. When the profile goes away, a default of Marley goes
   back to Write.
+- **In a tab, anywhere** (#738). `marley: talk to marley` brings its latest conversation forward
+  where it is open, or opens it in a tab of the group you are in, or starts one there;
+  `marley: new marley conversation` always starts a new one. It works in a folder of its own,
+  `assistant/marley` in Marley's data folder, so it needs no project. On Zed's agent each talk
+  starts a new conversation with the Marley profile, since Zed's threads don't say which profile
+  they ran.
 - **In a terminal** (#684). `marley: open marley agent in terminal` starts the same agent with
   its own interface in a new terminal of the active project.
   - On Claude Code it runs `claude --append-system-prompt-file <data dir>/assistant/instructions.md
@@ -1608,6 +1614,8 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   the `rusty-mcp` Marley found, or Rusty's service URL, so Rusty's tools reach this entry alone. It
   may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
 - **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
+- **In a tab, anywhere** (#738): `marley: talk to rusty` and `marley: new rusty conversation`, as the
+  Marley agent's, in `assistant/rusty`.
 - **Zed's agent:** a **Rusty** profile with no built-in tools and the context servers' tools. While
   that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
   as **Rusty's Tools for Agents** does, and Zed asks before each call.

@@ -2606,6 +2606,14 @@ alike.
       applied, `rusty::offer_again` offers the `rusty` context server as `agent_tools` does
       (`wants_rusty_profile`).
     - `set_entries` writes every applied entry once the adapter's command is known.
+- **Marley and Rusty in tabs (#738).** `TalkToMarley`, `TalkToRusty`, `NewMarleyConversation` and
+  `NewRustyConversation` run `talk_to(entry, fresh)`: nothing unless `applied.of(entry)`; unless
+  `fresh` or on Zed's agent, the entry's newest unarchived conversation (`latest_conversation`, by
+  the agent id its threads carry) comes forward through `window.defer` +
+  `threads_page::open_thread`; otherwise `thread_tab::start_thread` on `folder_in(data_dir,
+  entry)` (`assistant/marley|rusty`, made when missing), on Zed's agent with the entry's profile,
+  which `build_view` sets on the native thread once it exists. `filter_talk` shows each pair in
+  the palette only while its entry is there (`talk_shown`).
 - **Docs, settings and actions (#681).** `answer` sends `docs_` calls to `docs_tools::answer` and
   `settings_`/`actions_` calls to `settings_tools::answer`.
   - `docs_tools.rs`: `DocsBundle`, a `util::fs_embed!` over `docs/src/**/*.md` and

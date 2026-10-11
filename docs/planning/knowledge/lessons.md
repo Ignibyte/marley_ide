@@ -5289,3 +5289,12 @@ Zed restores a workspace's items and adds its panels in the same load, in no fix
 item's `deserialize` that needs a panel (here the Agent Panel's connection store) can run before the
 panel exists. It waits in its own task, looking for the panel every 100 ms for a bounded time, and
 fails cleanly after it; it never reads the workspace inside the call that restores it.
+
+## L-claude-738-a-run-that-counts-on-no-conversations-empties-the-copy-001
+*category: testing · topic: the e2e runner's profile copy · from: pipeline 738*
+
+The runner copies the user's database into the run's profile, conversations included. A command
+that picks "the latest conversation" therefore picks the user's own in a run, and the scenario
+then tests the wrong thread (or, without PR-claude-687's check first, types into it). A scenario
+whose criterion rests on there being none empties the copy's thread list in `setup`
+(`delete from sidebar_threads_v2`, and `sidebar_threads`), never the user's own database.

@@ -56,7 +56,8 @@ use settings::{
     AgentProfileContent, ContextServerPresetContent, CustomAgentServerSettings,
     MarleyAssistantAgent, SettingsStore,
 };
-use workspace::{MultiWorkspace, Workspace};
+use workspace::notifications::NotificationId;
+use workspace::{MultiWorkspace, Toast, Workspace};
 
 use crate::rusty::RustyServer;
 
@@ -66,7 +67,21 @@ actions!(
         /// Opens Marley's own agent in a terminal: Claude Code or Codex with the Marley agent's
         /// instructions, and no file edits.
         #[derive(Eq)]
-        OpenMarleyAgentInTerminal
+        OpenMarleyAgentInTerminal,
+        /// Opens the Marley agent's latest conversation, where it is if it is open, or starts one
+        /// in a tab of the shown group.
+        #[derive(Eq)]
+        TalkToMarley,
+        /// Opens Rusty's latest conversation, where it is if it is open, or starts one in a tab
+        /// of the shown group.
+        #[derive(Eq)]
+        TalkToRusty,
+        /// Starts a new conversation with the Marley agent in a tab of the shown group.
+        #[derive(Eq)]
+        NewMarleyConversation,
+        /// Starts a new conversation with Rusty in a tab of the shown group.
+        #[derive(Eq)]
+        NewRustyConversation,
     ]
 );
 
@@ -246,6 +261,9 @@ struct Assistant {
     resolving: Option<MarleyAssistantAgent>,
     /// Whether the palette lists the agent's command, once its filter was set.
     palette_shown: Option<bool>,
+    /// Whether the palette lists the Marley and the Rusty talk commands, once it has been told
+    /// (#738).
+    talk_shown: Option<(bool, bool)>,
 }
 
 impl Global for Assistant {}
@@ -260,8 +278,22 @@ pub(crate) fn init(cx: &mut App) {
         workspace.register_action(|workspace, _: &OpenMarleyAgentInTerminal, window, cx| {
             open_in_terminal(workspace, window, cx);
         });
+        workspace.register_action(|workspace, _: &TalkToMarley, window, cx| {
+            talk_to(Entry::Marley, false, workspace, window, cx);
+        });
+        workspace.register_action(|workspace, _: &TalkToRusty, window, cx| {
+            talk_to(Entry::Rusty, false, workspace, window, cx);
+        });
+        workspace.register_action(|workspace, _: &NewMarleyConversation, window, cx| {
+            talk_to(Entry::Marley, true, workspace, window, cx);
+        });
+        workspace.register_action(|workspace, _: &NewRustyConversation, window, cx| {
+            talk_to(Entry::Rusty, true, workspace, window, cx);
+        });
         cx.defer(|cx| {
             filter_palette(cx.global::<Assistant>().applied.marley_in_terminal(), cx);
+            let applied = cx.global::<Assistant>().applied.clone();
+            filter_talk(&applied, cx);
             if cx.global::<Assistant>().command.is_none() {
                 resolve(cx);
             }
@@ -342,6 +374,7 @@ fn sync(cx: &mut App) {
     detect(cx);
     let wanted = wanted(cx);
     filter_palette(wanted.marley_in_terminal(), cx);
+    filter_talk(&wanted, cx);
     let applied = cx.global::<Assistant>().applied.clone();
     if wanted == applied {
         return;
@@ -868,6 +901,114 @@ fn filter_palette(on: bool, cx: &mut App) {
             filter.hide_action_types(&command);
         }
     });
+}
+
+/// Lists the Marley pair of talk commands while the Marley entry is there, and the Rusty pair while
+/// Rusty's is (#738).
+fn filter_talk(entries: &Entries, cx: &mut App) {
+    let shown = (
+        entries.of(Entry::Marley).is_some(),
+        entries.of(Entry::Rusty).is_some(),
+    );
+    if cx.global::<Assistant>().talk_shown == Some(shown)
+        || CommandPaletteFilter::try_global(cx).is_none()
+    {
+        return;
+    }
+    cx.global_mut::<Assistant>().talk_shown = Some(shown);
+    let marley = [
+        TypeId::of::<TalkToMarley>(),
+        TypeId::of::<NewMarleyConversation>(),
+    ];
+    let rusty = [
+        TypeId::of::<TalkToRusty>(),
+        TypeId::of::<NewRustyConversation>(),
+    ];
+    CommandPaletteFilter::update_global(cx, |filter, _| {
+        for (on, commands) in [(shown.0, &marley), (shown.1, &rusty)] {
+            if on {
+                filter.show_action_types(commands);
+            } else {
+                filter.hide_action_types(commands);
+            }
+        }
+    });
+}
+
+/// `marley: talk to marley` and its kin (#738). Unless `fresh`, the entry's latest conversation
+/// comes forward where it is, or opens in a tab of `workspace`; otherwise, or with none, a new one
+/// starts there on the entry's own folder. On Zed's agent every thread carries the Zed Agent's id,
+/// so its conversations cannot be told apart and each talk starts a new one, with the profile.
+fn talk_to(
+    entry: Entry,
+    fresh: bool,
+    workspace: &mut Workspace,
+    window: &Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let Some(agent) = cx
+        .global::<Assistant>()
+        .applied
+        .of(entry)
+        .map(|(agent, _)| agent)
+    else {
+        return;
+    };
+    let on_zed = agent == MarleyAssistantAgent::Zed;
+    let name = AgentId::new(entry.name());
+    if !fresh
+        && !on_zed
+        && let Some(thread_id) = latest_conversation(&name, cx)
+    {
+        // `open_thread` reads every workspace of the window, this one included, which its update
+        // holds now (PR-claude-735).
+        let handle = workspace.weak_handle();
+        window.defer(cx, move |window, cx| {
+            crate::threads_page::open_thread(&handle, thread_id, window, cx);
+        });
+        return;
+    }
+    let folder = match folder_in(paths::data_dir(), entry) {
+        Ok(folder) => folder,
+        Err(error) => {
+            workspace.show_toast(
+                Toast::new(
+                    NotificationId::unique::<TalkToMarley>(),
+                    format!("Could not make {}'s folder: {error}", entry.name()),
+                ),
+                cx,
+            );
+            return;
+        }
+    };
+    let (agent, profile) = if on_zed {
+        (
+            agent_ui::Agent::NativeAgent,
+            Some(AgentProfileId(entry.profile().into())),
+        )
+    } else {
+        (agent_ui::Agent::from(name), None)
+    };
+    crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+}
+
+/// The entry's newest conversation that is not archived, by the id its threads carry.
+fn latest_conversation(name: &AgentId, cx: &App) -> Option<agent_ui::ThreadId> {
+    let store = agent_ui::thread_metadata_store::ThreadMetadataStore::try_global(cx)?;
+    store
+        .read(cx)
+        .entries()
+        .filter(|record| record.agent_id == *name && !record.is_draft())
+        .max_by_key(|record| record.updated_at)
+        .map(|record| record.thread_id)
+}
+
+/// The entry's own folder under `data`, made when it is missing: a thread of Marley or Rusty works
+/// there, since neither edits a file or runs a command (#738).
+fn folder_in(data: &Path, entry: Entry) -> std::io::Result<PathBuf> {
+    let folder = data.join("assistant").join(entry.profile());
+    std::fs::create_dir_all(&folder)?;
+    Ok(folder)
 }
 
 /// `marley: open marley agent in terminal`: starts the agent in a center terminal of

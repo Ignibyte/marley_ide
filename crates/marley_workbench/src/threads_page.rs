@@ -307,7 +307,7 @@ fn shown_folder(path: &std::path::Path) -> String {
 /// Opens the conversation `thread_id`: its tab comes forward wherever in the window it is, or a
 /// panel that holds it shows it; otherwise it opens in a tab of `workspace` (#697's one-place
 /// rule: a thread is never shown twice).
-fn open_thread(
+pub(crate) fn open_thread(
     workspace: &WeakEntity<Workspace>,
     thread_id: ThreadId,
     window: &mut Window,

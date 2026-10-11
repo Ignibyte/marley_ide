@@ -23,11 +23,14 @@
 //! the workspace's panel exists.
 
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use agent::ThreadStore;
+use agent_settings::AgentProfileId;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::{
     Agent, AgentConnectionStore, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView,
@@ -317,6 +320,7 @@ impl SerializableItem for ThreadTab {
                     folders: PathList::new(&saved.folders),
                     title: saved.title.map(SharedString::from),
                     own_folders: saved.own_folders,
+                    profile: None,
                 };
                 let view = build_view(project, workspace, &panel, thread, fs, window, cx);
                 Ok(cx.new(|cx| Self::new(view, &panel, hidden, cx)))
@@ -605,6 +609,20 @@ pub(crate) fn start(
     };
     let agent = agent.map_or_else(|| panel.read(cx).selected_agent(cx), Agent::from);
     let folder = folder.unwrap_or_else(|| default_folder(workspace, cx));
+    start_thread(workspace, agent, folder, None, window, cx);
+}
+
+/// Starts a thread of `agent` in a center tab of `workspace`, working in `folder`, which joins the
+/// project as a hidden worktree first when it needs one; on Zed's own agent, with `profile` once
+/// its thread exists (#738).
+pub(crate) fn start_thread(
+    workspace: &Workspace,
+    agent: Agent,
+    folder: PathBuf,
+    profile: Option<AgentProfileId>,
+    window: &Window,
+    cx: &Context<Workspace>,
+) {
     let project = workspace.project().clone();
     let joins = needs_worktree(&project, &folder, cx);
     let fs = Arc::clone(&workspace.app_state().fs);
@@ -646,7 +664,15 @@ pub(crate) fn start(
         }
         workspace
             .update_in(cx, |workspace, window, cx| {
-                open_thread(workspace, agent, folder, hidden, fs, window, cx);
+                let thread = ThreadSpec {
+                    agent,
+                    thread_id: ThreadId::new(),
+                    folders: PathList::new(&[folder]),
+                    title: None,
+                    own_folders: true,
+                    profile,
+                };
+                open_thread(workspace, thread, hidden, fs, window, cx);
             })
             .log_err();
     })
@@ -657,8 +683,7 @@ pub(crate) fn start(
 /// panel's connection store, and shows it in a new center tab.
 fn open_thread(
     workspace: &mut Workspace,
-    agent: Agent,
-    folder: PathBuf,
+    thread: ThreadSpec,
     hidden: Option<Entity<Worktree>>,
     fs: Arc<dyn Fs>,
     window: &mut Window,
@@ -667,13 +692,6 @@ fn open_thread(
     let Some(panel) = workspace.panel::<AgentPanel>(cx) else {
         refuse(workspace, "This window has no Agent Panel.", cx);
         return;
-    };
-    let thread = ThreadSpec {
-        agent,
-        thread_id: ThreadId::new(),
-        folders: PathList::new(&[folder]),
-        title: None,
-        own_folders: true,
     };
     let view = build_view(
         workspace.project().clone(),
@@ -729,6 +747,7 @@ pub(crate) fn open_saved(
         folders,
         title: Some(record.display_title()),
         own_folders: true,
+        profile: None,
     };
     cx.spawn_in(window, async move |workspace, cx| {
         let hidden = match joining {
@@ -787,6 +806,9 @@ struct ThreadSpec {
     title: Option<SharedString>,
     /// Whether Marley chose the folders, so Zed's store files the thread under them.
     own_folders: bool,
+    /// The profile Zed's own agent's thread takes (#738): the Marley or Rusty entry's on Zed's
+    /// agent.
+    profile: Option<AgentProfileId>,
 }
 
 /// The `ConversationView` for `thread`, as the Agent Panel builds one: the panel's connection
@@ -812,7 +834,8 @@ fn build_view(
             .entry(thread.thread_id)
             .and_then(|record| record.session_id.clone())
     });
-    cx.new(|cx| {
+    let profile = thread.profile.clone();
+    let view = cx.new(|cx| {
         let mut view = ConversationView::new(
             server,
             connection_store,
@@ -831,7 +854,22 @@ fn build_view(
         );
         view.marley_own_folders = thread.own_folders;
         view
-    })
+    });
+    // Zed's agent makes its thread once the view connects; the profile goes on it then, once.
+    if let Some(profile) = profile {
+        let set = Rc::new(Cell::new(false));
+        cx.observe(&view, move |view, cx| {
+            if set.get() {
+                return;
+            }
+            if let Some(native) = view.read(cx).as_native_thread(cx) {
+                native.update(cx, |thread, cx| thread.set_profile(profile.clone(), cx));
+                set.set(true);
+            }
+        })
+        .detach();
+    }
+    view
 }
 
 /// The folder a thread works in when none is named: the workspace's first root, else the home
