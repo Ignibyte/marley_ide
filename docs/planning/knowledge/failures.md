@@ -3768,3 +3768,11 @@ still made about thirty refreshes from one path: the rail observes the window's
 active pane's title changes. Fixed in #713: the observer compares what the rail reads of the window
 (its open state, project groups, workspaces and the one shown) and refreshes only on a change, and
 the gated paths share one refresh per effect cycle.
+
+## F-claude-771-marley-fleet-built-only-beside-a-crate-that-turned-on-serde-derive-001
+*severity: low · found in: pipeline 771's Code phase · class: a manifest that leans on feature unification*
+
+`marley_fleet` derives `Serialize` and `Deserialize` but asked for `serde.workspace = true`, and the
+workspace's `serde` has no `derive` feature. Every build that also compiled a crate asking for
+`derive` unified it in, so the gate and `just build` passed; `just clippy marley_agent` alone failed
+with "cannot find derive macro `Serialize`". Fixed in #771: the manifest asks for `derive` itself.

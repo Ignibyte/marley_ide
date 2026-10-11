@@ -825,7 +825,7 @@ Codex's, and a click shows its terminal, where you answer it. The close guard as
 working or waiting Codex closes. The `full access` chip follows the sandbox the thread reports,
 whatever the arguments said, and its tooltip says so. The server's commands run with the
 environment the terminal's programs get, and the server stops with its terminal or with Marley.
-It runs on Codex 0.155.1 to 0.158.0; on another version Codex starts as before, and the agent
+It runs on Codex 0.155.1 to 0.162.0; on another version Codex starts as before, and the agent
 bar's chip says which version Marley found (App Server on Untested Codex, in the Agent Versions
 section, runs it anyway). Codex's approval requests (a command, a file change, extra
 permissions, an MCP server's elicitation) also show in the rail's Needs you with the decisions

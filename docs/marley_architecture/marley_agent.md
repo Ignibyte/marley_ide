@@ -164,7 +164,7 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
 - `thread_mark(sandbox, approval)` is `full access` when the thread reports `dangerFullAccess`,
   whatever the approval policy; its source, `MarkSource::Thread`, carries the policy in words for
   the tooltip.
-- `codex_events` reads the App Server's messages as Codex 0.155.1 and 0.158.0 generate them:
+- `codex_events` reads the App Server's messages as Codex 0.155.1, 0.158.0 and 0.162.0 generate them:
   `Thread` (`is_lead`: not ephemeral, no parent, started by the user or not saying),
   `ThreadStatus` (an unknown type is `Unknown`, which moves nothing), `Turn`, `Policies`.
   `Notification::decode(method, params)` reads `thread/started`, `thread/status/changed`,
@@ -198,7 +198,7 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   `marley.allow_untested_versions`. `CLAUDE_PROMPT_TAGS` (`claude_prompt_tags`): the tags and
   openings `claude_events` reads, tested from Claude Code 2.1.283 before 2.2.0. Since #650
   `CODEX_APP_SERVER` (`codex_app_server`): the App Server's messages, from Codex 0.155.1 before
-  0.158.1, closed at the two ends checked. Since #653 `CLAUDE_IDE_CONNECTION`,
+  0.162.1 (#771 checked 0.162.0 against 0.158.0), closed at the two ends checked. Since #653 `CLAUDE_IDE_CONNECTION`,
   `CLAUDE_IDE_SELECTION` and `CLAUDE_IDE_MENTION` (`claude_ide_connection`,
   `claude_ide_selection`, `claude_ide_mention`): Claude Code's IDE link, its selection and
   send selection's mention, each with `NOT_YET_CHECKED`, a range that holds no version, until a

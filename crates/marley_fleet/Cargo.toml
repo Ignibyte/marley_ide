@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 path = "src/marley_fleet.rs"
 
 [dependencies]
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 serde_json.workspace = true

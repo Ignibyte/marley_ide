@@ -5434,3 +5434,20 @@ remove the whole statement, not the line that carries the tag.
 The rail's empty-space menu opens with no entry selected, so Return picks nothing; #601's
 `menu_entry 1` worked when that menu selected its first entry. A scenario clicks New Group… (50 px
 right and 17 px down of the right-click in #713's run) and then types the name.
+
+## L-claude-771-check-a-new-codex-against-the-schema-it-generates-001
+*category: integrations · topic: widening an agent's tested range · from: pipeline 771*
+
+A Codex release is checked against the last one tested by the App Server's own schema: install the
+old one under a scratch `MISE_DATA_DIR` (Chad's mise state stays as it was), run `codex app-server
+generate-json-schema [--experimental] --out DIR` from each with a scratch `CODEX_HOME` and no
+network, and compare every definition the messages Marley reads and sends reach (their
+`ServerNotification`, `ServerRequest` and `ClientRequest` alternatives, walked through `$ref`),
+plus `initialize` and the flags Marley passes. #771's script is in its notes.
+
+## L-claude-771-the-runners-codex-home-does-not-exist-yet-001
+*category: testing · topic: scenarios that run a real Codex · from: pipeline 771*
+
+The runner exports `CODEX_HOME=$E2E_WORK/codex-home` without making it, and Codex refuses a
+`CODEX_HOME` that does not exist (its App Server exits with status 1, and the TUI prints "Error
+finding codex home"). A scenario that runs a real Codex makes the folder in `setup`.

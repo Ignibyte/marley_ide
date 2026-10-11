@@ -98,8 +98,10 @@ pub const CLAUDE_PROMPT_TAGS: Integration = Integration {
 /// Codex's App Server, joined as a second client (#650).
 ///
 /// Its thread, status, turn, token-use and policy messages, which Codex generates per release and
-/// does not promise to keep. The range is closed at the two ends checked, 0.155.1 and 0.158.0,
-/// whose generated schemas agree on every field Marley reads.
+/// does not promise to keep. The range is closed at the two ends checked, 0.155.1 and 0.162.0,
+/// whose generated schemas agree on every field Marley reads: 0.162.0 was compared with 0.158.0
+/// over every definition the messages Marley reads and sends reach, and changed only by adding
+/// what Marley does not read (#771).
 pub const CODEX_APP_SERVER: Integration = Integration {
     id: "codex_app_server",
     agent: AgentKind::Codex,
@@ -109,7 +111,7 @@ pub const CODEX_APP_SERVER: Integration = Integration {
     setting: "App Server on Untested Codex",
     tested: Range {
         from: Version::new(0, 155, 1),
-        before: Some(Version::new(0, 158, 1)),
+        before: Some(Version::new(0, 162, 1)),
     },
 };
 

@@ -11,8 +11,8 @@
 //!   `idle` that follows, until the next turn starts;
 //! - token use and the thread's approval and sandbox policies ride on the seat as labels.
 //!
-//! The shapes are the ones Codex 0.155.1 and 0.158.0 generate as JSON Schema; a field Marley does
-//! not read is ignored, and a message that does not parse leaves the seat as it was.
+//! The shapes are the ones Codex 0.155.1, 0.158.0 and 0.162.0 generate as JSON Schema; a field
+//! Marley does not read is ignored, and a message that does not parse leaves the seat as it was.
 
 use std::collections::BTreeMap;
 

@@ -1012,6 +1012,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Codex 0.162 runs with its App Server** (#771, 2026-10-11). `marley.codex_app_server` now
+  covers Codex 0.155.1 to 0.162.0: the App Server's protocol at 0.162.0 was compared with 0.158.0
+  and changed only by adding what Marley does not read. On 0.162 the setting no longer stays off
+  with "untested" in the agent bar.
+
 - **A handed `marley <command>` prints one line** (#775, 2026-10-11). With Marley running, a
   command typed in a terminal prints "Marley is already running on …; it was asked to run
   `marley <command>`." and nothing else: it no longer prints Zed's start log line and "zed is
