@@ -330,6 +330,11 @@ marked Thread and the CLIs Terminal, and typing filters the list. After the agen
   when the terminal or the link closes; its row is under the harness's section in the rail. A
   refusal, such as a folder the host does not have, comes up as a notification with the harness's
   reason, and no terminal opens.
+- For **Claude Agent**, a thread, **On box-2…** makes the same Claude Code seat and opens it as a
+  thread tab instead (#742): what you type goes to the seat as a message, and its replies come back
+  as the thread, through the harness's window onto the seat (`rh acp --seat NAME`, run through
+  `ssh` for another host). The seat keeps running when you close the tab. The thread is filed under
+  the seat's folder, and its agent is named `claude-web · box-2`.
 
 **Open Agent Here…** asks only which agent: on a terminal's row in the rail, it starts in the
 terminal's folder; in the project panel's right-click menu, in that folder, or a file's folder.
@@ -2529,7 +2534,13 @@ Marley follows it beside the one above:
 - **What stays with the first.** The Manager entry, `marley: open harness session` and agents'
   seat tools (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only.
 - **An agent there.** New Agent's **On box-2…** starts Claude Code or Codex as a seat on it, with a
-  terminal attached here (#741).
+  terminal attached here (#741), or, for Claude Agent, as a thread tab onto the seat (#742).
+- **Open as Thread** (#742). Right-click a seat's row: a seat a profile opened has **Open as
+  Thread**, which opens its thread tab in the group you are in, or brings it forward. A seat Marley
+  did not start this session is filed under the harness's root on its host. The thread shows the
+  seat's text replies only: its tool calls and approvals stay in the seat's terminal and tab.
+  Restored after a restart, the tab finds its seat again by its name while the harness is
+  followed.
 
 ## The Fleet panel
 

@@ -6855,9 +6855,16 @@ fn harness_row(
     let element = slot
         .name()
         .map_or_else(|| seat.id.clone(), |name| format!("{name}-{}", seat.id));
+    // A seat a profile opened can be opened as a thread too (#742).
+    let profile = seat
+        .labels
+        .get("profile")
+        .filter(|_| crate::harness::writes_on_slot(slot, cx))
+        .cloned();
+    let menu_slot = slot.clone();
     let slot = slot.clone();
     let tooltip = (!signals.is_empty()).then(|| signals_tooltip(&signals, &seat.title, now_ms));
-    row_card(
+    let row = row_card(
         SharedString::from(format!("marley-rail-harness-{element}")),
         format!("marley-rail-harness-icon-{element}"),
         false,
@@ -6869,7 +6876,49 @@ fn harness_row(
     .when_some(tooltip, |row, (title, meta)| {
         row.tooltip(move |_, cx| Tooltip::with_meta(title.clone(), None, meta.clone(), cx))
     })
-    .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&slot, &id, window, cx)))
+    .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&slot, &id, window, cx)));
+    match profile {
+        Some(profile) => with_seat_menu(row, menu_slot, profile, &element, cx),
+        None => row.into_any_element(),
+    }
+}
+
+/// A seat row with its right-click menu, Open as Thread (#742): the seat's thread through the
+/// harness's ACP window, in the group the window shows.
+fn with_seat_menu(
+    row: Stateful<Div>,
+    menu_slot: Slot,
+    profile: String,
+    element: &str,
+    cx: &Context<Rail>,
+) -> AnyElement {
+    let rail = cx.entity().downgrade();
+    right_click_menu(SharedString::from(format!(
+        "marley-rail-harness-menu-{element}"
+    )))
+    .trigger(move |_, _, _| row)
+    .menu(move |window, cx| {
+        let (rail, slot, profile) = (rail.clone(), menu_slot.clone(), profile.clone());
+        ContextMenu::build(window, cx, move |menu, _, _| {
+            menu.entry("Open as Thread", None, move |window, cx| {
+                // Plain over the weak rail: opening the thread updates the workspace
+                // (PR-claude-701).
+                let Some(workspace) = rail.upgrade().and_then(|rail| {
+                    rail.read(cx)
+                        .multi_workspace
+                        .upgrade()
+                        .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
+                }) else {
+                    return;
+                };
+                workspace.update(cx, |workspace, cx| {
+                    crate::harness_seat::open_seat_thread(
+                        workspace, &slot, &profile, None, window, cx,
+                    );
+                });
+            })
+        })
+    })
     .into_any_element()
 }
 

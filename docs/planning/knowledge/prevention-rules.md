@@ -2931,3 +2931,10 @@ When Marley builds an `ssh` argv, every word after the destination is a shell wo
 an argument: ssh joins them with spaces and the host's shell splits them again. Pass each through
 `harness_hosts::shell_word` (or build one quoted line), including paths and anything the user
 typed; only the words before the destination, ssh's own, go as plain arguments.
+
+## PR-claude-742-an-agent-servers-program-is-resolved-by-marley-001
+*severity: medium · prevents: F-claude-742-the-seats-agent-ran-the-systems-ssh-001*
+
+A custom agent server Marley adds to the settings names its program by absolute path: a bare name
+is resolved on Marley's own search path (`which::which`) first. Zed starts an agent server in the
+project's shell environment, which can find a different program, or none, under the same name.

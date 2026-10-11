@@ -92,6 +92,11 @@ impl HarnessHost {
         )
     }
 
+    /// Its state root on its host.
+    pub(crate) fn state(&self) -> &str {
+        &self.state
+    }
+
     /// The command of the harness's MCP server, with the write grant when `writes` (#689).
     pub(crate) fn mcp_command(&self, writes: bool) -> ContextServerCommand {
         let (path, mut args) = self.base();

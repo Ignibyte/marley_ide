@@ -21,14 +21,18 @@
 
 use std::path::{Path, PathBuf};
 
+use collections::HashMap;
+
 use editor::Editor;
 use gpui::{
     App, AppContext as _, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
-    SharedString, Task, WeakEntity, Window, actions,
+    Global, SharedString, Task, WeakEntity, Window, actions,
 };
 use marley_agent::AgentKind;
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
+use project::AgentId;
 use serde_json::{Value, json};
+use settings::SettingsStore;
 use ui::{ButtonStyle, Headline, HeadlineSize, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::simple_message_notification::MessageNotification;
@@ -380,6 +384,143 @@ pub(crate) fn seat_slots(cx: &App) -> Vec<Slot> {
 /// The toast while an agent starts on a harness, and the notification when it does not (#741).
 struct AgentOnHarness;
 
+/// How New Agent shows a seat it starts on a harness.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SeatView {
+    /// A terminal attached with the seat's own view (#741).
+    Terminal,
+    /// A thread tab through the harness's ACP window onto the seat (#742).
+    Thread,
+}
+
+/// What a seat entry's name says for the first harness, which has no name of its own (#742); a
+/// space keeps it apart from a host's name.
+const FIRST_HARNESS: &str = "the harness";
+
+/// The seat entries Marley made this session (#742): each entry's command, so an unchanged one
+/// is not set again, and the seat's folder when New Agent started it.
+#[derive(Default)]
+struct SeatEntries {
+    entries: HashMap<String, (PathBuf, Vec<String>)>,
+    folders: HashMap<String, PathBuf>,
+}
+
+impl Global for SeatEntries {}
+
+/// The Agent Panel entry of the seat `profile` on `slot`'s harness (#742): `<profile> · <harness>`.
+fn seat_entry_name(slot: &Slot, profile: &str) -> String {
+    let harness = slot.name().map_or(FIRST_HARNESS, |name| name.as_ref());
+    format!("{profile} · {harness}")
+}
+
+/// The harness and the profile a seat entry's name means, while Marley can reach that harness
+/// (#742): a restored tab or a saved conversation names its seat this way.
+pub(crate) fn seat_of_entry(agent: &AgentId, cx: &App) -> Option<(Slot, String)> {
+    let (profile, harness) = agent.0.rsplit_once(" · ")?;
+    let plain = !profile.is_empty()
+        && profile
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "-_.".contains(character));
+    if !plain {
+        return None;
+    }
+    let slot = if harness == FIRST_HARNESS {
+        Slot::Primary
+    } else {
+        Slot::Host(SharedString::from(harness.to_string()))
+    };
+    seat_command_of(&slot, cx)?;
+    Some((slot, profile.to_string()))
+}
+
+/// Puts the entry of the seat `profile` on `slot`'s harness in the settings' in-memory agent
+/// servers, as the Manager's is (#694): `[ssh HOST] rh --state ROOT acp --seat PROFILE`, the
+/// harness's window onto the seat (its TICKET-116). `None` while Marley cannot reach the harness.
+pub(crate) fn ensure_seat_entry(slot: &Slot, profile: &str, cx: &mut App) -> Option<AgentId> {
+    let (program, mut args, remote) = seat_command_of(slot, cx)?;
+    // Zed runs an agent server in the project's shell environment, whose search path can differ
+    // from Marley's own: the entry runs the `ssh` (or `rh`) Marley follows the harness with.
+    let program = if program.components().count() == 1 {
+        which::which(&program).unwrap_or(program)
+    } else {
+        program
+    };
+    let word = |word: &str| {
+        if remote {
+            crate::harness_hosts::shell_word(word)
+        } else {
+            word.to_string()
+        }
+    };
+    args.extend([word("acp"), word("--seat"), word(profile)]);
+    let name = seat_entry_name(slot, profile);
+    let command = (program, args);
+    let entries = &cx.default_global::<SeatEntries>().entries;
+    if entries.get(&name) != Some(&command) {
+        let (path, args) = command.clone();
+        cx.update_global::<SettingsStore, _>(|store, cx| {
+            store.update_default_settings(cx, |defaults| {
+                defaults.agent_servers.get_or_insert_default().insert(
+                    name.clone(),
+                    settings::CustomAgentServerSettings::Custom {
+                        path,
+                        args,
+                        env: HashMap::default(),
+                        default_mode: None,
+                        default_config_options: HashMap::default(),
+                        favorite_config_option_values: HashMap::default(),
+                    },
+                );
+            });
+        });
+        cx.global_mut::<SeatEntries>()
+            .entries
+            .insert(name.clone(), command);
+    }
+    Some(AgentId::new(name))
+}
+
+/// Opens the seat `profile` of `slot`'s harness as a thread in `workspace` (#742), or brings its
+/// open tab forward: filed under the seat's folder when New Agent started it, else under the
+/// harness's root on its host, `folder` when the caller knows it.
+pub(crate) fn open_seat_thread(
+    workspace: &mut Workspace,
+    slot: &Slot,
+    profile: &str,
+    folder: Option<PathBuf>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let Some(agent) = ensure_seat_entry(slot, profile, cx) else {
+        let place = slot.name().map_or("the harness", |name| name.as_ref());
+        not_started(
+            SeatAgent::Claude,
+            place,
+            "Marley follows no harness it can reach",
+            cx,
+        );
+        return;
+    };
+    if crate::thread_tab::activate_agent(workspace, &agent, window, cx) {
+        return;
+    }
+    let entries = cx.default_global::<SeatEntries>();
+    let folder = match folder {
+        Some(folder) => {
+            entries.folders.insert(agent.0.to_string(), folder.clone());
+            Some(folder)
+        }
+        None => entries.folders.get(agent.0.as_ref()).cloned(),
+    };
+    let Some(folder) = folder.or_else(|| crate::harness::root_of(slot, cx)) else {
+        let place = slot.name().map_or("the harness", |name| name.as_ref());
+        let reason = "Marley does not know the harness's root on its host";
+        not_started(SeatAgent::Claude, place, reason, cx);
+        return;
+    };
+    crate::thread_tab::start_on_seat(workspace, agent, folder, window, cx);
+}
+
 /// Starts `kind` on `slot`'s harness in `folder`, a path on its host (#741): a seat named for the
 /// agent and the folder, then a new terminal of `workspace` attached to it. A refusal, or a seat
 /// the harness gives no view of, is a notification, and no terminal opens.
@@ -387,6 +528,7 @@ pub(crate) fn start_agent_on(
     workspace: &mut Workspace,
     slot: Slot,
     kind: AgentKind,
+    view: SeatView,
     folder: String,
     window: &Window,
     cx: &mut Context<Workspace>,
@@ -434,6 +576,16 @@ pub(crate) fn start_agent_on(
         workspace
             .update_in(cx, |workspace, window, cx| {
                 workspace.dismiss_toast(&NotificationId::unique::<AgentOnHarness>(), cx);
+                if view == SeatView::Thread {
+                    let Some(profile) = started.get("profile").and_then(Value::as_str) else {
+                        let reason = "the seat started, but the harness did not name its profile";
+                        not_started(agent, &place, reason, cx);
+                        return;
+                    };
+                    let folder = Some(PathBuf::from(&folder));
+                    open_seat_thread(workspace, &slot, profile, folder, window, cx);
+                    return;
+                }
                 let Some(line) = attach_line(&slot, &started, cx) else {
                     let reason = "the seat started, but the harness gave no view of it";
                     not_started(agent, &place, reason, cx);

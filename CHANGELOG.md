@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A thread on a harness seat** (#742, 2026-10-11). New Agent → Claude Agent → **On box-2…** makes
+  a Claude Code seat on that harness and opens it as a thread tab: what you type goes to the seat,
+  and its replies come back through the harness's window onto the seat (rustal-harness TICKET-116,
+  `rh acp --seat`). A seat's row in the rail has **Open as Thread**. The seat keeps running when the
+  tab closes.
+
 - **A new agent on another machine** (#741, 2026-10-10). New Agent's Where lists **On box-2…** for
   each harness Marley follows, for Claude Code and Codex. Type a folder on that machine and Marley
   adds and starts a seat there through the harness, named for the agent and the folder, then opens

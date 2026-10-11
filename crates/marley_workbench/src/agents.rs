@@ -38,6 +38,7 @@ use workspace::notifications::DetachAndPromptErr as _;
 use workspace::{ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace, WorkspaceDb};
 
 use crate::harness::Slot;
+use crate::harness_seat::SeatView;
 
 /// Makes the `Terminal` behind a new center terminal, started in the given directory with the
 /// given variables of its own.
@@ -164,8 +165,10 @@ pub fn thread_agents(
     cx: &App,
 ) -> Vec<(AgentId, SharedString, AgentIcon)> {
     let servers = project.read(cx).agent_server_store().read(cx);
+    // A harness seat's entry opens from its row, not as an agent to start (#742).
     let mut external: Vec<(AgentId, SharedString)> = servers
         .external_agents()
+        .filter(|agent| crate::harness_seat::seat_of_entry(agent, cx).is_none())
         .map(|agent| (agent.clone(), thread_agent_name(agent, project, cx)))
         .collect();
     external.sort_by_key(|(_, name)| name.to_lowercase());
@@ -999,6 +1002,9 @@ struct Choice {
     start: Start,
 }
 
+/// Claude Agent's id in Zed's agent registry (`agent_servers::CLAUDE_AGENT_ID`).
+const CLAUDE_AGENT: &str = "claude-acp";
+
 #[derive(Clone)]
 enum Start {
     /// A thread of this agent in a center tab (#734).
@@ -1008,10 +1014,16 @@ enum Start {
 }
 
 impl Start {
-    /// The agent CLI, when a harness can run it as a seat (#741).
-    const fn seat_kind(&self) -> Option<AgentKind> {
+    /// The agent a harness runs as a seat for this choice, and how the seat shows: a seat agent
+    /// CLI in a terminal (#741), Claude Agent's thread as a thread onto a Claude Code seat (#742).
+    fn seat(&self) -> Option<(AgentKind, SeatView)> {
         match self {
-            Self::Cli(kind) if crate::harness_seat::SeatAgent::of(*kind).is_some() => Some(*kind),
+            Self::Cli(kind) if crate::harness_seat::SeatAgent::of(*kind).is_some() => {
+                Some((*kind, SeatView::Terminal))
+            }
+            Self::Thread(agent) if agent.0.as_ref() == CLAUDE_AGENT => {
+                Some((AgentKind::Claude, SeatView::Thread))
+            }
             Self::Cli(_) | Self::Thread(_) => None,
         }
     }
@@ -1193,7 +1205,7 @@ impl PickerDelegate for NewAgentDelegate {
         let seats = self
             .chosen
             .as_ref()
-            .and_then(|(start, _)| start.seat_kind())
+            .and_then(|(start, _)| start.seat())
             .is_some();
         let candidates: Vec<StringMatchCandidate> = if self.chosen.is_some() {
             self.places
@@ -1240,17 +1252,16 @@ impl PickerDelegate for NewAgentDelegate {
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         if let Some((slot, _)) = self.remote.clone() {
             let folder = self.typed.trim().to_string();
-            let kind = self
-                .chosen
-                .as_ref()
-                .and_then(|(start, _)| start.seat_kind());
-            let Some(kind) = kind.filter(|_| folder.starts_with('/')) else {
+            let seat = self.chosen.as_ref().and_then(|(start, _)| start.seat());
+            let Some((kind, view)) = seat.filter(|_| folder.starts_with('/')) else {
                 return;
             };
             self.dismissed(window, cx);
             self.workspace
                 .update(cx, |workspace, cx| {
-                    crate::harness_seat::start_agent_on(workspace, slot, kind, folder, window, cx);
+                    crate::harness_seat::start_agent_on(
+                        workspace, slot, kind, view, folder, window, cx,
+                    );
                 })
                 .log_err();
             return;

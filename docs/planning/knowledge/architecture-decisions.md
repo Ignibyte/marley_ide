@@ -4785,3 +4785,20 @@ its tmux holds the session, so the terminal can close and reopen without ending 
 **Rejected:**
 - `ssh -t HOST claude` in a terminal: the agent ends with the link, and nothing lists it.
 - Marley's own remote tmux (#543) around the attach: tmux refuses to attach from inside tmux.
+
+## AD-claude-742-a-seats-thread-is-an-agent-server-named-for-the-seat-001
+*decided at: 2026-10-11 · status: shipped · builds on: #694, #734, #741, rustal-harness TICKET-116 (D189)*
+
+**The decision.** A thread on a harness seat is a custom agent server in the settings' in-memory
+defaults, named `<profile> · <harness>`, whose command is the harness's `acp --seat PROFILE`, and a
+thread tab (#734) on that entry with the seat's folder recorded and no worktree. The name is the
+key: a restored tab or a saved conversation reads its seat back from it and Marley makes the entry
+again. Seat entries stay out of the agents New Agent lists.
+
+**Why.** Zed's thread view, its store and #736's restore all key a thread by its agent's id; naming
+the entry for the seat lets every one of them work unchanged, with nothing to persist beside them.
+
+**Rejected:**
+- One entry for every seat of every followed harness: each would show in the Agent Panel's agents.
+- A worktree for the seat's folder: the folder is on the seat's machine, and the window reads no
+  file through Zed.

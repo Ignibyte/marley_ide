@@ -284,6 +284,12 @@ impl SerializableItem for ThreadTab {
                 "the thread of a saved tab is no longer kept"
             )));
         }
+        // A harness seat's thread (#742): its entry made again, and its folder on the seat's host.
+        let seat = crate::harness_seat::seat_of_entry(&AgentId::new(saved.agent.clone()), cx);
+        if let Some((slot, profile)) = &seat {
+            crate::harness_seat::ensure_seat_entry(slot, profile, cx);
+        }
+        let on_seat = seat.is_some();
         window.spawn(cx, async move |cx| {
             // Zed adds the Agent Panel while it still restores items; its connection store is the
             // one a tab's thread shares (#734).
@@ -297,6 +303,7 @@ impl SerializableItem for ThreadTab {
             }
             let panel = panel.context("the workspace has no Agent Panel for its thread tab")?;
             let hidden = if saved.own_folders
+                && !on_seat
                 && let Some(folder) = saved.folders.first()
                 && cx.update(|_, cx| needs_worktree(&project, folder, cx))?
             {
@@ -590,6 +597,53 @@ pub(crate) fn activate_for(
     true
 }
 
+/// Brings forward `workspace`'s thread tab on `agent`, when it has one (#742).
+pub(crate) fn activate_agent(
+    workspace: &mut Workspace,
+    agent: &AgentId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> bool {
+    let Some(tab) = workspace
+        .items_of_type::<ThreadTab>(cx)
+        .find(|tab| tab.read(cx).conversation_view.read(cx).agent_key().id() == *agent)
+    else {
+        return false;
+    };
+    workspace.activate_item(&tab, true, true, window, cx);
+    true
+}
+
+/// Starts a thread of a harness seat's entry (#742) in a center tab of `workspace`, filed under
+/// `folder`, a folder on the seat's host. No worktree and no check here: the folder is on the
+/// seat's machine, and the harness's window reads no file through Zed. One tick later, so the
+/// agent server store has taken the entry the caller just added.
+pub(crate) fn start_on_seat(
+    workspace: &Workspace,
+    agent: AgentId,
+    folder: PathBuf,
+    window: &Window,
+    cx: &Context<Workspace>,
+) {
+    let fs = Arc::clone(&workspace.app_state().fs);
+    cx.spawn_in(window, async move |workspace, cx| {
+        workspace
+            .update_in(cx, |workspace, window, cx| {
+                let thread = ThreadSpec {
+                    agent: Agent::from(agent),
+                    thread_id: ThreadId::new(),
+                    folders: PathList::new(&[folder]),
+                    title: None,
+                    own_folders: true,
+                    profile: None,
+                };
+                open_thread(workspace, thread, None, fs, window, cx);
+            })
+            .log_err();
+    })
+    .detach();
+}
+
 /// Starts a thread of `agent` (the panel's selected agent when `None`) in a center tab of
 /// `workspace`, working in `folder` (the workspace's first root, else the home folder, when
 /// `None`). The folder joins the project as a hidden worktree first when it needs one.
@@ -734,11 +788,16 @@ pub(crate) fn open_saved(
     } else {
         record.folder_paths().clone()
     };
+    // A harness seat's thread (#742): its entry made again, and its folder on the seat's host.
+    let seat = crate::harness_seat::seat_of_entry(&record.agent_id, cx);
+    if let Some((slot, profile)) = &seat {
+        crate::harness_seat::ensure_seat_entry(slot, profile, cx);
+    }
     let project = workspace.project().clone();
     let joining = folders
         .paths()
         .first()
-        .filter(|folder| needs_worktree(&project, folder, cx))
+        .filter(|folder| seat.is_none() && needs_worktree(&project, folder, cx))
         .cloned();
     let fs = Arc::clone(&workspace.app_state().fs);
     let thread = ThreadSpec {

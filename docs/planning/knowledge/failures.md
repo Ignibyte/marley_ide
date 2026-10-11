@@ -3682,3 +3682,12 @@ the time and its reason showed only between tries. #740's shot of a dropped host
 folder Marley was started from (`/srv/stacks/marley_ide` in the run) and the rail listed it with
 that path under the project. Fixed in #741: the workspace's `default_working_directory`, as a new
 terminal gets.
+
+## F-claude-742-the-seats-agent-ran-the-systems-ssh-001
+*severity: medium · found in: pipeline 742's Test phase (the first run) · class: a bare program name resolved in two environments · prevented by: PR-claude-742-an-agent-servers-program-is-resolved-by-marley-001*
+
+The seat's agent server was `ssh … acp --seat NAME` with the bare name `ssh`. Marley follows the
+harness with the `ssh` its own search path finds, but Zed starts an agent server in the project's
+shell environment, whose search path found the system `ssh`; the run's thread failed with "Could
+not resolve hostname box-2". Fixed in #742: `ensure_seat_entry` resolves a bare program on Marley's
+search path, so the thread and the harness's link run the same `ssh`.

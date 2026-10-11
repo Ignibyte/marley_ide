@@ -2020,6 +2020,25 @@ alike.
 - After a failure `follow` leaves `Connection::Down(reason)` in place while it waits and tries
   again, so the header keeps the reason; `Connecting` is the first try only.
 
+## A thread on a harness seat (`src/harness_seat.rs`, `src/thread_tab.rs`, #742)
+
+- A seat's thread is a custom agent server in the settings' in-memory `agent_servers`, as the
+  Manager's is (#694), named `<profile> · <harness>` (`· the harness` for the first one):
+  `ensure_seat_entry` builds `seat_command_of(slot)` + `acp --seat PROFILE`, quoting the words
+  that cross the host's shell and resolving a bare `ssh` or `rh` on Marley's own search path, since
+  Zed runs an agent server in the project's shell environment. `SeatEntries` keeps each entry's
+  command and the folders New Agent gave seats.
+- `seat_of_entry` reads a name back to the harness and profile. `thread_tab::open_saved` and the
+  restore call it to make the entry again and skip the worktree; `agents::thread_agents` leaves seat
+  entries out of the agents it lists.
+- `open_seat_thread` brings forward a tab on the entry (`thread_tab::activate_agent`) or calls
+  `thread_tab::start_on_seat`: a `ThreadSpec` on the seat's folder with `own_folders`, no `is_dir`
+  check and no worktree, opened one tick later so the agent server store has the entry. The folder
+  is the one New Agent gave, else `harness::root_of(slot)`.
+- New Agent: `Start::seat()` maps Claude Agent's thread (`claude-acp`) to `SeatView::Thread`, and
+  `start_agent_on` opens the thread from `seat start`'s `profile`. The rail's `with_seat_menu` gives
+  a row with a `profile` label, while its harness takes writes, **Open as Thread**.
+
 ## A new agent on a harness (`src/harness_seat.rs`, `src/agents.rs`, #741)
 
 - The New Agent picker's `Place::Harness { slot, name }` follows Browse…, one per

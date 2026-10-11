@@ -1,7 +1,7 @@
 ---
 pipeline_id: 84d0f12b-e679-42fc-8f9c-4d54af5aee57
 ticket: docs/planning/tickets/open/TICKET-742-a-thread-on-a-remote-seat.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A thread on a remote seat
 type: feature
 slice: the control plane (docs/marley/three-prong-plan.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -30,8 +30,7 @@ seat, and this ticket uses it.
 
 ### Out (explicitly deferred)
 - The harness side, `rh acp --seat`: rustal-harness TICKET-116, built in that repository first.
-- Restoring such a tab after a restart beyond what #736 gives (the seat's entry is made again when
-  its harness is followed).
+- Tool calls, thinking and approvals in the thread: TICKET-116's window carries text only (D189).
 
 ## Reference (§20)
 N/A — Marley-specific over the harness's `rh acp` (rustal-harness TICKET-111 and TICKET-116) and
@@ -66,7 +65,14 @@ Shots:
   keeps running when the tab closes.
 - **D2:** no hidden worktree for a remote folder.
 - **D3:** this ticket waits for rustal-harness TICKET-116; if that ticket changes the verb's shape,
-  this spec follows it.
+  this spec follows it. TICKET-116 shipped (rustal-harness `4029e3c`, D189): `rh --state ROOT acp
+  --seat NAME`, NAME the profile, on Claude Code's interface seats only, answering from the seat's
+  own transcript, with `session/load`.
+- **D4:** a seat's agent server is named `<profile> · <harness>` (`the harness` for the first one), so a
+  restored tab or a saved conversation names its seat, and Marley makes the entry again from the
+  name when the harness is followed. Seat entries stay out of the New Agent picker's agents.
+- **D5:** the Where step lists **On box-2…** for Claude Agent's thread too (`claude-acp`); the seat
+  is a Claude Code seat either way, and the choice decides the view: a terminal (#741) or a thread.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |

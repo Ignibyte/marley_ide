@@ -238,6 +238,21 @@ pub(crate) fn seat_command_of(slot: &Slot, cx: &App) -> Option<(PathBuf, Vec<Str
     }
 }
 
+/// `slot`'s harness's state root on its host (#742): a host's `state`, or the primary's
+/// `--state` argument.
+pub(crate) fn root_of(slot: &Slot, cx: &App) -> Option<PathBuf> {
+    match slot {
+        Slot::Primary => {
+            let (_, base) = Harness::seat_command(cx)?;
+            let at = base.iter().position(|word| word == "--state")?;
+            base.get(at + 1).map(PathBuf::from)
+        }
+        Slot::Host(name) => Some(PathBuf::from(
+            crate::harness_hosts::Hosts::get(name, cx)?.host.state(),
+        )),
+    }
+}
+
 /// Whether a session of `slot`'s harness takes writes: the primary's as before; a host's while
 /// `marley.harness_writes` is on, since each is followed with the grant then.
 pub(crate) fn writes_on_slot(slot: &Slot, cx: &App) -> bool {
