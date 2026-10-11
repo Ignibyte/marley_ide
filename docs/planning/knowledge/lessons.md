@@ -5315,3 +5315,13 @@ A command Marley types into a local shell to run something on another host is qu
 argv's words for the host's shell, joined into one line, and that line, with ssh's own words, for
 the local shell. `harness_hosts::terminal_line` does both. Marley's terminal `ssh` wrapper (#526)
 leaves such a line alone: any word after the destination makes it plain ssh.
+
+## L-claude-743-test-a-migration-by-running-the-installed-build-first-001
+*category: testing · topic: a change to what Marley does with state an earlier build saved · from: pipeline 743*
+
+A change that must handle what an earlier build left behind (a saved group, a record, a setting)
+is checked by running the installed build first on the run's profile, letting it save that state,
+then switching to the debug build: `binary "$HOME/.local/lib/marley/marley"` at the top, and in
+`steps`, after `quit_marley`, `use_binary "${CARGO_TARGET_DIR:-target}/debug/marley"` and
+`open_path ""` so the relaunch restores the last session instead of opening a path. Seeding the
+store by hand would miss what the old build really writes.

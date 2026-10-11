@@ -2938,3 +2938,11 @@ typed; only the words before the destination, ssh's own, go as plain arguments.
 A custom agent server Marley adds to the settings names its program by absolute path: a bare name
 is resolved on Marley's own search path (`which::which`) first. Zed starts an agent server in the
 project's shell environment, which can find a different program, or none, under the same name.
+
+## PR-claude-743-make-a-window-group-only-when-none-can-still-come-back-001
+*severity: medium · prevents: F-claude-743-a-shown-rusty-group-would-make-a-second-default-001*
+
+Any path that makes a window's Default group (`groups::with_group(Home, …)`, `groups::make` with
+the Home kind) first asks whether one can still arrive: the window holds or is making one
+(`groups::has_kind`), or a restored Home record is pending for it (`groups::pending_kind`, #700's
+rule in `Rail::ensure_groups`). If one can, it waits for the next refresh instead of making one.

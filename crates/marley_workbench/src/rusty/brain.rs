@@ -126,7 +126,7 @@ impl Screen {
     }
 }
 
-/// Opens `screen`'s tab in the window's Rusty group, or brings it forward (#672, #675). Brain and
+/// Opens `screen`'s tab in the group the window shows, or brings it forward (#672, #743). Brain and
 /// Today open the Brain tab, Today with today's note in it (#678).
 pub(crate) fn open_screen(
     screen: Screen,
@@ -425,7 +425,7 @@ impl BrainView {
         });
     }
 
-    /// A page in a Page tab of its own, beside the Brain tab in the Rusty group (#678).
+    /// A page in a Page tab of its own, in the group the window shows (#678, #743).
     fn open_in_new_tab(&self, slug: &str, window: &Window, cx: &mut App) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;

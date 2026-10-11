@@ -54,7 +54,7 @@ pub(super) fn init(cx: &App) {
 
 /// Opens the Secrets tab once the update in progress ends; the rail's Brain view calls it.
 pub(super) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, |workspace, window, cx| {
         open(workspace, window, cx);
     });
 }

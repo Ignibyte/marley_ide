@@ -997,6 +997,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **No Rusty group; Home is Default** (#743, 2026-10-11). The rail no longer makes a Rusty group,
+  at the start or when a Rusty screen opens. Rusty's screens and pages (Brain, Today's Note, Graph,
+  Tasks, Decisions, Memory, Skills, Secrets, Open Page, page links) open as tabs of the group you
+  are looking at, project or group alike, and the status bar's Rusty button opens Rusty's home page
+  there. A Rusty group an earlier build made closes when it comes back after a restart; a window
+  that was showing it shows Default instead. Rusty's home page gains a row with Open Page… and the
+  three captures, which only the Rusty group's + menu had. The window's Home group is now called
+  Default, so it is not mistaken for the Home page the status bar's Home button opens.
+
 - **The Rusty home page** (#679, 2026-10-07). The rail's row of Rusty's screens becomes one Rusty
   button (a placeholder icon until Rusty has its own) before PROJECTS. It opens Rusty's home page,
   always the first tab of the Rusty group: a card with every screen's button (Brain, Today, Graph,

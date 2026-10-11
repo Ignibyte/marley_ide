@@ -2,7 +2,8 @@
 //!
 //! Each is a folderless workspace Marley keeps in its window: its terminals and agent CLIs start
 //! in the home folder, and its Browser tabs use a Chromium of the group's own. The rail lists them
-//! after the window's projects; the window's Home group takes what the rail's empty space makes.
+//! after the window's projects; the window's Home group, called Default since #743, takes what the
+//! rail's empty space makes.
 //!
 //! Since #601 a group comes back after a restart. Every group's record is kept in Zed's key-value
 //! store and read at startup, before Zed restores a window, so a group's Browser tabs find their
@@ -27,10 +28,11 @@ use workspace::{
 
 use crate::MakeGroup;
 
-/// The name of the window's group for what the rail's empty space makes.
-const HOME: &str = "Home";
+/// The name of the window's Home group, the one for what the rail's empty space makes. It is no
+/// longer "Home" since #743, which kept that name for the Home page the status bar opens.
+const DEFAULT: &str = "Default";
 
-/// The name of the window's group for Rusty's screens and pages (#675).
+/// The name a Rusty group keeps when its close is cancelled (#743).
 const RUSTY: &str = "Rusty";
 
 /// The name an unnamed group takes, numbered from its second.
@@ -54,7 +56,8 @@ pub(crate) struct Group {
     pub(crate) expanded: bool,
     /// Whether it is its window's Home group.
     pub(crate) home: bool,
-    /// Whether it is its window's Rusty group, where Rusty's screens and pages open (#675).
+    /// Whether it is a Rusty group an earlier build made (#675). Rusty's screens open in the shown
+    /// group since #743, so the rail closes such a group once it comes back.
     pub(crate) rusty: bool,
 }
 
@@ -63,13 +66,11 @@ pub(crate) struct Group {
 pub(crate) enum GroupKind {
     /// One the user names.
     Named,
-    /// The window's Home group, which takes what the rail's empty space makes.
+    /// The window's Home group, called Default, which takes what the rail's empty space makes.
     Home,
-    /// The window's Rusty group (#675).
-    Rusty,
 }
 
-/// What waits for a window's Home or Rusty group while it is being made (#675, #676).
+/// What waits for a window's Home group while it is being made (#676).
 type GroupOpen = Box<dyn FnOnce(Entity<Workspace>, &mut Window, &mut App)>;
 
 /// What the store keeps of a group (#601).
@@ -90,8 +91,8 @@ pub(crate) struct Groups {
     live: Vec<Group>,
     /// The groups read from the store whose workspace no window holds yet (#601).
     pending: Vec<SavedGroup>,
-    /// The opens waiting for their window's Home or Rusty group while it is being made, by window
-    /// and kind, so two quick opens make one group (#675, #676).
+    /// The opens waiting for their window's Home group while it is being made, by window and kind,
+    /// so two quick opens make one group (#676).
     waiting: Vec<(WindowId, GroupKind, GroupOpen)>,
 }
 
@@ -199,7 +200,12 @@ pub(crate) fn adopt(multi_workspace: &Entity<MultiWorkspace>, cx: &mut App) {
         let saved = groups.pending.remove(at);
         groups.live.push(Group {
             id: saved.id,
-            name: saved.name,
+            // A Home group saved as "Home" before #743 comes back as Default.
+            name: if saved.home {
+                DEFAULT.to_string()
+            } else {
+                saved.name
+            },
             workspace: workspace.downgrade(),
             database_id: Some(database_id),
             project,
@@ -306,8 +312,7 @@ pub(crate) fn make(
     let app_state = Arc::clone(multi_workspace.read(cx).workspace().read(cx).app_state());
     let handle = window.window_handle().downcast::<MultiWorkspace>();
     let name = match kind {
-        GroupKind::Home => HOME.to_string(),
-        GroupKind::Rusty => RUSTY.to_string(),
+        GroupKind::Home => DEFAULT.to_string(),
         GroupKind::Named => name.trim().to_string(),
     };
     let opened = Workspace::new_local(Vec::new(), app_state, handle, None, None, OpenMode::Add, cx);
@@ -322,9 +327,9 @@ pub(crate) fn make(
             };
             cx.default_global::<Groups>().live.push(Group {
                 id: Uuid::new_v4(),
-                // One Home and one Rusty group per window, each called by its kind (#675, #700),
-                // whatever another window's or a stale record's group is called; named groups'
-                // names stay apart across every window's groups, as #600 keeps them.
+                // One Home group per window, called by its kind (#700, #743), whatever another
+                // window's or a stale record's group is called; named groups' names stay apart
+                // across every window's groups, as #600 keeps them.
                 name: if kind == GroupKind::Named {
                     free_name(&name, &taken)
                 } else {
@@ -335,7 +340,7 @@ pub(crate) fn make(
                 project,
                 expanded: true,
                 home: kind == GroupKind::Home,
-                rusty: kind == GroupKind::Rusty,
+                rusty: false,
             });
             keep(cx);
             save(cx);
@@ -349,7 +354,7 @@ pub(crate) fn make(
     .detach_and_log_err(cx);
 }
 
-/// The window's Home or Rusty group's workspace, if the window has the group.
+/// The window's Home group's workspace, if the window has the group.
 fn group_of_kind(
     multi_workspace: &MultiWorkspace,
     kind: GroupKind,
@@ -360,26 +365,39 @@ fn group_of_kind(
         .find_map(|(group, workspace)| {
             let found = match kind {
                 GroupKind::Home => group.home,
-                GroupKind::Rusty => group.rusty,
                 GroupKind::Named => false,
             };
             found.then_some(workspace)
         })
 }
 
-/// The window's Rusty group's workspace, if the window has the group (#675).
-pub(crate) fn rusty_group(multi_workspace: &MultiWorkspace, cx: &App) -> Option<Entity<Workspace>> {
-    group_of_kind(multi_workspace, GroupKind::Rusty, cx)
+/// The Rusty groups an earlier build made that `multi_workspace` holds, each with its workspace,
+/// for the rail to close (#743).
+pub(crate) fn rusty_groups(
+    multi_workspace: &MultiWorkspace,
+    cx: &App,
+) -> Vec<(Uuid, Entity<Workspace>)> {
+    groups_of(multi_workspace, cx)
+        .into_iter()
+        .filter(|(group, _)| group.rusty)
+        .map(|(group, workspace)| (group.id, workspace))
+        .collect()
 }
 
-/// Whether the group `id` is a window's Rusty group (#675).
-pub(crate) fn is_rusty(id: Uuid, cx: &App) -> bool {
-    cx.try_global::<Groups>().is_some_and(|groups| {
-        groups
-            .live
-            .iter()
-            .any(|group| group.id == id && group.rusty)
-    })
+/// Keeps the Rusty group `id`, whose close was cancelled, as a named group, which the rail lists
+/// with Rename and Remove (#743).
+pub(crate) fn demote(id: Uuid, cx: &mut App) {
+    let taken = names_but(id, cx);
+    if let Some(group) = cx
+        .default_global::<Groups>()
+        .live
+        .iter_mut()
+        .find(|group| group.id == id)
+    {
+        group.rusty = false;
+        group.name = free_name(RUSTY, &taken);
+    }
+    save(cx);
 }
 
 /// Whether the group `id` is a window's Home group (#700).
@@ -388,7 +406,7 @@ pub(crate) fn is_home(id: Uuid, cx: &App) -> bool {
         .is_some_and(|groups| groups.live.iter().any(|group| group.id == id && group.home))
 }
 
-/// Whether the window holds its Home or Rusty group, or is making it (#700).
+/// Whether the window holds its Home group, or is making it (#700).
 pub(crate) fn has_kind(
     multi_workspace: &MultiWorkspace,
     kind: GroupKind,
@@ -404,14 +422,13 @@ pub(crate) fn has_kind(
         })
 }
 
-/// Whether a Home or Rusty record read from the store still waits for its workspace (#700): any
-/// such record, or with `among`, one whose workspace id `among` lists.
+/// Whether a Home record read from the store still waits for its workspace (#700): any such
+/// record, or with `among`, one whose workspace id `among` lists.
 pub(crate) fn pending_kind(kind: GroupKind, among: Option<&[WorkspaceId]>, cx: &App) -> bool {
     cx.try_global::<Groups>().is_some_and(|groups| {
         groups.pending.iter().any(|saved| {
             let of_kind = match kind {
                 GroupKind::Home => saved.home,
-                GroupKind::Rusty => saved.rusty,
                 GroupKind::Named => false,
             };
             of_kind && among.is_none_or(|ids| ids.contains(&saved.database_id))
@@ -419,12 +436,11 @@ pub(crate) fn pending_kind(kind: GroupKind, among: Option<&[WorkspaceId]>, cx: &
     })
 }
 
-/// Records `workspace`, a folderless workspace its window already holds, as the window's Home or
-/// Rusty group (#700): Zed's start workspace becomes Home rather than sitting beside a new one.
+/// Records `workspace`, a folderless workspace its window already holds, as the window's Home
+/// group (#700): Zed's start workspace becomes Default rather than sitting beside a new one.
 pub(crate) fn claim(workspace: &Entity<Workspace>, kind: GroupKind, cx: &mut App) {
     let name = match kind {
-        GroupKind::Home => HOME,
-        GroupKind::Rusty => RUSTY,
+        GroupKind::Home => DEFAULT,
         GroupKind::Named => return,
     };
     let (project, database_id) = {
@@ -439,7 +455,7 @@ pub(crate) fn claim(workspace: &Entity<Workspace>, kind: GroupKind, cx: &mut App
         project,
         expanded: true,
         home: kind == GroupKind::Home,
-        rusty: kind == GroupKind::Rusty,
+        rusty: false,
     });
     keep(cx);
     save(cx);
@@ -455,19 +471,8 @@ pub(crate) fn is_home_workspace(id: EntityId, cx: &App) -> bool {
     })
 }
 
-/// Whether the workspace `id` is a window's Rusty group's (#699).
-pub(crate) fn is_rusty_workspace(id: EntityId, cx: &App) -> bool {
-    cx.try_global::<Groups>().is_some_and(|groups| {
-        groups
-            .live
-            .iter()
-            .any(|group| group.rusty && group.workspace.entity_id() == id)
-    })
-}
-
-/// Runs `then` with the window's Home or Rusty group's workspace, making the group first when the
-/// window has none; opens asked for while it is being made wait for it, so there is one (#675,
-/// #676).
+/// Runs `then` with the window's Home group's workspace, making the group first when the window
+/// has none; opens asked for while it is being made wait for it, so there is one (#676).
 pub(crate) fn with_group(
     kind: GroupKind,
     multi_workspace: &Entity<MultiWorkspace>,
@@ -511,11 +516,11 @@ pub(crate) fn with_group(
     );
 }
 
-/// Runs `open` in the workspace of the window's Home or Rusty group and shows the group, making
-/// the group the first time: Rusty's screens and pages open in the Rusty group (#675), and the
-/// screens that belong to no project in Home (#676), whatever project the window shows. Deferred,
-/// since the openers are called from inside a workspace's or a view's update. In the Zed layout,
-/// which has no rail, `open` runs in `asked_from`, the workspace it came from.
+/// Runs `open` in the workspace of the window's Home group and shows the group, making the group
+/// the first time: the screens that belong to no project open in Default (#676), whatever project
+/// the window shows. Deferred, since the openers are called from inside a workspace's or a view's
+/// update. In the Zed layout, which has no rail, `open` runs in `asked_from`, the workspace it
+/// came from.
 pub(crate) fn in_group(
     kind: GroupKind,
     asked_from: WeakEntity<Workspace>,
@@ -552,6 +557,28 @@ pub(crate) fn in_group(
     });
 }
 
+/// Runs `open` in the workspace the window shows, the group the user is looking at: Rusty's
+/// screens and pages open there since #743. Deferred, as [`in_group`] is. In the Zed layout, and
+/// in a window with no `MultiWorkspace`, `open` runs in `asked_from`.
+pub(crate) fn in_shown(
+    asked_from: WeakEntity<Workspace>,
+    window: &Window,
+    cx: &mut App,
+    open: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+) {
+    window.defer(cx, move |window, cx| {
+        let shown = window
+            .root::<MultiWorkspace>()
+            .flatten()
+            .filter(|_| crate::marley_layout(cx))
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade());
+        shown
+            .unwrap_or(asked_from)
+            .update(cx, |workspace, cx| open(workspace, window, cx))
+            .log_err();
+    });
+}
+
 /// Every group's name, open or pending, in every window.
 fn taken_names(cx: &App) -> Vec<String> {
     cx.try_global::<Groups>()
@@ -582,15 +609,9 @@ fn free_name(wanted: &str, taken: &[String]) -> String {
         .unwrap_or_else(|| base.to_string())
 }
 
-/// Renames the group `id` to `name`, unless `name` is empty; a renamed Home group is Home no
-/// more.
-pub(crate) fn rename(id: Uuid, name: &str, cx: &mut App) {
-    let name = name.trim();
-    if name.is_empty() {
-        return;
-    }
-    let taken: Vec<String> = cx
-        .try_global::<Groups>()
+/// Every group's name, open or pending, in every window, but the group `id`'s.
+fn names_but(id: Uuid, cx: &App) -> Vec<String> {
+    cx.try_global::<Groups>()
         .map(|groups| {
             groups
                 .live
@@ -600,7 +621,17 @@ pub(crate) fn rename(id: Uuid, name: &str, cx: &mut App) {
                 .chain(groups.pending.iter().map(|saved| saved.name.clone()))
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+/// Renames the group `id` to `name`, unless `name` is empty; a renamed Home group is Home no
+/// more.
+pub(crate) fn rename(id: Uuid, name: &str, cx: &mut App) {
+    let name = name.trim();
+    if name.is_empty() {
+        return;
+    }
+    let taken = names_but(id, cx);
     let name = free_name(name, &taken);
     if let Some(group) = cx
         .default_global::<Groups>()
@@ -608,7 +639,7 @@ pub(crate) fn rename(id: Uuid, name: &str, cx: &mut App) {
         .iter_mut()
         .find(|group| group.id == id)
     {
-        group.home = group.home && name == HOME;
+        group.home = group.home && name == DEFAULT;
         group.name = name;
     }
     save(cx);

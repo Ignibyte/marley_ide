@@ -3,7 +3,7 @@
 //! The Brain view (#644), which took the rail's place until #678, sits in a column on the tab's
 //! left: the search, the favourites and the tree. The page it opens shows on the tab's right, one
 //! page view the tab navigates, with its own back, forward, Edit, outline and star. The tab opens
-//! in the window's Rusty group (#675), one per window.
+//! in the group the window shows (#743), one per group.
 
 use std::any::TypeId;
 use std::sync::Arc;
@@ -23,10 +23,10 @@ use super::page::{PageEvent, PageView};
 /// The navigation column's width, the Tasks tab's lists' (#658).
 const NAVIGATION_WIDTH: Pixels = px(280.);
 
-/// Opens the window's Brain tab, or brings it forward, once the update in progress ends; it opens
-/// in the Rusty group, and while Rusty is off or not connected a toast says why instead.
+/// Opens the shown group's Brain tab, or brings it forward, once the update in progress ends;
+/// while Rusty is off or not connected a toast says why instead.
 pub(crate) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, |workspace, window, cx| {
         open(workspace, window, cx);
     });
 }
@@ -38,7 +38,7 @@ pub(crate) fn open_page_later(
     window: &Window,
     cx: &mut App,
 ) {
-    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, move |workspace, window, cx| {
         if let Some(tab) = open(workspace, window, cx) {
             // `show_page` reads the workspace, which this runs inside the update of.
             window.defer(cx, move |window, cx| {
@@ -50,7 +50,7 @@ pub(crate) fn open_page_later(
 
 /// Opens the Brain tab and shows today's note in it, which Rusty makes when it is missing.
 pub(crate) fn open_today_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, |workspace, window, cx| {
         if let Some(tab) = open(workspace, window, cx) {
             tab.update(cx, |tab, cx| tab.today(window, cx));
         }

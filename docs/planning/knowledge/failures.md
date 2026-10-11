@@ -3691,3 +3691,13 @@ harness with the `ssh` its own search path finds, but Zed starts an agent server
 shell environment, whose search path found the system `ssh`; the run's thread failed with "Could
 not resolve hostname box-2". Fixed in #742: `ensure_seat_entry` resolves a bare program on Marley's
 search path, so the thread and the harness's link run the same `ssh`.
+
+## F-claude-743-a-shown-rusty-group-would-make-a-second-default-001
+*severity: medium · found in: pipeline 743's review of the diff · class: a group made while its restored twin is still pending · prevented by: PR-claude-743-make-a-window-group-only-when-none-can-still-come-back-001*
+
+The first draft of `retire_rusty_groups` closed a Rusty group restored as the window's shown
+workspace by calling `with_group(Home)` first, to show Default in its place. At that point the
+window's saved Default could still be on its way (`groups::reopen` is asynchronous and the Rusty
+workspace, already the window's, is adopted first), so `with_group` would have made a new Default
+and the restored one would have arrived as a second. Caught in review, before the gate; a shown
+Rusty group now waits until the window holds Default or is making it (`groups::has_kind`).

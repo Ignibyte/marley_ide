@@ -4802,3 +4802,23 @@ the entry for the seat lets every one of them work unchanged, with nothing to pe
 - One entry for every seat of every followed harness: each would show in the Agent Panel's agents.
 - A worktree for the seat's folder: the folder is on the seat's machine, and the window reads no
   file through Zed.
+
+## AD-claude-743-rustys-screens-open-where-the-user-is-and-home-is-default-001
+*decided at: 2026-10-11 · status: shipped · supersedes: AD-claude-675-rustys-screens-open-in-a-per-window-rusty-group-001, AD-claude-700-home-and-rusty-exist-from-the-start-on-top-of-the-rail-001's Rusty half, AD-claude-699-the-rusty-group-is-never-empty-and-its-plus-lists-rustys-screens-001*
+
+Chad, 2026-10-11: "The rusty panel shouldnt be there anymore on start up", "i cant manually remove
+it. but rusty now is in the bottom panel which is what we want", and the Home group renamed
+Default. Since #738 and #739 the status bar's Rusty button opens Rusty in the group on screen, so
+the Rusty group only took a row.
+
+No Rusty group is made. Rusty's openers run in the shown workspace (`groups::in_shown`). An earlier
+build's Rusty group is adopted like any group and then closed through `MultiWorkspace::remove`;
+a cancelled close keeps it as a named group. The Home group's display name is Default; its kind and
+saved field keep their names. The quick links the Rusty group's + menu held move to Rusty's home
+page.
+
+Rejected:
+- Dropping Rusty records when the store is read: a Rusty group shown at the quit comes back as the
+  window's workspace with no record, a folderless workspace with no row.
+- Renaming the Home kind and its saved field: churn with no behavior.
+- Rusty's links in every + menu: #699 kept them to the Rusty group on Chad's word.

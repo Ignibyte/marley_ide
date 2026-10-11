@@ -107,7 +107,7 @@ pub(super) fn init(cx: &mut App) {
             open_later(cx.weak_entity(), window, cx);
         });
         workspace.register_action(|_, _: &OpenLocalGraph, window, cx| {
-            super::in_rusty_group(cx.weak_entity(), window, cx, |workspace, window, cx| {
+            super::in_shown_group(cx.weak_entity(), window, cx, |workspace, window, cx| {
                 open(workspace, true, window, cx);
             });
         });
@@ -117,7 +117,7 @@ pub(super) fn init(cx: &mut App) {
 
 /// Opens the Graph tab once the update in progress ends, from a view that may be inside one.
 pub(super) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    super::in_rusty_group(workspace, window, cx, |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, |workspace, window, cx| {
         open(workspace, false, window, cx);
     });
 }

@@ -258,7 +258,8 @@ pub(crate) struct AtWork {
     pub(crate) row: Selection,
 }
 
-/// When the window may make its Home and Rusty groups (#700).
+/// When the window may make its Default group (#700), and the Rusty groups of an earlier build it
+/// is closing (#743).
 struct StartupGroups {
     /// Whether the window's saved state, which lists its groups, has been read.
     restored: bool,
@@ -266,6 +267,8 @@ struct StartupGroups {
     built: Instant,
     /// A refresh once `SETTLE` has passed, for a window that is never restored.
     _settle: Task<()>,
+    /// The Rusty groups being closed, so a refresh during a close does not close one again.
+    retiring: Vec<Uuid>,
 }
 
 impl StartupGroups {
@@ -277,6 +280,7 @@ impl StartupGroups {
                 cx.background_executor().timer(SETTLE).await;
                 rail.update_in(cx, Rail::refresh).log_err();
             }),
+            retiring: Vec::new(),
         }
     }
 }
@@ -490,22 +494,15 @@ fn closed_id(key: &ProjectGroupKey) -> EntityId {
 /// The toasts of a closed project that did not open (#606).
 struct ClosedProject;
 
-/// A header's icon: the Rusty group's (#675), another projectless group's (#600), or the
-/// project's own (#564).
+/// A header's icon: a projectless group's (#600), or the project's own (#564).
 fn header_icon(
     index: usize,
     icon: Option<Arc<RenderImage>>,
     projectless: bool,
-    rusty: bool,
 ) -> Option<AnyElement> {
     if projectless {
-        let name = if rusty {
-            rusty::RUSTY_ICON
-        } else {
-            IconName::ListTree
-        };
         return Some(
-            Icon::new(name)
+            Icon::new(IconName::ListTree)
                 .size(IconSize::Small)
                 .color(Color::Muted)
                 .into_any_element(),
@@ -957,14 +954,8 @@ impl Rail {
 
     /// Follows Rusty's connection: the header's screens show only while it is up. Most changes of
     /// Rusty's state are reads of its settings, which change nothing here (L-572).
-    fn rusty_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn rusty_changed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let connected = rusty::is_connected(cx);
-        if rusty::is_on(cx) {
-            // Turned on, the window gets its Rusty group (#700).
-            self.ensure_groups(window, cx);
-        } else {
-            self.leave_rusty_group(window, cx);
-        }
         if connected == self.brain.connected {
             return;
         }
@@ -972,35 +963,100 @@ impl Rail {
         cx.notify();
     }
 
-    /// With Rusty off the rail lists no Rusty group (#675), so a window showing it goes back to the
-    /// first open group it lists.
-    fn leave_rusty_group(&self, window: &Window, cx: &mut Context<Self>) {
+    /// Closes each Rusty group an earlier build made (#675, #700) once it comes back: Rusty's
+    /// screens open in the shown group since #743. A window showing one shows its Default group
+    /// first, so that one waits until the window holds Default or is making it: a Default made
+    /// here while the restored one is still on its way would be a second (#700's rule). A close
+    /// the user cancels keeps the group as a named one.
+    fn retire_rusty_groups(&mut self, window: &Window, cx: &mut Context<Self>) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
         };
         let shown = multi_workspace.read(cx).workspace().clone();
-        if groups::rusty_group(multi_workspace.read(cx), cx).as_ref() != Some(&shown) {
+        let has_default = groups::has_kind(
+            multi_workspace.read(cx),
+            groups::GroupKind::Home,
+            window.window_handle().window_id(),
+            cx,
+        );
+        let retired: Vec<(Uuid, Entity<Workspace>)> =
+            groups::rusty_groups(multi_workspace.read(cx), cx)
+                .into_iter()
+                .filter(|(id, workspace)| {
+                    !self.startup.retiring.contains(id) && (has_default || *workspace != shown)
+                })
+                .collect();
+        if retired.is_empty() {
             return;
         }
-        let Some(target) = self
-            .snapshot
-            .groups
-            .iter()
-            .filter(|group| !group.closed)
-            .filter_map(|group| group.workspace.upgrade())
-            .find(|workspace| *workspace != shown)
-        else {
-            return;
-        };
-        let multi_workspace = multi_workspace.downgrade();
-        // Showing another workspace updates the `MultiWorkspace`, which this may run inside.
+        self.startup
+            .retiring
+            .extend(retired.iter().map(|(id, _)| *id));
+        let rail = cx.entity().downgrade();
+        // Showing and removing workspaces updates the `MultiWorkspace`, which this may run inside.
         window.defer(cx, move |window, cx| {
-            multi_workspace
-                .update(cx, |multi_workspace, cx| {
-                    multi_workspace.activate(target, None, window, cx);
-                })
-                .log_err();
+            let shown = multi_workspace.read(cx).workspace().clone();
+            let shows_one = retired.iter().any(|(_, workspace)| *workspace == shown);
+            let weak_multi_workspace = multi_workspace.downgrade();
+            let close = move |window: &mut Window, cx: &mut App| {
+                rail.update(cx, |rail, cx| rail.close_retired(retired, window, cx))
+                    .log_err();
+            };
+            if !shows_one {
+                close(window, cx);
+                return;
+            }
+            groups::with_group(
+                groups::GroupKind::Home,
+                &multi_workspace,
+                move |default, window, cx| {
+                    weak_multi_workspace
+                        .update(cx, |multi_workspace, cx| {
+                            multi_workspace.activate(default, None, window, cx);
+                        })
+                        .log_err();
+                    close(window, cx);
+                },
+                window,
+                cx,
+            );
         });
+    }
+
+    /// Removes the `retired` Rusty groups' workspaces from the window and forgets the groups; a
+    /// group whose close is cancelled stays as a named group (#743).
+    fn close_retired(
+        &mut self,
+        retired: Vec<(Uuid, Entity<Workspace>)>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        for (group, workspace) in retired {
+            let removed = self.multi_workspace.update(cx, |multi_workspace, cx| {
+                multi_workspace.remove([workspace], RemovalIntent::CloseProject, window, cx)
+            });
+            let Some(removed) = removed.log_err() else {
+                self.startup.retiring.retain(|id| *id != group);
+                continue;
+            };
+            cx.spawn(async move |rail, cx| {
+                let closed = removed.await;
+                rail.update(cx, |rail, cx| {
+                    rail.startup.retiring.retain(|id| *id != group);
+                    match closed {
+                        Ok(true) => groups::forget(group, cx),
+                        Ok(false) => groups::demote(group, cx),
+                        Err(error) => {
+                            log::warn!(
+                                "a Rusty group of an earlier build did not close: {error:#}"
+                            );
+                            groups::demote(group, cx);
+                        }
+                    }
+                })
+            })
+            .detach_and_log_err(cx);
+        }
     }
 
     /// The keyboard's row is the selection only while the rail holds focus.
@@ -1108,6 +1164,7 @@ impl Rail {
         if let Some(multi_workspace) = self.multi_workspace.upgrade() {
             groups::adopt(&multi_workspace, cx);
         }
+        self.retire_rusty_groups(window, cx);
         self.sync_subscriptions(window, cx);
         let filter = self.filter_editor.read(cx).text(cx);
         let mut snapshot = self
@@ -1197,50 +1254,36 @@ impl Rail {
         self.open_row(row, window, cx).log_err();
     }
 
-    /// Gives the window its Home group, and its Rusty group while Rusty is on, when it lacks one
-    /// and no restored group of that kind can still come back to it (#700). Home takes Zed's start
-    /// workspace when the window shows it. Deferred: the refresh runs from inside updates.
+    /// Gives the window its Home group, called Default, when it lacks one and no restored Home group
+    /// can still come back to it (#700). Default takes Zed's start workspace when the window shows
+    /// it. Deferred: the refresh runs from inside updates.
     fn ensure_groups(&self, window: &Window, cx: &mut Context<Self>) {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
         };
+        let kind = groups::GroupKind::Home;
         let window_id = window.window_handle().window_id();
         let settled = cx
             .background_executor()
             .now()
             .duration_since(self.startup.built)
             >= SETTLE;
-        let kinds = [
-            Some(groups::GroupKind::Home),
-            rusty::is_on(cx).then_some(groups::GroupKind::Rusty),
-        ];
-        let wanted: Vec<groups::GroupKind> = kinds
-            .into_iter()
-            .flatten()
-            .filter(|&kind| {
-                let may_come_back = if self.startup.restored {
-                    groups::pending_kind(kind, Some(&self.saved_order.groups), cx)
-                } else {
-                    !settled && groups::pending_kind(kind, None, cx)
-                };
-                !may_come_back && !groups::has_kind(multi_workspace.read(cx), kind, window_id, cx)
-            })
-            .collect();
-        if wanted.is_empty() {
+        let may_come_back = if self.startup.restored {
+            groups::pending_kind(kind, Some(&self.saved_order.groups), cx)
+        } else {
+            !settled && groups::pending_kind(kind, None, cx)
+        };
+        if may_come_back || groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
             return;
         }
         window.defer(cx, move |window, cx| {
-            for kind in wanted {
-                if groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
-                    continue;
-                }
-                if kind == groups::GroupKind::Home
-                    && let Some(start) = start_workspace(&multi_workspace, cx)
-                {
-                    groups::claim(&start, kind, cx);
-                } else {
-                    groups::with_group(kind, &multi_workspace, |_, _, _| {}, window, cx);
-                }
+            if groups::has_kind(multi_workspace.read(cx), kind, window_id, cx) {
+                return;
+            }
+            if let Some(start) = start_workspace(&multi_workspace, cx) {
+                groups::claim(&start, kind, cx);
+            } else {
+                groups::with_group(kind, &multi_workspace, |_, _, _| {}, window, cx);
             }
         });
     }
@@ -4796,7 +4839,6 @@ impl Rail {
         let key = group.key.clone();
         let open_key = group.key.clone();
         let projectless = group.group;
-        let rusty = projectless.is_some_and(|id| groups::is_rusty(id, cx));
         let header_menu = HeaderMenu {
             rail: cx.entity().downgrade(),
             key: group.key.clone(),
@@ -4848,15 +4890,13 @@ impl Rail {
                         Disclosure::new(("marley-rail-disclosure", id), false).disabled(true),
                     ))
                 })
-                .children(
-                    header_icon(index, icon, projectless.is_some(), rusty).map(|icon| {
-                        if closed {
-                            div().opacity(0.5).child(icon).into_any_element()
-                        } else {
-                            icon
-                        }
-                    }),
-                )
+                .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
+                    if closed {
+                        div().opacity(0.5).child(icon).into_any_element()
+                    } else {
+                        icon
+                    }
+                }))
                 .child(project_name(
                     row.name,
                     row.highlight,
@@ -4969,13 +5009,7 @@ impl Rail {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
-        // The Rusty group stays while Rusty is on; it has nothing to rename or remove (#675).
-        if groups::is_rusty(group, cx) {
-            return ContextMenu::build(window, cx, |menu, _, _| {
-                menu.label("Rusty's screens and pages open here")
-            });
-        }
-        // Home is always there, so it is not renamed or removed either (#700).
+        // Default is always there, so it is not renamed or removed (#700).
         if groups::is_home(group, cx) {
             return ContextMenu::build(window, cx, |menu, _, _| {
                 menu.label("What belongs to no project opens here")
@@ -8048,11 +8082,11 @@ fn start_workspace(
     free.then_some(shown)
 }
 
-/// The groups the rail lists: the window's Home and Rusty groups (#700), then its projects with an
-/// open workspace, then its named projectless groups (#600), each group on its own workspace under
-/// the empty key and named ones in the order the window saved them (#601) and then as made; their
+/// The groups the rail lists: the window's Default group (#700), then its projects with an open
+/// workspace, then its named projectless groups (#600), each group on its own workspace under the
+/// empty key and named ones in the order the window saved them (#601) and then as made; their
 /// names, and each projectless group's ids. The headers the user placed by dragging go first, in
-/// that order (#602).
+/// that order (#602). A Rusty group an earlier build made is left out while it closes (#743).
 fn rail_groups(
     multi_workspace: &MultiWorkspace,
     saved_order: &SavedOrder,
@@ -8064,13 +8098,8 @@ fn rail_groups(
     let project_names = crate::group_names(&projects);
     let mut marley_groups = groups::groups_of(multi_workspace, cx);
     marley_groups.sort_by_key(|(group, _)| {
-        let kind = if group.home {
-            0
-        } else if group.rusty {
-            1
-        } else {
-            2
-        };
+        // Default first.
+        let kind = !group.home;
         let saved = saved_order
             .groups
             .iter()
@@ -8078,12 +8107,10 @@ fn rail_groups(
             .unwrap_or(usize::MAX);
         (kind, saved)
     });
-    // The Rusty group shows only while Rusty is on (#661, #675).
-    let rusty_on = rusty::is_on(cx);
     let (first, others): (Vec<_>, Vec<_>) = marley_groups
         .into_iter()
-        .filter(|(group, _)| rusty_on || !group.rusty)
-        .partition(|(group, _)| group.home || group.rusty);
+        .filter(|(group, _)| !group.rusty)
+        .partition(|(group, _)| group.home);
     let listed_group = |(group, workspace): (groups::Group, Entity<Workspace>)| {
         (
             ProjectGroup {

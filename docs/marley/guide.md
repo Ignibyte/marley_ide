@@ -352,25 +352,28 @@ Brain buttons) opens a menu:
 New Group… asks for a name and makes a group with no folder, listed after the window's projects
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
-the agent CLIs in the same menu open in the window's Home group. A group's `+`
+the agent CLIs in the same menu open in the window's Default group. A group's `+`
 has no New Agent in Worktree or Launch, which need a folder; its New Agent Thread starts a thread
 in a tab of the group, in your home folder (#734). Right-click a
 group's header for Rename Group… and Remove Group. Groups come back after a restart with their
 names, order, terminals and Browser tabs (#601).
 
-Every window has its Home group from the start, and its Rusty group while Rusty is on (#700). The
-rail lists Home, then Rusty, then your projects, then the groups you named; a header you dragged
-keeps its place. A window started with no folder and nothing to restore shows Home. Home and Rusty
-are always there, so their header menus have nothing to rename or remove.
+Every window has its Default group from the start (#700; called Home until #743, which kept that
+name for the Home page). It holds what belongs to no project. The rail lists Default, then your
+projects, then the groups you named; a header you dragged keeps its place. A window started with no
+folder and nothing to restore shows Default. Default is always there, so its header menu has
+nothing to rename or remove. There is no Rusty group since #743: Rusty's screens open where you are
+(see below), and a Rusty group an earlier build made closes when it comes back after a restart.
 
-Home's first tab is its own page (#701), never Zed's Welcome page: when Home is shown without it, or
-its last tab closes, the page comes back.
+Default's first tab is the Home page (#701), never Zed's Welcome page: when Default is shown without
+it, or its last tab closes, the page comes back. The status bar's Home button opens the same page
+in any group.
 
-- **Start:** New Terminal (a terminal in Home, in your home folder), Open Folder…, Clone
+- **Start:** New Terminal (a terminal in Default, in your home folder), Open Folder…, Clone
   Repository… and Command Palette.
 - **New Agent:** New Agent…, the picker that asks which agent and where (#735), then a button for
   each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a terminal in
-  Home, in your home folder.
+  Default, in your home folder.
 - **Recent Projects:** the projects you opened lately; a click opens one.
 - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
   failed, with its project; a click opens it where it lives.
@@ -1159,18 +1162,14 @@ the switch alone. A key bound to a Rusty command says Rusty is off.
 - With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
   once for Zed's agents.
 
-### The Rusty group and its home page
+### Rusty's home page
 
-Rusty's screens and pages open in the window's Rusty group, a group with no folder that the rail
-lists after your projects (#675). Its first tab is Rusty's home page (#679): a button for each
-screen, your recent pages, the follow-ups due and your open tasks. `rusty: open home` opens it in
-the Rusty group; the Rusty button at the right of the status bar opens it where you are (#739).
-
-- **The group's +** (#699) lists Rusty's quick links first: Home, Brain, Today's Note, Graph,
-  Tasks, Decisions, Memory, Skills, Secrets, Open Page… and the three captures. Zed's own entries
-  follow. A project's + is unchanged.
-- **Never empty** (#699). When the group's last tab closes, or the group is shown with no tab open
-  (after a restart, for one), its home page opens instead of Zed's Welcome page.
+Rusty's screens and pages open as tabs of the group you are looking at (#743), a project or a group
+alike; before #743 they went to a Rusty group of their own (#675). Rusty's home page (#679) has a
+button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills, Secrets), a
+row with Open Page… and the three captures (to Today, to the Inbox, a URL), your recent pages, the
+follow-ups due and your open tasks. The Rusty button at the right of the status bar opens it, or
+brings it forward, where you are (#739); so does `rusty: open home`.
 
 ### Buttons at the right of the status bar
 
@@ -1653,8 +1652,8 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
 An agent thread can sit in the main content, as a tab beside your terminals and files.
 
 - **Start one in a tab** (#734). A project's or a group's `+` → **New Agent Thread** → an agent
-  starts a thread in a tab of that project or group. Groups with no folder have it too: Home,
-  Rusty and the groups you named. The thread works in the project's root, or in your home folder
+  starts a thread in a tab of that project or group. Groups with no folder have it too: Default
+  and the groups you named. The thread works in the project's root, or in your home folder
   in a group with no folder. Its row in the rail sits under the group that holds the tab, with its
   status, and its waits reach **Needs you**.
 - **Any folder.** `marley::NewAgentThread` takes an agent and a folder, so a key of your own can
@@ -2480,7 +2479,7 @@ the picker lists the profiles, and you can always type a name.
   with `ssh HOST rh --state ROOT seat …`.
 - **Waiting.** A Claude Code seat takes up to a minute, since the harness waits for its first
   report.
-- **The result.** The seat's tab opens under Home. A refusal stays in the form as the harness
+- **The result.** The seat's tab opens under Default. A refusal stays in the form as the harness
   said it, such as `seat_exists` or `claude_signin_undeclared`. For the latter, run
   `rh claude signin` on that root first.
 - **From an agent** (#692). Agents, the Marley agent among them, propose the same with

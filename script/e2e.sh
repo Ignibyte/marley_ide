@@ -67,6 +67,9 @@ open_path() { OPEN=$1; }
 # scenario's own `binary` still wins.
 MARLEY_BIN=${E2E_BINARY:-}
 binary() { MARLEY_BIN=$1; }
+# `use_binary <path>` in `steps` switches the build the next `launch_marley` starts, for a session an
+# older build saved and the debug build restores (#743).
+use_binary() { marley=$(realpath -m "$1"); }
 
 # The scenario's backend, `hyprland` or `sway`, named at its top level; SIZE may follow it.
 compositor() { COMPOSITOR=$1; }

@@ -698,26 +698,16 @@ pub(crate) fn is_on(cx: &App) -> bool {
     cx.global::<Rusty>().source != Source::Off
 }
 
-/// Runs `open` in the window's Rusty group (#675), its home page made first there when missing
-/// (#679); see [`crate::groups::in_group`].
-pub(crate) fn in_rusty_group(
+/// Runs `open` in the group the window shows: Rusty's screens and pages open where the user is
+/// since #743, which retired the Rusty group (#675); see [`crate::groups::in_shown`].
+pub(crate) fn in_shown_group(
     asked_from: gpui::WeakEntity<workspace::Workspace>,
     window: &Window,
     cx: &mut App,
     open: impl FnOnce(&mut workspace::Workspace, &mut Window, &mut Context<workspace::Workspace>)
     + 'static,
 ) {
-    crate::groups::in_group(
-        crate::groups::GroupKind::Rusty,
-        asked_from,
-        window,
-        cx,
-        move |workspace, window, cx| {
-            // The home page is always there, and first (#679).
-            home_tab::ensure(workspace, window, cx);
-            open(workspace, window, cx);
-        },
-    );
+    crate::groups::in_shown(asked_from, window, cx, open);
 }
 
 /// Why the rail's Brain view cannot show now, if it can't: Rusty off, or not connected.

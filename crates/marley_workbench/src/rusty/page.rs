@@ -181,8 +181,8 @@ pub(crate) fn open_later(
     cx: &mut App,
 ) {
     // The opener reads every Page tab, so it may not run inside one (AD-609), and a link's click
-    // arrives inside its page's `Markdown` update; `in_rusty_group` defers it.
-    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+    // arrives inside its page's `Markdown` update; `in_shown_group` defers it.
+    super::in_shown_group(workspace, window, cx, move |workspace, window, cx| {
         open(workspace, Visit::page(slug), preview, focus, window, cx);
     });
 }
@@ -201,7 +201,7 @@ pub(crate) fn open_at_heading_later(
         slug,
         heading: Some(heading),
     };
-    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, move |workspace, window, cx| {
         open(workspace, visit, false, true, window, cx);
     });
 }

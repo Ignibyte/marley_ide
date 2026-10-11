@@ -77,7 +77,7 @@ pub(crate) fn open_later(
     window: &Window,
     cx: &mut App,
 ) {
-    super::in_rusty_group(workspace, window, cx, move |workspace, window, cx| {
+    super::in_shown_group(workspace, window, cx, move |workspace, window, cx| {
         open(workspace, list, window, cx);
     });
 }

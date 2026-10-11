@@ -487,7 +487,7 @@ Leave the server running: Parts 5 and 7 use it.
 - [ ] Scratch lists after your projects with a group icon, a chevron and a `+`; its `+` has no
   New Agent Thread, worktree or Launch entry.
 - [ ] Its terminal's `pwd` prints your home folder.
-- [ ] Step 3 makes a Home group with a terminal in `~`.
+- [ ] Step 3 puts a terminal in `~` in the Default group (called Home before #743).
 - [ ] Rename shows Tools; Remove takes the group and its rows away.
 - [ ] Before removing it, quit (`zed: quit`) and start Marley from the app menu: the group comes
   back with its name, its terminals in their folders and its Browser tabs (#601).

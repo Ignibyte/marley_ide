@@ -2145,6 +2145,32 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## No Rusty group; Home is Default (`src/groups.rs`, `src/rail.rs`, `src/rusty.rs`, `src/rusty/home_tab.rs`, #743)
+
+The sections on the Rusty group (#675), its + menu (#699) and the home page's place in it (#679)
+below describe what #743 retired.
+
+- `GroupKind` is `{ Named, Home }`. The Home kind's display name is `DEFAULT` ("Default") in
+  `make`, `claim` and `adopt`, which renames a record saved as "Home"; the kind, `is_home` and the
+  record's `home` field keep their names, so #700's start rules and saved records carry over.
+- `Group::rusty` and `SavedGroup::rusty` stay only to find an earlier build's Rusty group. Such a
+  record is adopted and reopened as any group is (#601); `Rail::refresh` then calls
+  `retire_rusty_groups`, which lists them (`groups::rusty_groups`), skips those already closing
+  (`StartupGroups::retiring`), and defers. A hidden one closes at once; a shown one waits until the
+  window holds Default or is making it (`groups::has_kind`), since a Default made while the
+  restored one is still on its way would be a second, then shows Default through `with_group` and
+  closes. `close_retired` runs `MultiWorkspace::remove(.., RemovalIntent::CloseProject, ..)`:
+  closed, the group is forgotten; refused or failed, `groups::demote` keeps it as a named group
+  called Rusty.
+- `groups::in_shown(asked_from, window, cx, open)` defers, then runs `open` in the window's shown
+  workspace in the Marley layout, else in `asked_from`. `rusty::in_shown_group` wraps it, and every
+  Rusty opener that called `in_rusty_group` calls it, so a Rusty tab lands in the group on screen.
+- `home_tab`: `fill`, `ensure` and `rusty_links` go, and `init` no longer sets
+  `MarleyNewItemMenu`, which now has no user. `open_later` runs `open_here` through
+  `in_shown_group`. The RUSTY card gains `render_forms`: Open Page…, Capture to Today…, Capture to
+  Inbox… and Capture a URL…, each dispatched from the page's focus handle, deferred.
+- `ensure_groups` makes Home alone; `rusty_changed` follows only the connection.
+
 ## The Rusty group (`src/groups.rs`, `src/rusty.rs`, `src/rail.rs`, #675)
 
 - `groups::GroupKind { Named, Home, Rusty }` is what `make` makes; `Group::rusty` and
