@@ -5335,3 +5335,12 @@ not: after a click on a rail row, `ctrl-?` did nothing. A scenario clicks into t
 before a key meant for the workspace. Separately, `wtype` sends a shifted punctuation key such as
 `ctrl-?` as Ctrl+Shift+/, which an editor takes for Ctrl+/; run such an action from the palette
 (`palette "agent: toggle focus"`), which dispatches it from the focused center element.
+
+## L-claude-747-probe-a-failing-drag-with-an-ordinary-tab-001
+*category: testing · topic: a drag that does nothing in a scenario · from: pipeline 747*
+
+When a drag in a scenario does nothing, run the same drag on an ordinary item (an editor's tab)
+in a throwaway scenario under the scratchpad before suspecting the virtual pointer. Here the
+editor's tab split at once, which put the fault in the panel tab (its panel blocked the drop
+target), not in sway or the timing. A drag in a scenario presses, pauses 0.3 s, and moves in
+several steps with short sleeps, as #613's does; one jump starts the drag but reaches no target.

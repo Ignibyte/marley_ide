@@ -1,7 +1,7 @@
 ---
 pipeline_id: c2d53f3d-0e43-493a-a7a0-0ee72e26458c
-ticket: docs/planning/tickets/open/TICKET-747-side-panels-as-tabs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-747-side-panels-as-tabs.md
+status: Phase 4 — Complete PASS
 title: Side panels open as tabs - the mechanism, Files, Git and Outline
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), tabs everywhere (docs/planning/design-notes/tabs-everywhere-2026-10-11.md)
@@ -39,12 +39,12 @@ This ticket builds the tab and moves these three panels; #748 moves the rest of 
   when it goes behind or closes.
 - The outline panel keeps following the editor while its own tab is the active item: a small hunk
   in `crates/outline_panel/src/outline_panel.rs`, with its ledger row.
-- A panel tab comes back after a restart, in its pane, as other tabs do.
 - The Zed layout keeps its docks: switching to it closes every panel tab, and a saved panel tab is
   not restored there.
 - `docs/marley/guide.md` and `docs/marley/walkthrough.md`: side panels open as tabs.
 
 ### Out (explicitly deferred)
+- A panel tab after a restart: #773 (D9), split off at promotion.
 - The collab panel, Fleet, Knowledge and Containers, and the Debug button: #748, on this tab.
 - The Agent Panel. Its status-bar button is #744's (the New Agent picker); the panel itself stays
   in the right dock (#748 says so and asks Chad).
@@ -185,7 +185,7 @@ Shots:
 - **D8 — A tab opens only when asked for.** A panel that starts open (`project_panel.starts_open`,
   on by default) or a restored dock gives no tab; the terminal stays the first thing a fresh
   project shows (#455).
-- **D9 — A panel tab comes back after a restart.** The item is serializable; its row (workspace
+- **D9 — A panel tab comes back after a restart (#773, split off at promotion).** The item is serializable; its row (workspace
   id, item id, persistent name) sits in a small table of its own, as the Graph tab's do. The
   restore waits for the workspace's panel of that name, as the thread tab waits for the Agent
   Panel; it refuses in Zed's layout, for a name outside the moved list, and for a panel that never
@@ -207,7 +207,6 @@ Shots:
 | REQ-007 | WHEN one of the three panels is asked for while a dock is open on another panel, the system shall open the tab and leave that dock open on the panel it showed. | shot `agent-stays` |
 | REQ-008 | WHEN a window restores a session whose dock was open on one of the three panels, the system shall keep the dock closed and open no tab. | shot `restored` |
 | REQ-009 | WHEN a file is opened from the Files tab, the system shall open it in the pane Zed's rule names, the Files tab's own pane once used. | shot `open-file` |
-| REQ-010 | WHEN Marley starts again, the system shall restore each panel tab in its pane. | shot `after-restart` |
 | REQ-011 | WHEN the layout switches to Zed's, the system shall close every panel tab, and each panel's button shall open its dock as Zed does. | shot `zed-layout` |
 | REQ-012 | The system shall tell a moved panel `set_active(true)` while its tab is its pane's front item and `set_active(false)` otherwise. | review of the diff; shot `outline-used` (the outline updates) |
 | REQ-013 | The change shall pass `script/gates.sh --diff`. | the gate's exit code |

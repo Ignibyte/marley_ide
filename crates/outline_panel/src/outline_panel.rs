@@ -1095,9 +1095,12 @@ impl OutlinePanel {
                 window,
                 move |outline_panel, workspace, event, window, cx| {
                     if let workspace::Event::ActiveItemChanged = event {
-                        if let Some((new_active_item, new_active_editor)) =
-                            workspace_active_editor(workspace.read(cx), cx)
-                        {
+                        // Marley: the panel's own center tab stands for the editor used last (#747).
+                        if let Some((new_active_item, new_active_editor)) = marley_active_editor(
+                            workspace.read(cx),
+                            &outline_panel.focus_handle,
+                            cx,
+                        ) {
                             if outline_panel.should_replace_active_item(new_active_item.as_ref()) {
                                 outline_panel.replace_active_editor(
                                     new_active_item,
@@ -5572,6 +5575,24 @@ fn workspace_active_editor(
     Some((active_item, active_editor))
 }
 
+// Marley: in the Marley layout this panel is drawn by a center tab (#747), which becomes the
+// workspace's active item while it is used. That item, whose focus handle is the panel's own,
+// stands for the editor used last, so the outline keeps following it.
+fn marley_active_editor(
+    workspace: &Workspace,
+    panel_focus: &FocusHandle,
+    cx: &App,
+) -> Option<(Box<dyn ItemHandle>, Entity<Editor>)> {
+    let active_item = workspace.active_item(cx)?;
+    if active_item.item_focus_handle(cx) != *panel_focus {
+        return workspace_active_editor(workspace, cx);
+    }
+    let editor = workspace
+        .recent_active_item_by_type::<Editor>(cx)
+        .filter(|editor| editor.read(cx).mode().is_full())?;
+    Some((Box::new(editor.clone()), editor))
+}
+
 fn file_name(path: &Path) -> String {
     let mut current_path = path;
     loop {
@@ -5650,10 +5671,15 @@ impl Panel for OutlinePanel {
                     if old_active != active {
                         outline_panel.lsp_outline_refresh_task = Task::ready(());
                         outline_panel.outline_fetch_tasks.clear();
+                        // Marley: the panel's own center tab stands for the editor used last (#747).
                         if active
                             && let Some((active_item, active_editor)) =
                                 outline_panel.workspace.upgrade().and_then(|workspace| {
-                                    workspace_active_editor(workspace.read(cx), cx)
+                                    marley_active_editor(
+                                        workspace.read(cx),
+                                        &outline_panel.focus_handle,
+                                        cx,
+                                    )
                                 })
                         {
                             if outline_panel.should_replace_active_item(active_item.as_ref()) {

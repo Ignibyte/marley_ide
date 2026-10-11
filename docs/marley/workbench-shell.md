@@ -400,7 +400,8 @@ harness's `rh acp --seat`; #743 retires the Rusty group, Rusty's screens opening
 screen, and calls the Home group Default; #744 makes New Agent… the one way to start an agent, from
 the rail's `+`, every pane's `+` and the sparkle; #772 adds Reopen Thread… and opens every thread in
 a tab, never Zed's Agent Panel; #745 puts a Projects | Threads switch at the top of the rail; #746 moves Rusty and
-Marley to the title bar beside the `?`;
+Marley to the title bar beside the `?`; #747 opens Files, Git and Outline as tabs, never the right
+dock;
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
 listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
 CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.

@@ -2946,3 +2946,11 @@ Any path that makes a window's Default group (`groups::with_group(Home, …)`, `
 the Home kind) first asks whether one can still arrive: the window holds or is making one
 (`groups::has_kind`), or a restored Home record is pending for it (`groups::pending_kind`, #700's
 rule in `Rail::ensure_groups`). If one can, it waits for the next refresh instead of making one.
+
+## PR-claude-747-an-item-hosting-a-view-keeps-what-the-view-asks-of-it-001
+*severity: high · prevents: F-claude-747-a-panel-tab-read-its-panel-while-the-panel-updated-001*
+
+An item that draws another entity's view (a panel in a tab, a thread view in a tab) answers the
+questions that view may ask about the active item (`focus_handle`, `tab_content_text`,
+`act_as`) from values it kept when it was made, never by reading the hosted entity: the hosted
+entity asks while it is being updated.

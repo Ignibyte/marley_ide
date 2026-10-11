@@ -441,6 +441,24 @@ Vim's `:!` and external agents' login terminals still open the Terminal Panel, s
 directly. A Terminal Panel moved to a side dock with `terminal.dock` still opens with that dock's
 toggle.
 
+### Side panels as tabs (#747)
+
+In the Marley layout the project panel, the git panel and the outline panel open as tabs in the pane
+you are in, not in the right dock. Their buttons at the right of the status bar, their keys
+(Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B) and Zed's own ways to them, such as Reveal in Project
+Panel, bring the panel's tab forward where it is, or open one. Each sits in the rail like any tab.
+
+- **One of each per group.** Asking again brings the same tab forward. Drag a panel tab to a pane's
+  edge, or use the split keys, to put it in a pane of its own: it moves, it is not copied.
+- **The outline** keeps listing the symbols of the editor you were in while its own tab is in front.
+- **The docks.** A dock that opens on one of the three by itself, such as the project panel Zed opens
+  on a new project, closes again and makes no tab. With the Agent Panel open in the right dock, a
+  panel's button opens its tab and leaves the Agent Panel where it is.
+- **Zed's layout** keeps its docks: switching to it closes the panel tabs.
+
+The collab panel, Fleet, Knowledge and Containers follow in #748. A panel tab does not come back
+after a restart yet (#773).
+
 ## The block terminal
 
 ### Shell integration for bash, zsh and fish

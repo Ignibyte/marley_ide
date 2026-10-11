@@ -3710,3 +3710,23 @@ an `h_flex` with both labels truncating. A scenario's folder is a long scratch p
 took the width and the title showed as "…" (772-01). The detail moved to a second line, as the
 Threads page's rows have it. A row with two truncating labels on one line needs one of them fixed
 in size, or a line each.
+
+## F-claude-747-a-panel-tab-read-its-panel-while-the-panel-updated-001
+*severity: high · found in: pipeline 747's Test phase · class: an item answering through an entity that asks it · prevented by: PR-claude-747-an-item-hosting-a-view-keeps-what-the-view-asks-of-it-001*
+
+`PanelTab::focus_handle` answered `panel.panel_focus_handle(cx)`, which reads the panel. The
+outline panel, inside its own update (its `ActiveItemChanged` subscription, through #747's
+`marley_active_editor`), asks the workspace's active item for its focus handle; with the Outline
+tab in front that item is the tab, which read the outline panel again: "cannot read OutlinePanel
+while it is already being updated", and Marley ended. Fixed in #747: the tab keeps the panel's
+focus handle from when it was made.
+
+## F-claude-747-a-panel-hid-the-panes-drop-target-001
+*severity: medium · found in: pipeline 747's Test phase · class: a hosted view that blocks the mouse hides its host's drop target*
+
+A tab dragged over a Files tab never split its pane: the project panel's empty space is
+`block_mouse_except_scroll` (for the dock's focus-follows-mouse), which hides every hitbox under
+it, the pane's drop-target group among them. A probe that dragged an ordinary `lib.rs` tab the
+same way split at once. Fixed in #747: the tab draws a transparent drop layer of its own over the
+panel and hands the drop to `Pane::handle_tab_drop`, at the split direction the pane tracks in the
+capture phase.

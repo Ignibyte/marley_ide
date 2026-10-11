@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #747 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [747-side-panels-as-tabs.spec.md](../../pipeline/queued/747-side-panels-as-tabs.spec.md)
+- **Pipeline doc:** [747-side-panels-as-tabs.spec.md](../../pipeline/completed/747-side-panels-as-tabs.spec.md)
 - **Source ticket:** Chad, 2026-10-11: "I wanted everything to open in the main panel now with a
   tab. THe includes everything in the bottom right. With the ability to split pane it and drag it
   all", then "everything opens in the main pane now then the user can just split panel it out
   themselves. that way its consistent". Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In the Marley layout every side panel sits in the right dock, and its status-bar button toggles

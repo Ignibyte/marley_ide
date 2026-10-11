@@ -997,6 +997,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Files, Git and Outline open as tabs** (#747, 2026-10-11). In the Marley layout the project
+  panel, the git panel and the outline panel open as tabs in the pane you are in, not in the right
+  dock: their status-bar buttons, their keys (Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B) and Zed's
+  own calls such as Reveal in Project Panel all bring the panel's tab forward, or open one. Drag a
+  panel tab, or use the split keys, to put it in a pane of its own; a group has one of each, so a
+  split moves it. The outline keeps listing the editor's symbols while its own tab is in front. A
+  dock that opens on one of them by itself closes again, and the Agent Panel's dock stays as it
+  is. Zed's layout keeps its docks, and switching to it closes the panel tabs.
+
 - **Marley and Rusty in the title bar** (#746, 2026-10-11). The Rusty and Marley buttons moved from
   the status bar to the title bar's right, beside the `?` and the user menu, in both layouts, under
   the same rules: Rusty while Rusty is on and connected, Marley while its agent is there. Home stays

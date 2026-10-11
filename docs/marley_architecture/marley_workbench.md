@@ -2145,6 +2145,29 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## Side panels as tabs (`src/panel_tabs.rs`, Zed's `outline_panel.rs`, #747)
+
+- `MOVED` names the panels a tab draws, by persistent name (`Project Panel`, `GitPanel`,
+  `Outline Panel`; #748 adds more). A moved panel stays registered in its dock, so Zed's code still
+  finds it, and the dock never draws it.
+- `PanelTab` is an `Item` over the panel's `Arc<dyn PanelHandle>`: the button's tooltip and icon
+  name it; it keeps the panel's focus handle (a panel asks for the active item's focus handle
+  inside its own update, so answering must not read the panel); it draws `panel.to_any()` and,
+  over it, a transparent drop layer for a dragged tab that hands the drop to its pane's
+  `handle_tab_drop` at the pane's `drag_split_direction` (the panels block the mouse over their
+  empty space, which hides the pane's own drop target). Its first render in front defers
+  `set_active(true)`; `deactivated` tells `false`. A tab dropped in another group closes.
+- One observer per dock (`dock_changed`, installed from `observe_new`): in the Marley layout an
+  open dock whose active panel is moved goes back to the panel it showed before (still open) or
+  closes; when the panel holds the focus, as `focus_panel`, `ToggleFocus` and Reveal leave it,
+  `show_tab` brings the panel's tab forward anywhere in the workspace or opens one in the active
+  pane. `retell` then gives the panel back `set_active(true)` while its tab is in front, since the
+  dock's `set_open` and `activate_panel` told it otherwise.
+- The split keys (`pane::Split{Left,Right,Up,Down}`) are caught in the capture phase: on a panel
+  tab, a `ClonePane` split becomes `MovePane`. Switching to Zed's layout closes every panel tab.
+- `outline_panel::marley_active_editor` (a Zed hunk): an active item whose focus handle is the
+  panel's own stands for the editor used last, at both of the panel's reads of the active editor.
+
 ## Marley and Rusty in the title bar (`src/status_buttons.rs`, Zed's `title_bar.rs`, #746)
 
 - `title_bar::MarleyTitleBarButtons` (a Zed hunk, its ledger row extended) holds a function from a
