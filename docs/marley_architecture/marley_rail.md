@@ -130,7 +130,7 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   move no selection and decide no order.
 - **`TerminalSnapshot::usage`** (#715) is the agent's account usage, `Usage { quota, limit }`: the
   `QuotaWindow`s most used first (the one type #640's harness rows read too) and the
-  `codex_events::Limit` a Codex stopped at, which the crate re-exports. The builders copy it.
+  `usage::Limit` a Claude Code or a Codex stopped at (#765), which the crate re-exports. The builders copy it.
 - **The inbox (#508).** `RailSnapshot.inbox` holds what waits on the user as `InboxEntry`s: a
   key naming what waits and on what, the kind (`InboxKind::Thread` for an Agent Panel tool call
   waiting for confirmation, `Terminal` for an agent CLI waiting on a permission or a question,

@@ -213,8 +213,15 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   whose code is `usageLimitExceeded` or `rateLimitExceeded` (`is_limit`) sets `LIMITED_LABEL` to
   the turn's id and `LIMIT_RESETS_AT_LABEL` to `limit_reset`, the latest reset after the failure
   among the windows at 100 % or more, none when a full window gives no reset; `TurnStarted` clears
-  both. `limit(seat)` gives a failed seat's `Limit { turn, resets_at_ms }`, and `seat_words` reads
-  `limited` for it.
+  both. `seat_words` reads `limited` for a limited seat.
+- **`src/usage.rs` (#765)** holds the limited state both agents share: `LIMITED_LABEL` (the
+  failure's identity), `LIMIT_RESETS_AT_LABEL` (a reset the fold fixed, Codex's),
+  `LIMITED_AT_LABEL` (the failure's moment), `Limit { turn, resets_at_ms }`, and `limit(seat)`:
+  a failed seat with `LIMITED_LABEL`, its reset the fixed one or else `limit_reset(labels,
+  after_ms)`, the latest reset after the failure among the full windows, read each time, since
+  Claude Code's windows may land after its failure. `claude_events` sets `LIMITED_LABEL` and
+  `LIMITED_AT_LABEL` at a lead `StopFailure` with `rate_limit`, clears them at a prompt or a new
+  session, and `seat_line` reads `limited`.
 
 ## The versions integrations were tested on (`src/versions.rs`, #648)
 

@@ -23,6 +23,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::claude_events::{AGENT_LABEL, ERROR_LABEL};
+use crate::usage::{LIMIT_RESETS_AT_LABEL, LIMITED_LABEL, QUOTA_PREFIX, limit, limit_reset};
 use crate::{AgentStatus, claude_events};
 
 /// The agent label's value on a Codex seat.
@@ -41,11 +42,6 @@ pub const SANDBOX_LABEL: &str = "sandbox";
 pub const APPROVAL_LABEL: &str = "approval";
 /// Marks a seat whose last turn failed, so the `idle` after it keeps it failed.
 const TURN_FAILED_LABEL: &str = "turn_failed";
-/// The label for a limited seat (#715): the id of the turn Codex's usage limit failed.
-pub const LIMITED_LABEL: &str = "limited";
-/// The label for when a limited seat's limit resets, in milliseconds since the epoch; absent when
-/// no full window says.
-pub const LIMIT_RESETS_AT_LABEL: &str = "limit_resets_at_ms";
 /// The notification that carries the account's rate-limit windows (#715).
 pub const RATE_LIMITS_UPDATED: &str = "account/rateLimits/updated";
 /// The `codexErrorInfo` codes of a turn stopped by the account's limits, as T3 Code classes them.
@@ -540,63 +536,6 @@ pub fn fold(
         }],
         Step::Moved => moving.into_events(seat, now_ms),
     }
-}
-
-/// The prefix of the labels that carry an account's quota windows, as `report.rs` writes them.
-const QUOTA_PREFIX: &str = "quota.";
-
-/// When a limited seat's limit resets (#715): the latest reset after `now_ms` among the windows
-/// at 100 % or more, since every full window must reopen before a turn can run. `None` when a
-/// full window gives no reset, or none is full.
-fn limit_reset(labels: &BTreeMap<String, String>, now_ms: u64) -> Option<u64> {
-    let mut latest = None;
-    for (key, value) in labels {
-        let Some(kind) = key
-            .strip_prefix(QUOTA_PREFIX)
-            .and_then(|key| key.strip_suffix(".percent_used"))
-        else {
-            continue;
-        };
-        if !value
-            .trim()
-            .parse::<f64>()
-            .is_ok_and(|percent| percent >= 100.0)
-        {
-            continue;
-        }
-        let reset: u64 = labels
-            .get(&format!("{QUOTA_PREFIX}{kind}.resets_at_ms"))?
-            .parse()
-            .ok()?;
-        if reset > now_ms {
-            latest = latest.max(Some(reset));
-        }
-    }
-    latest
-}
-
-/// A usage limit an agent stopped at (#715).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Limit {
-    /// The turn the limit failed.
-    pub turn: String,
-    /// When the limit resets, in milliseconds since the epoch; `None` when the agent did not say.
-    pub resets_at_ms: Option<u64>,
-}
-
-/// The limit a limited seat stopped at (#715); `None` when the seat is not limited.
-#[must_use]
-pub fn limit(seat: &Session) -> Option<Limit> {
-    if seat.state != State::Error {
-        return None;
-    }
-    Some(Limit {
-        turn: seat.labels.get(LIMITED_LABEL)?.clone(),
-        resets_at_ms: seat
-            .labels
-            .get(LIMIT_RESETS_AT_LABEL)
-            .and_then(|reset| reset.parse().ok()),
-    })
 }
 
 /// The words a Codex row's line starts with.

@@ -5511,3 +5511,13 @@ turn sends it only while the thread is idle (the follow's `Lead.idle`, from `thr
 and checks again on the follow's own task, where the send happens. Read it with `codex app-server
 generate-ts --out <dir>` on the installed Codex, which writes the field docs the JSON Schema
 leaves out.
+
+## L-claude-765-claude-code-ends-a-turn-at-its-usage-limit-001
+*category: protocol · topic: Claude Code at its usage limit · from: pipeline 765*
+
+Claude Code 2.1.296 does not hold a turn until its usage limit resets. A 429 for a subscriber
+becomes an API error message with `error: "rate_limit"` (and `apiError: "usage_limit_reached"`),
+the query loop returns `api_error`, and the `StopFailure` hooks run with that error; the hook input
+carries no reset. Read on the box from the installed binary with Python's `re` (the shell's grep
+is ugrep, which refuses long patterns): `executeStopFailureHooks` and the `StopFailure` input's
+error enum are plain text in it.

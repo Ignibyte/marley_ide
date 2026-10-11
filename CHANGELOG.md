@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code's limited state and Continue at Reset** (#765, 2026-10-11). A Claude Code whose
+  turn its usage limit stopped reads `limited · resets in …` in the warning color instead of
+  `failed`, and Needs you offers Continue at Reset, which types "Continue where you left off." into
+  its terminal once the limit resets, unless you send a prompt first. The reset comes from the
+  windows the shared Claude Code plugin reports. Continue Limited Agents at Reset now covers Claude
+  Code too.
+
 - **A usage meter, and Continue at Reset for a limited Codex** (#715, 2026-10-11). Claude Code and
   Codex rows show their account's most-used usage window and when it resets, `5 h 62 % · resets in
   1 h 35 m`, and every window when you point at the row; Codex's come from the numbers its App

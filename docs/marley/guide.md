@@ -887,8 +887,16 @@ or if the thread, the server or the terminal closes; a reset that passed while t
 continues at the next check. Once the reset has passed the button reads Continue and sends at once.
 A rate limit with no full window gives no reset, so the row reads `limited` and the entry has no
 button. **Continue Limited Agents at Reset** (`marley.continue_at_reset`, Agents section, off by
-default) arms every limited Codex without the click; Cancel still holds. Claude Code's own limited
-state is not shown yet.
+default) arms every limited agent without the click; Cancel still holds.
+
+A Claude Code its usage limit stops (#765) reads the same way: its turn ends with Claude Code's
+`rate_limit` error, the row reads `limited · resets in 1 h 35 m · <prompt>`, and Needs you offers
+Continue at Reset. The reset comes from the windows the shared plugin reports at the turn's end,
+so without the plugin the row reads `limited` with no button. At the reset Marley types "Continue
+where you left off." and Enter into the terminal, as Continue after a restart does, and only while
+Claude Code still reads limited by the same failure; a prompt you send first, a new session or
+Claude Code leaving the terminal cancels it. Whatever you left typed at Claude Code's prompt is
+sent with it.
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
 

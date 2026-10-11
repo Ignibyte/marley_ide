@@ -251,7 +251,7 @@ pub struct QuotaWindow {
 }
 
 /// A usage limit an agent stopped at (#715).
-pub use marley_agent::codex_events::Limit;
+pub use marley_agent::usage::Limit;
 
 /// One turn of a terminal's agent that changed the tree (#509, #753).
 #[derive(Debug, Clone, PartialEq, Eq)]

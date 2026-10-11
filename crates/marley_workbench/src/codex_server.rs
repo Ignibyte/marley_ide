@@ -920,13 +920,15 @@ impl Following {
         let terminal = self.terminal.entity_id();
         let known = self.view;
         let generation = self.generation;
+        let weak_terminal = self.terminal.clone();
         let view = cx.update(|cx| {
             let view = known.or_else(|| view_of(terminal, cx))?;
             if let Some((before, after)) = crate::agent_events::fold_codex(view, input, cx) {
                 push_change(view, before, &after, cx);
             }
-            let seat = crate::agent_events::seat_of(view, AgentKind::Codex, cx).cloned();
-            crate::limits::on_seat(terminal, seat.as_ref(), generation, cx);
+            let limited = crate::agent_events::seat_of(view, AgentKind::Codex, cx)
+                .and_then(|seat| Limited::of_codex(seat, generation));
+            crate::limits::on_seat(&weak_terminal, view, limited, cx);
             Some(view)
         });
         self.view = view;
@@ -1475,13 +1477,13 @@ async fn continued(limited: &Limited, client: &mut Client, following: &Following
     let lead_idle = following
         .lead
         .as_ref()
-        .is_some_and(|lead| lead.id == limited.thread && lead.idle);
+        .is_some_and(|lead| lead.id == limited.session && lead.idle);
     let generation = following.generation;
     let still = following.view.is_some_and(|view| {
         cx.update(|cx| {
             crate::agent_events::seat_of(view, AgentKind::Codex, cx)
-                .and_then(|seat| Limited::of(seat, generation))
-                .is_some_and(|now| now.turn == limited.turn && now.thread == limited.thread)
+                .and_then(|seat| Limited::of_codex(seat, generation))
+                .is_some_and(|now| now.turn == limited.turn && now.session == limited.session)
         })
     });
     if limited.generation != generation || !lead_idle || !following.requests.is_empty() || !still {
@@ -1489,7 +1491,7 @@ async fn continued(limited: &Limited, client: &mut Client, following: &Following
         return;
     }
     let params = json!({
-        "threadId": limited.thread,
+        "threadId": limited.session,
         "input": [{ "type": "text", "text": marley_agent::RESUME_PROMPT, "text_elements": [] }],
     });
     match client.call("turn/start", params).await {

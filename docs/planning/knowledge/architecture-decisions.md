@@ -5007,3 +5007,15 @@ The meter reads only what the agents already send: Codex's `account/rateLimits/u
 `Signals` and line, a percent above 100 read as 100. Rejected: typing the prompt into the TUI
 (it would join whatever sits in Codex's composer), `account/rateLimits/read` (a request to OpenAI's
 backend on each call), a Usage tab (its own ticket), and a status-bar meter (#746 is moving it).
+
+## AD-claude-765-claude-code-is-limited-on-rate-limit-and-continued-by-typing-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-715-a-limited-codex-is-a-state-and-continues-through-its-app-server-on-a-click-001*
+
+A Claude Code is limited from a lead `StopFailure` with `rate_limit` until its next prompt or
+session, with the moment of the failure kept; its reset is the latest reset after that moment among
+the full windows the shared plugin reports, read from the labels each time. One limited state serves
+both agents (`marley_agent::usage`). Its continuation is typed, `paste_then` with the resume prompt
+and Enter as #750's Continue does, only while the seat still reads the same failure in the same
+session; an arm keeps the terminal's weak handle and the view's id. Rejected: reading the reset from
+the message's text (a locale's clock, not a moment), and clearing Claude Code's composer before
+typing (Marley cannot see it).

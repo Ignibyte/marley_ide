@@ -287,6 +287,12 @@ fn accept(
             );
             let kind = crate::agent_bar::agent_in(terminal_entity.read(cx));
             let moved = crate::agent_events::apply_report(id, &report, kind, false, cx);
+            // The shared plugin's windows give a limited Claude Code its reset (#765).
+            if kind == Some(AgentKind::Claude) {
+                let limited = crate::agent_events::seat_of(id, AgentKind::Claude, cx)
+                    .and_then(crate::limits::Limited::of_claude);
+                crate::limits::on_seat(&terminal_entity.downgrade(), id, limited, cx);
+            }
             if let (Some(session), Some(folder)) = (&report.session_id, folder) {
                 crate::resume::on_report(&terminal_entity, session, folder, cx);
             }

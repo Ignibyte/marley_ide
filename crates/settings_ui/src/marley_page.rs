@@ -241,7 +241,7 @@ fn agents_section() -> [SettingsPageItem; 20] {
         // Marley: a limited Codex continued at its reset without a click (#715).
         SettingsPageItem::SettingItem(SettingItem {
             title: "Continue Limited Agents at Reset",
-            description: "When a Codex on Marley's App Server stops at its usage limit, Marley sends it \"Continue where you left off.\" once the limit resets, without waiting for Continue at Reset in Needs you. Starting a turn yourself first cancels it.",
+            description: "When a Claude Code, or a Codex on Marley's App Server, stops at its usage limit, Marley sends it \"Continue where you left off.\" once the limit resets, without waiting for Continue at Reset in Needs you. Starting a turn yourself first cancels it.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.continue_at_reset"),

@@ -965,11 +965,11 @@ enum InboxTarget {
         generation: u64,
         request: Box<codex_events::Request>,
     },
-    /// A terminal's Codex its usage limit stopped (#715): the terminal view, the terminal, and the
-    /// limit as its entry showed it.
+    /// A terminal's agent its usage limit stopped (#715, #765): the terminal view, the terminal,
+    /// and the limit as its entry showed it.
     Limit {
         view: u64,
-        terminal: EntityId,
+        terminal: WeakEntity<Terminal>,
         limited: crate::limits::Limited,
     },
 }
@@ -2640,13 +2640,20 @@ impl Rail {
                 }
             }
             Some(InboxTarget::Limit {
-                terminal, limited, ..
+                view,
+                terminal,
+                limited,
             }) => {
-                let (terminal, limited) = (*terminal, limited.clone());
+                let (view, terminal, limited) =
+                    (EntityId::from(*view), terminal.clone(), limited.clone());
                 match answer {
-                    InboxAnswer::ContinueAtReset => crate::limits::arm(terminal, limited, cx),
-                    InboxAnswer::Continue => crate::limits::continue_now(terminal, limited, cx),
-                    InboxAnswer::Cancel => crate::limits::cancel(terminal, cx),
+                    InboxAnswer::ContinueAtReset => {
+                        crate::limits::arm(terminal, view, limited, cx);
+                    }
+                    InboxAnswer::Continue => {
+                        crate::limits::continue_now(terminal, view, limited, cx);
+                    }
+                    InboxAnswer::Cancel => crate::limits::cancel(terminal.entity_id(), cx),
                     _ => {}
                 }
             }
@@ -7334,11 +7341,16 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
                 }
                 continue;
             }
-            // A limited Codex waits for its reset, or for the user (#715).
-            let limited = crate::codex_server::generation_of(terminal, cx).and_then(|generation| {
-                let seat = agent_events::seat_of(view.entity_id(), AgentKind::Codex, cx)?;
-                crate::limits::Limited::of(seat, generation)
-            });
+            // A limited agent waits for its reset, or for the user (#715, #765).
+            let limited = crate::codex_server::generation_of(terminal, cx)
+                .and_then(|generation| {
+                    let seat = agent_events::seat_of(view.entity_id(), AgentKind::Codex, cx)?;
+                    crate::limits::Limited::of_codex(seat, generation)
+                })
+                .or_else(|| {
+                    agent_events::seat_of(view.entity_id(), AgentKind::Claude, cx)
+                        .and_then(crate::limits::Limited::of_claude)
+                });
             if let Some(limited) = limited {
                 let id = view.entity_id().as_u64();
                 let entry =
@@ -7347,7 +7359,7 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
                     entry.key.clone(),
                     InboxTarget::Limit {
                         view: id,
-                        terminal,
+                        terminal: view.read(cx).terminal().downgrade(),
                         limited,
                     },
                 );
@@ -7820,7 +7832,7 @@ fn codex_entry(
     }
 }
 
-/// A limited Codex as an inbox entry (#715): when its limit resets, with Continue at Reset; Continue
+/// A limited agent as an inbox entry (#715, #765): when its limit resets, with Continue at Reset; Continue
 /// once the reset has passed; `Continues at 15:05` with Cancel while armed (`armed_at`); and no
 /// button when Codex gave no reset.
 fn limit_entry(
@@ -7848,8 +7860,12 @@ fn limit_entry(
     };
     InboxEntry {
         key: format!("limit:{view}:{}:{}", limited.generation, limited.turn),
-        kind: InboxKind::Codex,
-        agent: AgentKind::Codex.display_name().to_string(),
+        // A Claude Code's entry names its agent for its icon, as a waiting seat's does.
+        kind: match limited.agent {
+            AgentKind::Codex => InboxKind::Codex,
+            _ => InboxKind::Terminal,
+        },
+        agent: limited.agent.display_name().to_string(),
         project: project.to_string(),
         ask,
         waited: String::new(),
@@ -8577,15 +8593,18 @@ fn terminal_snapshot(
             );
             let status = seat.map_or_else(
                 || marley_agent::status_line(agent.kind, agent.status),
-                |seat| match agent.kind {
-                    AgentKind::Codex => codex_line(seat, cx),
-                    _ => claude_events::seat_line(
-                        seat,
-                        agent_events::now_ms(),
-                        no_update_after_ms(cx),
-                        shown,
-                        flag,
-                    ),
+                |seat| {
+                    let line = match agent.kind {
+                        AgentKind::Codex => codex_line(seat, cx),
+                        _ => claude_events::seat_line(
+                            seat,
+                            agent_events::now_ms(),
+                            no_update_after_ms(cx),
+                            shown,
+                            flag,
+                        ),
+                    };
+                    with_limit_reset(line, seat, agent_events::now_ms())
                 },
             );
             (title, Some(status))
@@ -8635,13 +8654,21 @@ fn terminal_snapshot(
 }
 
 /// An agent seat's account usage for its row (#715): its quota windows, read as #640 reads a
-/// harness session's, and a Codex's usage limit.
+/// harness session's, and the usage limit it stopped at (#765).
 fn usage_of(seat: &marley_fleet::Session) -> Usage {
     Usage {
         quota: Signals::of(&seat.labels).quota,
-        limit: codex_events::is_codex(seat)
-            .then(|| codex_events::limit(seat))
-            .flatten(),
+        limit: marley_agent::usage::limit(seat),
+    }
+}
+
+/// A limited agent's line with its limit's reset after `limited` (#715, #765):
+/// `limited · resets in 1 h 35 m · …`.
+fn with_limit_reset(line: String, seat: &marley_fleet::Session, now_ms: u64) -> String {
+    let reset = marley_agent::usage::limit(seat).and_then(|limit| limit.resets_at_ms);
+    match (reset, line.strip_prefix("limited")) {
+        (Some(reset), Some(after)) => format!("limited · {}{after}", reset_words(reset, now_ms)),
+        _ => line,
     }
 }
 
@@ -8748,14 +8775,10 @@ fn agent_mark(
     )
 }
 
-/// A Codex row's line from its App Server's thread (#650): the state's words, a limit's reset
-/// (#715), and the thread's token use once Codex reported it, such as `working · 41k tokens`.
+/// A Codex row's line from its App Server's thread (#650): the state's words and the thread's
+/// token use once Codex reported it, such as `working · 41k tokens`.
 fn codex_line(seat: &marley_fleet::Session, cx: &App) -> String {
-    let now_ms = agent_events::now_ms();
-    let mut words = codex_events::seat_words(seat, now_ms, no_update_after_ms(cx));
-    if let Some(reset) = codex_events::limit(seat).and_then(|limit| limit.resets_at_ms) {
-        words = format!("{words} · {}", reset_words(reset, now_ms));
-    }
+    let words = codex_events::seat_words(seat, agent_events::now_ms(), no_update_after_ms(cx));
     match codex_events::tokens(seat) {
         Some(tokens) => format!("{words} · {} tokens", crate::fleet::compact(tokens)),
         None => words,

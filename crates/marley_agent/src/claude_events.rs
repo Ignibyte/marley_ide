@@ -30,7 +30,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::stall::{self, FlagShown};
 use crate::stop_kind::{self, StopKindShown};
+use crate::usage::{LIMIT_RESETS_AT_LABEL, LIMITED_AT_LABEL, LIMITED_LABEL};
 use crate::{AgentStatus, TurnEvent};
+
+/// The `StopFailure` error of a turn the account's usage or rate limit stopped (#765).
+const LIMIT_ERROR: &str = "rate_limit";
+
+/// The labels of a limited seat, which the next turn or session clears (#765).
+const LIMIT_LABELS: [&str; 3] = [LIMITED_LABEL, LIMITED_AT_LABEL, LIMIT_RESETS_AT_LABEL];
 
 /// The largest summary a frame carries, decoded; the plugin keeps its summaries under it.
 const MAX_SUMMARY: usize = 3_000;
@@ -287,7 +294,7 @@ pub const fn seat_status(state: State) -> AgentStatus {
 /// (#547): an Escape fires no hook, so the seat cannot know the turn stopped. A threshold of 0
 /// never marks it. An idle seat with a stop kind reads it as `shown` says (#566), and a working
 /// seat with a stall or loop flag reads `looping?` or `stalled?` as `flag` says, before `no update`
-/// (#569).
+/// (#569). A seat its usage limit stopped reads `limited` (#765).
 #[must_use]
 pub fn seat_line(
     seat: &Session,
@@ -298,7 +305,9 @@ pub fn seat_line(
 ) -> String {
     let flagged = stall::row_word(&seat.labels, flag).filter(|_| seat.state == State::Working);
     let state = flagged.unwrap_or_else(|| {
-        if seat.state == State::Working
+        if crate::usage::limit(seat).is_some() {
+            "limited".to_string()
+        } else if seat.state == State::Working
             && no_update_after_ms > 0
             && marley_fleet::is_stale(seat, now_ms, no_update_after_ms)
         {
@@ -413,6 +422,7 @@ impl Moving {
                 ) {
                     self.end_turn(State::Idle);
                     self.clear(&[PROMPT_LABEL, MESSAGE_LABEL, ERROR_LABEL]);
+                    self.clear(&LIMIT_LABELS);
                     self.facts = TurnFacts::default();
                 }
             }
@@ -423,6 +433,7 @@ impl Moving {
                 }
                 self.end_turn(State::Working);
                 self.clear(&[MESSAGE_LABEL, ERROR_LABEL]);
+                self.clear(&LIMIT_LABELS);
                 if reading.is_injected(prompt) {
                     self.facts.interrupted = false;
                     self.facts.pending.clear();
@@ -473,6 +484,12 @@ impl Moving {
                     ERROR_LABEL,
                     &one_line(event.error.as_deref().unwrap_or("unknown")),
                 );
+                // The usage limit stopped the turn (#765): the seat is limited from this moment,
+                // and its reset comes with the windows the shared plugin reports.
+                if event.error.as_deref() == Some(LIMIT_ERROR) {
+                    self.set(LIMITED_LABEL, &now_ms.to_string());
+                    self.set(LIMITED_AT_LABEL, &now_ms.to_string());
+                }
             }
             "PostCompact" if event.trigger.as_deref() == Some("manual") => {
                 self.end_turn(State::Idle);

@@ -329,6 +329,13 @@ pub(crate) fn on_frame(
         if after.state == State::Working {
             crate::stall::watch(cx);
         }
+        // A usage limit's arm follows the seat (#765).
+        crate::limits::on_seat(
+            &view.terminal().downgrade(),
+            cx.entity_id(),
+            crate::limits::Limited::of_claude(&after),
+            cx,
+        );
         after_fold(view, &event, before, &after, reading, cx);
     }
     let session_start = event.event == "SessionStart";

@@ -34,8 +34,9 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub resume_agents: Option<bool>,
-    /// Whether a Codex on Marley's App Server that stopped at its usage limit continues by
-    /// itself once the limit resets (#715), as if Continue at Reset were clicked in Needs you.
+    /// Whether a Claude Code, or a Codex on Marley's App Server, that stopped at its usage limit
+    /// continues by itself once the limit resets (#715, #765), as if Continue at Reset were
+    /// clicked in Needs you.
     ///
     /// Default: false
     pub continue_at_reset: Option<bool>,

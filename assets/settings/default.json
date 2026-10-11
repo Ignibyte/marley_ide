@@ -1711,8 +1711,8 @@
     // Whether a terminal that ran a Claude Code session when Marley quit resumes it at the next
     // launch, with `claude --resume <id>` typed in the session's folder (#540).
     "resume_agents": true,
-    // Whether a Codex on Marley's App Server that stopped at its usage limit continues by itself
-    // once the limit resets, as Continue at Reset in Needs you does (#715).
+    // Whether a Claude Code, or a Codex on Marley's App Server, that stopped at its usage limit
+    // continues by itself once the limit resets, as Continue at Reset in Needs you does (#715, #765).
     "continue_at_reset": false,
     // Seconds a working Claude Code may be quiet before the stall kind's first check, with the
     // next at twice, four and eight times it (#569); 0 turns the quiet checks off. The stall kind

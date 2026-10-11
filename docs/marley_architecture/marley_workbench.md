@@ -1608,8 +1608,14 @@ alike.
   all still match, since a `turn/start` during a turn adds to that turn; a refusal or a failed
   call is logged. `Following::fold` hands the seat to `limits::on_seat` after every fold, and the
   follow's end and the terminal's release call `limits::forget`.
-- **`src/limits.rs` (#715).** The `Arms` global holds one armed `Limited` (generation, thread,
-  failed turn, reset) per terminal entity, the limits already continued or cancelled
+- **`src/limits.rs` (#715, #765).** A `Limited` names its agent, the Codex follow's generation
+  (0 for Claude Code), the session (Codex's thread, Claude Code's session id), the failed turn and
+  the reset (`of_codex`, `of_claude`); its `LimitKey` leaves the reset out. An arm keeps the view's
+  id and the terminal's weak handle, since Continue in Needs you runs inside the window's update.
+  `send` continues a Codex through its follow and types a Claude Code's continuation
+  (`type_continuation`: `paste_then` with the resume prompt and Enter, only while the seat still
+  reads the same limit). `agent_events::on_frame` and `agent_reports` hand a Claude Code seat to
+  `on_seat` after it moves. The `Arms` global holds one armed `Limited` per terminal entity, the limits already continued or cancelled
   (`handled`), and whether a check runs. `arm` starts a check at the earliest reset, 30 s at most,
   against the wall clock (`now_ms`), so a reset that passed during sleep fires at the next check;
   `fire_due` sends each due arm once. `on_seat` drops an arm the seat no longer matches (a turn
