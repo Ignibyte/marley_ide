@@ -1997,6 +1997,20 @@ alike.
   the view through `build_view`, which `open_thread` shares, with the record's session id, so the
   agent loads or resumes the session.
 
+## The Threads page (`src/threads_page.rs`, #737)
+
+- `OpenThreads` (`marley: open threads`) brings the workspace's `ThreadsPage` forward or adds one to
+  its center. The page observes Zed's `ThreadMetadataStore` and its search editor, and redraws on
+  either.
+- `sections` takes the store's entries (drafts left out) and archived entries, newest `updated_at`
+  first, keeps those whose title or folder paths hold the search (case-insensitive) and whose agent
+  is the chip's, and splits them: Marley and Rusty (`assistant::is_assistant`), All conversations,
+  Archived (shown on its button). The chips list every agent the store holds.
+- A row's click (a plain closure over the page's weak workspace, PR-claude-701) runs
+  `open_thread`: a tab with the thread anywhere in the window comes forward (its workspace shown,
+  `thread_tab::activate_for`); a panel showing or retaining it shows it; else
+  `thread_tab::open_saved` opens it in a tab of the page's workspace, as #736 restores one.
+
 ## An agent thread in a center tab (`src/thread_tab.rs`, `src/rail.rs`, #697)
 
 - `ThreadTab` (an `Item`, titled as the thread, `IconName::ZedAssistant`) hosts the Agent Panel's

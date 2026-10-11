@@ -1651,6 +1651,21 @@ An Agent Panel thread can move into a tab too (#697).
   turns, as the panel loads a thread from its history (#736). A thread you deleted in the meantime
   leaves no tab, and a tab on a folder its project did not hold reaches that folder again.
 
+### The Threads page
+
+`marley: open threads` opens a page of every agent conversation Zed keeps, from every project,
+group and folder, in a tab of the group you are in (#737). Zed's own thread history lives in its
+sidebar, which the Marley layout replaces with the rail; this page takes its place.
+
+- **What it lists:** each conversation's title, its agent and folder (`~` for your home folder),
+  and when it last changed, newest first. Marley's and Rusty's conversations come first, under
+  their own heading, then all the others. Archived ones stay folded behind Show archived.
+- **Finding one:** the search field matches titles and any part of a folder's path, and a chip per
+  agent keeps only that agent's conversations.
+- **Opening one:** a conversation already open comes forward where it is, in its tab or its Agent
+  Panel. Any other opens in a tab of the page's group, with its earlier turns, its folder joining
+  the project hidden when it needs to, as a new tab's does (#734).
+
 ## Marley's MCP server
 
 ### Agent activity and the kill switch

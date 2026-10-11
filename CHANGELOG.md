@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Threads page** (#737, 2026-10-10). `marley: open threads` lists every agent conversation
+  from every project, group and folder in a tab: Marley's and Rusty's first, then the rest, each
+  with its agent, folder and time, newest first, and the archived ones behind a button. A search
+  field matches titles and folders, and a chip per agent narrows the list. A click brings a
+  conversation forward where it is open, or opens it in a tab with its earlier turns. Zed's own
+  thread history lives in a sidebar the Marley layout replaces, so this is the way back to an old
+  conversation.
+
 - **Thread tabs come back after a restart** (#736, 2026-10-10). A thread in a tab returns in the
   same group and pane when Marley starts again, with its earlier turns, loaded as the Agent Panel
   loads a thread from its history. A tab on a folder its project did not hold reaches that folder

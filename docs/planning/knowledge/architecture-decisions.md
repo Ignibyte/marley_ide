@@ -4737,3 +4737,17 @@ its panel as a host of thread views.
 - `update_working_directories` after each save: undone by the next save, and it asserts the record
   is not archived, which a thread in a group with no folder is at its first save.
 - A visible worktree for the thread's folder: it would turn a group with no folder into a project.
+
+## AD-claude-737-marleys-thread-history-is-a-page-over-zeds-store-001
+*decided at: 2026-10-10 · status: shipped · builds on: #734, #736*
+
+**The decision.** The Marley layout's thread history is its own center page over Zed's
+`ThreadMetadataStore`: Marley's and Rusty's conversations first, a search over titles and folders,
+a chip per agent, and a click that brings an open conversation forward or opens it in a tab.
+
+**Why.** Zed's history (`ThreadsArchiveView`) lives in the sidebar the rail replaces, hands its click
+to that sidebar, and has no sections or agent filter; the store is public and saves every thread,
+wherever its view is.
+
+**Rejected:** hosting `ThreadsArchiveView` in a tab (its click opens the panel, not a tab, and its
+look follows the sidebar); a third view in the rail's header (Chad asked for a page).

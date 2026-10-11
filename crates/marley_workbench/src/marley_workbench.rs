@@ -101,6 +101,7 @@ pub mod terminal_ids;
 pub mod terminal_size;
 pub mod thread_tab;
 pub mod thread_tools;
+pub mod threads_page;
 pub mod turn_git;
 pub mod turns;
 pub mod typed_line;
@@ -890,6 +891,7 @@ pub fn init(cx: &mut App) {
     voice::init(cx);
     assistant::init(cx);
     thread_tab::init(cx);
+    threads_page::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

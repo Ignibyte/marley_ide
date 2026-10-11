@@ -1,7 +1,7 @@
 ---
 pipeline_id: bf114e10-6b1b-4d05-b5dd-c2ca5c8b533d
-ticket: docs/planning/tickets/open/TICKET-737-the-threads-page.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-737-the-threads-page.md
+status: Phase 4 — Complete PASS
 title: The Threads page
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -58,16 +58,20 @@ the Marley and Rusty section, and opens in a tab rather than the panel.
 - **Published material:** none.
 
 ## UI proof
-`script/e2e/737-the-threads-page.sh`, under `compositor sway`. The scripted agent gives three
-conversations: a Marley thread in Home, a Claude Code thread (a second custom entry on the same
-scripted program) in the scratch project, and one in a second project.
+`script/e2e/737-the-threads-page.sh`, under `compositor sway`. The scripted agent of #736 (it
+replays a loaded session) runs both the Marley entry and a second custom agent server, `Scripted`,
+set in the run's settings. Three keys bound to `marley::NewAgentThread` give three conversations:
+Marley in the project's root, Scripted on `other/`, Scripted on `second/`. The run's profile is a
+copy of the user's, so the page may also list the user's own conversations, below the run's newer
+ones; the checks rest on the run's.
 
 Shots:
-- `737-01-page`: the page: Marley and Rusty with the Home thread, All conversations with the other
-  two, each with agent, folder and time.
-- `737-02-search`: the search field holding the second project's name: only its conversation.
+- `737-01-page`: the page: Marley and Rusty with the Marley conversation, All conversations with the
+  two Scripted ones, each with its agent, folder and time.
+- `737-02-search`: the search field holding `second`: only that conversation.
 - `737-03-chip`: the Marley chip: only the Marley conversation.
-- `737-04-open`: a click on a conversation not open: a thread tab in the shown group with its turns.
+- `737-04-open`: the `second/` conversation's tab closed, then its row clicked: a thread tab in the
+  shown group with its turn.
 
 ## Locked-In Decisions
 - **D1:** Marley's own page over the thread store, not `ThreadsArchiveView`, which has no sections
@@ -75,6 +79,10 @@ Shots:
 - **D2:** a click never opens a second copy: an open conversation comes forward where it is
   (#697's one-place rule).
 - **D3:** newest by `updated_at`, the order the rail's rows use.
+- **D4:** the search is a case-insensitive match on the title and the folders' paths, so a folder's
+  name or any part of its path finds it.
+- **D5:** a conversation not open opens as #736 restores one: the record's agent, folders and
+  session, the folder joining the project hidden when it needs to.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |

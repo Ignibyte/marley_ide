@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-737](open/TICKET-737-the-threads-page.md) | feature | agents anywhere: the Threads page, every conversation, searchable, Marley and Rusty first |
 | [TICKET-738](open/TICKET-738-marley-and-rusty-in-tabs.md) | feature | agents anywhere: Marley and Rusty open in a tab where you are, on a private folder |
 | [TICKET-739](open/TICKET-739-rustal-icons-in-the-status-bar.md) | feature | agents anywhere: Home, Rusty, Threads and Marley at the status bar's right, each opening its tab where you are |
 | [TICKET-740](open/TICKET-740-one-harness-per-host.md) | feature | agents anywhere, bonus: Marley follows a harness on each host the settings list |

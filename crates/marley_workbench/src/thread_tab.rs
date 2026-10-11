@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use agent::ThreadStore;
-use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadataStore};
+use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::{
     Agent, AgentConnectionStore, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView,
     MarleyThreadHost,
@@ -687,6 +687,96 @@ fn open_thread(
     let tab = cx.new(|cx| ThreadTab::new(view, &panel, hidden, cx));
     workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
     window.focus(&tab.read(cx).focus_handle(cx), cx);
+}
+
+/// Opens a saved conversation in a tab of `workspace` (#737): its agent, folders and session, the
+/// first folder joining the project hidden when it needs to, as a restored tab does (#736). A
+/// conversation with no folder works in the workspace's own, and one of a remote project is
+/// refused: its folders are on another machine.
+pub(crate) fn open_saved(
+    workspace: &mut Workspace,
+    record: &ThreadMetadata,
+    window: &Window,
+    cx: &mut Context<Workspace>,
+) {
+    if record.remote_connection.is_some() {
+        refuse(
+            workspace,
+            "A remote project's conversation opens from that project.",
+            cx,
+        );
+        return;
+    }
+    if workspace.panel::<AgentPanel>(cx).is_none() {
+        refuse(workspace, "This window has no Agent Panel.", cx);
+        return;
+    }
+    let folders = if record.folder_paths().paths().is_empty() {
+        PathList::new(&[default_folder(workspace, cx)])
+    } else {
+        record.folder_paths().clone()
+    };
+    let project = workspace.project().clone();
+    let joining = folders
+        .paths()
+        .first()
+        .filter(|folder| needs_worktree(&project, folder, cx))
+        .cloned();
+    let fs = Arc::clone(&workspace.app_state().fs);
+    let thread = ThreadSpec {
+        agent: Agent::from(record.agent_id.clone()),
+        thread_id: record.thread_id,
+        folders,
+        title: Some(record.display_title()),
+        own_folders: true,
+    };
+    cx.spawn_in(window, async move |workspace, cx| {
+        let hidden = match joining {
+            Some(folder) => {
+                let joined = project
+                    .update(cx, |project, cx| {
+                        project.find_or_create_worktree(&folder, false, cx)
+                    })
+                    .await;
+                match joined {
+                    Ok((worktree, _)) => Some(worktree),
+                    Err(error) => {
+                        workspace
+                            .update(cx, |workspace, cx| {
+                                refuse(
+                                    workspace,
+                                    format!("Could not open {}: {error}", folder.display()),
+                                    cx,
+                                );
+                            })
+                            .log_err();
+                        return;
+                    }
+                }
+            }
+            None => None,
+        };
+        workspace
+            .update_in(cx, |workspace, window, cx| {
+                let Some(panel) = workspace.panel::<AgentPanel>(cx) else {
+                    return;
+                };
+                let view = build_view(
+                    workspace.project().clone(),
+                    workspace.weak_handle(),
+                    &panel,
+                    thread,
+                    fs,
+                    window,
+                    cx,
+                );
+                let tab = cx.new(|cx| ThreadTab::new(view, &panel, hidden, cx));
+                workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
+                window.focus(&tab.read(cx).focus_handle(cx), cx);
+            })
+            .log_err();
+    })
+    .detach();
 }
 
 /// What a tab's thread view is built from: a new thread (#734), or a saved one (#736).

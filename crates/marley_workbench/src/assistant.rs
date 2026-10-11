@@ -145,6 +145,14 @@ in the Agent Panel.
 You do not edit files, run commands or change code here. When the user asks for that, say so and \
 suggest they ask an agent in a terminal.";
 
+/// Whether `agent` is one of the entries Marley adds, Marley's or Rusty's, by the id their
+/// threads carry (#737).
+pub(crate) fn is_assistant(agent: &AgentId) -> bool {
+    Entry::ALL
+        .iter()
+        .any(|entry| agent.0.as_ref() == entry.name())
+}
+
 /// The Agent Panel entries Marley adds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Entry {
