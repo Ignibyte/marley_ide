@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex resumes after a restart, and a cut-off turn offers Continue** (#750, 2026-10-11). A
+  Codex that ran on Marley's App Server comes back when Marley starts again, as Claude Code does:
+  its terminal types `codex resume` with the same thread, in the folder it ran in, on a new App
+  Server while `marley.codex_app_server` is on. When the quit cut an agent's turn off (it was
+  working or waiting), its rail row shows **Interrupted · Continue** under its state; Continue
+  types "Continue where you left off." once the agent waits at its prompt, and a toast says what it
+  is doing otherwise. Marley never continues by itself. The setting is now Resume Agent Sessions.
+
 - **`marley <command>`** (#749, 2026-10-11). Commands on the `marley` command line open things in
   the running Marley, working in the folder you run them from: `agent-thread [--provider=NAME]
   [--folder=PATH]`, `agent-cli [--provider=NAME]`, `terminal [PATH]`, `talk marley|rusty`,

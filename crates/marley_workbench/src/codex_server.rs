@@ -409,7 +409,7 @@ async fn serve(
         let terminal = terminal.downgrade();
         let socket = socket.clone();
         async move |cx| {
-            if let Err(error) = follow(&socket, &terminal, events, incoming, cx).await {
+            if let Err(error) = follow(&socket, &folder, &terminal, events, incoming, cx).await {
                 log::warn!(
                     "codex app server: following {}: {error:#}",
                     socket.display()
@@ -812,6 +812,8 @@ struct Lead {
 /// One terminal's follow, between messages.
 struct Following {
     terminal: WeakEntity<Terminal>,
+    /// The folder the server started in, where its lead's session resumes (#750).
+    folder: PathBuf,
     view: Option<EntityId>,
     lead: Option<Lead>,
     read: HashSet<String>,
@@ -852,6 +854,21 @@ impl Following {
         }
     }
 
+    /// Keeps the lead as the terminal's Codex session, to resume after a restart (#750).
+    fn keep_lead(&self, cx: &AsyncApp) {
+        let (Some(terminal), Some(lead)) = (self.terminal.upgrade(), self.lead.as_ref()) else {
+            return;
+        };
+        cx.update(|cx| crate::resume::on_codex_lead(&terminal, &lead.id, &self.folder, cx));
+    }
+
+    /// Lets the terminal's Codex session go: its lead closed, or Codex left the foreground (#750).
+    fn let_lead_go(&self, cx: &AsyncApp) {
+        if let Some(terminal) = self.terminal.upgrade() {
+            cx.update(|cx| crate::resume::on_release(&terminal, cx));
+        }
+    }
+
     /// Folds `input` into the seat of the terminal's view.
     fn fold(&mut self, input: &Input<'_>, cx: &AsyncApp) {
         let terminal = self.terminal.entity_id();
@@ -887,6 +904,7 @@ fn view_of(terminal: EntityId, cx: &App) -> Option<EntityId> {
 /// seat until the server or the terminal goes.
 async fn follow(
     socket: &Path,
+    folder: &Path,
     terminal: &WeakEntity<Terminal>,
     events: mpsc::UnboundedSender<Event>,
     mut incoming: mpsc::UnboundedReceiver<Event>,
@@ -934,6 +952,7 @@ async fn follow(
     client.notify("initialized");
     let mut following = Following {
         terminal: terminal.clone(),
+        folder: folder.to_path_buf(),
         view: None,
         lead: None,
         read: HashSet::new(),
@@ -1022,6 +1041,7 @@ async fn tick_over(
         if let Some(lead) = following.lead.take() {
             unsubscribe(client, &lead.id).await;
             following.forget_requests(cx);
+            following.let_lead_go(cx);
         }
         return Ok(());
     }
@@ -1093,6 +1113,7 @@ fn follow_lead(thread: &Thread, following: &mut Following, cx: &AsyncApp) {
         idle: thread.status == ThreadStatus::Idle,
         resumed: false,
     });
+    following.keep_lead(cx);
     following.fold(&Input::Lead(thread), cx);
 }
 
@@ -1186,6 +1207,7 @@ async fn heard(
         Notification::ThreadClosed { .. } => {
             following.lead = None;
             following.forget_requests(cx);
+            following.let_lead_go(cx);
         }
         _ => {}
     }

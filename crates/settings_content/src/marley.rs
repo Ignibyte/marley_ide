@@ -28,9 +28,9 @@ pub struct MarleySettingsContent {
     ///
     /// Default: 30
     pub no_update_after_minutes: Option<u64>,
-    /// Whether a terminal that ran a Claude Code session when Marley quit resumes it at the next
-    /// launch: Marley types `claude --resume <id>` in the session's folder once its shell is
-    /// ready (#540).
+    /// Whether a terminal that ran an agent session when Marley quit resumes it at the next
+    /// launch: Marley types `claude --resume <id>` (#540), or `codex resume <thread>` for a Codex
+    /// on Marley's App Server (#750), in the session's folder once its shell is ready.
     ///
     /// Default: true
     pub resume_agents: Option<bool>,

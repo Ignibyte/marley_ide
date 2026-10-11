@@ -5930,6 +5930,52 @@ impl Rail {
         }
     }
 
+    /// Interrupted · Continue on a resumed agent's row whose turn the restart cut off (#750): a
+    /// click types the resume prompt while the agent waits at its prompt, and otherwise a toast says
+    /// what it is doing. Marley never continues by itself.
+    fn interrupted_chip(
+        id: u64,
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<TerminalView>,
+        cx: &Context<Self>,
+    ) -> Stateful<Div> {
+        struct InterruptedToast;
+        let (workspace, view) = (workspace.clone(), view.clone());
+        div()
+            .id(("marley-rail-interrupted", id))
+            .debug_selector(move || format!("marley-rail-interrupted-{id}"))
+            .flex_none()
+            .cursor_pointer()
+            .child(
+                Label::new("Interrupted · Continue")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Accent),
+            )
+            .tooltip(Tooltip::text(format!(
+                "The restart cut this agent's turn off. Continue types \"{}\" once it waits at \
+                 its prompt.",
+                marley_agent::RESUME_PROMPT
+            )))
+            .on_click(cx.listener(move |_, _: &ClickEvent, _, cx| {
+                // The row under the chip would show the terminal.
+                cx.stop_propagation();
+                let Some(view) = view.upgrade() else {
+                    return;
+                };
+                if let Err(why) = crate::resume::continue_turn(&view, cx) {
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            workspace.show_toast(
+                                Toast::new(NotificationId::unique::<InterruptedToast>(), why),
+                                cx,
+                            );
+                        })
+                        .log_err();
+                }
+                cx.notify();
+            }))
+    }
+
     fn render_terminal_row(
         row: TerminalRow,
         terminal: &TerminalEntry,
@@ -5979,6 +6025,8 @@ impl Rail {
                 )
             });
         let marks = terminal_marks(&row, cx);
+        let interrupted = crate::resume::offered(id, cx)
+            .then(|| Self::interrupted_chip(id, &terminal.workspace, &terminal.view, cx));
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -5996,6 +6044,8 @@ impl Rail {
                     color: Color::Error,
                     cut: Cut::End,
                 }))
+                .map(CardLine::from)
+                .chain(interrupted.map(|chip| CardLine::Element(chip.into_any_element())))
                 .collect(),
             cx,
         )
@@ -9608,6 +9658,25 @@ impl From<String> for RowLine {
     }
 }
 
+/// A line under a row's title: its text, or something to click on a line of its own, so the title
+/// keeps its width (a resumed agent's Interrupted · Continue, #750).
+enum CardLine {
+    Text(RowLine),
+    Element(AnyElement),
+}
+
+impl From<RowLine> for CardLine {
+    fn from(line: RowLine) -> Self {
+        Self::Text(line)
+    }
+}
+
+impl From<String> for CardLine {
+    fn from(text: String) -> Self {
+        Self::Text(RowLine::muted(text))
+    }
+}
+
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
 /// the title over the `lines` under it, at one height with a second line or without. An agent row
 /// whose events give it a third line (#519) is taller, and a harness session's row with its
@@ -9619,7 +9688,7 @@ fn row_card(
     selected: bool,
     icon: AnyElement,
     title: AnyElement,
-    lines: Vec<impl Into<RowLine>>,
+    lines: Vec<impl Into<CardLine>>,
     cx: &App,
 ) -> Stateful<Div> {
     row_frame(id, selected, cx)
@@ -9647,26 +9716,26 @@ fn row_card(
                 .flex_1()
                 .child(title)
                 .children(lines.into_iter().map(|line| {
-                    let line: RowLine = line.into();
-                    h_flex()
-                        .min_w_0()
-                        .child(div().min_w_0().child({
-                            let label = Label::new(line.text)
-                                .size(LabelSize::XSmall)
-                                .color(line.color);
-                            match line.cut {
-                                Cut::End => label.truncate(),
-                                Cut::Start => label.truncate_start(),
-                                Cut::Middle => label.truncate_middle(),
-                            }
-                        }))
-                        .when_some(line.state, |row, state| {
-                            row.child(
-                                div().flex_none().child(
+                    match line.into() {
+                        CardLine::Text(line) => h_flex()
+                            .min_w_0()
+                            .child(div().min_w_0().child({
+                                let label = Label::new(line.text)
+                                    .size(LabelSize::XSmall)
+                                    .color(line.color);
+                                match line.cut {
+                                    Cut::End => label.truncate(),
+                                    Cut::Start => label.truncate_start(),
+                                    Cut::Middle => label.truncate_middle(),
+                                }
+                            }))
+                            .when_some(line.state, |row, state| {
+                                row.child(div().flex_none().child(
                                     Label::new(state).size(LabelSize::XSmall).color(line.color),
-                                ),
-                            )
-                        })
+                                ))
+                            }),
+                        CardLine::Element(element) => h_flex().min_w_0().child(element),
+                    }
                 })),
         )
 }

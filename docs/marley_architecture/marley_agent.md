@@ -359,12 +359,15 @@ pub fn route_of_choice(option: &str) -> Route;
 - `claude_events::HookEvent.options` (#570) carries an AskUserQuestion's first question's option
   labels, which `wait` puts in the seat's `Question.options`.
 
-## Resuming a session (`src/marley_agent.rs`, #540)
+## Resuming a session (`src/marley_agent.rs`, #540, #750)
 
-- `resume_line(mode, session, folder)` is what resumes Claude Code's session in a shell:
-  `cd -- <folder> && claude [mode's arguments] --resume <session>` and Enter, the folder one
-  `quote_argument` word and the `cd` left out for an empty folder; `None` unless the session is
-  an 8-4-4-4-12 hexadecimal id. `HookEvent::reason` carries `SessionEnd`'s reason.
+- `resume_line(kind, mode, session, folder, remote)` is what resumes an agent's session in a
+  shell: `cd -- <folder> && claude [mode's arguments] --resume <session>`, or for Codex (#750)
+  `cd -- <folder> && codex resume [--remote 'unix://<socket>' --cd '<folder>'] [mode's arguments]
+  <session>`, the App Server's arguments only with `remote`; and Enter. The folder is one
+  `quote_argument` word and the `cd` is left out for an empty folder; `None` unless the session is
+  an 8-4-4-4-12 hexadecimal id, and for Gemini and OpenCode. `RESUME_PROMPT` is the line a cut-off
+  turn's Continue types. `HookEvent::reason` carries `SessionEnd`'s reason.
 
 ## An agent's report (`src/report.rs`, #652)
 

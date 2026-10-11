@@ -1,7 +1,7 @@
 ---
 pipeline_id: f9daf23c-5ae8-4c14-88e3-31b4eb62fa6d
 ticket: docs/planning/tickets/open/TICKET-750-codex-resumes-and-a-cut-off-turn-continues.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Codex resumes after a restart, and a cut-off turn offers Continue
 type: feature
 slice: the finish line (docs/planning/design-notes/finish-line-2026-10-11.md), item 1, restarts that lose nothing, first half
@@ -60,8 +60,8 @@ nice". The second half, restored scrollback, is #751.
   a version outside the tested range): Marley has no way to learn which thread such a terminal
   runs (Codex's hooks run in its daemon, OSC 9 carries no id), so it is not resumed. Matching
   rollout files by folder and start time was rejected for #650 (AD-claude-650) and is rejected here.
-- **Widening #648's tested range** to the installed Codex (0.162.0 on 2026-10-11; the range is
-  0.155.1 to 0.158.0): a check of its generated schema against the fields #650 reads, its own chore.
+- **Widening #648's tested range**: done by #771 (0.155.1 to 0.162.0), so the box's Codex reaches
+  this ticket with `marley.codex_app_server` on.
 - **T3's background-work note** ("this background work was cancelled", `RestartBackgroundNote.ts`):
   what Claude Code's hooks report for background shells is unchecked (report 06, item 5).
 - **Continuing by itself**, T3's setting (off there too): Chad's default is the chip.
@@ -135,11 +135,14 @@ Shots:
 - `750-03-continued`: Continue clicked; the log's last line is "Continue where you left off."; the
   chip gone.
 - `750-04-finished`: `done`, a relaunch: resumed, no chip.
-- `750-05-codex`: a Codex terminal after `work`, a relaunch: the log's `resume --remote unix://…
-  <thread id>` in its folder; its row Codex's, with the chip.
-- `750-06-codex-continue`: Continue clicked on the Codex row; the stand-in's log has the prompt.
-- `750-07-codex-off`: a new Codex session, `marley.codex_app_server` off before it started, a
-  relaunch: a plain shell, no resume.
+- `750-05-codex-working`: a Codex from New Agent in the repository after `work`; its row working.
+- `750-06-codex`: a relaunch: the log's `resume --remote unix://… <thread id>` in its folder; its
+  row Codex's, with the chip.
+- `750-07-codex-continue`: Continue clicked on the Codex row; the stand-in's log has the prompt.
+- `750-08-codex-no-server`: `marley.codex_app_server` off, a new Codex, `work`: started with no
+  `--remote`.
+- `750-09-codex-off`: a relaunch: that terminal a plain shell; every resume in the log is the first
+  thread's.
 
 ## Locked-In Decisions
 - **D1 — One table, one key.** The agent and the open turn are two columns of #540's
@@ -170,12 +173,12 @@ Shots:
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN Marley relaunches and a restored local terminal ran a Codex on Marley's App Server at the quit, the system shall type `codex resume … <thread id>` into it, in the folder the server started in, once its shell is ready. | Shot 750-05; the stand-in's log |
-| REQ-002 | WHERE `marley.codex_app_server` is on and the Codex is in the tested range, the resume line shall name a new App Server for that terminal (`--remote unix://<socket>`), and the row shall show the resumed thread's state. | Shot 750-05; the log |
-| REQ-003 | WHEN a Codex ran without Marley's App Server, the system shall not resume it. | Shot 750-07; no resume in the log |
-| REQ-004 | WHEN a resumed Claude Code or Codex was working or waiting at the quit, its rail row shall show Interrupted · Continue. | Shots 750-02, 750-05 |
+| REQ-001 | WHEN Marley relaunches and a restored local terminal ran a Codex on Marley's App Server at the quit, the system shall type `codex resume … <thread id>` into it, in the folder the server started in, once its shell is ready. | Shot 750-06; the stand-in's log |
+| REQ-002 | WHERE `marley.codex_app_server` is on and the Codex is in the tested range, the resume line shall name a new App Server for that terminal (`--remote unix://<socket>`), and the row shall show the resumed thread's state. | Shot 750-06; the log |
+| REQ-003 | WHEN a Codex ran without Marley's App Server, the system shall not resume it. | Shots 750-08, 750-09; no resume of it in the log |
+| REQ-004 | WHEN a resumed Claude Code or Codex was working or waiting at the quit, its rail row shall show Interrupted · Continue. | Shots 750-02, 750-06 |
 | REQ-005 | WHEN a resumed agent's turn had ended before the quit, its row shall show no chip. | Shot 750-04 |
-| REQ-006 | WHEN Continue is clicked while the agent is idle at its prompt, the system shall type "Continue where you left off." and Enter into its terminal and remove the chip. | Shots 750-03, 750-06; the logs |
+| REQ-006 | WHEN Continue is clicked while the agent is idle at its prompt, the system shall type "Continue where you left off." and Enter into its terminal and remove the chip. | Shots 750-03, 750-07; the logs |
 | REQ-007 | WHEN Continue is clicked while the agent is not idle, the system shall type nothing and name the agent's state in a toast. | Review of the diff |
 | REQ-008 | WHEN a turn starts in a terminal that shows the chip, or its session ends, the system shall remove the chip. | Review of the diff |
 | REQ-009 | WHEN the user exits Codex, or Codex leaves the terminal's foreground while Marley runs, the system shall drop its saved thread. | Review of the diff |

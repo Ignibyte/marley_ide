@@ -3642,7 +3642,7 @@ below describe what #743 retired.
   the value and leaves the key empty, so a well-formed value becomes the terminal's id and no
   program, and no split rebuilt from the template, sees it.
 
-## Claude Code sessions across a restart (`src/resume.rs`, #540)
+## Agent sessions across a restart (`src/resume.rs`, #540, #750)
 
 - `init`, after `terminal_ids::init`, reads `MarleyAgentSessionsDb`'s table,
   `marley_agent_sessions(terminal_id, session_id, folder)` (its own domain, keyed by the
@@ -3663,6 +3663,22 @@ below describe what #743 retired.
 - Since #652 a terminal whose agent holds a report (`agent_reports::holds_terminal`) saves the
   session the agent reported, with the agent's own folder (`on_report`), and skips the hook's
   `SessionStart`; the holder's release removes the row (`on_release`) unless `quitting`.
+- **Codex, and a cut-off turn (#750).** The table gains `agent` (`claude-code` or `codex`, by
+  migration with Claude Code the default) and `turn_open`. `codex_server`'s `follow_lead` hands a
+  lead thread and the folder its server started in to `on_codex_lead`, which saves it as the
+  terminal's Codex session; the lead's close (`thread/closed`) or Codex leaving the foreground hands
+  the terminal to `on_release`, which keeps the row at a quit. `resume_restored` types the saved
+  agent's `marley_agent::resume_line`; for Codex it first starts a new App Server for the restored
+  terminal (`codex_server::prepare`, `start`), so #650 follows the resumed thread, and types the
+  plain `codex resume <id>` when none comes up.
+- `note_turns` observes the `AgentEvents` global: for each terminal with a saved session it writes
+  `turn_open` when the seat moves into or out of working or waiting, never while `quitting`. `init`
+  reads the rows whose turn was open into `cut`; a session resumed from `cut` puts its seat in
+  `offers`, which the rail reads (`offered`) to show **Interrupted · Continue** on a line of the
+  row's own (`rail.rs`'s `interrupted_chip`, a `CardLine::Element`). `continue_turn` pastes
+  `marley_agent::RESUME_PROMPT` and Enter (`terminal_drive::paste_then`) only while the seat is
+  `Idle`, and otherwise returns the state for a toast; the offer goes after Continue, a turn the
+  agent starts once idle, the session's end or the view's release.
 
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 

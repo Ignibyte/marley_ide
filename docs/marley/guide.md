@@ -779,7 +779,17 @@ reads its startup files), so Marley does not recognize it; start the agent at th
 Choose a CLI under Agent CLIs in a project's `+` menu, or a Terminal entry in the New Agent picker
 (Ctrl+Alt+N). Marley opens a center terminal at the project root and, once the shell is ready (or
 after five seconds), types the program's name and Enter, nothing more. The shell outlives the CLI.
-After a restart, an agent's terminal comes back as a shell in its old directory, without the CLI.
+After a restart, an agent's terminal comes back as a shell in its old directory. A Claude Code
+that was running at the quit comes back too, with `claude --resume` and its session, when Marley's
+plugin is connected; a Codex that ran on Marley's App Server comes back with `codex resume` and its
+thread, joining a new App Server while `marley.codex_app_server` is on (#750). One you ended
+yourself does not, and Resume Agent Sessions (`marley.resume_agents`) turns resuming off.
+
+When the quit cut an agent's turn off (it was working or waiting), its rail row shows
+**Interrupted · Continue** under its state. Continue types "Continue where you left off." and
+Enter once the agent waits at its prompt; while it is doing anything else, a toast names what it is
+doing and nothing is typed. Marley never continues a turn by itself, and the chip goes once the
+agent starts a turn or ends.
 
 ### Permission modes
 

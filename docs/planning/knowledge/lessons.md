@@ -5451,3 +5451,19 @@ plus `initialize` and the flags Marley passes. #771's script is in its notes.
 The runner exports `CODEX_HOME=$E2E_WORK/codex-home` without making it, and Codex refuses a
 `CODEX_HOME` that does not exist (its App Server exits with status 1, and the TUI prints "Error
 finding codex home"). A scenario that runs a real Codex makes the folder in `setup`.
+
+## L-claude-750-new-agent-asks-where-when-the-front-terminal-is-elsewhere-001
+*category: testing · topic: scenarios that start an agent from New Agent · from: pipeline 750*
+
+New Agent (Ctrl+Alt+N) asks "Where should Codex start?" when the terminal in front is in a folder
+other than its project's root, with the project first. A scenario that types the agent's name and
+Return, then its first prompt, sends that prompt to the question instead: no agent starts, and the
+words land in the old terminal. After a `cd` into a subfolder, the scenario presses Return twice.
+
+## L-claude-750-tee-dev-stderr-truncates-a-redirected-log-001
+*category: testing · topic: checks inside a scenario · from: pipeline 750*
+
+`tee /dev/stderr` in a check reopens the file that stderr points at. When the run's output goes to
+a file (`just e2e … > run.log 2>&1`), that open truncates it, and the log comes back as the last
+line and a run of zero bytes. A check prints what it compares with `echo` and matches a variable
+(`grep -q … <<<"$lines"`).

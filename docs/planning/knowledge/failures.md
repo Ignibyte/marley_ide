@@ -3776,3 +3776,11 @@ the gated paths share one refresh per effect cycle.
 workspace's `serde` has no `derive` feature. Every build that also compiled a crate asking for
 `derive` unified it in, so the gate and `just build` passed; `just clippy marley_agent` alone failed
 with "cannot find derive macro `Serialize`". Fixed in #771: the manifest asks for `derive` itself.
+
+## F-claude-750-a-chip-beside-a-rail-rows-title-took-its-width-001
+*severity: low · found in: pipeline 750's Test phase · class: an element added to a row's end*
+
+Interrupted · Continue went in at the row's end, beside the marks, as `permission_chip` does. A
+`flex_none` label that long left the title column about 70 pixels on a 260-pixel rail, so the title
+read "cp…" (shot 750-06 of the first full run). Fixed in #750: `row_card` takes a `CardLine`, text
+or an element, and the chip is a line of its own under the row's state.

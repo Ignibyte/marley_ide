@@ -230,23 +230,57 @@ fn line_with(kind: AgentKind, mode: LaunchMode, prompt: &str, remote: Option<&Re
     send_payload(&line)
 }
 
-/// What resumes Claude Code's session `session` in a shell (#540).
+/// What a resumed agent is asked to do when a restart cut its turn off (#750), T3 Code's words.
+pub const RESUME_PROMPT: &str = "Continue where you left off.";
+
+/// What resumes `kind`'s session `session` in a shell: Claude Code's (#540) and Codex's (#750).
 ///
-/// `cd` to `folder`, where the session started and where `claude --resume` looks it up, then
-/// Claude Code with the arguments `mode` asks for, `--resume` and the id, and Enter.
+/// `cd` to `folder`, where the session started and where each agent looks it up, then the agent
+/// with the arguments `mode` asks for and the id, and Enter: `claude --resume <id>`, or `codex
+/// resume <id>`, which joins `remote`'s App Server when given.
 ///
-/// `None` unless `session` is an id in the 8-4-4-4-12 hexadecimal form Claude Code gives, so a
-/// damaged or forged value types nothing. The folder goes in as one quoted word; an empty folder
-/// leaves the `cd` out.
+/// `None` unless `session` is an id in the 8-4-4-4-12 hexadecimal form both agents give, so a
+/// damaged or forged value types nothing, and for an agent that resumes nothing. The folder goes
+/// in as one quoted word; an empty folder leaves the `cd` out.
 #[must_use]
-pub fn resume_line(mode: LaunchMode, session: &str, folder: &str) -> Option<Vec<u8>> {
+pub fn resume_line(
+    kind: AgentKind,
+    mode: LaunchMode,
+    session: &str,
+    folder: &str,
+    remote: Option<&Remote>,
+) -> Option<Vec<u8>> {
     if !is_session_id(session) {
         return None;
     }
-    let resume = format!(
-        "{} --resume {session}",
-        command(AgentKind::Claude, mode, None)
-    );
+    let resume = match kind {
+        AgentKind::Claude => format!(
+            "{} --resume {session}",
+            command(AgentKind::Claude, mode, None)
+        ),
+        AgentKind::Codex => {
+            // `resume` takes the App Server's and the mode's arguments after it.
+            let mut line = remote.map_or_else(
+                || format!("{} resume", kind.program()),
+                |remote| {
+                    format!(
+                        "{} resume --remote {} --cd {}",
+                        quote_argument(remote.program),
+                        quote_argument(&format!("unix://{}", remote.socket)),
+                        quote_argument(remote.folder)
+                    )
+                },
+            );
+            if mode == LaunchMode::Bypass {
+                for argument in bypass_arguments(kind) {
+                    line.push(' ');
+                    line.push_str(argument);
+                }
+            }
+            format!("{line} {session}")
+        }
+        AgentKind::Gemini | AgentKind::OpenCode => return None,
+    };
     let line = if folder.is_empty() {
         resume
     } else {

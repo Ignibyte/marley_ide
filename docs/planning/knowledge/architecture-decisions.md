@@ -4903,3 +4903,17 @@ item-event subscription (a terminal's title reaches the rail only as `UpdateTab`
 window's save with the rail's restored blob (Zed writes the groups and the active workspace
 itself); opening the rail only after the restore (a fresh window would show no rail until the
 settle).
+
+## AD-claude-750-a-cut-off-turn-asks-before-it-continues-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-540-a-claude-code-session-resumes-by-the-terminals-id-001, AD-claude-650-marley-joins-a-codex-app-server-of-its-own-per-terminal-001 · plan: docs/planning/design-notes/finish-line-2026-10-11.md item 1*
+
+A Codex's session for a restart is the lead thread of the App Server Marley started for its
+terminal, saved in #540's `marley_agent_sessions` under the terminal's `MARLEY_TERMINAL_ID` with
+an `agent` column; it resumes with `codex resume <id>` in the server's folder, on a new App Server
+while the switch is on and the version tested, plain otherwise. Whether the session's turn was open
+(working or waiting) is written as the seat moves, by one observer of `AgentEvents`, so a crash still
+knows. A session resumed with its turn open shows Interrupted · Continue on its row, and only a
+click types "Continue where you left off.", and only while the agent is idle. Rejected: rollout
+files matched by folder and time (two Codex in one folder), Codex's hooks (its daemon's
+environment), a snapshot at `on_app_quit` (a crash skips it), continuing by itself (T3's open
+question 3, Chad's default), and the prompt on the resume line (it acts without a click).

@@ -14,8 +14,11 @@
 # "closed: answered elsewhere" for one resolved by another client, and sends any other line to
 # the server as a cue it plays: `work`, `done`, `fail`, `approve`, `input`, `full`, `scoped`,
 # `crash`, and the requests `command <line>`, `file <paths>`, `perms write:<path> network`,
-# `elicit <server> <message>` and `input <question>`. Without `--remote` it prints its arguments
-# and reads lines, as #532's fake does. Never the user's Codex, and no network.
+# `elicit <server> <message>` and `input <question>`. `resume … <id>` with `--remote` is the TUI
+# resuming that thread instead of starting one (#750): the server loads a thread it does not hold
+# as idle, as Codex loads one from its files, and announces it. The TUI logs each line typed into
+# it to `$E2E_WORK/tui.log`. Without `--remote` it prints its arguments and reads lines, as #532's
+# fake does. Never the user's Codex, and no network.
 
 write_codex_stand_in() {
   sed -e "s|@WORK@|$E2E_WORK|g" >"$1" <<'FAKE'
@@ -338,6 +341,15 @@ def answer(connection, message):
                 reply({"thread": thread_json(thread)})
         elif method == "thread/resume":
             thread = THREADS.get(params.get("threadId"))
+            if thread is None and params.get("cwd"):
+                # A thread from before a restart, loaded as Codex loads one from its files (#750).
+                thread = {"id": params["threadId"], "ephemeral": False, "source": "user",
+                          "created": int(time.time()), "cwd": params["cwd"],
+                          "status": {"type": "idle"}, "approval": "on-request",
+                          "sandbox": "workspaceWrite", "turn": None,
+                          "subscribers": set(joined())}
+                THREADS[params["threadId"]] = thread
+                notify(joined(), "thread/started", {"thread": thread_json(thread)})
             if thread is None:
                 fail(-32600, "no such thread")
                 return
@@ -471,10 +483,16 @@ def tui(path, folder):
                         "capabilities": {"experimentalApi": True}})
     sock.sendall(frame(json.dumps({"method": "initialized"}).encode(), True))
     option = lambda name, default: ARGS[ARGS.index(name) + 1] if name in ARGS else default
-    started = call("thread/start", {"cwd": folder, "threadSource": "user",
-                                     "approvalPolicy": option("--ask-for-approval", "on-request"),
-                                     "sandbox": option("--sandbox", "workspace-write")})
-    thread = started.get("thread", {}).get("id", "?")
+    if ARGS[:1] == ["resume"]:
+        # `codex resume … <id>`: the thread named last, resumed on the server (#750).
+        thread = ARGS[-1]
+        call("thread/resume", {"threadId": thread, "cwd": folder})
+        print(f"resumed {thread[:8]}", flush=True)
+    else:
+        started = call("thread/start", {"cwd": folder, "threadSource": "user",
+                                         "approvalPolicy": option("--ask-for-approval", "on-request"),
+                                         "sandbox": option("--sandbox", "workspace-write")})
+        thread = started.get("thread", {}).get("id", "?")
     call("thread/start", {"cwd": folder, "ephemeral": True, "threadSource": "system",
                           "approvalPolicy": "never", "sandbox": "read-only"})
     print(f"thread {thread[:8]}: type a cue", flush=True)
@@ -499,6 +517,7 @@ def tui(path, folder):
         word = line.strip()
         if not word:
             continue
+        log("tui.log", word)
         if word in ("y", "n"):
             reply(word == "y")
             continue

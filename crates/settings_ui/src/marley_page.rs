@@ -217,8 +217,8 @@ fn agents_section() -> [SettingsPageItem; 19] {
         }),
         // Marley: Claude Code sessions resumed after a restart (#540).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Resume Claude Code Sessions",
-            description: "When Marley starts, a terminal that was running a Claude Code session at the last quit runs claude --resume with that session, in the folder the session started in, so the conversation comes back.",
+            title: "Resume Agent Sessions",
+            description: "When Marley starts, a terminal that was running a Claude Code session at the last quit runs claude --resume with that session, and one that ran Codex on Marley's App Server runs codex resume with its thread, in the folder the session started in, so the conversation comes back. A turn the restart cut off offers Continue on the terminal's row.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.resume_agents"),
