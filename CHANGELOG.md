@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex's turns as their own diffs** (#753, 2026-10-11). Codex on Marley's App Server keeps each
+  turn that changed the repository as Claude Code's are kept: under its terminal's row, **Turns
+  (N)** lists them with the prompt, the files and `failed`, and a click opens the turn's changes
+  alone in Zed's commit view, shell edits included. Your index, branches and `HEAD` are never
+  touched.
+
 - **Codex and Zed's threads push to the phone, and Codex's questions answer from Needs you**
   (#752, 2026-10-11). With an ntfy server set, Codex on Marley's App Server and a thread in the
   Agent Panel or a tab you cannot see push the same one-line notices Claude Code does, and a

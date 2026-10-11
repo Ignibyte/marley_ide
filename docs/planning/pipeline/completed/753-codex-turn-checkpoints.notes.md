@@ -113,8 +113,94 @@ notifications in Codex's generated shapes.
   start checkpoint; it is not listed, and the next turn is.
 - **Two agents in one checkout** share each other's edits in their turns, as #509's do.
 
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/`; the BACKLOG row removed; the ticket in progress. Brain:
+  consultation 6c50998fc566464fa6398c767e1d0067, nothing on this seam.
+- **Seams checked again** at `ad27c1d635` (an Explore pass over all eight): `turns.rs` as cited
+  (`on_event` 108-160, `on_end` 163, `forget` 171, `open` 216-261, `close` 293-328, `record`
+  343-420); `turn_git.rs` unchanged; `agent_events.rs` `after_fold` 344-379, `end` 663-693, `forget`
+  696; `codex_server.rs` `OPTED_OUT` 73-87 (no turn or item notification opted out), `Following`
+  816-832, `fold` 876-887 with #752's `push_change` 902-920, `heard` 1148-1243 (`item/started` at
+  1169, `ThreadClosed` 1234, the fold 1241), `server_stopped` 1325; `codex_events.rs` `Thread.cwd`
+  (#752), `Turn` 108-116, `TurnStarted { thread }` 160 and its decode 225; `rail.rs` `render_turns`
+  6231-6324 (a `· failed` mark exists), the row's turns from `Turns::of` at 8379, `open_turn` 4722.
+  #771 put 0.162.0 in the tested range, so the draft's first risk is gone.
+- **What differs from the draft, and where the design takes it:**
+  - **The rail's end never closes a Codex turn:** `agent_events::end` skips a `Done` or `Error`
+    seat (667-671), which a `thread/closed` (`Ended`) and a server stop (`Error`) leave. The follow
+    closes the turn itself at `ThreadClosed` and at `server_stopped`; Codex leaving the foreground
+    leaves the seat live, so the rail's `end` still closes it there, and the terminal's close goes
+    through `forget`.
+  - **No turn id and no prompt are read:** `Turn` gains `id`, `TurnStarted` its turn's id, and
+    `user_message_started` reads a `userMessage` item's text from `item/started`.
+  - **`turns::open` needs the view:** the follow finds the `TerminalView` through
+    `mcp::terminals`, as `push_change` does, and calls `turns::on_codex` in its update. The rule
+    that a new session closes the open turn lives in `on_event`; `on_codex` keeps it too.
+  - **The folder** is the seat's `cwd` label, which `Input::Lead` sets from `Thread.cwd` (#752),
+    else the server's start folder (`Following.folder`).
+  - **The stand-in** has no `interrupt`, `write`, `sh` or `userMessage`: its new cues are `prompt
+    <text>` (a turn and its `userMessage` item), `write <path> <text>`, `sh <command>` (in the
+    thread's `cwd`) and `interrupt`; the scenario waits between a prompt and its edits.
+
 ## Phase 2 — Code
+- **Built:**
+  - `codex_events`: `Turn.id`; `Notification::TurnStarted { thread, turn }`;
+    `user_message_started(params)` (the thread, the turn and the `userMessage` item's text inputs
+    on one line).
+  - `turns.rs`: `CodexTurn::{Started, Titled, Ended}` and `on_codex`: a start closes the open turn
+    and opens one titled `a prompt` with the thread's id as its session; the prompt retitles the
+    open turn with the same Codex turn id; the end closes it, `failed` for a failed turn. `Open`
+    keeps the Codex turn's id. The rest is #509's.
+  - `codex_server.rs`: `Lead.cwd` from `Thread.cwd`; `Following::tell_turns` (the view through
+    `mcp::terminals`, `turns::on_codex` in its update), `follow_turn` (`turn/started` with the
+    lead's folder or the server's, `turn/completed`), `end_turn` at `thread/closed` and at the
+    server's stop; `item_started` (the file change's paths, moved out of `heard`, and the user's
+    message).
+  - The stand-in Codex's cues `prompt`, `write`, `sh`, `interrupt`.
+  - Guides: the in-app "Each agent turn as its own diff", `docs/marley/guide.md`'s "Per-turn
+    diffs".
+- **Deviations from the plan:**
+  - `heard` passed clippy's 100 lines; its `item/started` handling became `item_started` and its
+    turn arms `Following::follow_turn`.
+  - The folder is the lead's `cwd`, kept on `Lead`, rather than the seat's label: the follow holds
+    it without reading the seat.
+- **Review of the diff:**
+  - REQ-007: `thread/closed` and the server's stop close the turn in the follow, since the rail's
+    `end` passes over the `Done` and `Error` seats they leave; Codex leaving the foreground leaves
+    the seat live, so the rail's `end` closes it; the terminal's close goes through `forget`.
+  - A `turn/completed` for another turn id, or a `userMessage` of another turn, changes nothing;
+    a `turn/started` while a turn is open closes it first.
+  - Re-entrancy: `tell_turns` runs from the follow's `cx.update`, outside any entity's update, and
+    updates the view alone.
+  - Nothing leaves the box; no new spawn site (`turn_git.rs`'s two serve both agents).
+- **Gate:** `just gate-diff` GREEN, 17 passed, after the guides' edits.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/753-codex-turn-checkpoints.sh` (`compositor sway`). One calibration run
+  placed "Turns (3)" at (74, 268); the full run then passed every check.
+- **Shots:**
+  - `753-00-row`: the Codex row `failed · 15k tokens`, and "Turns (3)" under it; the TUI's twelve
+    cues in its terminal.
+  - `753-01-turns` (REQ-001, REQ-004, REQ-005): opened, newest first: "Refactor the parser · 1
+    file · failed", "Fix the typo in util · 1 file", "Add a README · 2 files"; no row for "Explain
+    the build".
+  - `753-02-first-turn` (REQ-002): the commit view of "Add a README", author Marley: `README.md`
+    added (`# repo`) and `src/lib.txt` `beta` → `gamma`, the shell's `sed`; nothing of the later
+    turns or the user's staged change.
+  - `753-03-interrupted` (REQ-003): "Fix the typo in util": `src/util.txt` from its start
+    checkpoint (the user's staged line in the tree) to `the util module`, its one change.
+- **Checks** (REQ-006): three refs under `refs/marley/turns/<thread id>/`, numbered 1 to 3, each
+  `Marley <marley@localhost>` on a parent titled `Checkpoint`, with the files above; `HEAD` and
+  the index as before the session.
+- REQ-007 by the review.
+- **Not reached by a scenario:** a real Codex's turn (a model); the closes at a thread's close and
+  a server's stop (read in the diff).
 
 ## Phase 4 — Complete
+- **Docs:** `CHANGELOG.md` (Added); the in-app guide ("Each agent turn as its own diff") and
+  `docs/marley/guide.md` ("Per-turn diffs"); `docs/marley_architecture/marley_workbench.md`
+  (Codex's turns). No Zed path, so no ledger row.
+- **Ledgers:** L-claude-753-a-seat-left-done-or-error-is-past-the-rails-end-001,
+  AD-claude-753-a-codex-turn-is-the-app-servers-turn-recorded-by-509s-recorder-001.
+- **Brain:** consultation 6c50998fc566464fa6398c767e1d0067, `brain decide`.
+- Ticket closed, pipeline archived, committed.

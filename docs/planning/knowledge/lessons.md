@@ -5493,3 +5493,11 @@ A push needs the user not to be looking at the agent, and keys reach only the fo
 a stand-in cued by typing cannot be cued while Marley's window is away. The Codex stand-in's TUI
 also reads `$E2E_WORK/tui.fifo` (the scenario makes it in `setup`; a write to a missing FIFO makes
 a plain file the reader then loops over), as #535's stand-in `claude` reads its steps' FIFO.
+
+## L-claude-753-a-seat-left-done-or-error-is-past-the-rails-end-001
+*category: design · topic: what closes per-seat work · from: pipeline 753*
+
+`agent_events::end`, the rail's way to close what a seat left (its turns, through `turns::on_end`),
+passes over a seat that is `Done` or `Error`. A Codex thread's close folds `Ended` (`Done`) and a
+server's stop folds `Error`, so anything those events must close is closed where they are heard,
+in `codex_server`'s follow, not left to the rail.

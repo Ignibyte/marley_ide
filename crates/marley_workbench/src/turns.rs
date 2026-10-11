@@ -1,4 +1,4 @@
-//! Per-turn diffs for Claude Code in a terminal (#509).
+//! Per-turn diffs for Claude Code in a terminal (#509), and for Codex on its App Server (#753).
 //!
 //! Each turn of a terminal's Claude Code, from #519's events, opens and closes with a checkpoint
 //! of the repository it works in: Zed's own, which takes the tree with the shell's edits as well
@@ -6,6 +6,8 @@
 //! the tree becomes a commit of the close's tree whose parent is the open's checkpoint, pinned
 //! under `refs/marley/turns/<session>/<n>`, so Zed's commit view, which diffs against the first
 //! parent, shows that turn and nothing else. The rail lists the turns under the terminal's row.
+//! A Codex turn opens at its lead thread's `turn/started` and closes at that turn's
+//! `turn/completed` (`on_codex`), its refs named by the thread's id.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -30,14 +32,14 @@ use crate::turn_git::{self, TURN_REFS};
 /// How old a turn ref may grow before a session's first turn prunes it.
 const KEPT: Duration = Duration::from_hours(30 * 24);
 
-/// A turn a terminal's Claude Code finished that changed the tree, and the commit that holds it.
+/// A turn a terminal's agent finished that changed the tree, and the commit that holds it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Turn {
     /// The prompt on one line, or what injected it.
     pub title: String,
     /// How many files it changed.
     pub files: usize,
-    /// Whether it ended in an error (`StopFailure`).
+    /// Whether it ended in an error (Claude Code's `StopFailure`, a Codex turn `failed`).
     pub failed: bool,
     /// Whether a harness's prompt started it.
     pub injected: bool,
@@ -59,6 +61,23 @@ struct Open {
     title: String,
     injected: bool,
     checkpoint: Checkpoint,
+    /// The App Server's id of a Codex turn, which its title and its end name again (#753).
+    codex_turn: Option<String>,
+}
+
+/// What Codex's App Server told of the lead thread's turn in a terminal (#753).
+#[derive(Clone, Copy)]
+pub(crate) enum CodexTurn<'a> {
+    /// `turn/started`: a turn of `thread`, working in `folder`.
+    Started {
+        thread: &'a str,
+        turn: &'a str,
+        folder: &'a Path,
+    },
+    /// The turn's `userMessage` item: the prompt it answers.
+    Titled { turn: &'a str, text: &'a str },
+    /// `turn/completed`, `failed` when the turn failed.
+    Ended { turn: &'a str, failed: bool },
 }
 
 /// One terminal's turns.
@@ -159,6 +178,67 @@ pub(crate) fn on_event(
     }
 }
 
+/// Follows the lead thread of the Codex in the terminal `view` (#753), as `on_event` follows
+/// Claude Code's hooks: a turn's start opens a turn, closing the one open, its prompt titles it,
+/// and its end closes it. The thread's id names the turn's refs. `id` is the view's entity id.
+pub(crate) fn on_codex(view: &TerminalView, id: u64, told: CodexTurn<'_>, cx: &mut App) {
+    match told {
+        CodexTurn::Started {
+            thread,
+            turn,
+            folder,
+        } => {
+            let reused = close(id, false, cx);
+            if ref_safe(thread) {
+                open(
+                    view,
+                    id,
+                    thread,
+                    folder,
+                    ("a prompt".to_string(), false),
+                    reused,
+                    cx,
+                );
+                if let Some(open) = cx
+                    .default_global::<Turns>()
+                    .seats
+                    .get_mut(&id)
+                    .and_then(|seat| seat.open.as_mut())
+                {
+                    open.codex_turn = Some(turn.to_string());
+                }
+            }
+        }
+        CodexTurn::Titled { turn, text } => {
+            let open = cx
+                .try_global::<Turns>()
+                .and_then(|turns| turns.seats.get(&id))
+                .and_then(|seat| seat.open.as_ref())
+                .is_some_and(|open| open.codex_turn.as_deref() == Some(turn));
+            if open
+                && !text.is_empty()
+                && let Some(open) = cx
+                    .default_global::<Turns>()
+                    .seats
+                    .get_mut(&id)
+                    .and_then(|seat| seat.open.as_mut())
+            {
+                text.clone_into(&mut open.title);
+            }
+        }
+        CodexTurn::Ended { turn, failed } => {
+            let open = cx
+                .try_global::<Turns>()
+                .and_then(|turns| turns.seats.get(&id))
+                .and_then(|seat| seat.open.as_ref())
+                .is_some_and(|open| open.codex_turn.as_deref() == Some(turn));
+            if open {
+                drop(close(id, failed, cx));
+            }
+        }
+    }
+}
+
 /// Closes the open turn of each terminal named, whose Claude Code has left it (#547).
 pub(crate) fn on_end(ids: &[u64], cx: &mut App) {
     for id in ids {
@@ -178,7 +258,8 @@ pub(crate) fn forget(id: u64, cx: &mut App) {
     }
 }
 
-/// Whether `session` can name a ref's part: Claude Code's session ids are UUIDs.
+/// Whether `session` can name a ref's part: Claude Code's session ids and Codex's thread ids are
+/// UUIDs.
 fn ref_safe(session: &str) -> bool {
     !session.is_empty()
         && session.len() <= 128
@@ -257,6 +338,7 @@ fn open(
         title,
         injected,
         checkpoint,
+        codex_turn: None,
     });
 }
 

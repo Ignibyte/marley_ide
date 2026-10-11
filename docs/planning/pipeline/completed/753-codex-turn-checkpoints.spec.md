@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5d29c4b8-9ac3-4176-96d1-f3cb53345478
 ticket: docs/planning/tickets/open/TICKET-753-codex-turn-checkpoints.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Codex turn checkpoints
 type: feature
 slice: prong 2; T3 Code survey item 5 ("Codex gets what Claude Code gets"), second half

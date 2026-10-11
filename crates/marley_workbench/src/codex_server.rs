@@ -810,6 +810,8 @@ struct Lead {
     idle: bool,
     /// Whether Marley has resumed it, which subscribes it and reads its policies.
     resumed: bool,
+    /// The folder it works in, where its turns' checkpoints are taken (#753).
+    cwd: Option<PathBuf>,
 }
 
 /// One terminal's follow, between messages.
@@ -884,6 +886,64 @@ impl Following {
             Some(view)
         });
         self.view = view;
+    }
+
+    /// Tells the terminal's turns what the lead thread's turn did (#753), in the update of the view
+    /// that shows the terminal.
+    fn tell_turns(&mut self, told: crate::turns::CodexTurn<'_>, cx: &AsyncApp) {
+        let terminal = self.terminal.entity_id();
+        let known = self.view;
+        let view = cx.update(|cx| {
+            let id = known.or_else(|| view_of(terminal, cx))?;
+            if let Some((_, view)) = crate::mcp::terminals(cx)
+                .into_iter()
+                .find(|(_, shown)| shown.entity_id() == id)
+            {
+                view.update(cx, |view, cx| {
+                    crate::turns::on_codex(view, id.as_u64(), told, cx);
+                });
+            }
+            Some(id)
+        });
+        self.view = view.or(known);
+    }
+
+    /// Opens the terminal's turn at the lead's `turn/started`, in the lead's folder or the
+    /// server's, and closes it at that turn's `turn/completed` (#753).
+    fn follow_turn(&mut self, notification: &Notification, cx: &AsyncApp) {
+        match notification {
+            Notification::TurnStarted { thread, turn } => {
+                let folder = self
+                    .lead
+                    .as_ref()
+                    .and_then(|lead| lead.cwd.clone())
+                    .unwrap_or_else(|| self.folder.clone());
+                self.tell_turns(
+                    crate::turns::CodexTurn::Started {
+                        thread,
+                        turn,
+                        folder: &folder,
+                    },
+                    cx,
+                );
+            }
+            Notification::TurnCompleted { turn, .. } => self.tell_turns(
+                crate::turns::CodexTurn::Ended {
+                    turn: &turn.id,
+                    failed: turn.status == "failed",
+                },
+                cx,
+            ),
+            _ => {}
+        }
+    }
+
+    /// Closes the terminal's open turn: its thread closed or its server stopped, which leave a
+    /// seat the rail's end passes over (#753).
+    fn end_turn(&self, cx: &AsyncApp) {
+        if let Some(view) = self.view {
+            cx.update(|cx| crate::turns::on_end(&[view.as_u64()], cx));
+        }
     }
 
     /// Whether Codex is the terminal's foreground program.
@@ -1139,6 +1199,7 @@ fn follow_lead(thread: &Thread, following: &mut Following, cx: &AsyncApp) {
         id: thread.id.clone(),
         idle: thread.status == ThreadStatus::Idle,
         resumed: false,
+        cwd: thread.cwd.as_ref().map(PathBuf::from),
     });
     following.keep_lead(cx);
     following.fold(&Input::Lead(thread), cx);
@@ -1166,14 +1227,8 @@ async fn heard(
         }
         return Ok(());
     }
-    if method == "item/started"
-        && let Some((thread, item, paths)) = codex_events::file_change_started(params)
-        && following
-            .lead
-            .as_ref()
-            .is_some_and(|lead| lead.id == thread)
-    {
-        let _previous = following.files.insert(item, paths);
+    if method == "item/started" {
+        item_started(params, following, cx);
     }
     let notification = match Notification::decode(method, params) {
         Ok(Some(notification)) => notification,
@@ -1235,11 +1290,42 @@ async fn heard(
             following.lead = None;
             following.forget_requests(cx);
             following.let_lead_go(cx);
+            following.end_turn(cx);
+        }
+        Notification::TurnStarted { .. } | Notification::TurnCompleted { .. } => {
+            following.follow_turn(&notification, cx);
         }
         _ => {}
     }
     following.fold(&Input::Notification(&notification), cx);
     Ok(())
+}
+
+/// An `item/started` about the lead thread: a file change's paths, for its approval's entry
+/// (#651), and the user's message, which titles the turn (#753).
+fn item_started(params: &Value, following: &mut Following, cx: &AsyncApp) {
+    let on_lead = |thread: &str, following: &Following| {
+        following
+            .lead
+            .as_ref()
+            .is_some_and(|lead| lead.id == thread)
+    };
+    if let Some((thread, item, paths)) = codex_events::file_change_started(params)
+        && on_lead(&thread, following)
+    {
+        let _previous = following.files.insert(item, paths);
+    }
+    if let Some((thread, turn, text)) = codex_events::user_message_started(params)
+        && on_lead(&thread, following)
+    {
+        following.tell_turns(
+            crate::turns::CodexTurn::Titled {
+                turn: &turn,
+                text: &text,
+            },
+            cx,
+        );
+    }
 }
 
 /// A request of the server's: one the inbox answers, on the lead, joins its list; any other is
@@ -1325,5 +1411,6 @@ async fn unsubscribe(client: &mut Client, thread: &str) {
 fn server_stopped(last: Option<&str>, following: &mut Following, cx: &AsyncApp) {
     if following.lead.is_some() {
         following.fold(&Input::ServerStopped(last), cx);
+        following.end_turn(cx);
     }
 }

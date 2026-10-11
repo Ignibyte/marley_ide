@@ -2572,6 +2572,15 @@ below describe what #743 retired.
   was taken in; the view diffs against the first parent, the turn's start. The keyboard walk does
   not step into the turns.
 
+- **Codex's turns (#753).** `turns::on_codex` takes what the follow in `codex_server.rs` tells of
+  the lead thread: `CodexTurn::Started` (a `turn/started`, the lead's `cwd` or the server's
+  folder) closes the open turn and opens one with the thread's id as the session;
+  `CodexTurn::Titled` (the turn's `userMessage` item, `user_message_started`) retitles it;
+  `CodexTurn::Ended` (that turn's `turn/completed`, `failed` for a failed one) closes it. `Open`
+  keeps the Codex turn's id, so another turn's messages change nothing. `Following::end_turn`
+  closes the turn at `thread/closed` and at the server's stop, which leave a seat the rail's
+  `end` passes over. The record, the refs and the rows are #509's.
+
 ## Stalled or looping agents (`src/stall.rs`, #569)
 
 - `on_frame` calls `stall::moved` after each fold and arms `stall::watch` while the seat works,

@@ -4964,3 +4964,13 @@ in place only when it has nothing to fill in, with only the persistence it offer
 a click through #651's table. Rejected: Marley judging Zed's thread events itself, the hook in
 `show_notification` (a banner's absence would silence the phone), a list setting the settings page
 cannot draw, and a text field in the rail.
+
+## AD-claude-753-a-codex-turn-is-the-app-servers-turn-recorded-by-509s-recorder-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-509-a-turn-is-a-commit-of-its-end-on-its-start-under-marleys-refs-001*
+
+A Codex turn on its App Server is the lead thread's `turn/started` to that turn's `turn/completed`,
+matched by the turn's id, titled by its `userMessage` item, in the lead's `cwd`; #509's recorder
+takes the checkpoints, writes the commit, pins `refs/marley/turns/<thread id>/<n>` and lists the
+row, unchanged. Rejected: a second turn store for Codex, the seat's state changes as boundaries
+(an approval's wait is not a turn's end), rebuilding a turn from `fileChange` items (a shell
+command's edits would be missed), and the thread's preview as the title.

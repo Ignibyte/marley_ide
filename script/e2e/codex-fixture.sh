@@ -17,7 +17,9 @@
 # `elicit <server> <message>` and `input <question>`, and Codex's questions and app approvals
 # (#752): `ask <header>|<question>|<option>,<option>`, `ask2` (two questions), `askfree
 # <question>` (no options), `toolok <server> <persist,…> <message>` (a tool call's approval with
-# nothing to fill in) and `form <server> <message>` (a field). `resume … <id>` with `--remote` is the TUI
+# nothing to fill in) and `form <server> <message>` (a field); and a turn's edits (#753): `prompt
+# <text>` (a turn and its `userMessage` item), `write <path> <text>` and `sh <command>` (in the
+# thread's folder) and `interrupt`. `resume … <id>` with `--remote` is the TUI
 # resuming that thread instead of starting one (#750): the server loads a thread it does not hold
 # as idle, as Codex loads one from its files, and announces it. The TUI logs each line typed into
 # it to `$E2E_WORK/tui.log`, and takes the lines written to `$E2E_WORK/tui.fifo` as typed ones
@@ -37,6 +39,7 @@ import os
 import signal
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -315,6 +318,31 @@ def play(thread, cue):
                                         "itemId": "c1", "command": "rm -rf build"}})
     elif cue == "input":
         set_status(thread, {"type": "active", "activeFlags": ["waitingOnUserInput"]})
+    elif cue == "prompt":
+        # `prompt <text>`: a turn, and the user's message it answers (#753).
+        thread["turn"] = str(uuid.uuid4())
+        notify(subscribers, "turn/started",
+               {"threadId": thread["id"], "turn": {"id": thread["turn"], "status": "inProgress"}})
+        set_status(thread, {"type": "active", "activeFlags": []})
+        notify(subscribers, "item/started", {
+            "threadId": thread["id"], "turnId": thread["turn"], "startedAtMs": now_ms(),
+            "item": {"type": "userMessage", "id": next_item("u"),
+                     "content": [{"type": "text", "text": rest, "text_elements": []}]}})
+    elif cue == "write":
+        # `write <path> <text>`: the turn edits a file in the thread's folder (#753).
+        path, _, text = rest.partition(" ")
+        target = os.path.join(thread["cwd"], path)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "w", encoding="utf-8") as file:
+            file.write(text + "\n")
+    elif cue == "sh":
+        # `sh <command>`: the turn runs a shell command in the thread's folder (#753).
+        subprocess.run(rest, shell=True, cwd=thread["cwd"], check=False)
+    elif cue == "interrupt":
+        # The user interrupts the turn (#753).
+        notify(subscribers, "turn/completed",
+               {"threadId": thread["id"], "turn": {"id": thread["turn"], "status": "interrupted"}})
+        set_status(thread, {"type": "idle"})
     elif cue in ("done", "fail"):
         for request, owner in list(STATE["pending"].items()):
             if owner == thread["id"]:

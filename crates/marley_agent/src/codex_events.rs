@@ -108,6 +108,9 @@ pub enum ThreadStatus {
 /// A turn, as `turn/completed` gives it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Turn {
+    /// Its id, which its `turn/started` named (#753).
+    #[serde(default)]
+    pub id: String,
     /// `completed`, `interrupted`, `failed` or `inProgress`.
     pub status: String,
     /// What went wrong, for a failed turn.
@@ -161,6 +164,8 @@ pub enum Notification {
     TurnStarted {
         /// The thread.
         thread: String,
+        /// The turn's id, which its `turn/completed` names again (#753).
+        turn: String,
     },
     /// `turn/completed`.
     TurnCompleted {
@@ -222,7 +227,14 @@ impl Notification {
                 status: serde_json::from_value(parsed("status")?)
                     .map_err(|error| format!("{method}: {error}"))?,
             },
-            "turn/started" => Self::TurnStarted { thread: thread()? },
+            "turn/started" => Self::TurnStarted {
+                thread: thread()?,
+                turn: parsed("turn")?
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            },
             "turn/completed" => Self::TurnCompleted {
                 thread: thread()?,
                 turn: serde_json::from_value(parsed("turn")?)
@@ -264,7 +276,7 @@ impl Notification {
         match self {
             Self::ThreadStarted(thread) => &thread.id,
             Self::StatusChanged { thread, .. }
-            | Self::TurnStarted { thread }
+            | Self::TurnStarted { thread, .. }
             | Self::TurnCompleted { thread, .. }
             | Self::TokenUsage { thread, .. }
             | Self::SettingsUpdated { thread, .. }
@@ -1099,6 +1111,33 @@ pub fn resolved(params: &Value) -> Option<(String, Value)> {
     let thread = params.get("threadId")?.as_str()?.to_string();
     let request = params.get("requestId")?.clone();
     Some((thread, request))
+}
+
+/// The thread, the turn and the text of an `item/started` whose item is the user's message, the
+/// prompt a turn answers (#753): its text inputs, on one line.
+#[must_use]
+pub fn user_message_started(params: &Value) -> Option<(String, String, String)> {
+    let item = params.get("item")?;
+    if item.get("type")?.as_str()? != "userMessage" {
+        return None;
+    }
+    let text = item
+        .get("content")?
+        .as_array()?
+        .iter()
+        .filter(|input| input.get("type").and_then(Value::as_str) == Some("text"))
+        .filter_map(|input| input.get("text")?.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some((
+        params.get("threadId")?.as_str()?.to_string(),
+        params
+            .get("turnId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        one_line(&text),
+    ))
 }
 
 /// The thread, the item and the paths of an `item/started` whose item is a file change.

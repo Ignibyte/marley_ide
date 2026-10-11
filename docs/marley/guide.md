@@ -1162,14 +1162,20 @@ turn whose tree changed becomes a commit of its end on its start, pinned under
 `refs/marley/turns/<session>/<n>` with Marley as its author; your index, your branches and `HEAD`
 are never touched, and a turn that changed nothing leaves nothing.
 
+Codex on Marley's App Server keeps its turns the same way (#753): a turn runs from the lead
+thread's `turn/started` to that turn's `turn/completed` (completed, interrupted or failed), the
+thread's close, its server's stop or Codex leaving the terminal; the checkpoints are taken in the
+repository that holds the thread's folder, the title is the prompt Codex shows for the turn, and
+the refs are `refs/marley/turns/<thread id>/<n>`, so a resumed thread counts on.
+
 Under the terminal's rail row, **Turns (N)** and its chevron open the turns of the terminal's
-Claude Code, newest first:
+agent, newest first:
 
 | A turn row | What it says |
 |---|---|
 | The title | The prompt on one line; a slash command's name, such as `/review`; what a harness injected, such as `task notification` |
 | `· 2 files` | How many files the turn changed |
-| `· failed` | The turn ended in an API error |
+| `· failed` | The turn ended in an API error, or the Codex turn failed |
 | `· injected` | A harness's prompt started it, not yours |
 
 A click opens the turn in Zed's commit view in the terminal's project: the files the turn changed
