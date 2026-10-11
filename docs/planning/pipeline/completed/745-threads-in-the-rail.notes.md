@@ -113,3 +113,58 @@ at the first shot.
   rail's thread rows already do this from a listener, and #744 defers it, so this follows theirs.
 - **Rows past a few hundred** draw as plain children; `render_rows` scrolls them. A `uniform_list`
   waits until a run shows the need.
+
+### Promotion (2026-10-11, at eeff2d27d8)
+- Seams re-checked after #743, #744 and #772: `render_header` 4419, `render_filter` 4724,
+  `render_rows` 4692, `row_card` 9120, `impl Render for Rail` 9364, the row keys 3086-3177,
+  `thread_store_subscription` 2551. `threads_page::conversations` already exists (#772) and takes
+  a query now; `Row`'s fields the rail reads are `pub(crate)`. `Rail::new` sits at clippy's
+  100-line limit, so the view's state is a `ThreadsSide` made by one line.
+
+## Phase 2 — Code
+- **Built:** as the design, with `ThreadsSide` holding `shown`, the search editor and its edits'
+  subscription; `render_view_switch`, `show_view`, `toggle_thread_history`,
+  `render_threads_search`, `render_thread_list`, `open_conversation`; the guards in `move_cursor`,
+  `fold`, `confirm`, `focus_filter` and `cancel`; the store observer notifies while Threads shows;
+  `threads_page::conversations(query, cx)`; `home_page.rs`'s Threads button; `status_buttons.rs`
+  without Threads; `keymap.json`'s `ctrl-g`; the in-app page's Threads in the rail steps.
+- **Review:** a click on a list row defers the open, which reads every workspace; the list reads the
+  store while drawing, so the store observer's `cx.notify()` is what keeps it current (REQ-010);
+  the Zed layout has no rail.
+- **Gate:** red twice on clippy: `Rail::new` and `sync_subscriptions` one line over 100, a
+  `map().unwrap_or()`, then a needless `&mut Window`. The store's subscription moved into
+  `ThreadsSide` (`store`) behind a `follow_thread_store` helper, the icon became `map_or`, and
+  `open_conversation` takes `&Window`. GATE GREEN [diff], 17 passed. The scenario ran again on the
+  final build: the same shots, and 745-04 shows the list re-sorted after alpha's reopen with no
+  switch, the store observer at work (REQ-010).
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/745-threads-in-the-rail.sh`, `compositor sway`, #772's set-up; two Marley
+  conversations, "alpha" then "beta". Two runs, both exit 0 with both checks passing. The first
+  missed the status bar's Home (at x 1375 once Threads left, not 1355) and, in step 05, clicked
+  alpha, which the reopen had made the newest row; the second clicks the second row (beta) and
+  Home at 1375.
+- **Shots (second run):**
+  - `745-01-header`: PROJECTS lit and THREADS in the header; the status bar's right holds Home,
+    Marley and the dock buttons, no Threads. REQ-001, REQ-009.
+  - `745-02-threads`: THREADS lit; a "Search conversations…" field; beta, then alpha, each "Marley ·
+    <the repo>"; no project rows; PROJECTS carries the accent dot (the threads' unread marks).
+    REQ-001, REQ-002, REQ-006 (the click), REQ-007 (the dot).
+  - `745-03-search`: "alp": alpha alone. REQ-003.
+  - `745-04-open`: alpha's tab closed, its row clicked: an alpha tab with "alpha" and "Noted:
+    alpha", `session/load` logged; alpha moved to the top as the newest. REQ-004.
+  - `745-05-forward`: beta's row clicked while its tab is open: beta's tab in front, one beta tab.
+    REQ-005.
+  - `745-06-key`: a click in the rail, then Ctrl+G: the project rows again, PROJECTS lit. REQ-006.
+  - `745-07-home`: the status bar's Home, then the Home page's Threads: the Threads page in a tab
+    listing alpha and beta. REQ-008.
+- **Reviewed, not shot:** REQ-007's key guard (the row keys return while Threads shows), REQ-010.
+- **Pre-existing, not in scope:** the Ctrl+Alt+N notice (#563).
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Changed: Threads in the rail); the guide (the status bar's three
+  buttons; a "Threads in the rail" section); the architecture note; the slice line in
+  `workbench-shell.md`; the in-app page came with Phase 2.
+- **Knowledge appended:** AD-claude-745-a-projects-threads-switch-where-678-removed-the-brain-switch-001.
+- **Ticket:** closed; its BACKLOG row left at promotion.
+- **Gate:** GATE GREEN [diff], 17 passed, on the tree committed.

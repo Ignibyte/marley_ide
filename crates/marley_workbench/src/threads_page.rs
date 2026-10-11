@@ -67,21 +67,23 @@ pub(crate) fn reopen(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     }
     let handle = workspace.weak_handle();
     let project = workspace.project().clone();
-    let rows = conversations(cx);
+    let rows = conversations("", cx);
     workspace.toggle_modal(window, cx, |window, cx| {
         ReopenThreadPicker::new(handle, project, rows, window, cx)
     });
 }
 
-/// The conversations Reopen Thread… lists: the store's unarchived ones, not drafts, newest first.
-fn conversations(cx: &App) -> Vec<Row> {
+/// The store's unarchived conversations, not drafts, newest first, whose title or folder holds
+/// `query`: what Reopen Thread… (#772) and the rail's Threads view (#745) list.
+pub(crate) fn conversations(query: &str, cx: &App) -> Vec<Row> {
     let Some(store) = ThreadMetadataStore::try_global(cx) else {
         return Vec::new();
     };
     let store = store.read(cx);
+    let query = query.to_lowercase();
     let mut records: Vec<&ThreadMetadata> = store
         .entries()
-        .filter(|record| !record.is_draft())
+        .filter(|record| !record.is_draft() && matches(record, &query))
         .collect();
     records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
     records.into_iter().map(row_of).collect()
@@ -142,13 +144,13 @@ impl std::fmt::Debug for ThreadsPage {
     }
 }
 
-/// One conversation as the page lists it.
-struct Row {
-    thread_id: ThreadId,
-    agent: AgentId,
-    title: SharedString,
+/// One conversation as the page lists it, and the rail's Threads view (#745).
+pub(crate) struct Row {
+    pub(crate) thread_id: ThreadId,
+    pub(crate) agent: AgentId,
+    pub(crate) title: SharedString,
     /// Its first folder, the home folder as `~`; none for a conversation with no folder.
-    folder: Option<String>,
+    pub(crate) folder: Option<String>,
     when: String,
 }
 

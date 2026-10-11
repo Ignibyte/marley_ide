@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-745](open/TICKET-745-threads-in-the-rail.md) | feature | a Projects \| Threads switch in the rail's header; Threads on the Home page |
 | [TICKET-746](open/TICKET-746-marley-and-rusty-in-the-title-bar.md) | feature | Marley and Rusty move from the status bar to the title bar's right |
 | [TICKET-747](open/TICKET-747-side-panels-as-tabs.md) | feature | side panels open as tabs: the mechanism, Files, Git and Outline |
 | [TICKET-748](open/TICKET-748-more-side-panels-as-tabs.md) | feature | side panels open as tabs: Collab, Fleet, Knowledge and Containers; Debug's button to the status bar's left |

@@ -268,10 +268,23 @@ impl MarleyHome {
                     })
                     .log_err();
             });
+        // Every conversation, as the rail's Threads view lists them (#745).
+        let threads_workspace = self.workspace.clone();
+        let threads = Button::new("marley-home-threads", "Threads")
+            .start_icon(Icon::new(IconName::Thread).size(IconSize::Small))
+            .style(ButtonStyle::Filled)
+            .on_click(move |_, window, cx| {
+                threads_workspace
+                    .update(cx, |workspace, cx| {
+                        crate::threads_page::open(workspace, window, cx);
+                    })
+                    .log_err();
+            });
         h_flex()
             .flex_wrap()
             .gap_2()
             .child(picker)
+            .child(threads)
             .children(kinds.into_iter().enumerate().map(|(index, kind)| {
                 let workspace = self.workspace.clone();
                 Button::new(("marley-home-agent", index), kind.display_name())

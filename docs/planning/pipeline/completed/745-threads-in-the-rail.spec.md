@@ -1,12 +1,12 @@
 ---
 pipeline_id: 1a30863b-ae8f-4d86-a091-4130d723bb23
-ticket: docs/planning/tickets/open/TICKET-745-threads-in-the-rail.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-745-threads-in-the-rail.md
+status: Phase 4 — Complete PASS
 title: Threads in the rail
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), tabs everywhere (docs/planning/design-notes/tabs-everywhere-2026-10-11.md)
 references:
-  - docs/planning/pipeline/queued/744-one-new-agent.spec.md
+  - docs/planning/pipeline/completed/744-one-new-agent.spec.md
   - docs/planning/pipeline/completed/737-the-threads-page.spec.md
   - docs/planning/pipeline/completed/739-rustal-icons-in-the-status-bar.spec.md
   - docs/planning/pipeline/completed/644-brain-view-in-the-rail.spec.md

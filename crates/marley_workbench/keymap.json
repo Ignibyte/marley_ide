@@ -265,7 +265,8 @@
     "bindings": {
       "secondary-f": "agents_sidebar::FocusSidebarFilter",
       "ctrl-tab": "agents_sidebar::ToggleThreadSwitcher",
-      "ctrl-shift-tab": ["agents_sidebar::ToggleThreadSwitcher", { "select_last": true }]
+      "ctrl-shift-tab": ["agents_sidebar::ToggleThreadSwitcher", { "select_last": true }],
+      "ctrl-g": "agents_sidebar::ToggleThreadHistory"
     }
   }
 ]

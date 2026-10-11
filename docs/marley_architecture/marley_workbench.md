@@ -2145,6 +2145,25 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## Threads in the rail (`src/rail.rs`, `src/threads_page.rs`, `src/home_page.rs`, `src/status_buttons.rs`, #745)
+
+- `Rail::threads: ThreadsSide { shown, search, … }`, the view's state outside `Rail::new`'s body.
+  `render_view_switch` draws PROJECTS and THREADS as `Button`s (XSmall, the shown one toggled);
+  PROJECTS takes an accent `Indicator::dot()` while Threads shows and
+  `marley_rail::has_attention` holds. `show_view` flips the view and moves the focus (the search
+  field, or the rail); `toggle_thread_history` answers `sidebar::ToggleThreadHistory`, bound to
+  `ctrl-g` in the Marley keymap's `MarleyRail && !Picker` block.
+- `render` draws `render_threads_search` and `render_thread_list` in place of the filter and the
+  rows (the inbox stays); the header hides Add Project and the empty-space menu. The list reads
+  `threads_page::conversations(query, cx)` (unarchived, not drafts, newest first, matching title or
+  folder; shared with Reopen Thread…) as `row_card`s, each click deferring
+  `threads_page::open_thread` on the shown workspace (#772's path). The store's observer notifies
+  the rail while Threads shows, since `refresh` notifies only for a changed snapshot.
+- While Threads shows, `move_cursor`, `fold` and `confirm` return at once; `focus_filter` focuses
+  the search field; `cancel` clears it, then gives the focus back to the rail.
+- `home_page::render_agents` adds a Threads button (`threads_page::open`) after New Agent…;
+  `status_buttons` lost its Threads button.
+
 ## Reopen Thread…, and threads in tabs (`src/thread_tab.rs`, `src/threads_page.rs`, `src/rail.rs`, #772)
 
 - `thread_tab::show_here(workspace, thread_id, …) -> bool` is the Marley layout's one way to show a

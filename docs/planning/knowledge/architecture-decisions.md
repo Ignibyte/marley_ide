@@ -4822,3 +4822,25 @@ Rejected:
   window's workspace with no record, a folderless workspace with no row.
 - Renaming the Home kind and its saved field: churn with no behavior.
 - Rusty's links in every + menu: #699 kept them to the Rusty group on Chad's word.
+
+## AD-claude-745-a-projects-threads-switch-where-678-removed-the-brain-switch-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-678-the-vault-has-its-navigation-in-a-brain-tab-001*
+
+Chad, 2026-10-11: "add a button in the side panel that toggles between the two? with an option on
+the home page as well", then "moving the threads back over to the top left". The rail's header
+reads PROJECTS and THREADS; THREADS lists every saved conversation, newest first, with a search, and
+a click opens a tab. AD-678 took the Projects | Brain switch out because the Brain tab already held
+the vault's tree and navigated its pages inside itself, so the rail's copy was a second home for
+one tree. Conversations have no such tab: each opens as its own tab, as a project's rows open
+theirs, and Zed keeps its thread history in the same column. The Threads page stays the place for
+agent filters and archived conversations; the rail is the quick list. The switch needs no
+connection, so the header keeps its shape whatever is on. Zed's `ToggleThreadHistory` and `ctrl-g`
+flip it, as Zed's sidebar flips to its history. The rail starts on Projects.
+
+Rejected:
+- Zed's `ThreadsArchiveView` hosted in the rail: it draws its own header at the title bar's height
+  with window controls, buckets by day, lists archived threads with Zed's worktree restore, and
+  offers entries the rail would have to answer (#737's D1 turned it down for the page too).
+- Remembering the view across a restart: a restart that opens on Threads hides the projects the
+  window restored.
+- Icon buttons for the switch: the labels say which view shows without a tooltip.

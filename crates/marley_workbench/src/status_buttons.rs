@@ -1,8 +1,8 @@
 //! Marley's pages at the right of the status bar (#739).
 //!
-//! Home, Rusty, Threads and the Marley agent, each opening its tab in the group the window shows,
-//! in either layout. Chad, 2026-10-10: "they just open in a new tab." They took the place of the
-//! rail header's Rusty button.
+//! Home, Rusty and the Marley agent, each opening its tab in the group the window shows, in either
+//! layout. Chad, 2026-10-10: "they just open in a new tab." They took the place of the rail header's
+//! Rusty button. Threads left for the rail's header and the Home page (#745).
 
 use gpui::{App, AppContext as _, Context, Render, WeakEntity, Window};
 use project::DisableAiSettings;
@@ -62,7 +62,6 @@ impl Render for RustalButtons {
         // its items (PR-claude-701).
         let home_workspace = self.workspace.clone();
         let rusty_workspace = self.workspace.clone();
-        let threads_workspace = self.workspace.clone();
         let marley_workspace = self.workspace.clone();
         h_flex()
             .gap_0p5()
@@ -89,23 +88,6 @@ impl Render for RustalButtons {
                             rusty_workspace
                                 .update(cx, |workspace, cx| {
                                     crate::rusty::open_home_here(workspace, window, cx);
-                                })
-                                .log_err();
-                        }),
-                )
-            })
-            .when(ai, |buttons| {
-                buttons.child(
-                    IconButton::new("marley-status-threads", IconName::Thread)
-                        .icon_size(IconSize::Small)
-                        .shape(IconButtonShape::Square)
-                        .tooltip(|_, cx| {
-                            Tooltip::for_action("Threads", &crate::threads_page::OpenThreads, cx)
-                        })
-                        .on_click(move |_, window, cx| {
-                            threads_workspace
-                                .update(cx, |workspace, cx| {
-                                    crate::threads_page::open(workspace, window, cx);
                                 })
                                 .log_err();
                         }),

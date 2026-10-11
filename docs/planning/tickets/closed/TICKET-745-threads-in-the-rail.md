@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #745 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [745-threads-in-the-rail.spec.md](../../pipeline/queued/745-threads-in-the-rail.spec.md)
+- **Pipeline doc:** [745-threads-in-the-rail.spec.md](../../pipeline/completed/745-threads-in-the-rail.spec.md)
 - **Source ticket:** Chad, 2026-10-11: "we need to have a button that shows all agent threads or
   something again … add a button in the side panel that toggles between the two? with an option on
   the home page as well", and "moving the threads back over to the top left". Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #737's Threads page lists every conversation, but only from a status-bar button, so the list Zed's

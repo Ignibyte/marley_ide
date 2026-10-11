@@ -997,6 +997,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Threads in the rail** (#745, 2026-10-11). The rail's header reads PROJECTS and THREADS.
+  THREADS, or Ctrl+G in the rail, lists every saved conversation, newest first, with a search over
+  titles and folders; a click opens one in a tab where you are, or brings its tab forward. The Home
+  page's NEW AGENT card gets a Threads button for the full page, and the Threads button leaves the
+  status bar.
+
 - **Reopen Thread…, and threads in tabs** (#772, 2026-10-11). Reopen Thread…, in a project's `+`,
   every pane's `+` and the palette (`marley: reopen thread`), lists your saved conversations,
   newest first, with their agent, folder and time; Enter opens one in a tab where you are, with its

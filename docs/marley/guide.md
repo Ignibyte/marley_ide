@@ -1175,17 +1175,28 @@ brings it forward, where you are (#739); so does `rusty: open home`.
 
 ### Buttons at the right of the status bar
 
-Four buttons sit at the right of the status bar, in both layouts (#739). Each opens its page in a
+Three buttons sit at the right of the status bar, in both layouts (#739). Each opens its page in a
 tab of the group you are looking at, or brings that tab forward when the group has it open:
 
 | Button | Opens | Shown |
 |---|---|---|
 | Home | Home's page (#701) | Always |
 | Rusty | Rusty's home page (#679) | While Rusty is on and connected |
-| Threads | The Threads page (#737) | While AI is on |
 | Marley | `marley: talk to marley` (#738) | While the Marley agent is there |
 
-The rail's header no longer has a Rusty button.
+The rail's header no longer has a Rusty button. Threads left the status bar for the rail's header
+and the Home page (#745).
+
+### Threads in the rail
+
+The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THREADS, or Ctrl+G with
+the rail focused, swaps the project rows for every saved conversation, newest first, each with its
+agent's icon, its title, and its agent and folder. The search field above the list matches titles
+and folders. A click opens the conversation in a tab of the group you are looking at, or brings its
+tab forward where it is open. PROJECTS, or Ctrl+G again, brings the projects back; while the
+conversations show, PROJECTS carries a dot when a project needs you. The rail starts on the
+projects. For agent filters and archived conversations, open the Threads page: the Threads button
+on the Home page's NEW AGENT card, or `marley: open threads`.
 
 ### The Brain view
 

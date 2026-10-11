@@ -55,6 +55,7 @@ use project::{
 };
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
+use sidebar::ToggleThreadHistory;
 use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
@@ -215,8 +216,6 @@ pub struct Rail {
     thread_subscriptions: HashMap<EntityId, Subscription>,
     /// Per project: its agent servers, which give the thread rows their agents' icons.
     agent_server_subscriptions: HashMap<EntityId, Subscription>,
-    /// The thread metadata store, once it exists: it notifies and emits nothing else.
-    thread_store_subscription: Option<Subscription>,
     /// Each listed thread's status at the last rebuild, by key, so a run's end is seen.
     thread_statuses: HashMap<String, ThreadStatus>,
     /// The threads whose attention dot is lit.
@@ -243,6 +242,7 @@ pub struct Rail {
     _filter_edits: Subscription,
     brain: BrainSide,
     startup: StartupGroups,
+    threads: ThreadsSide,
 }
 
 /// An agent at work, as Home's page lists it (#701).
@@ -281,6 +281,37 @@ impl StartupGroups {
                 rail.update_in(cx, Rail::refresh).log_err();
             }),
             retiring: Vec::new(),
+        }
+    }
+}
+
+/// The rail's Threads view (#745): whether it shows in place of the projects, and its search field;
+/// and the thread metadata store's subscription, once the store exists, which refreshes the
+/// project rows and the list (it notifies and emits nothing else).
+struct ThreadsSide {
+    shown: bool,
+    search: Entity<Editor>,
+    _search_edits: Subscription,
+    store: Option<Subscription>,
+}
+
+impl ThreadsSide {
+    fn new(window: &mut Window, cx: &mut Context<Rail>) -> Self {
+        let search = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Search conversations…", window, cx);
+            editor
+        });
+        let search_edits = cx.subscribe(&search, |_, _, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::BufferEdited) {
+                cx.notify();
+            }
+        });
+        Self {
+            shown: false,
+            search,
+            _search_edits: search_edits,
+            store: None,
         }
     }
 }
@@ -944,7 +975,6 @@ impl Rail {
             agent_server_subscriptions: HashMap::default(),
             browser_subscriptions: HashMap::default(),
             hub_subscription: None,
-            thread_store_subscription: None,
             thread_statuses: HashMap::default(),
             noted_threads: HashSet::default(),
             _multi_workspace_subscriptions: subscriptions,
@@ -957,6 +987,7 @@ impl Rail {
             _focus: focus,
             _filter_edits: filter_edits,
             brain: BrainSide::new(window, cx),
+            threads: ThreadsSide::new(window, cx),
             startup: StartupGroups::new(window, cx),
         }
     }
@@ -2545,14 +2576,24 @@ impl Rail {
                 )
             },
         );
-        if self.thread_store_subscription.is_none()
-            && let Some(store) = ThreadMetadataStore::try_global(cx)
-        {
-            self.thread_store_subscription =
-                Some(cx.observe_in(&store, window, |rail, _, window, cx| {
-                    rail.refresh(window, cx);
-                }));
+        self.follow_thread_store(window, cx);
+    }
+
+    /// Follows the thread metadata store once it exists: each change rereads the rail, and while
+    /// Threads shows redraws the list, which reads the store as it draws (#745).
+    fn follow_thread_store(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.threads.store.is_some() {
+            return;
         }
+        let Some(store) = ThreadMetadataStore::try_global(cx) else {
+            return;
+        };
+        self.threads.store = Some(cx.observe_in(&store, window, |rail, _, window, cx| {
+            rail.refresh(window, cx);
+            if rail.threads.shown {
+                cx.notify();
+            }
+        }));
     }
 
     /// Rebuilds the rail after each change to `project`'s folders, and to its repositories'
@@ -3072,6 +3113,10 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // The row keys are the projects' (#745).
+        if self.threads.shown {
+            return;
+        }
         self.cursor = Some(to(&self.snapshot.rail));
         self.refresh(window, cx);
     }
@@ -3118,6 +3163,9 @@ impl Rail {
     /// Folds or unfolds the project at `index`, when it is not that way already and no filter
     /// decides what shows.
     fn fold(&mut self, index: usize, fold: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.threads.shown {
+            return;
+        }
         let expanded = self
             .snapshot
             .rail
@@ -3144,12 +3192,28 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.focus(&self.filter_editor.focus_handle(cx), cx);
+        let field = if self.threads.shown {
+            &self.threads.search
+        } else {
+            &self.filter_editor
+        };
+        window.focus(&field.focus_handle(cx), cx);
     }
 
     /// Escape, as Zed's Threads Sidebar has it: it clears the filter, and from an empty filter
     /// goes back to the rows. With neither to do it passes on.
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        if self.threads.shown {
+            let search = self.threads.search.clone();
+            if !search.read(cx).text(cx).is_empty() {
+                search.update(cx, |editor, cx| editor.set_text("", window, cx));
+            } else if search.focus_handle(cx).is_focused(window) {
+                window.focus(&self.focus_handle, cx);
+            } else {
+                cx.propagate();
+            }
+            return;
+        }
         if self.snapshot.rail.filtering {
             self.clear_filter(window, cx);
         } else if self.filter_editor.focus_handle(cx).is_focused(window) {
@@ -3175,6 +3239,9 @@ impl Rail {
 
     /// Enter: what a click on the keyboard's row does.
     fn confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
+        if self.threads.shown {
+            return;
+        }
         let selection = marley_rail::selection(&self.snapshot.rail);
         self.open_row(selection, window, cx).log_err();
     }
@@ -4444,20 +4511,15 @@ impl Rail {
                 window,
             ))
         };
-        // Rusty's button left the header for the status bar (#739).
+        // Rusty's button left the header for the status bar (#739); the Projects | Threads switch
+        // took the PROJECTS label's place (#745).
+        let threads = self.threads.shown;
         header
-            .child(
-                Label::new("PROJECTS")
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .h_full()
-                    .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
-            )
-            .child(self.render_add_project())
+            .child(self.render_view_switch(cx))
+            .child(div().flex_1().h_full().when(!threads, |space| {
+                space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
+            }))
+            .when(!threads, |header| header.child(self.render_add_project()))
     }
 
     fn render_blocks(&self, cx: &Context<Self>) -> Vec<AnyElement> {
@@ -4687,6 +4749,189 @@ impl Rail {
                 .map(|tab| Self::render_tab_row(row, tab, cx).into_any_element()),
             Row::Files(row) => Some(Self::render_files_row(&row, cx).into_any_element()),
         }
+    }
+
+    /// PROJECTS and THREADS, the shown view's pressed (#745). While Threads shows, PROJECTS carries
+    /// the dot a project's attention would light on its row.
+    fn render_view_switch(&self, cx: &Context<Self>) -> impl IntoElement {
+        let threads = self.threads.shown;
+        let attention = threads && marley_rail::has_attention(&self.snapshot.rail);
+        let view_button =
+            |id: &'static str, label: &'static str, pressed: bool, to_threads: bool| {
+                Button::new(id, label)
+                    .label_size(LabelSize::XSmall)
+                    .style(ButtonStyle::Subtle)
+                    .toggle_state(pressed)
+                    .on_click(cx.listener(move |rail, _, window, cx| {
+                        rail.show_view(to_threads, window, cx);
+                    }))
+            };
+        h_flex()
+            .gap_0p5()
+            .child(
+                h_flex()
+                    .debug_selector(|| "marley-rail-view-projects".into())
+                    .gap_0p5()
+                    .child(view_button(
+                        "marley-rail-view-projects",
+                        "PROJECTS",
+                        !threads,
+                        false,
+                    ))
+                    .when(attention, |button| {
+                        button.child(Indicator::dot().color(Color::Accent))
+                    }),
+            )
+            .child(
+                div()
+                    .debug_selector(|| "marley-rail-view-threads".into())
+                    .child(view_button(
+                        "marley-rail-view-threads",
+                        "THREADS",
+                        threads,
+                        true,
+                    )),
+            )
+    }
+
+    /// Shows the Threads view, or the projects (#745); the Threads view's search field takes the
+    /// keys.
+    fn show_view(&mut self, threads: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.threads.shown == threads {
+            return;
+        }
+        self.threads.shown = threads;
+        if threads {
+            window.focus(&self.threads.search.focus_handle(cx), cx);
+        } else {
+            window.focus(&self.focus_handle, cx);
+        }
+        cx.notify();
+    }
+
+    /// `agents_sidebar::ToggleThreadHistory` (`ctrl-g`), Zed's sidebar's switch to its history.
+    fn toggle_thread_history(
+        &mut self,
+        _: &ToggleThreadHistory,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let threads = !self.threads.shown;
+        self.show_view(threads, window, cx);
+    }
+
+    /// The Threads view's search row, in the filter row's place and shape.
+    fn render_threads_search(&self, cx: &Context<Self>) -> impl IntoElement {
+        h_flex()
+            .w_full()
+            .flex_none()
+            .h(Tab::container_height(cx))
+            .gap_2()
+            .px_3()
+            .border_b_1()
+            .border_color(cx.theme().colors().border)
+            .child(
+                Icon::new(IconName::MagnifyingGlass)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                div()
+                    .debug_selector(|| "marley-rail-threads-search".into())
+                    .min_w_0()
+                    .flex_1()
+                    .child(self.threads.search.clone()),
+            )
+    }
+
+    /// Every saved conversation, newest first, as the Threads page lists them (#737, #745); a
+    /// click shows one in a tab of the shown group.
+    fn render_thread_list(&self, cx: &Context<Self>) -> impl IntoElement {
+        let query = self.threads.search.read(cx).text(cx);
+        let rows = crate::threads_page::conversations(query.trim(), cx);
+        let project = self.multi_workspace.upgrade().map(|multi_workspace| {
+            multi_workspace
+                .read(cx)
+                .workspace()
+                .read(cx)
+                .project()
+                .clone()
+        });
+        let empty = if query.trim().is_empty() {
+            "No conversations yet."
+        } else {
+            "No conversation matches."
+        };
+        v_flex()
+            .id("marley-rail-threads")
+            .flex_1()
+            .overflow_y_scroll()
+            .px_2()
+            .py_1p5()
+            .gap_0p5()
+            .when(rows.is_empty(), |list| {
+                list.child(
+                    div()
+                        .px_2()
+                        .py_1()
+                        .child(Label::new(empty).size(LabelSize::Small).color(Color::Muted)),
+                )
+            })
+            .children(rows.into_iter().enumerate().map(|(index, row)| {
+                let icon = project
+                    .as_ref()
+                    .map_or(AgentIcon::Named(IconName::Sparkle), |project| {
+                        agents::thread_icon(&row.agent, project, cx)
+                    });
+                let icon = match icon {
+                    AgentIcon::Named(name) => Icon::new(name),
+                    AgentIcon::Svg(path) => Icon::from_external_svg(path),
+                }
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element();
+                let agent_name = project.as_ref().map_or_else(
+                    || SharedString::from(row.agent.0.to_string()),
+                    |project| agents::thread_agent_name(&row.agent, project, cx),
+                );
+                let detail = row.folder.as_ref().map_or_else(
+                    || agent_name.to_string(),
+                    |folder| format!("{agent_name} · {folder}"),
+                );
+                let title = Label::new(row.title.clone())
+                    .size(LabelSize::Small)
+                    .truncate()
+                    .into_any_element();
+                let thread_id = row.thread_id;
+                row_card(
+                    ("marley-rail-thread-row", index),
+                    format!("marley-rail-threads-icon-{index}"),
+                    false,
+                    icon,
+                    title,
+                    vec![detail],
+                    cx,
+                )
+                .on_click(cx.listener(move |rail, _, window, cx| {
+                    rail.open_conversation(thread_id, window, cx);
+                }))
+                .into_any_element()
+            }))
+    }
+
+    /// Shows the conversation `thread_id` in a tab of the shown group, or its tab forward (#745).
+    /// Deferred: the open reads every workspace of the window.
+    fn open_conversation(&self, thread_id: ThreadId, window: &Window, cx: &mut Context<Self>) {
+        let Some(shown) = self
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
+        else {
+            return;
+        };
+        window.defer(cx, move |window, cx| {
+            crate::threads_page::open_thread(&shown, thread_id, window, cx);
+        });
     }
 
     fn render_rows(&self, rows: Vec<AnyElement>, cx: &Context<Self>) -> impl IntoElement {
@@ -9401,12 +9646,21 @@ impl Render for Rail {
             .on_action(cx.listener(Self::confirm))
             .on_action(cx.listener(Self::focus_filter))
             .on_action(cx.listener(Self::cancel))
+            .on_action(cx.listener(Self::toggle_thread_history))
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(self.render_header(window, cx))
-            .child(self.render_filter(cx))
-            .children(self.render_inbox(cx))
-            .child(self.render_rows(self.render_blocks(cx), cx))
+            .map(|rail| {
+                if self.threads.shown {
+                    rail.child(self.render_threads_search(cx))
+                        .children(self.render_inbox(cx))
+                        .child(self.render_thread_list(cx))
+                } else {
+                    rail.child(self.render_filter(cx))
+                        .children(self.render_inbox(cx))
+                        .child(self.render_rows(self.render_blocks(cx), cx))
+                }
+            })
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {
                 deferred(
                     anchored()
