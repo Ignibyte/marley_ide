@@ -1,7 +1,7 @@
 ---
 pipeline_id: 53964479-3bfd-42be-b369-2a5d8135e81e
-ticket: docs/planning/tickets/open/TICKET-746-marley-and-rusty-in-the-title-bar.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-746-marley-and-rusty-in-the-title-bar.md
+status: Phase 4 — Complete PASS
 title: Marley and Rusty in the title bar
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), tabs everywhere (docs/planning/design-notes/tabs-everywhere-2026-10-11.md)

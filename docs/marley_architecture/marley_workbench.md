@@ -2145,6 +2145,14 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## Marley and Rusty in the title bar (`src/status_buttons.rs`, Zed's `title_bar.rs`, #746)
+
+- `title_bar::MarleyTitleBarButtons` (a Zed hunk, its ledger row extended) holds a function from a
+  title bar's workspace to an `AnyView`; `TitleBar::new` asks it once and draws the view after the
+  `?`. `status_buttons::init` sets it to a `TitleButtons` view: Rusty then Marley, #739's rules,
+  tooltips and handlers, observing the settings, `rusty::Rusty` and `assistant::Assistant`.
+- The status bar keeps `HomeButton` alone, with no observer.
+
 ## Threads in the rail (`src/rail.rs`, `src/threads_page.rs`, `src/home_page.rs`, `src/status_buttons.rs`, #745)
 
 - `Rail::threads: ThreadsSide { shown, search, … }`, the view's state outside `Rail::new`'s body.

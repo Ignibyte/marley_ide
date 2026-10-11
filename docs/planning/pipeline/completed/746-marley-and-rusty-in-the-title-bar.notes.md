@@ -95,3 +95,52 @@ The buttons' coordinates come from a first run that stops at the first shot, as 
   the button too).
 - **The title bar's width.** On a narrow window the right-hand group crowds the project name; two
   small icon buttons add about 48px.
+
+### Promotion (2026-10-11, at 03e9caf830)
+- Seams re-checked: `title_bar.rs` `TitleBar` 210, the `?` child 387-399, `TitleBar::new` 466 (the
+  struct literal at its end); `status_buttons.rs` after #745 holds Home, Rusty and Marley. The
+  ledger row for `title_bar.rs` is extended before the Zed hunk.
+
+## Phase 2 — Code
+- **Built:** `title_bar.rs` (Zed crate, its ledger row extended first): `MarleyTitleBarButtons`, a
+  `Global` holding a function from the title bar's workspace to an `AnyView`; `TitleBar` keeps the
+  view made once in `new` (`marley_buttons`) and draws it right after the `?`. Three `// Marley:`
+  hunks. `status_buttons.rs`: `HomeButton` (the status bar keeps Home alone, no observers) and
+  `TitleButtons` (Rusty then Marley, `IconSize::Small` as the `?`, #739's rules, tooltips and
+  handlers, the three observers); `init` (now `&mut App`) sets the global. The in-app page names
+  the buttons beside the `?`.
+- **Review:** the global is set in `marley_workbench::init`, before any window, so every title bar
+  finds it; the Zed layout gets the same buttons (the title bar is shared); a title bar made with
+  no hook set draws nothing extra.
+- **Gate:** GATE GREEN [diff], 17 passed.
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/746-marley-and-rusty-in-the-title-bar.sh`, `compositor sway`, #739's
+  set-up. A first run with `STOP_AT_BAR=1` measured the buttons (Rusty at x 1482, Marley at 1508);
+  the full run exits 0. Step 04 of the spec's plan (Default shown, Marley clicked) is #738's
+  behavior, unchanged here, so the run leaves it out.
+- **Shots:**
+  - `746-01-bar`: the title bar's right end reads `?`, Rusty, Marley, Sign In; the status bar's
+    right end holds the edit prediction mark, Home, then the dock buttons, no Rusty or Marley.
+    REQ-001, REQ-002.
+  - `746-02-rusty`: Rusty clicked (its tooltip "Rusty"): Rusty's home page in a repo tab. REQ-003.
+  - `746-03-marley`: Marley clicked ("Talk to Marley"): a Marley thread tab in the repo, its row
+    `Marley · idle`. REQ-004.
+  - `746-05-rusty-off`: `marley.rusty.enabled` false in the run's settings: the title bar reads `?`,
+    Marley, Sign In. REQ-005.
+  - `746-06-zed`: `marley: use zed layout`: Zed's sidebar on the left, the title bar still `?`,
+    Marley, Sign In. REQ-007.
+- **Reviewed, not shot:** REQ-006 (AI off or no Marley entry hides Marley: the same
+  `marley_present` test as #739's), REQ-008 (the three `// Marley:` hunks and the extended row).
+- **Pre-existing, not in scope:** the Rusty home page's Recent Pages lists page names from the
+  copied profile (noted after #701).
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md` (Changed: Marley and Rusty in the title bar); the guide's button
+  table; the architecture note; the slice line in `workbench-shell.md`; the `title_bar.rs` row of
+  `zed-touchpoints.md` (extended in Phase 2) describes what shipped; the in-app page came with
+  Phase 2.
+- **Knowledge appended:** none: no bug reached a run, and the hook's shape is #599's and #699's.
+- **Ticket:** closed; its BACKLOG row left at promotion.
+- **Gate:** run again on the tree committed (the scenario was written after Phase 2's green):
+  GATE GREEN [diff], 17 passed.

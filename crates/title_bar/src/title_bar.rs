@@ -207,6 +207,15 @@ fn set_window_layout(layout: WindowLayout, cx: &App) {
     drop(AgentSettings::set_layout(layout, fs, cx));
 }
 
+// Marley: Rusty's and Marley's buttons beside the guide's `?` (#746). This crate depends on no
+// Marley crate, so a Marley crate hands over a function that makes their view.
+#[derive(Clone)]
+pub struct MarleyTitleBarButtons(
+    pub Arc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> gpui::AnyView>,
+);
+
+impl gpui::Global for MarleyTitleBarButtons {}
+
 pub struct TitleBar {
     platform_titlebar: Entity<PlatformTitleBar>,
     project: Entity<Project>,
@@ -220,6 +229,8 @@ pub struct TitleBar {
     update_version: Entity<UpdateVersion>,
     screen_share_popover_handle: PopoverMenuHandle<ContextMenu>,
     _diagnostics_subscription: Option<gpui::Subscription>,
+    // Marley: the view `MarleyTitleBarButtons` made for this title bar (#746).
+    marley_buttons: Option<gpui::AnyView>,
 }
 
 impl Render for TitleBar {
@@ -398,6 +409,8 @@ impl Render for TitleBar {
                             }
                         }),
                 )
+                // Marley: Rusty and Marley beside the guide's `?` (#746).
+                .children(self.marley_buttons.clone())
                 .when(
                     user.is_none()
                         && is_signed_out_or_auth_error
@@ -535,6 +548,11 @@ impl TitleBar {
         });
 
         let banner = None;
+        // Marley: Rusty and Marley beside the guide's `?` (#746).
+        let marley_buttons = cx
+            .try_global::<MarleyTitleBarButtons>()
+            .cloned()
+            .map(|hook| (hook.0)(workspace.weak_handle(), window, cx));
 
         let mut this = Self {
             platform_titlebar,
@@ -549,6 +567,7 @@ impl TitleBar {
             update_version,
             screen_share_popover_handle: PopoverMenuHandle::default(),
             _diagnostics_subscription: None,
+            marley_buttons,
         };
 
         this.observe_diagnostics(cx);

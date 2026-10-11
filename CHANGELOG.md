@@ -997,6 +997,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Marley and Rusty in the title bar** (#746, 2026-10-11). The Rusty and Marley buttons moved from
+  the status bar to the title bar's right, beside the `?` and the user menu, in both layouts, under
+  the same rules: Rusty while Rusty is on and connected, Marley while its agent is there. Home stays
+  at the right of the status bar.
+
 - **Threads in the rail** (#745, 2026-10-11). The rail's header reads PROJECTS and THREADS.
   THREADS, or Ctrl+G in the rail, lists every saved conversation, newest first, with a search over
   titles and folders; a click opens one in a tab where you are, or brings its tab forward. The Home

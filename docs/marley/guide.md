@@ -1175,14 +1175,15 @@ brings it forward, where you are (#739); so does `rusty: open home`.
 
 ### Buttons at the right of the status bar
 
-Three buttons sit at the right of the status bar, in both layouts (#739). Each opens its page in a
-tab of the group you are looking at, or brings that tab forward when the group has it open:
+Home sits at the right of the status bar, and Rusty and Marley at the right of the title bar,
+after the `?` and before the user menu (#739, #746), in both layouts. Each opens its page in a tab
+of the group you are looking at, or brings that tab forward when the group has it open:
 
-| Button | Opens | Shown |
-|---|---|---|
-| Home | Home's page (#701) | Always |
-| Rusty | Rusty's home page (#679) | While Rusty is on and connected |
-| Marley | `marley: talk to marley` (#738) | While the Marley agent is there |
+| Button | Where | Opens | Shown |
+|---|---|---|---|
+| Home | Status bar | Home's page (#701) | Always |
+| Rusty | Title bar | Rusty's home page (#679) | While Rusty is on and connected |
+| Marley | Title bar | `marley: talk to marley` (#738) | While the Marley agent is there |
 
 The rail's header no longer has a Rusty button. Threads left the status bar for the rail's header
 and the Home page (#745).

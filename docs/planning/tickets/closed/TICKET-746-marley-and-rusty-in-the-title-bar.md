@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #746 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [746-marley-and-rusty-in-the-title-bar.spec.md](../../pipeline/queued/746-marley-and-rusty-in-the-title-bar.spec.md)
+- **Pipeline doc:** [746-marley-and-rusty-in-the-title-bar.spec.md](../../pipeline/completed/746-marley-and-rusty-in-the-title-bar.spec.md)
 - **Source ticket:** Chad, 2026-10-11: "the compromise is Rusty and Marley go to the top right next
   to (?) and Avatar instead. That gives them more spotlight without mucking with the left panel tabs
   that should only be for swapping." Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #739 put Marley and Rusty in the status bar's right. They move to the title bar's right, after the

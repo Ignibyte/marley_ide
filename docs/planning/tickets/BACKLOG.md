@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-746](open/TICKET-746-marley-and-rusty-in-the-title-bar.md) | feature | Marley and Rusty move from the status bar to the title bar's right |
 | [TICKET-747](open/TICKET-747-side-panels-as-tabs.md) | feature | side panels open as tabs: the mechanism, Files, Git and Outline |
 | [TICKET-748](open/TICKET-748-more-side-panels-as-tabs.md) | feature | side panels open as tabs: Collab, Fleet, Knowledge and Containers; Debug's button to the status bar's left |
 | [TICKET-749](open/TICKET-749-marley-commands.md) | feature | `marley <command>`: agent-thread, agent-cli, terminal, talk, threads, home, rusty, panel, browser, help (folds in #721's quick prompt) |
