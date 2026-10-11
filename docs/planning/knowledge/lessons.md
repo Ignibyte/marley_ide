@@ -5393,3 +5393,21 @@ A row that appears in a group above (Default gaining Home and a thread) moves ev
 so a scenario that clicks a project's terminal row by position starts typing into whatever row
 took its place: a thread's message box took a command in #749's first run. Fold the group above
 after its shot, or click by a place no new row can reach.
+
+## L-claude-775-read-the-data-directory-before-main-without-paths-001
+*category: zed internals · topic: code that runs before Zed's `main` reads its arguments · from: pipeline 775*
+
+`paths::set_custom_data_dir` panics once `paths::data_dir` or `config_dir` was read, and `main`
+calls it after the argument parse. Code that runs before (the browser relay's and the verbs'
+intercepts) must not read `paths::data_dir()` when the launch names `--user-data-dir`: it reads
+that directory itself (canonicalized as `set_custom_data_dir` does), and reads `paths::data_dir()`
+only when no custom directory is named, since `main` then sets none.
+
+## L-claude-775-a-public-module-doc-links-only-public-items-001
+*category: tooling · topic: gate:14 rustdoc · from: pipelines 749 and 775*
+
+gate:14 runs rustdoc with warnings as errors and without private items, so a `pub mod`'s doc that
+links a `pub(crate)` item (`[\`hand_verb\`]`) fails as `private_intra_doc_links`, and a bare
+`<word>` in a doc, even inside a quote, fails as an unclosed HTML tag. Both passed clippy and cost
+a full gate run each this session: name crate-private items in plain code spans, and put a quoted
+`<placeholder>` in one.

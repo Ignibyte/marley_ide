@@ -7,7 +7,8 @@
 //! the launch exits, so the paths go to the running Marley, as Zed's CLI would hand them, instead
 //! of to a second app, and prints what it answers. The check runs only where
 //! [`socket_fits`]: a socket path longer than a Unix socket's address fails the bind as a running
-//! Marley would.
+//! Marley would. A `marley <verb>` hands itself over earlier, before Zed's `main` starts its log,
+//! through `hand_verb` (#775).
 
 use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
@@ -56,7 +57,12 @@ pub fn activation_token_in(url: &str) -> Option<String> {
 
 /// The socket Zed's check binds in the data directory.
 fn socket_path() -> PathBuf {
-    paths::data_dir().join(format!("zed-{}.sock", *RELEASE_CHANNEL_NAME))
+    socket_in(paths::data_dir())
+}
+
+/// The socket Zed's check binds in `data_dir`.
+fn socket_in(data_dir: &Path) -> PathBuf {
+    data_dir.join(format!("zed-{}.sock", *RELEASE_CHANNEL_NAME))
 }
 
 /// Whether Zed's check can bind the data directory's socket.
@@ -92,11 +98,49 @@ pub fn hand_off(paths_or_urls: &[String]) -> Result<String> {
             data_dir.display()
         ))
     })?;
+    Ok(handed_line(data_dir, paths_or_urls))
+}
+
+/// Hands `url`, a `marley <verb>`'s, to the Marley running on `data_dir`, before Zed's `main`
+/// starts its log, so the launch prints the hand-off's line and nothing else (#775). Answers the
+/// line once the URL went, or `None` when no Marley listens there (no socket, a refused one, or a
+/// path too long for one), for the launch to start Marley instead.
+///
+/// # Errors
+///
+/// The URL is longer than the listener reads, or the socket is there and a send fails.
+pub(crate) fn hand_verb(url: &str, data_dir: &Path) -> Result<Option<String>> {
+    let socket = socket_in(data_dir);
+    if socket.as_os_str().len() >= SOCKET_PATH_BYTES {
+        return Ok(None);
+    }
+    let sender = UnixDatagram::unbound().context("making a socket")?;
+    match sender.connect(&socket) {
+        Ok(()) => {}
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+            ) =>
+        {
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(anyhow::Error::new(error).context(format!("reaching {}", socket.display())));
+        }
+    }
+    let urls = [url.to_string()];
+    deliver(&sender, &with_token(urls.to_vec()))?;
+    Ok(Some(handed_line(data_dir, &urls)))
+}
+
+/// What a hand-off of `paths_or_urls` to the Marley on `data_dir` says it did.
+fn handed_line(data_dir: &Path, paths_or_urls: &[String]) -> String {
     let verbs: Vec<&str> = paths_or_urls
         .iter()
         .filter_map(|url| crate::commands::verb_in(url))
         .collect();
-    Ok(if paths_or_urls.is_empty() {
+    if paths_or_urls.is_empty() {
         format!(
             "Marley is already running on {}; it was asked to come forward.",
             data_dir.display()
@@ -112,7 +156,7 @@ pub fn hand_off(paths_or_urls: &[String]) -> Result<String> {
             data_dir.display(),
             paths_or_urls.len()
         )
-    })
+    }
 }
 
 /// The datagrams themselves: one URL each, all checked against the listener's buffer first.
@@ -126,21 +170,32 @@ fn send(paths_or_urls: &[String]) -> Result<()> {
             .map(|arg| url_for(arg, &working_dir))
             .collect()
     };
-    // The token first, so the running Marley holds it when the paths bring a window forward.
-    let token = ACTIVATION_TOKEN
-        .get()
-        .and_then(Option::as_ref)
-        .map(|token| format!("{ACTIVATION_TOKEN_URL}{token}"));
-    let urls: Vec<String> = token.into_iter().chain(urls).collect();
-    if let Some(url) = urls.iter().find(|url| url.len() > MAX_URL_BYTES) {
-        bail!("{url} is longer than the {MAX_URL_BYTES} bytes the running Marley reads");
-    }
+    let urls = with_token(urls);
     let socket = socket_path();
     let sender = UnixDatagram::unbound().context("making a socket")?;
     sender
         .connect(&socket)
         .with_context(|| format!("reaching {}", socket.display()))?;
-    for url in &urls {
+    deliver(&sender, &urls)
+}
+
+/// `urls` behind the launch's activation token, so the running Marley holds the token when the
+/// paths bring a window forward (#545).
+fn with_token(urls: Vec<String>) -> Vec<String> {
+    let token = ACTIVATION_TOKEN
+        .get()
+        .and_then(Option::as_ref)
+        .map(|token| format!("{ACTIVATION_TOKEN_URL}{token}"));
+    token.into_iter().chain(urls).collect()
+}
+
+/// Sends each of `urls` as a datagram on `sender`, all checked against the listener's buffer
+/// first.
+fn deliver(sender: &UnixDatagram, urls: &[String]) -> Result<()> {
+    if let Some(url) = urls.iter().find(|url| url.len() > MAX_URL_BYTES) {
+        bail!("{url} is longer than the {MAX_URL_BYTES} bytes the running Marley reads");
+    }
+    for url in urls {
         sender
             .send(url.as_bytes())
             .with_context(|| format!("sending {url}"))?;

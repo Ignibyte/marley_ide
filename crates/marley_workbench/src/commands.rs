@@ -150,6 +150,23 @@ pub fn args_if_invoked() -> Invoked {
             message: format!("marley: {error}\nRun `marley help` for the commands."),
         },
         Launch::Run { data_dir, url } => {
+            // A Marley that runs gets the verb now, before Zed's `main` starts its log (#775).
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            match hand_to_running(data_dir.as_deref(), &url) {
+                Ok(Some(line)) => {
+                    return Invoked::Exit {
+                        code: 0,
+                        message: line,
+                    };
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    return Invoked::Exit {
+                        code: 1,
+                        message: format!("marley: {error:#}"),
+                    };
+                }
+            }
             let mut launch: Vec<String> = arguments.into_iter().take(1).collect();
             if let Some(data_dir) = data_dir {
                 launch.extend(["--user-data-dir".to_string(), data_dir]);
@@ -158,6 +175,23 @@ pub fn args_if_invoked() -> Invoked {
             Invoked::Launch(launch)
         }
     }
+}
+
+/// Hands the verb's `url` to the Marley running on the launch's data directory: `data_dir` when
+/// the launch names one, read as `paths::set_custom_data_dir` makes it but without making it,
+/// since that function panics once the data directory was read; else the default one, which
+/// `main` reads the same way after (#775). `None` when no Marley runs there.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn hand_to_running(data_dir: Option<&str>, url: &str) -> anyhow::Result<Option<String>> {
+    let data_dir = match data_dir {
+        Some(directory) => match std::fs::canonicalize(directory) {
+            Ok(directory) => directory,
+            // A directory that is not there has no Marley.
+            Err(_) => return Ok(None),
+        },
+        None => paths::data_dir().clone(),
+    };
+    crate::single_instance::hand_verb(url, &data_dir)
 }
 
 /// Notes the data directory this Marley runs on when its launch named one, for its terminals to

@@ -1012,6 +1012,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **A handed `marley <command>` prints one line** (#775, 2026-10-11). With Marley running, a
+  command typed in a terminal prints "Marley is already running on …; it was asked to run
+  `marley <command>`." and nothing else: it no longer prints Zed's start log line and "zed is
+  already running".
+
 - **The Debug button at the left of the status bar** (#774, 2026-10-11). In the Marley layout
   the Debug panel stays in the bottom dock, and its button leaves the right-hand dock buttons for
   the left end of the status bar. It opens and closes the panel as before and shows when the panel

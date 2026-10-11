@@ -2168,6 +2168,11 @@ alike.
   which activates, opens and focuses the panel's dock for #747's observer. A refusal is a toast.
 - The agent started last is kept in the key-value store (`marley-commands`): by
   `thread_tab::start`, `agents::start_cli_in`, `agents::start_cli_with_prompt` and the verbs.
+- A running Marley gets the verb from the intercept itself (#775): `hand_to_running` reads the
+  data directory without initializing `paths` (a custom one canonicalized, else
+  `paths::data_dir()`) and `single_instance::hand_verb` sends the URL, answering `None` when no
+  socket listens, so the launch prints only the hand-off's line; only then does it answer
+  `Launch`.
 - `commands::note_data_dir` (in `init`) notes `paths::data_dir()` when the launch named
   `--user-data-dir`; `marley_terminal::identity::agent_environment` writes it as
   `MARLEY_USER_DATA_DIR`, empty in any other terminal.

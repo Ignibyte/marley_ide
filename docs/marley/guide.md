@@ -131,7 +131,9 @@ run it from. `marley help` lists them:
   command. An agent CLI starts with the permission mode its settings give, as New Agent starts it.
 - **Errors.** A wrong argument prints the error and exits with code 2. What only Marley can judge,
   such as an agent no one has, Rusty off or a panel turned off, shows as a message in the window.
-- **No Marley running.** Marley starts, restores your session, then runs the command.
+- **No Marley running.** Marley starts, restores your session, then runs the command. With
+  Marley running, the command prints one line, "Marley is already running on …; it was asked to
+  run `marley <command>`." (#775).
 - **A Marley on its own data directory.** Its terminals carry `MARLEY_USER_DATA_DIR`, so a
   command typed there reaches that Marley, not the one on the default directory.
 - A folder named like a command opens as a folder with `./`: `marley ./home`.

@@ -403,7 +403,8 @@ a tab, never Zed's Agent Panel; #745 puts a Projects | Threads switch at the top
 Marley to the title bar beside the `?`; #747 opens Files, Git and Outline as tabs, never the right
 dock; #748 does the same for Collab, Fleet, Knowledge and Containers; #773 brings panel tabs back after a
 restart; #774 puts the Debug button at the status bar's left, the panel staying in the bottom dock;
-#749 adds `marley <command>`, verbs that open things in the running Marley from a shell;
+#749 adds `marley <command>`, verbs that open things in the running Marley from a shell, and #775
+quiets a handed one to a single line;
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
 listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
 CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.
