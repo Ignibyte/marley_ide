@@ -4414,22 +4414,13 @@ impl Rail {
                 window,
             ))
         };
+        // Rusty's button left the header for the status bar (#739).
         header
-            .map(|header| {
-                if self.brain.connected {
-                    header.child(self.render_rusty_button()).child(
-                        Label::new("PROJECTS")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                } else {
-                    header.child(
-                        Label::new("PROJECTS")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                }
-            })
+            .child(
+                Label::new("PROJECTS")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
             .child(
                 div()
                     .flex_1()
@@ -4437,22 +4428,6 @@ impl Rail {
                     .on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu)),
             )
             .child(self.render_add_project())
-    }
-
-    /// The header's Rusty button while Rusty is connected: Rusty's home page (#679), whose cards
-    /// hold every screen's button. It takes the place of #672's row of screens.
-    fn render_rusty_button(&self) -> impl IntoElement {
-        let multi_workspace = self.multi_workspace.clone();
-        IconButton::new("marley-rail-rusty", rusty::RUSTY_ICON)
-            .icon_size(IconSize::Small)
-            .shape(IconButtonShape::Square)
-            .tooltip(|_, cx| Tooltip::for_action("Rusty", &rusty::OpenHome, cx))
-            .on_click(move |_, window, cx| {
-                if let Some(multi_workspace) = multi_workspace.upgrade() {
-                    let workspace = multi_workspace.read(cx).workspace().downgrade();
-                    rusty::open_home_later(workspace, window, cx);
-                }
-            })
     }
 
     fn render_blocks(&self, cx: &Context<Self>) -> Vec<AnyElement> {

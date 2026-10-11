@@ -250,7 +250,7 @@ enum Detected {
 /// What the defaults hold for the entries, what `auto` found, and the adapter's command once
 /// resolved.
 #[derive(Default)]
-struct Assistant {
+pub(crate) struct Assistant {
     applied: Entries,
     detected: Detected,
     /// The adapter's command, resolved once a project's agent server store has it.
@@ -990,6 +990,22 @@ fn talk_to(
         (agent_ui::Agent::from(name), None)
     };
     crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+}
+
+/// Whether the Marley entry is there (#739).
+pub(crate) fn marley_present(cx: &App) -> bool {
+    cx.try_global::<Assistant>()
+        .is_some_and(|assistant| assistant.applied.of(Entry::Marley).is_some())
+}
+
+/// `marley: talk to marley` from outside an action, as the status bar's Marley button runs it
+/// (#739).
+pub(crate) fn talk_to_marley(
+    workspace: &mut Workspace,
+    window: &Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    talk_to(Entry::Marley, false, workspace, window, cx);
 }
 
 /// The entry's newest conversation that is not archived, by the id its threads carry.

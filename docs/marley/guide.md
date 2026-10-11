@@ -1148,15 +1148,29 @@ the switch alone. A key bound to a Rusty command says Rusty is off.
 ### The Rusty group and its home page
 
 Rusty's screens and pages open in the window's Rusty group, a group with no folder that the rail
-lists after your projects (#675). Its first tab is Rusty's home page (#679), which the Rusty
-button in the rail's header opens: a button for each screen, your recent pages, the follow-ups due
-and your open tasks.
+lists after your projects (#675). Its first tab is Rusty's home page (#679): a button for each
+screen, your recent pages, the follow-ups due and your open tasks. `rusty: open home` opens it in
+the Rusty group; the Rusty button at the right of the status bar opens it where you are (#739).
 
 - **The group's +** (#699) lists Rusty's quick links first: Home, Brain, Today's Note, Graph,
   Tasks, Decisions, Memory, Skills, Secrets, Open Page… and the three captures. Zed's own entries
   follow. A project's + is unchanged.
 - **Never empty** (#699). When the group's last tab closes, or the group is shown with no tab open
   (after a restart, for one), its home page opens instead of Zed's Welcome page.
+
+### Buttons at the right of the status bar
+
+Four buttons sit at the right of the status bar, in both layouts (#739). Each opens its page in a
+tab of the group you are looking at, or brings that tab forward when the group has it open:
+
+| Button | Opens | Shown |
+|---|---|---|
+| Home | Home's page (#701) | Always |
+| Rusty | Rusty's home page (#679) | While Rusty is on and connected |
+| Threads | The Threads page (#737) | While AI is on |
+| Marley | `marley: talk to marley` (#738) | While the Marley agent is there |
+
+The rail's header no longer has a Rusty button.
 
 ### The Brain view
 

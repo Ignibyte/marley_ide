@@ -83,7 +83,7 @@ use ui::{
 
 use crate::MarleySettings;
 
-pub(crate) use home_tab::{OpenHome, open_later as open_home_later};
+pub(crate) use home_tab::open_here as open_home_here;
 
 /// Rusty's icon in the rail and on its home page: a placeholder until Rusty has one of its own
 /// (#675, #679).

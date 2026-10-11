@@ -59,6 +59,24 @@ pub(crate) fn ensure(workspace: &Workspace, window: &mut Window, cx: &mut Contex
     });
 }
 
+/// Brings `workspace`'s Home page forward, or opens one in its center (#739): the status bar's Home
+/// button opens it in whatever group the window shows.
+pub(crate) fn open_here(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let open_page = workspace.items_of_type::<MarleyHome>(cx).next();
+    if let Some(home) = open_page {
+        workspace.activate_item(&home, true, true, window, cx);
+        return;
+    }
+    let fs = Arc::clone(&workspace.app_state().fs);
+    let weak_workspace = cx.weak_entity();
+    let home = cx.new(|cx| MarleyHome::new(weak_workspace, fs, window, cx));
+    workspace.add_item_to_center(Box::new(home), window, cx);
+}
+
 /// Home's page in the Home group once its last tab closed, so it never shows Zed's Welcome page.
 pub(crate) fn fill_emptied(
     workspace: &Workspace,

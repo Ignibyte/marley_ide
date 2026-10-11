@@ -192,6 +192,22 @@ pub(crate) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: 
     });
 }
 
+/// Brings `workspace`'s Rusty home page forward, or opens one in its center (#739): the status
+/// bar's Rusty button opens it in whatever group the window shows, not only in the Rusty group.
+pub(crate) fn open_here(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if let Some(home) = home_of(workspace, cx) {
+        workspace.activate_item(&home, true, true, window, cx);
+        return;
+    }
+    let weak_workspace = cx.weak_entity();
+    let home = cx.new(|cx| RustyHome::new(weak_workspace, window, cx));
+    workspace.add_item_to_center(Box::new(home), window, cx);
+}
+
 fn home_of(workspace: &Workspace, cx: &App) -> Option<Entity<RustyHome>> {
     workspace.items_of_type::<RustyHome>(cx).next()
 }

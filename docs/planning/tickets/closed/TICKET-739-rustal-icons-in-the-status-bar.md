@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #739 (feature, the Marley layout: agents anywhere)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [739-rustal-icons-in-the-status-bar.spec.md](../../pipeline/completed/739-rustal-icons-in-the-status-bar.spec.md)
 - **Source ticket:** Chad, 2026-10-10: "remove the rustal icons to be placed down in the bottom right
   and they just open in a new tab." Plan: [agents-anywhere shelf](../../design-notes/agents-anywhere-2026-10-10.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Four buttons at the right of the status bar: Home, Rusty, Threads and Marley, in both layouts. Each

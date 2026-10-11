@@ -1997,6 +1997,19 @@ alike.
   the view through `build_view`, which `open_thread` shares, with the record's session id, so the
   agent loads or resumes the session.
 
+## Buttons at the right of the status bar (`src/status_buttons.rs`, #739)
+
+- `RustalButtons`, a `Render + StatusItemView` with its workspace's weak handle, is added to every
+  workspace's status bar by `init` (`observe_new` + `add_right_item`), so no line of `crates/zed`
+  changes; it lands just left of Zed's dock buttons. It observes the settings, `rusty::Rusty` and
+  `assistant::Assistant`, and draws Home always, Rusty while `rusty::is_on` and `is_connected`,
+  Threads while AI is on, and Marley while `assistant::marley_present`.
+- The clicks, plain closures over the weak workspace (PR-claude-701): `home_page::open_here`,
+  `rusty::open_home_here` (`home_tab::open_here`), `threads_page::open`,
+  `assistant::talk_to_marley`. Each `open_here` brings the workspace's page forward or adds one to
+  its center. `hide_setting` is `None`: each button follows its feature's own switch.
+- The rail's `render_rusty_button` went, with the re-export of `OpenHome` and `open_later` it used.
+
 ## The Threads page (`src/threads_page.rs`, #737)
 
 - `OpenThreads` (`marley: open threads`) brings the workspace's `ThreadsPage` forward or adds one to

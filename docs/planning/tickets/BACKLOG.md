@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-739](open/TICKET-739-rustal-icons-in-the-status-bar.md) | feature | agents anywhere: Home, Rusty, Threads and Marley at the status bar's right, each opening its tab where you are |
 | [TICKET-740](open/TICKET-740-one-harness-per-host.md) | feature | agents anywhere, bonus: Marley follows a harness on each host the settings list |
 | [TICKET-741](open/TICKET-741-a-new-agent-on-a-remote-host.md) | feature | agents anywhere, bonus: New Agent on a harness host makes a seat and attaches a terminal over SSH |
 | [TICKET-742](open/TICKET-742-a-thread-on-a-remote-seat.md) | feature | agents anywhere, bonus: a thread tab on a remote seat through `rh acp --seat` (needs rustal-harness TICKET-116) |

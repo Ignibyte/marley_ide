@@ -93,6 +93,7 @@ pub mod shortcut_note;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod stall;
+pub mod status_buttons;
 pub mod sticky_header;
 pub mod system_one;
 pub mod system_one_calls;
@@ -892,6 +893,7 @@ pub fn init(cx: &mut App) {
     assistant::init(cx);
     thread_tab::init(cx);
     threads_page::init(cx);
+    status_buttons::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

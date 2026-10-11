@@ -1,7 +1,7 @@
 ---
 pipeline_id: d371752c-f773-456a-889c-ff03f56bdf4b
-ticket: docs/planning/tickets/open/TICKET-739-rustal-icons-in-the-status-bar.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-739-rustal-icons-in-the-status-bar.md
+status: Phase 4 — Complete PASS
 title: Rustal icons in the status bar
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)

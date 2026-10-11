@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home, Rusty, Threads and Marley at the right of the status bar** (#739, 2026-10-10). Four
+  buttons, in both layouts, each open its page in a tab of the group you are looking at, or bring
+  that tab forward: Home's page, Rusty's home page (while Rusty is connected), the Threads page,
+  and the Marley agent's conversation (`talk to marley`). The rail's header no longer has a Rusty
+  button.
+
 - **Marley and Rusty in tabs** (#738, 2026-10-10). `marley: talk to marley` brings the Marley
   agent's latest conversation forward where it is, or opens it in a tab of the group you are in, or
   starts one; `marley: new marley conversation` always starts a new one; `talk to rusty` and `new
