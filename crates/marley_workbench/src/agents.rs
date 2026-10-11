@@ -37,6 +37,8 @@ use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
 use workspace::{ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace, WorkspaceDb};
 
+use crate::harness::Slot;
+
 /// Makes the `Terminal` behind a new center terminal, started in the given directory with the
 /// given variables of its own.
 ///
@@ -740,8 +742,9 @@ pub(crate) fn show_picker(
 }
 
 /// Where the picker offers to start an agent: the guess first, then the window's open projects,
-/// then Browse…; recent projects join before Browse… once they load. `workspace` is being updated,
-/// so it is read through its reference, never through its entity (`current`).
+/// then Browse…, then each harness that takes a seat (#741); recent projects join before Browse…
+/// once they load. `workspace` is being updated, so it is read through its reference, never
+/// through its entity (`current`).
 fn places_for(workspace: &Workspace, current: EntityId, window: &Window, cx: &App) -> Vec<Place> {
     let (guess, note) = guess(workspace, cx);
     let mut places = vec![Place::folder(guess, note)];
@@ -769,6 +772,11 @@ fn places_for(workspace: &Workspace, current: EntityId, window: &Window, cx: &Ap
         }
     }
     places.push(Place::Browse);
+    places.extend(
+        crate::harness_seat::seat_slots(cx)
+            .into_iter()
+            .map(Place::harness),
+    );
     places
 }
 
@@ -824,6 +832,9 @@ enum Place {
     },
     /// Zed's path prompt, for any folder.
     Browse,
+    /// A harness, where a CLI agent starts as a seat in a folder typed next (#741), with the name
+    /// Where shows it by.
+    Harness { slot: Slot, name: SharedString },
 }
 
 impl Place {
@@ -839,10 +850,18 @@ impl Place {
         }
     }
 
+    fn harness(slot: Slot) -> Self {
+        let name = slot
+            .name()
+            .cloned()
+            .unwrap_or_else(|| SharedString::new_static("the harness"));
+        Self::Harness { slot, name }
+    }
+
     const fn path(&self) -> Option<&PathBuf> {
         match self {
             Self::Folder { path, .. } => Some(path),
-            Self::Browse => None,
+            Self::Browse | Self::Harness { .. } => None,
         }
     }
 
@@ -851,6 +870,7 @@ impl Place {
         match self {
             Self::Folder { name, path, .. } => format!("{name} {}", shown_path(path)),
             Self::Browse => "Browse…".to_string(),
+            Self::Harness { name, .. } => format!("On {name}…"),
         }
     }
 }
@@ -894,6 +914,8 @@ impl NewAgentPicker {
             places,
             fs: Arc::clone(&fs),
             chosen: None,
+            remote: None,
+            typed: String::new(),
             matches: Vec::new(),
             selected_index: 0,
         };
@@ -929,7 +951,10 @@ fn load_recent(
         picker
             .update_in(cx, |picker, window, cx| {
                 let places = &mut picker.delegate.places;
-                let browse = places.len().saturating_sub(1);
+                let browse = places
+                    .iter()
+                    .position(|place| matches!(place, Place::Browse))
+                    .unwrap_or(places.len());
                 let fresh: Vec<Place> = recent
                     .into_iter()
                     .filter(|path| !places.iter().any(|place| place.path() == Some(path)))
@@ -983,6 +1008,14 @@ enum Start {
 }
 
 impl Start {
+    /// The agent CLI, when a harness can run it as a seat (#741).
+    const fn seat_kind(&self) -> Option<AgentKind> {
+        match self {
+            Self::Cli(kind) if crate::harness_seat::SeatAgent::of(*kind).is_some() => Some(*kind),
+            Self::Cli(_) | Self::Thread(_) => None,
+        }
+    }
+
     /// Where the choice starts, as its entry says: Claude Code can be both a Zed agent and a CLI.
     const fn place(&self) -> &'static str {
         match self {
@@ -1032,6 +1065,10 @@ struct NewAgentDelegate {
     fs: Arc<dyn fs::Fs>,
     /// The agent chosen and its name, once the picker asks where.
     chosen: Option<(Start, SharedString)>,
+    /// The harness chosen and its name, once the picker asks for a folder on its host (#741).
+    remote: Option<(Slot, SharedString)>,
+    /// What the query holds while it asks for that folder.
+    typed: String,
     /// The entries the query matches, in order, each naming its entry by index: a choice, or
     /// once an agent is chosen, a place.
     matches: Vec<StringMatch>,
@@ -1119,6 +1156,9 @@ impl PickerDelegate for NewAgentDelegate {
     }
 
     fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
+        if let Some((_, name)) = &self.remote {
+            return format!("A folder on {name}, such as /srv/project").into();
+        }
         match (&self.chosen, &self.fixed) {
             (Some((_, name)), _) => format!("Where should {name} start?").into(),
             (None, Some(folder)) => format!("Start an agent in {}…", shown_path(folder)).into(),
@@ -1132,19 +1172,43 @@ impl PickerDelegate for NewAgentDelegate {
         window: &mut Window,
         cx: &mut Context<Picker<Self>>,
     ) -> Task<()> {
-        let texts: Vec<String> = if self.chosen.is_some() {
-            self.places.iter().map(Place::text).collect()
+        if self.remote.is_some() {
+            // The query is the folder: one entry, to start there.
+            self.matches = if query.trim().is_empty() {
+                Vec::new()
+            } else {
+                vec![StringMatch {
+                    candidate_id: 0,
+                    score: 0.,
+                    positions: Vec::new(),
+                    string: query.clone(),
+                }]
+            };
+            self.typed = query;
+            self.selected_index = 0;
+            cx.notify();
+            return Task::ready(());
+        }
+        // A harness runs only the agent CLIs a seat can be (#741).
+        let seats = self
+            .chosen
+            .as_ref()
+            .and_then(|(start, _)| start.seat_kind())
+            .is_some();
+        let candidates: Vec<StringMatchCandidate> = if self.chosen.is_some() {
+            self.places
+                .iter()
+                .enumerate()
+                .filter(|(_, place)| seats || !matches!(place, Place::Harness { .. }))
+                .map(|(index, place)| StringMatchCandidate::new(index, &place.text()))
+                .collect()
         } else {
             self.choices
                 .iter()
-                .map(|choice| choice.name.to_string())
+                .enumerate()
+                .map(|(index, choice)| StringMatchCandidate::new(index, &choice.name))
                 .collect()
         };
-        let candidates: Vec<StringMatchCandidate> = texts
-            .iter()
-            .enumerate()
-            .map(|(index, text)| StringMatchCandidate::new(index, text))
-            .collect();
         let executor = cx.background_executor().clone();
         cx.spawn_in(window, async move |picker, cx| {
             // An empty query keeps every entry in its own order; fuzzy matching would sort them
@@ -1174,6 +1238,23 @@ impl PickerDelegate for NewAgentDelegate {
     }
 
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
+        if let Some((slot, _)) = self.remote.clone() {
+            let folder = self.typed.trim().to_string();
+            let kind = self
+                .chosen
+                .as_ref()
+                .and_then(|(start, _)| start.seat_kind());
+            let Some(kind) = kind.filter(|_| folder.starts_with('/')) else {
+                return;
+            };
+            self.dismissed(window, cx);
+            self.workspace
+                .update(cx, |workspace, cx| {
+                    crate::harness_seat::start_agent_on(workspace, slot, kind, folder, window, cx);
+                })
+                .log_err();
+            return;
+        }
         let Some(found) = self.matches.get(self.selected_index) else {
             return;
         };
@@ -1206,6 +1287,17 @@ impl PickerDelegate for NewAgentDelegate {
                 let Some(place) = self.places.get(index).cloned() else {
                     return;
                 };
+                if let Place::Harness { slot, name } = place {
+                    // The folder next: the same picker, emptied, takes it as its query.
+                    self.remote = Some((slot, name));
+                    self.selected_index = 0;
+                    cx.defer_in(window, |picker, window, cx| {
+                        picker.set_query("", window, cx);
+                        picker.refresh_placeholder(window, cx);
+                        picker.refresh(window, cx);
+                    });
+                    return;
+                }
                 self.dismissed(window, cx);
                 match place {
                     Place::Folder { path, .. } => {
@@ -1216,6 +1308,7 @@ impl PickerDelegate for NewAgentDelegate {
                             .log_err();
                     }
                     Place::Browse => self.browse(start, window, cx),
+                    Place::Harness { .. } => {}
                 }
             }
         }
@@ -1235,6 +1328,26 @@ impl PickerDelegate for NewAgentDelegate {
         _: &mut Context<Picker<Self>>,
     ) -> Option<Self::ListItem> {
         let found = self.matches.get(index)?;
+        if let Some((_, harness)) = &self.remote {
+            let agent = self.chosen.as_ref().map_or_else(
+                || SharedString::new_static("the agent"),
+                |(_, name)| name.clone(),
+            );
+            let folder = found.string.trim();
+            let text = if folder.starts_with('/') {
+                format!("Start {agent} in {folder} on {harness}")
+            } else {
+                "Type the folder's full path, from /".to_string()
+            };
+            return Some(
+                ListItem::new(index)
+                    .inset(true)
+                    .spacing(ListItemSpacing::Sparse)
+                    .toggle_state(selected)
+                    .start_slot(Icon::new(IconName::Server).color(Color::Muted))
+                    .child(Label::new(text)),
+            );
+        }
         if self.chosen.is_some() {
             let place = self.places.get(found.candidate_id)?;
             let item = ListItem::new(index)
@@ -1268,6 +1381,14 @@ impl PickerDelegate for NewAgentDelegate {
                 Place::Browse => item
                     .start_slot(Icon::new(IconName::FolderOpen).color(Color::Muted))
                     .child(Label::new("Browse…")),
+                Place::Harness { name, .. } => item
+                    .start_slot(Icon::new(IconName::Server).color(Color::Muted))
+                    .child(Label::new(format!("On {name}…")))
+                    .end_slot(
+                        Label::new("a seat, folder next")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
             });
         }
         let choice = self.choices.get(found.candidate_id)?;

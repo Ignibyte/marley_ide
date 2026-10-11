@@ -4771,3 +4771,17 @@ every setting, scenario and saved inbox key that names it unchanged.
   sessions in the rail and inbox, and move the Manager's single-root logic onto a choice of root.
 - A raw command per host, as `marley.harness` takes: Marley could not build the seat or (#741)
   attach commands from it, nor quote the remote words.
+
+## AD-claude-741-a-remote-agent-is-a-harness-seat-with-a-terminal-attached-001
+*decided at: 2026-10-10 · status: shipped · builds on: #691, #735, #740*
+
+**The decision.** New Agent starts a CLI agent on another machine only as a seat of the harness
+there, and attaches a local terminal to it with the harness's own view (`rh attach`, else `rh
+view`) through `ssh -t`, never `ssh HOST claude`. The seat is named for the agent and the folder.
+
+**Why.** The harness supervises a seat and keeps it past a dropped link (its D164, TICKET-109), and
+its tmux holds the session, so the terminal can close and reopen without ending the agent.
+
+**Rejected:**
+- `ssh -t HOST claude` in a terminal: the agent ends with the link, and nothing lists it.
+- Marley's own remote tmux (#543) around the attach: tmux refuses to attach from inside tmux.

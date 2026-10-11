@@ -5307,3 +5307,11 @@ arguments (`printf '%q '`), drops everything up to `--` and the destination, ref
 `$E2E_WORK/<host>-down` file exists, and runs the rest with `exec bash -c "$*"`, which is what sshd
 does with the joined words. The log proves the argv; the shell proves the quoting. Kill the
 host's link with `pkill -f -- "--state <root> mcp"` after making the host refuse.
+
+## L-claude-741-a-line-for-a-remote-view-is-quoted-twice-001
+*category: implementation · topic: running a harness's command on its host from a terminal · from: pipeline 741*
+
+A command Marley types into a local shell to run something on another host is quoted twice: the
+argv's words for the host's shell, joined into one line, and that line, with ssh's own words, for
+the local shell. `harness_hosts::terminal_line` does both. Marley's terminal `ssh` wrapper (#526)
+leaves such a line alone: any word after the destination makes it plain ssh.

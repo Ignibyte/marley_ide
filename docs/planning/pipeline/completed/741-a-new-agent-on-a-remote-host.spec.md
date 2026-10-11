@@ -1,7 +1,7 @@
 ---
 pipeline_id: 27331002-51b1-4f70-939b-f1c56411a11a
 ticket: docs/planning/tickets/open/TICKET-741-a-new-agent-on-a-remote-host.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A new agent on a remote host
 type: feature
 slice: the control plane (docs/marley/three-prong-plan.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -77,7 +77,12 @@ Shots:
 - **D2:** the attach runs through `ssh -t` directly, not inside Marley's own tmux on the host: the
   harness's tmux holds the session, and tmux refuses to attach from inside another tmux.
 - **D3:** the seat's name is made from the agent and the folder, so the rail and `rh` show
-  something readable.
+  something readable. A name the root's sessions show is skipped, and a `seat_exists` refusal
+  tries the next, up to `-9`.
+- **D4:** the attach view is the one `rh seat start` answers with (`views`, kind `tmux`, else
+  `native`): no second call. A view's command, in the terminal or Views → Open, is typed into a
+  local shell as one line, so its words are quoted for the host's shell, and that line again as
+  one word for the local shell.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |

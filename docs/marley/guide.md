@@ -321,6 +321,15 @@ marked Thread and the CLIs Terminal, and typing filters the list. After the agen
   (a file picked there means its folder).
 - A thread opens in a tab of the shown group (#734), a CLI in a new terminal there, each working in
   the folder you picked.
+- **On box-2…** (#741), for Claude Code and Codex, starts the agent on a harness Marley follows
+  (see "Several harnesses"), one entry per harness that takes a seat, **On the harness…** for the
+  first. Type the folder on that machine, a full path such as `/srv/project`, and Enter: Marley
+  adds and starts a seat there named for the agent and the folder (`claude-project`, then
+  `claude-project-2` …), then opens a terminal of the shown group attached to it, through `ssh -t`
+  for a harness on another host. The agent runs under the harness's supervision and keeps running
+  when the terminal or the link closes; its row is under the harness's section in the rail. A
+  refusal, such as a folder the host does not have, comes up as a notification with the harness's
+  reason, and no terminal opens.
 
 **Open Agent Here…** asks only which agent: on a terminal's row in the rail, it starts in the
 terminal's folder; in the project panel's right-click menu, in that folder, or a file's folder.
@@ -2450,7 +2459,9 @@ tab gains controls above its lines:
   - `rh view` shows the native view, where Ctrl-b c claims control before you type;
   - a Codex or Claude session offers its history and, while it runs, an observer.
 
-  The commands run on this machine, so a harness reached over SSH is not covered yet.
+  For a harness `marley.harnesses` names on another host (#740), each command runs there through
+  `ssh -t` (#741), and Views shows and copies that line. A `marley.harness` command over SSH still
+  runs them on this machine.
 
 `marley: open harness session` in the palette opens a session from a profile declared in the
 root's `profiles` folder (`session_open`) and opens its tab. When Marley runs the harness itself,
@@ -2516,8 +2527,9 @@ Marley follows it beside the one above:
 - **Seats.** With `harness_writes` on, the New Harness Seat form gains a Harness row: Default
   (the harness above) and each name. The seat's commands run through the chosen one.
 - **What stays with the first.** The Manager entry, `marley: open harness session` and agents'
-  seat tools (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only. A
-  session's Views run their commands on this machine.
+  seat tools (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only.
+- **An agent there.** New Agent's **On box-2…** starts Claude Code or Codex as a seat on it, with a
+  terminal attached here (#741).
 
 ## The Fleet panel
 

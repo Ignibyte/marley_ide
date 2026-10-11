@@ -2020,6 +2020,22 @@ alike.
 - After a failure `follow` leaves `Connection::Down(reason)` in place while it waits and tries
   again, so the header keeps the reason; `Connecting` is the first try only.
 
+## A new agent on a harness (`src/harness_seat.rs`, `src/agents.rs`, #741)
+
+- The New Agent picker's `Place::Harness { slot, name }` follows Browse…, one per
+  `harness_seat::seat_slots`, listed only for a CLI choice `Start::seat_kind` maps to a
+  `SeatAgent`. Choosing it sets the delegate's `remote`; the picker's query is then the folder,
+  one entry, confirmed only when it starts with `/`.
+- `harness_seat::start_agent_on` shows a toast, then `add_and_start` runs `seat add` and `seat
+  start` through `seat_command_of(slot)` under `seat_stem`'s name (`claude-other`), skipping the
+  slot's session titles and moving on at `seat_exists`, up to `-9`. `attach_line` takes `seat
+  start`'s `tmux` view, else `native`, and the line is typed into a terminal of the workspace in
+  its default folder (`agents::start_in_terminal`). Any refusal is `not_started`'s notification.
+- A view's line comes from `harness::view_command(slot, argv)` →
+  `harness_hosts::terminal_line`: the argv through `shell_word`, and for a host over ssh, `ssh -t`
+  with the keepalive and connect timeout, `--`, the destination and that line as one remote word,
+  every word quoted again for the local shell. `HarnessView::surface` keeps these lines.
+
 ## Buttons at the right of the status bar (`src/status_buttons.rs`, #739)
 
 - `RustalButtons`, a `Render + StatusItemView` with its workspace's weak handle, is added to every

@@ -3674,3 +3674,11 @@ Since #534, `follow` set `Connection::Connecting` after each backoff wait, and a
 that refuses takes up to the call timeout, so a harness that stayed down read "connecting" most of
 the time and its reason showed only between tries. #740's shot of a dropped host showed
 "connecting" over stale rows. Fixed in #740: the reason stays until a try connects.
+
+## F-claude-741-the-attach-terminal-worked-in-marleys-own-folder-001
+*severity: low · found in: pipeline 741's Test phase (shot 02, the first run) · class: a terminal started with no folder*
+
+`start_agent_on` gave `agents::start_in_terminal` no folder, so the attach terminal worked in the
+folder Marley was started from (`/srv/stacks/marley_ide` in the run) and the rail listed it with
+that path under the project. Fixed in #741: the workspace's `default_working_directory`, as a new
+terminal gets.

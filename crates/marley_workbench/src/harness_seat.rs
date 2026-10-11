@@ -4,6 +4,10 @@
 //! harness's `seat add` and `seat start` (its TICKET-109) through the command Marley follows the
 //! harness with, and opens the new session's tab.
 //!
+//! New Agent's **On `<harness>`…** (#741) does it without the form: `start_agent_on` names the seat
+//! for the agent and the folder, starts it, and types its attach view into a new terminal, through
+//! `ssh -t` for a harness on another host.
+//!
 //! `seat_add` on Marley's MCP server (#692) does the same for an agent: it asks the user as
 //! `settings_change` does, runs `seat add` on Apply and answers, then runs `seat start`, which can
 //! take a minute for Claude Code, after the answer; a start that fails is a notification.
@@ -22,15 +26,16 @@ use gpui::{
     App, AppContext as _, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     SharedString, Task, WeakEntity, Window, actions,
 };
+use marley_agent::AgentKind;
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use serde_json::{Value, json};
 use ui::{ButtonStyle, Headline, HeadlineSize, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, show_app_notification};
-use workspace::{ModalView, Workspace};
+use workspace::{ModalView, Toast, Workspace};
 
-use crate::harness::{Harness, Slot, harness_writes, seat_command_of, writes_on};
+use crate::harness::{Harness, Slot, harness_writes, seat_command_of, seats_of, writes_on};
 
 actions!(
     marley,
@@ -44,12 +49,21 @@ actions!(
 
 /// The agent a seat runs.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SeatAgent {
+pub(crate) enum SeatAgent {
     Claude,
     Codex,
 }
 
 impl SeatAgent {
+    /// The seat agent an agent CLI runs as, for the two the harness runs (#741).
+    pub(crate) const fn of(kind: AgentKind) -> Option<Self> {
+        match kind {
+            AgentKind::Claude => Some(Self::Claude),
+            AgentKind::Codex => Some(Self::Codex),
+            AgentKind::Gemini | AgentKind::OpenCode => None,
+        }
+    }
+
     /// The agent as `seat add --agent` takes it.
     const fn argument(self) -> &'static str {
         match self {
@@ -348,7 +362,7 @@ pub(crate) fn open_form(
 
 /// The harnesses a seat can be made on: the primary one while its write verbs are on, then each
 /// `marley.harnesses` names while `marley.harness_writes` is (#740).
-fn seat_slots(cx: &App) -> Vec<Slot> {
+pub(crate) fn seat_slots(cx: &App) -> Vec<Slot> {
     let mut slots = Vec::new();
     if writes_on(cx) {
         slots.push(Slot::Primary);
@@ -361,6 +375,171 @@ fn seat_slots(cx: &App) -> Vec<Slot> {
         );
     }
     slots
+}
+
+/// The toast while an agent starts on a harness, and the notification when it does not (#741).
+struct AgentOnHarness;
+
+/// Starts `kind` on `slot`'s harness in `folder`, a path on its host (#741): a seat named for the
+/// agent and the folder, then a new terminal of `workspace` attached to it. A refusal, or a seat
+/// the harness gives no view of, is a notification, and no terminal opens.
+pub(crate) fn start_agent_on(
+    workspace: &mut Workspace,
+    slot: Slot,
+    kind: AgentKind,
+    folder: String,
+    window: &Window,
+    cx: &mut Context<Workspace>,
+) {
+    let Some(agent) = SeatAgent::of(kind) else {
+        return;
+    };
+    let place = slot
+        .name()
+        .map_or_else(|| "the harness".to_string(), ToString::to_string);
+    let Some((program, base, remote)) = seat_command_of(&slot, cx) else {
+        not_started(agent, &place, "Marley follows no harness it can reach", cx);
+        return;
+    };
+    let taken: Vec<String> = seats_of(&slot, cx)
+        .seats()
+        .iter()
+        .map(|seat| seat.title.clone())
+        .collect();
+    let stem = seat_stem(agent, &folder);
+    workspace.show_toast(
+        Toast::new(
+            NotificationId::unique::<AgentOnHarness>(),
+            format!(
+                "Starting {} on {place} in {folder}: up to a minute",
+                agent.shown()
+            ),
+        ),
+        cx,
+    );
+    cx.spawn_in(window, async move |workspace, cx| {
+        let started = add_and_start(&program, &base, remote, agent, &folder, &stem, &taken).await;
+        let started = match started {
+            Ok(started) => started,
+            Err(reason) => {
+                workspace
+                    .update(cx, |workspace, cx| {
+                        workspace.dismiss_toast(&NotificationId::unique::<AgentOnHarness>(), cx);
+                        not_started(agent, &place, &reason, cx);
+                    })
+                    .log_err();
+                return;
+            }
+        };
+        workspace
+            .update_in(cx, |workspace, window, cx| {
+                workspace.dismiss_toast(&NotificationId::unique::<AgentOnHarness>(), cx);
+                let Some(line) = attach_line(&slot, &started, cx) else {
+                    let reason = "the seat started, but the harness gave no view of it";
+                    not_started(agent, &place, reason, cx);
+                    return;
+                };
+                let input = format!("{line}\n").into_bytes();
+                // The link's local end works in the project's folder, as a new terminal would.
+                let folder = terminal_view::default_working_directory(workspace, cx);
+                crate::agents::start_in_terminal(
+                    workspace,
+                    folder,
+                    None,
+                    Some(input),
+                    None,
+                    window,
+                    cx,
+                )
+                .detach_and_log_err(cx);
+            })
+            .log_err();
+    })
+    .detach();
+}
+
+/// Adds the seat under the first name the root takes, `stem`, then `stem-2` … `stem-9`, skipping
+/// the names in `taken`, and starts it: `seat start`'s answer.
+async fn add_and_start(
+    program: &Path,
+    base: &[String],
+    remote: bool,
+    agent: SeatAgent,
+    folder: &str,
+    stem: &str,
+    taken: &[String],
+) -> Result<Value, SharedString> {
+    let names = std::iter::once(stem.to_string())
+        .chain((2..=9).map(|number| format!("{stem}-{number}")))
+        .filter(|name| !taken.contains(name));
+    for name in names {
+        let seat = Seat {
+            name,
+            agent,
+            cwd: folder.to_string(),
+            role: String::new(),
+        };
+        let (add, start) = seat.commands(base.to_vec(), remote);
+        match run_seat(program, &add).await {
+            Ok(_) => return run_seat(program, &start).await,
+            // A seat of that name the rail does not show, such as a stopped one.
+            Err(said) if said.starts_with("seat_exists") => {}
+            Err(said) => return Err(said),
+        }
+    }
+    Err(format!("the names {stem} to {stem}-9 are all taken").into())
+}
+
+/// A seat's name from the agent and the folder's last part, as `claude-other` for `/srv/other`:
+/// lowercase letters, digits and dashes.
+fn seat_stem(agent: SeatAgent, folder: &str) -> String {
+    let last = folder
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default();
+    let word: String = last
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let word = word.trim_matches('-');
+    if word.is_empty() {
+        agent.argument().to_string()
+    } else {
+        format!("{}-{word}", agent.argument())
+    }
+}
+
+/// The line that attaches a terminal to a started seat: its `tmux` view (`rh attach`), else its
+/// `native` one (`rh view`), from `seat start`'s answer.
+fn attach_line(slot: &Slot, started: &Value, cx: &App) -> Option<SharedString> {
+    let views: Vec<(SharedString, Vec<String>)> = started
+        .get("views")?
+        .as_array()?
+        .iter()
+        .filter_map(crate::harness::view_argv)
+        .collect();
+    let (_, argv) = ["tmux", "native"]
+        .iter()
+        .find_map(|kind| views.iter().find(|(shown, _)| shown.as_ref() == *kind))?;
+    Some(crate::harness::view_command(slot, argv, cx))
+}
+
+/// Says that the agent did not start on `place`, and why.
+fn not_started(agent: SeatAgent, place: &str, reason: &str, cx: &mut App) {
+    let message = SharedString::from(format!(
+        "Could not start {} on {place}: {reason}",
+        agent.shown()
+    ));
+    show_app_notification(NotificationId::unique::<AgentOnHarness>(), cx, move |cx| {
+        cx.new(|cx| MessageNotification::new(message.clone(), cx))
+    });
 }
 
 /// The form: the seat's name, agent, folder and role, and how the last run went.

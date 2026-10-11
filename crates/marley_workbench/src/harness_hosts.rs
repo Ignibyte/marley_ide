@@ -81,7 +81,7 @@ impl HarnessHost {
                 )
             },
             |target| {
-                let mut arguments = ssh_arguments(target, false);
+                let mut arguments = ssh_arguments(target);
                 arguments.extend([
                     shell_word(&self.rh),
                     "--state".to_string(),
@@ -108,12 +108,12 @@ impl HarnessHost {
     }
 }
 
-/// `ssh`'s arguments up to and including the destination: a terminal only when `tty`, never a
-/// password prompt (`BatchMode`), Marley's keepalive (#641), the port, and `--` before the
-/// destination so it can never be read as an option.
-pub(crate) fn ssh_arguments(target: &SshTarget, tty: bool) -> Vec<String> {
+/// `ssh`'s arguments up to and including the destination: no terminal, never a password prompt
+/// (`BatchMode`), Marley's keepalive (#641), the port, and `--` before the destination so it can
+/// never be read as an option.
+fn ssh_arguments(target: &SshTarget) -> Vec<String> {
     let mut arguments = vec![
-        if tty { "-t" } else { "-T" }.to_string(),
+        "-T".to_string(),
         "-o".to_string(),
         "BatchMode=yes".to_string(),
     ];
@@ -121,6 +121,34 @@ pub(crate) fn ssh_arguments(target: &SshTarget, tty: bool) -> Vec<String> {
     // `ssh_command` gives `ssh`, the port, `--` and the destination.
     arguments.extend(marley_remote::ssh_command(target).into_iter().skip(1));
     arguments
+}
+
+/// The line a terminal types to run a harness's view `argv` (#741): its words quoted for a
+/// shell, and for a harness on another host, behind `ssh -t`, Marley's keepalive and connect
+/// timeout (#641) and the destination, with that line as ssh's one remote word. The whole line is
+/// typed into a local shell, so every word is quoted again for it.
+pub(crate) fn terminal_line(host: Option<&HarnessHost>, argv: &[String]) -> String {
+    let line = argv
+        .iter()
+        .map(|word| shell_word(word))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let Some(target) = host.and_then(|host| host.ssh.as_ref()) else {
+        return line;
+    };
+    let mut words = vec!["ssh".to_string(), "-t".to_string()];
+    words.extend(marley_remote::keepalive_options());
+    words.extend([
+        "-o".to_string(),
+        format!("ConnectTimeout={}", marley_remote::CONNECT_TIMEOUT_S),
+    ]);
+    words.extend(marley_remote::ssh_command(target).into_iter().skip(1));
+    words.push(line);
+    words
+        .iter()
+        .map(|word| shell_word(word))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// `word` as the remote shell reads it back: as it is when it holds only plain characters, else

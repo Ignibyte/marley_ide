@@ -1560,11 +1560,18 @@ impl HarnessView {
             arguments,
             window,
             cx,
-            |view, value, _, _| {
+            |view, value, _, cx| {
+                let slot = view.slot.clone();
                 view.views = value
                     .get("views")
                     .and_then(Value::as_array)
-                    .map(|views| views.iter().filter_map(view_line).collect())
+                    .map(|views| {
+                        views
+                            .iter()
+                            .filter_map(view_argv)
+                            .map(|(kind, argv)| (kind, view_command(&slot, &argv, cx)))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 view.status = if view.views.is_empty() {
                     Some((
@@ -1734,25 +1741,29 @@ impl HarnessView {
     }
 }
 
-/// A view of `session_surface_to_human` as its kind and its command line, each argument quoted
-/// where a shell would split it.
-fn view_line(view: &Value) -> Option<(SharedString, SharedString)> {
+/// A view of `session_surface_to_human` or `seat start` as its kind and its argv.
+pub(crate) fn view_argv(view: &Value) -> Option<(SharedString, Vec<String>)> {
     let kind = view.get("kind")?.as_str()?.to_string();
-    let line = view
+    let argv = view
         .get("argv")?
         .as_array()?
         .iter()
         .filter_map(Value::as_str)
-        .map(|argument| {
-            if argument.is_empty() || argument.contains(|c: char| c.is_whitespace() || c == '\'') {
-                format!("'{}'", argument.replace('\'', "'\\''"))
-            } else {
-                argument.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    Some((kind.into(), line.into()))
+        .map(str::to_string)
+        .collect();
+    Some((kind.into(), argv))
+}
+
+/// The line a terminal types to run a view of `slot`'s harness: through `ssh -t` for a harness on
+/// another host (#741), as it is for one here.
+pub(crate) fn view_command(slot: &Slot, argv: &[String], cx: &App) -> SharedString {
+    let host = match slot {
+        Slot::Primary => None,
+        Slot::Host(name) => {
+            crate::harness_hosts::Hosts::get(name, cx).map(|followed| &followed.host)
+        }
+    };
+    crate::harness_hosts::terminal_line(host, argv).into()
 }
 
 /// The lines of a `session_read` receipt, or what it refused.

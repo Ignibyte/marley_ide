@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A new agent on another machine** (#741, 2026-10-10). New Agent's Where lists **On box-2…** for
+  each harness Marley follows, for Claude Code and Codex. Type a folder on that machine and Marley
+  adds and starts a seat there through the harness, named for the agent and the folder, then opens
+  a terminal attached to it through `ssh -t`. A session's Views → Open runs its command on the
+  harness's host the same way.
+
 - **Several harnesses** (#740, 2026-10-10). `marley.harnesses` names harnesses on other machines,
   each `{ "name", "ssh", "state", "rh" }`, and Marley follows each over its own SSH connection
   beside the one `marley.harness` names. Each gets its own section in the rail, HARNESS · its

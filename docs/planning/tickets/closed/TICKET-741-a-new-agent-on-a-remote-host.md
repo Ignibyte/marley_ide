@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #741 (feature, the control plane: the harness)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [741-a-new-agent-on-a-remote-host.spec.md](../../pipeline/completed/741-a-new-agent-on-a-remote-host.spec.md)
 - **Source ticket:** Chad, 2026-10-10: "Bonus points if we can open on a remote via the harness."
   Plan: [agents-anywhere shelf](../../design-notes/agents-anywhere-2026-10-10.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The New Agent picker's where lists each harness host. Picking one with a CLI agent sets up a seat
