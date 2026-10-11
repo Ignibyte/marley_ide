@@ -440,7 +440,7 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click Add Project (the folder with a plus, top of the rail), then a recent project, Open Local Folders or Open Remote Folder.</li>
-<li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in the Agent Panel (or brings its center tab forward), a Browser tab row shows the tab.</li>
+<li>Click a row to show it: a terminal row focuses that terminal, a thread row opens the thread in a tab (or brings its tab forward), a Browser tab row shows the tab.</li>
 <li>Fold a project with its chevron. A folded project's header counts its agents by state, as in <code>1 waiting, 2 working</code>.</li>
 <li>A project's open files sit under its Files row with their count. Click the row to fold them away and again to bring them back; while folded, the Files row is the one highlighted for a file in front.</li>
 <li>Point at a tab's or a file's row and click the × at its end to close it, as its tab's close does; a file with changes asks first. A dot at the end of a row means changes not saved.</li>
@@ -1482,21 +1482,22 @@ th { background: var(--panel); font-weight: 650; }
 <li>Set up an agent in the panel first: a model for the Zed Agent, or an external agent such as Claude Agent (<kbd>Ctrl+Alt+C</kbd> in the panel opens its settings).</li>
 <li>Click a project's <kbd>+</kbd>, then New Agent… and an agent marked Thread. In the Marley layout the status bar's sparkle and <kbd>Ctrl+?</kbd> open the same picker.</li>
 <li>The thread's row reads <code>&lt;agent&gt; · working</code>, then <code>idle</code>. Its dot lights when a run ends while the thread is off screen.</li>
-<li>Click the row to open the thread in the panel. For a thread in a center tab, the click brings that tab forward instead (see <a href="#thread-in-center">An agent thread in a center tab</a>).</li>
-<li>Right-click a thread's row for Open in Center, which moves the thread into a center tab; Archive Thread, which puts it away; and Delete Thread…, which asks first and deletes it for good.</li>
-<li>Right-click the project's header and open Archived Threads to bring an archived thread back: choose it and it opens.</li>
+<li>Click the row to open the thread in a tab of its project, or bring its tab forward (see <a href="#thread-in-center">An agent thread in a center tab</a>).</li>
+<li>Right-click a thread's row for Archive Thread, which puts it away, and Delete Thread…, which asks first and deletes it for good.</li>
+<li>Right-click the project's header and open Archived Threads to bring an archived thread back: choose it and it opens in a tab.</li>
+<li>Reopen Thread…, in a project's <kbd>+</kbd>, a pane's <kbd>+</kbd> or the palette, lists your saved conversations, newest first; Enter opens one in a tab where you are.</li>
 </ol>
 </article>
 
 <article id="thread-in-center">
-<h3>An agent thread in a center tab <span class="ticket">#697 · #702</span></h3>
-<p class="what"><strong>What it is.</strong> An Agent Panel thread can move into a tab of the main area, beside your terminals and files, and back. It stays the same thread: it keeps running, keeps its history, and takes messages in the tab. It shows in one place at a time, the panel or its tab.</p>
+<h3>An agent thread in a center tab <span class="ticket">#697 · #702 · #772</span></h3>
+<p class="what"><strong>What it is.</strong> In the Marley layout every thread opens in a tab of the main area, beside your terminals and files, never in Zed's Agent Panel: a thread the panel still holds moves into a tab as it is, still running, with its history. It shows in one place at a time. In Zed's layout a panel thread moves into a tab and back.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>With the thread open in the Agent Panel, run <code>marley: open thread in center</code> from the command palette. Or right-click the thread's row in the rail and choose Open in Center.</li>
+<li>In Zed's layout, with the thread open in the Agent Panel, run <code>marley: open thread in center</code> from the command palette.</li>
 <li>The thread opens in a center tab titled as the thread, with the cursor in its message box, and the panel turns to a new draft. Type in the tab as you would in the panel.</li>
 <li>The rail keeps one row for the thread, its thread row with the agent and its state, marked while the tab is in front. Click the row to bring the tab forward.</li>
-<li>To move it back, right-click the tab and choose Move Thread to Panel, or run <code>marley: move thread to panel</code> with the tab in front. The thread shows in the panel and the tab closes.</li>
+<li>In Zed's layout, to move it back, right-click the tab and choose Move Thread to Panel, or run <code>marley: move thread to panel</code> with the tab in front. The thread shows in the panel and the tab closes.</li>
 <li>Opening the same thread from the panel's own history also moves it back and closes the tab.</li>
 </ol>
 <p class="note">A new thread needs its first message before it can move; until then the command says so in a toast. The tab does not come back after a restart; the thread is in the panel's history as usual.</p>
@@ -2188,7 +2189,8 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>marley: clear project browser data</code></td><td>Sign the project out of every site</td></tr>
 <tr><td><code>marley: system one check</code>, <code>marley: open system one calls</code></td><td>System One's check, and its log</td></tr>
 <tr><td><code>marley: toggle fleet</code></td><td>Show or hide the Fleet panel</td></tr>
-<tr><td><code>marley: open thread in center</code>, <code>marley: move thread to panel</code></td><td>Show the Agent Panel's thread in a center tab, and back in the panel</td></tr>
+<tr><td><code>marley: reopen thread</code></td><td>A saved conversation, chosen from a picker, in a tab where you are</td></tr>
+<tr><td><code>marley: open thread in center</code>, <code>marley: move thread to panel</code></td><td>Zed's layout: show the Agent Panel's thread in a center tab, and back in the panel</td></tr>
 <tr><td><code>marley: open marley agent in terminal</code></td><td>The Marley agent in Claude Code's or Codex's own interface, in a new terminal</td></tr>
 <tr><td><code>marley: open agent activity</code></td><td>The log of every agent call to a tool that acts</td></tr>
 <tr><td><code>marley: stop agent control</code>, <code>marley: resume agent control</code></td><td>Make every tool that acts refuse agents, and let them act again</td></tr>

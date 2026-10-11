@@ -395,7 +395,9 @@ fn load_thread(
     .detach_and_log_err(cx);
 }
 
-/// Loads the thread into `panel`, which unarchives an archived one (#616), and focuses the panel.
+/// Shows the thread in a tab of `workspace`, never the Agent Panel (#772): its tab forward, or
+/// moved out of the panel holding it, or opened from Zed's store, an archived one unarchived
+/// first (#616). A thread the store does not keep yet loads into `panel` as before.
 fn show_thread(
     workspace: &mut Workspace,
     panel: &Entity<AgentPanel>,
@@ -403,9 +405,16 @@ fn show_thread(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    // A thread in a center tab comes forward there (#697): the panel showing it too would draw
-    // one view twice.
-    if crate::thread_tab::activate_for(workspace, thread.thread_id, window, cx) {
+    if crate::thread_tab::show_here(workspace, thread.thread_id, window, cx) {
+        return;
+    }
+    if let Some(store) = ThreadMetadataStore::try_global(cx)
+        && let Some(record) = store.read(cx).entry(thread.thread_id).cloned()
+    {
+        if record.archived {
+            store.update(cx, |store, cx| store.unarchive(thread.thread_id, cx));
+        }
+        crate::thread_tab::open_saved(workspace, &record, window, cx);
         return;
     }
     let ThreadToOpen {
@@ -2033,16 +2042,16 @@ impl Rail {
         else {
             return;
         };
-        workspace
-            .update(cx, |workspace, cx| {
-                agents::start_thread(
-                    workspace,
-                    &AgentId::new(crate::harness::MANAGER_ENTRY),
-                    window,
-                    cx,
-                )
-            })
-            .log_err();
+        // In a tab, as every thread opens in the Marley layout (#772).
+        workspace.update(cx, |workspace, cx| {
+            crate::thread_tab::start(
+                workspace,
+                Some(AgentId::new(crate::harness::MANAGER_ENTRY)),
+                None,
+                window,
+                cx,
+            );
+        });
     }
 
     /// Shows the harness session `id`'s tab in the window's Home group (#534, #676).
@@ -2869,18 +2878,6 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        self.open_listed_thread(key, false, window, cx)
-    }
-
-    /// Opens a listed thread as a click does, then, with `center`, moves it into a center tab
-    /// (#697).
-    fn open_listed_thread(
-        &self,
-        key: &str,
-        center: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
         let thread = self
             .snapshot
             .threads
@@ -2896,22 +2893,19 @@ impl Rail {
             &thread.workspace.clone(),
             thread.closed.clone().as_ref(),
             opening,
-            center,
             window,
             cx,
         )
     }
 
-    /// Shows `workspace` and opens the thread in its Agent Panel, which unarchives an archived
-    /// one (#616). A closed project's thread opens its own folders under the project's key first,
-    /// as Zed's Threads Sidebar opens one, so a thread that ran in a linked worktree opens there
-    /// (#617). With `center`, the thread then moves into a center tab (#697).
+    /// Shows `workspace` and the thread in a tab of it (#772), an archived one unarchived (#616). A
+    /// closed project's thread opens its own folders under the project's key first, as Zed's
+    /// Threads Sidebar opens one, so a thread that ran in a linked worktree opens there (#617).
     fn open_thread_with(
         &self,
         workspace: &WeakEntity<Workspace>,
         closed: Option<&ProjectGroupKey>,
         thread: ThreadToOpen,
-        center: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
@@ -2926,13 +2920,7 @@ impl Rail {
         self.in_workspace(
             workspace,
             closed,
-            move |workspace, window, cx| {
-                let thread_id = thread.thread_id;
-                load_thread(workspace, thread, window, cx);
-                if center {
-                    crate::thread_tab::open_thread_in_center(workspace, thread_id, window, cx);
-                }
-            },
+            move |workspace, window, cx| load_thread(workspace, thread, window, cx),
             window,
             cx,
         )
@@ -3059,6 +3047,20 @@ impl Rail {
         let workspace = self.activate_workspace(workspace, window, cx)?;
         workspace.update(cx, |workspace, cx| {
             agents::show_picker(workspace, folder, window, cx);
+        });
+        Ok(())
+    }
+
+    /// Shows `workspace` and opens Reopen Thread… over it (#772).
+    fn reopen_thread(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            crate::threads_page::reopen(workspace, window, cx);
         });
         Ok(())
     }
@@ -5109,14 +5111,7 @@ impl Rail {
                             work_dirs: thread.work_dirs,
                             title: Some(thread.title),
                         };
-                        rail.open_thread_with(
-                            &workspace,
-                            closed.as_ref(),
-                            opening,
-                            false,
-                            window,
-                            cx,
-                        )
+                        rail.open_thread_with(&workspace, closed.as_ref(), opening, window, cx)
                     })
                     .flatten()
                     .log_err();
@@ -5156,6 +5151,8 @@ impl Rail {
                             let cli_workspace = workspace.clone();
                             let picker_rail = rail.clone();
                             let picker_workspace = workspace.clone();
+                            let reopen_rail = rail.clone();
+                            let reopen_workspace = workspace.clone();
                             let menu = menu
                                 .entry("New Terminal", None, move |window, cx| {
                                     terminal_rail
@@ -5175,14 +5172,28 @@ impl Rail {
                                 });
                             // The one way to start an agent, a thread or a CLI (#744); its Where
                             // starts on this project's root.
-                            let menu = menu.entry("New Agent…", None, move |window, cx| {
-                                picker_rail
-                                    .update(cx, |rail, cx| {
-                                        rail.new_agent_picker(&picker_workspace, None, window, cx)
-                                    })
-                                    .flatten()
-                                    .log_err();
-                            });
+                            let menu = menu
+                                .entry("New Agent…", None, move |window, cx| {
+                                    picker_rail
+                                        .update(cx, |rail, cx| {
+                                            rail.new_agent_picker(
+                                                &picker_workspace,
+                                                None,
+                                                window,
+                                                cx,
+                                            )
+                                        })
+                                        .flatten()
+                                        .log_err();
+                                })
+                                .entry("Reopen Thread…", None, move |window, cx| {
+                                    reopen_rail
+                                        .update(cx, |rail, cx| {
+                                            rail.reopen_thread(&reopen_workspace, window, cx)
+                                        })
+                                        .flatten()
+                                        .log_err();
+                                });
                             let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
@@ -5325,7 +5336,6 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
-        let menu_key = row.key.clone();
         let thread_id = thread.thread_id;
         let rail = cx.entity().downgrade();
         let title = thread
@@ -5398,18 +5408,11 @@ impl Rail {
                 .child(card)
         })
         .menu(move |window, cx| {
-            let (rail, title, key) = (rail.clone(), title.clone(), menu_key.clone());
+            let (rail, title) = (rail.clone(), title.clone());
             ContextMenu::build(window, cx, move |menu, _, _| {
-                let (rail, title, key) = (rail.clone(), title.clone(), key.clone());
-                let center_rail = rail.clone();
-                menu.entry("Open in Center", None, move |window, cx| {
-                    center_rail
-                        .update(cx, |rail, cx| {
-                            rail.open_listed_thread(&key, true, window, cx).log_err();
-                        })
-                        .log_err();
-                })
-                .entry("Archive Thread", None, move |_, cx| {
+                let (rail, title) = (rail.clone(), title.clone());
+                // A thread opens in a tab already (#772), so Open in Center is gone.
+                menu.entry("Archive Thread", None, move |_, cx| {
                     Self::archive_thread(thread_id, cx);
                 })
                 .entry("Delete Thread…", None, move |window, cx| {

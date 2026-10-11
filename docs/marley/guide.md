@@ -168,7 +168,7 @@ servers listen on. A line separates one project from the next.
 |---|---|---|
 | Terminal | A `>_` icon, the title, and the working directory relative to the project root (`~` for your home outside it, empty at the root) | Shows its project, focuses the terminal, clears its bell |
 | Agent CLI | The agent's icon, the title the CLI sets (or the agent's name), and "Claude Code · working" or "Claude Code · waiting" | As a terminal row |
-| Zed agent thread | The agent's icon, the thread's title, and "Zed Agent · working" (or idle, waiting, failed) | Shows the project and opens the thread, focused, in the Agent Panel on the right |
+| Zed agent thread | The agent's icon, the thread's title, and "Zed Agent · working" (or idle, waiting, failed) | Shows the project and the thread in a tab of it, its tab forward when it has one (#772) |
 | Port | A server icon, `:<port>` and the process's name, and the URL | Marks the row; a double-click or Enter opens the URL in a Browser tab of the project (#604) |
 
 One row is highlighted at a time: the Agent Panel's thread while the panel has the focus, else the
@@ -186,7 +186,7 @@ Dots mark what needs you:
 To close a thread you are done with, point at its row and click Archive at its end, or right-click
 the row and choose Archive Thread (#605). The thread is archived as Zed's thread history archives
 it, and its row goes. To bring it back, right-click the project's header and choose it under
-Archived Threads (#616), or use Zed's archive view in the Agent Panel. To delete a thread for good,
+Archived Threads (#616): it opens in a tab and its row comes back. To delete a thread for good,
 right-click its row and choose Delete Thread…: Marley asks first, then the thread goes from every
 Agent Panel, from the rail and from the agent's own sessions where the agent keeps them.
 
@@ -1673,17 +1673,20 @@ An agent thread can sit in the main content, as a tab beside your terminals and 
 - **Notifications.** A thread whose tab is in front does not notify when it finishes, as one in a
   visible panel does not, and clicking a notification brings its tab forward.
 
-An Agent Panel thread can move into a tab too (#697).
+In the Marley layout every thread opens in a tab, never in Zed's Agent Panel (#772): a rail thread
+row, Archived Threads, the Threads page, Reopen Thread…, the Needs you inbox's Manager entry and a
+notification's click all bring the thread's tab forward, or move a thread the panel still holds
+into a tab (it stays the same thread: it keeps running and its history), or open it from Zed's
+store in a tab.
 
-- **Open in center.** `marley: open thread in center` moves the panel's active thread into a tab of
-  the center pane. It stays the same thread: it keeps running, keeps its history, and takes
-  messages in the tab. The panel turns to a new draft. You can also use **Open in Center** on a
-  thread's right-click menu in the rail. A new thread has to be sent its first message before it
-  can move.
-- **Move it back.** `marley: move thread to panel`, or **Move Thread to Panel** on the tab's
-  right-click menu, shows the thread in the Agent Panel again and closes the tab.
-- **One place at a time.** Clicking the thread's row in the rail brings its tab forward. Opening it
-  from the panel's own history moves it back to the panel and closes the tab.
+- **Reopen Thread…** (#772), in a project's `+`, every pane's `+` and the palette
+  (`marley: reopen thread`), lists the saved conversations, newest first, with their agent,
+  folder and time; typing matches the title and the folder. Enter opens one in a tab of the group
+  you are in, with its earlier turns, or brings its tab forward.
+- **Zed's layout** keeps the panel: `marley: open thread in center` moves the panel's active
+  thread into a tab (#697), and `marley: move thread to panel`, or **Move Thread to Panel** on the
+  tab's right-click menu, moves it back. The Marley layout's menus and palette leave both out.
+- **One place at a time.** A thread is never shown twice: its tab comes forward wherever it is.
 - **After a restart** the tab comes back in the same group and pane, with the thread's earlier
   turns, as the panel loads a thread from its history (#736). A thread you deleted in the meantime
   leaves no tab, and a tab on a folder its project did not hold reaches that folder again.
@@ -1699,8 +1702,8 @@ sidebar, which the Marley layout replaces with the rail; this page takes its pla
   their own heading, then all the others. Archived ones stay folded behind Show archived.
 - **Finding one:** the search field matches titles and any part of a folder's path, and a chip per
   agent keeps only that agent's conversations.
-- **Opening one:** a conversation already open comes forward where it is, in its tab or its Agent
-  Panel. Any other opens in a tab of the page's group, with its earlier turns, its folder joining
+- **Opening one:** a conversation already open comes forward in its tab; one an Agent Panel holds
+  moves into a tab (#772). Any other opens in a tab of the page's group, with its earlier turns, its folder joining
   the project hidden when it needs to, as a new tab's does (#734).
 
 ## Marley's MCP server

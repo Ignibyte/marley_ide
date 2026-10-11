@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use agent_ui::{Agent, AgentPanel, NewExternalAgentThread, NewThread, ToggleNewThreadMenu};
+use agent_ui::{Agent, NewThread, ToggleNewThreadMenu};
 use anyhow::Context as _;
 use askpass::{AskPassDelegate, EncryptedPassword, PasswordProxy};
 use collections::HashMap;
@@ -185,31 +185,6 @@ pub fn thread_agents(
             (agent, name, icon)
         })
         .collect()
-}
-
-/// Starts a thread of `agent` in `workspace`'s Agent Panel, focused. The panel is called
-/// directly: a dispatched action would reach whichever workspace the window shows.
-///
-/// # Errors
-///
-/// When the workspace has no Agent Panel.
-pub fn start_thread(
-    workspace: &mut Workspace,
-    agent: &AgentId,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> anyhow::Result<()> {
-    // The action's one field is private, so it is built the way a keymap builds it.
-    let action: NewExternalAgentThread =
-        serde_json::from_value(serde_json::json!({ "agent": agent.0 }))?;
-    let panel = workspace
-        .panel::<AgentPanel>(cx)
-        .context("the project has no Agent Panel")?;
-    panel.update(cx, |panel, cx| {
-        panel.new_external_agent_thread(&action, window, cx);
-    });
-    workspace.focus_panel::<AgentPanel>(window, cx);
-    Ok(())
 }
 
 /// What Marley starts Claude Code and Codex with (#532), from the `marley` settings.
@@ -686,7 +661,8 @@ fn picker_in_place_of<A>(
     }
 }
 
-/// A pane's `+` menu with New Agent… at its head while AI is on (#744), Zed's entries after it.
+/// A pane's `+` menu with New Agent… (#744) and Reopen Thread… (#772) at its head while AI is on,
+/// Zed's entries after them.
 fn new_item_entries(
     menu: ContextMenu,
     workspace: &WeakEntity<Workspace>,
@@ -696,13 +672,24 @@ fn new_item_entries(
     if DisableAiSettings::get_global(cx).disable_ai {
         return menu;
     }
-    let workspace = workspace.clone();
+    let (picker_workspace, reopen_workspace) = (workspace.clone(), workspace.clone());
     menu.entry(
         "New Agent…",
         Some(NewAgent::default().boxed_clone()),
         move |window, cx| {
-            workspace
+            picker_workspace
                 .update(cx, |workspace, cx| show_picker(workspace, None, window, cx))
+                .log_err();
+        },
+    )
+    .entry(
+        "Reopen Thread…",
+        Some(crate::threads_page::ReopenThread.boxed_clone()),
+        move |window, cx| {
+            reopen_workspace
+                .update(cx, |workspace, cx| {
+                    crate::threads_page::reopen(workspace, window, cx);
+                })
                 .log_err();
         },
     )

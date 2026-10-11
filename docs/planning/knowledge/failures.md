@@ -3701,3 +3701,12 @@ window's saved Default could still be on its way (`groups::reopen` is asynchrono
 workspace, already the window's, is adopted first), so `with_group` would have made a new Default
 and the restored one would have arrived as a second. Caught in review, before the gate; a shown
 Rusty group now waits until the window holds Default or is making it (`groups::has_kind`).
+
+## F-claude-772-a-pickers-title-shrank-to-an-ellipsis-001
+*severity: low · found in: pipeline 772's Test phase · class: two truncating labels on one line*
+
+Reopen Thread…'s first draft drew each row's title and its "agent · folder" detail side by side in
+an `h_flex` with both labels truncating. A scenario's folder is a long scratch path, so the detail
+took the width and the title showed as "…" (772-01). The detail moved to a second line, as the
+Threads page's rows have it. A row with two truncating labels on one line needs one of them fixed
+in size, or a line each.

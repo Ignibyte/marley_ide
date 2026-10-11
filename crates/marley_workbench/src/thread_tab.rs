@@ -48,7 +48,7 @@ use gpui::{
 use project::{AgentId, DisableAiSettings, Project, Worktree};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use settings::Settings as _;
+use settings::{Settings as _, SettingsStore};
 use ui::prelude::*;
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -128,8 +128,9 @@ struct ThreadTabToast;
 pub(crate) fn init(cx: &mut App) {
     cx.set_global(MarleyThreadHost {
         shows: shows_view,
-        reveal: activate_for,
+        reveal: reveal_for,
     });
+    cx.observe_global::<SettingsStore>(filter_palette).detach();
     load_saved_tabs(cx);
     workspace::register_serializable_item::<ThreadTab>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, cx| {
@@ -139,6 +140,7 @@ pub(crate) fn init(cx: &mut App) {
         CommandPaletteFilter::update_global(cx, |filter, _| {
             filter.hide_action_types(&[TypeId::of::<NewAgentThread>()]);
         });
+        filter_palette(cx);
         workspace.register_action(|workspace, _: &OpenThreadInCenter, window, cx| {
             open_in_center(workspace, window, cx);
         });
@@ -235,11 +237,15 @@ impl Item for ThreadTab {
         )
     }
 
+    // In the Marley layout a thread never shows in the Agent Panel (#772).
     fn tab_extra_context_menu_actions(
         &self,
         _window: &mut Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Vec<(SharedString, Box<dyn Action>)> {
+        if crate::marley_layout(cx) {
+            return Vec::new();
+        }
         vec![(
             SharedString::new_static("Move Thread to Panel"),
             Box::new(MoveThreadToPanel),
@@ -532,28 +538,6 @@ pub(crate) fn open_in_center(
     window.focus(&tab.read(cx).focus_handle(cx), cx);
 }
 
-/// Opens `thread_id` in a center tab once the panel shows it: what the rail's Open in Center
-/// runs after opening the thread as a click does.
-pub(crate) fn open_thread_in_center(
-    workspace: &mut Workspace,
-    thread_id: ThreadId,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
-    if activate_for(workspace, thread_id, window, cx) {
-        return;
-    }
-    let shown = workspace.panel::<AgentPanel>(cx).is_some_and(|panel| {
-        panel
-            .read(cx)
-            .active_conversation_view()
-            .is_some_and(|view| view.read(cx).parent_id() == thread_id)
-    });
-    if shown {
-        open_in_center(workspace, window, cx);
-    }
-}
-
 /// `marley: move thread to panel`: the active center tab's thread back into the panel, which
 /// still holds it, or loads it from its history when it let it go; then the tab closes.
 fn move_to_panel(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
@@ -586,6 +570,88 @@ fn move_to_panel(workspace: &mut Workspace, window: &mut Window, cx: &mut Contex
     });
     tab.update(cx, |_, cx| cx.emit(ItemEvent::CloseItem));
     workspace.focus_panel::<AgentPanel>(window, cx);
+}
+
+/// Lists Move Thread to Panel and Open Thread in Center in the palette only in Zed's layout: in
+/// the Marley layout a thread never shows in the Agent Panel (#772).
+fn filter_palette(cx: &mut App) {
+    let commands = [
+        TypeId::of::<MoveThreadToPanel>(),
+        TypeId::of::<OpenThreadInCenter>(),
+    ];
+    let marley_layout = crate::marley_layout(cx);
+    CommandPaletteFilter::update_global(cx, |filter, _| {
+        if marley_layout {
+            filter.hide_action_types(&commands);
+        } else {
+            filter.show_action_types(&commands);
+        }
+    });
+}
+
+/// A notification's click (`MarleyThreadHost::reveal`): in the Marley layout the thread in a tab,
+/// moved out of the panel when the panel holds it (#772); in Zed's, its tab forward if it has one.
+fn reveal_for(
+    workspace: &mut Workspace,
+    thread_id: ThreadId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> bool {
+    if crate::marley_layout(cx) {
+        show_here(workspace, thread_id, window, cx)
+    } else {
+        activate_for(workspace, thread_id, window, cx)
+    }
+}
+
+/// Shows `thread_id` in a tab of `workspace` without the Agent Panel (#772): its tab forward, or,
+/// when the workspace's panel holds the thread, shown or kept, the thread moved out of the panel
+/// into a tab, as `open_in_center` moves the panel's own. `false` when neither holds it.
+pub(crate) fn show_here(
+    workspace: &mut Workspace,
+    thread_id: ThreadId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> bool {
+    if activate_for(workspace, thread_id, window, cx) {
+        return true;
+    }
+    let Some(panel) = workspace.panel::<AgentPanel>(cx) else {
+        return false;
+    };
+    let (active, kept) = {
+        let panel = panel.read(cx);
+        (
+            panel.active_thread_id(cx) == Some(thread_id),
+            panel.is_retained_thread(&thread_id),
+        )
+    };
+    if !active && !kept {
+        return false;
+    }
+    if !active {
+        panel.update(cx, |panel, cx| {
+            panel.activate_retained_thread(thread_id, false, window, cx);
+        });
+    }
+    if panel.read(cx).active_thread_is_draft(cx) {
+        return false;
+    }
+    let Some(view) = panel.read(cx).active_conversation_view().cloned() else {
+        return false;
+    };
+    panel.update(cx, |panel, cx| panel.clear_base_view(window, cx));
+    let tab = cx.new(|cx| ThreadTab::new(view, &panel, None, cx));
+    workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
+    window.focus(&tab.read(cx).focus_handle(cx), cx);
+    true
+}
+
+/// Whether `workspace`'s active item is a thread tab on `agent` (#772: the Manager read in a tab).
+pub(crate) fn shows_agent(workspace: &Workspace, agent: &AgentId, cx: &App) -> bool {
+    workspace
+        .active_item_as::<ThreadTab>(cx)
+        .is_some_and(|tab| tab.read(cx).conversation_view.read(cx).agent_key().id() == *agent)
 }
 
 /// Brings forward the center tab showing `thread_id`, if one does.

@@ -6,20 +6,30 @@
 //! project it ran in. The page lists Zed's thread store, Marley's and Rusty's conversations first,
 //! with a search over titles and folders and a chip per agent. A click brings a conversation forward
 //! where it is open, else opens it in a tab of the page's group (#734, #736).
+//!
+//! Reopen Thread… (#772) is the same list as a picker: the unarchived conversations, newest first,
+//! opened the page's way.
+
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use agent_ui::AgentPanel;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use editor::{Editor, EditorEvent};
+use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
-    App, AppContext as _, Context, Empty, Entity, EventEmitter, FocusHandle, Focusable,
-    SharedString, Subscription, WeakEntity, Window, actions,
+    App, AppContext as _, Context, DismissEvent, Empty, Entity, EventEmitter, FocusHandle,
+    Focusable, SharedString, Subscription, Task, WeakEntity, Window, actions,
 };
+use picker::{Picker, PickerDelegate};
 use project::{AgentId, DisableAiSettings, Project};
 use settings::Settings as _;
-use ui::{ButtonStyle, Headline, HeadlineSize, ListItem, ListItemSpacing, prelude::*};
+use ui::{
+    ButtonStyle, Headline, HeadlineSize, HighlightedLabel, ListItem, ListItemSpacing, prelude::*,
+};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
-use workspace::{MultiWorkspace, Workspace};
+use workspace::{ModalView, MultiWorkspace, Workspace};
 
 use crate::agents::{self, AgentIcon};
 use crate::rusty::home_tab::muted;
@@ -31,6 +41,10 @@ actions!(
         /// searchable, in a tab of the shown group.
         #[derive(Eq)]
         OpenThreads,
+        /// Reopens an earlier agent conversation: a picker over the saved ones, newest first, that
+        /// shows the one chosen in a tab of the shown group.
+        #[derive(Eq)]
+        ReopenThread,
     ]
 );
 
@@ -39,8 +53,57 @@ pub(crate) fn init(cx: &App) {
         workspace.register_action(|workspace, _: &OpenThreads, window, cx| {
             open(workspace, window, cx);
         });
+        workspace.register_action(|workspace, _: &ReopenThread, window, cx| {
+            reopen(workspace, window, cx);
+        });
     })
     .detach();
+}
+
+/// Opens Reopen Thread… over `workspace` (#772).
+pub(crate) fn reopen(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    if DisableAiSettings::get_global(cx).disable_ai {
+        return;
+    }
+    let handle = workspace.weak_handle();
+    let project = workspace.project().clone();
+    let rows = conversations(cx);
+    workspace.toggle_modal(window, cx, |window, cx| {
+        ReopenThreadPicker::new(handle, project, rows, window, cx)
+    });
+}
+
+/// The conversations Reopen Thread… lists: the store's unarchived ones, not drafts, newest first.
+fn conversations(cx: &App) -> Vec<Row> {
+    let Some(store) = ThreadMetadataStore::try_global(cx) else {
+        return Vec::new();
+    };
+    let store = store.read(cx);
+    let mut records: Vec<&ThreadMetadata> = store
+        .entries()
+        .filter(|record| !record.is_draft())
+        .collect();
+    records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
+    records.into_iter().map(row_of).collect()
+}
+
+/// `record` as the page and the picker list it.
+fn row_of(record: &ThreadMetadata) -> Row {
+    Row {
+        thread_id: record.thread_id,
+        agent: record.agent_id.clone(),
+        title: record.display_title(),
+        folder: record
+            .folder_paths()
+            .paths()
+            .first()
+            .map(|path| shown_folder(path)),
+        when: record
+            .updated_at
+            .with_timezone(&chrono::Local)
+            .format("%b %-d, %H:%M")
+            .to_string(),
+    }
 }
 
 /// Brings `workspace`'s Threads page forward, or opens one in its center.
@@ -153,21 +216,7 @@ impl ThreadsPage {
             {
                 continue;
             }
-            let row = Row {
-                thread_id: record.thread_id,
-                agent: record.agent_id.clone(),
-                title: record.display_title(),
-                folder: record
-                    .folder_paths()
-                    .paths()
-                    .first()
-                    .map(|path| shown_folder(path)),
-                when: record
-                    .updated_at
-                    .with_timezone(&chrono::Local)
-                    .format("%b %-d, %H:%M")
-                    .to_string(),
-            };
+            let row = row_of(record);
             if record.archived {
                 sections.archived.push(row);
             } else if crate::assistant::is_assistant(&record.agent_id) {
@@ -305,8 +354,9 @@ fn shown_folder(path: &std::path::Path) -> String {
 }
 
 /// Opens the conversation `thread_id`: its tab comes forward wherever in the window it is, or a
-/// panel that holds it shows it; otherwise it opens in a tab of `workspace` (#697's one-place
-/// rule: a thread is never shown twice).
+/// panel that holds it shows it, in the Marley layout moving it into a tab of that panel's
+/// workspace (#772); otherwise it opens in a tab of `workspace` (#697's one-place rule: a thread
+/// is never shown twice).
 pub(crate) fn open_thread(
     workspace: &WeakEntity<Workspace>,
     thread_id: ThreadId,
@@ -341,6 +391,12 @@ pub(crate) fn open_thread(
         multi_workspace.update(cx, |multi_workspace, cx| {
             multi_workspace.activate(member.clone(), None, window, cx);
         });
+        if crate::marley_layout(cx) {
+            member.update(cx, |member, cx| {
+                crate::thread_tab::show_here(member, thread_id, window, cx);
+            });
+            return;
+        }
         panel.update(cx, |panel, cx| {
             panel.activate_retained_thread(thread_id, true, window, cx);
         });
@@ -453,5 +509,211 @@ impl Item for ThreadsPage {
 
     fn to_item_events(event: &ItemEvent, f: &mut dyn FnMut(ItemEvent)) {
         f(*event);
+    }
+}
+
+/// Reopen Thread… (#772): the saved conversations in the modal layer.
+struct ReopenThreadPicker {
+    picker: Entity<Picker<ReopenThreadDelegate>>,
+}
+
+impl ReopenThreadPicker {
+    fn new(
+        workspace: WeakEntity<Workspace>,
+        project: Entity<Project>,
+        rows: Vec<Row>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let delegate = ReopenThreadDelegate {
+            modal: cx.entity().downgrade(),
+            workspace,
+            project,
+            rows,
+            matches: Vec::new(),
+            selected_index: 0,
+        };
+        let picker = cx.new(|cx| Picker::uniform_list(delegate, window, cx));
+        Self { picker }
+    }
+}
+
+impl ModalView for ReopenThreadPicker {}
+
+impl EventEmitter<DismissEvent> for ReopenThreadPicker {}
+
+impl Focusable for ReopenThreadPicker {
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.picker.focus_handle(cx)
+    }
+}
+
+impl Render for ReopenThreadPicker {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        v_flex()
+            .key_context("ReopenThreadPicker")
+            .w(rems(34.))
+            .child(self.picker.clone())
+    }
+}
+
+struct ReopenThreadDelegate {
+    modal: WeakEntity<ReopenThreadPicker>,
+    /// The workspace the picker opened in, where a conversation with no open tab opens.
+    workspace: WeakEntity<Workspace>,
+    project: Entity<Project>,
+    rows: Vec<Row>,
+    matches: Vec<StringMatch>,
+    selected_index: usize,
+}
+
+impl PickerDelegate for ReopenThreadDelegate {
+    type ListItem = ListItem;
+
+    fn name() -> &'static str {
+        "marley reopen thread"
+    }
+
+    fn match_count(&self) -> usize {
+        self.matches.len()
+    }
+
+    fn selected_index(&self) -> usize {
+        self.selected_index
+    }
+
+    fn set_selected_index(&mut self, index: usize, _: &mut Window, _: &mut Context<Picker<Self>>) {
+        self.selected_index = index;
+    }
+
+    fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
+        "Reopen a conversation…".into()
+    }
+
+    fn no_matches_text(&self, _: &mut Window, _: &mut App) -> Option<SharedString> {
+        Some(SharedString::new_static("No saved conversation"))
+    }
+
+    fn update_matches(
+        &mut self,
+        query: String,
+        window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Task<()> {
+        // The title first, so a match's positions up to its length fall in the title.
+        let candidates: Vec<StringMatchCandidate> = self
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| {
+                let text = row.folder.as_ref().map_or_else(
+                    || row.title.to_string(),
+                    |folder| format!("{} {folder}", row.title),
+                );
+                StringMatchCandidate::new(index, &text)
+            })
+            .collect();
+        let executor = cx.background_executor().clone();
+        cx.spawn_in(window, async move |picker, cx| {
+            // An empty query keeps the newest first; fuzzy matching would sort by score.
+            let matches = if query.is_empty() {
+                candidates
+                    .into_iter()
+                    .map(|candidate| StringMatch {
+                        candidate_id: candidate.id,
+                        score: 0.,
+                        positions: Vec::new(),
+                        string: candidate.string,
+                    })
+                    .collect()
+            } else {
+                let cancelled = AtomicBool::new(false);
+                fuzzy::match_strings(&candidates, &query, false, true, 100, &cancelled, executor)
+                    .await
+            };
+            picker
+                .update(cx, |picker, cx| {
+                    picker.delegate.matches = matches;
+                    picker.delegate.selected_index = 0;
+                    cx.notify();
+                })
+                .log_err();
+        })
+    }
+
+    fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
+        let thread_id = self
+            .matches
+            .get(self.selected_index)
+            .and_then(|found| self.rows.get(found.candidate_id))
+            .map(|row| row.thread_id);
+        self.modal
+            .update(cx, |_, cx| cx.emit(DismissEvent))
+            .log_err();
+        let Some(thread_id) = thread_id else {
+            return;
+        };
+        let workspace = self.workspace.clone();
+        // The open reads every workspace, this one included, and may show a modal (PR-claude-735).
+        window.defer(cx, move |window, cx| {
+            open_thread(&workspace, thread_id, window, cx);
+        });
+    }
+
+    fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<Self>>) {
+        self.modal
+            .update(cx, |_, cx| cx.emit(DismissEvent))
+            .log_err();
+    }
+
+    fn render_match(
+        &self,
+        index: usize,
+        selected: bool,
+        _: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Option<Self::ListItem> {
+        let found = self.matches.get(index)?;
+        let row = self.rows.get(found.candidate_id)?;
+        let icon = match agents::thread_icon(&row.agent, &self.project, cx) {
+            AgentIcon::Named(name) => Icon::new(name),
+            AgentIcon::Svg(path) => Icon::from_external_svg(path),
+        };
+        let agent_name = agents::thread_agent_name(&row.agent, &self.project, cx);
+        let detail = row.folder.as_ref().map_or_else(
+            || agent_name.to_string(),
+            |folder| format!("{agent_name} · {folder}"),
+        );
+        let title_end = row.title.len();
+        let positions = found
+            .positions
+            .iter()
+            .copied()
+            .filter(|position| *position < title_end)
+            .collect();
+        Some(
+            ListItem::new(index)
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .toggle_state(selected)
+                .start_slot(icon.color(Color::Muted))
+                // Two lines, as the page's rows: on one, a long folder took the title's width.
+                .child(
+                    v_flex()
+                        .min_w_0()
+                        .child(HighlightedLabel::new(row.title.clone(), positions).truncate())
+                        .child(
+                            Label::new(detail)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .truncate(),
+                        ),
+                )
+                .end_slot(
+                    Label::new(row.when.clone())
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                ),
+        )
     }
 }

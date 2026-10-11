@@ -2145,6 +2145,28 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## Reopen Thread…, and threads in tabs (`src/thread_tab.rs`, `src/threads_page.rs`, `src/rail.rs`, #772)
+
+- `thread_tab::show_here(workspace, thread_id, …) -> bool` is the Marley layout's one way to show a
+  thread: its tab forward (`activate_for`); else, when the workspace's Agent Panel holds it, a kept
+  thread made the panel's view with `activate_retained_thread(id, false, …)` and the view moved
+  into a new `ThreadTab` after `clear_base_view`, as `open_in_center` moves the active one; else
+  `false`. A draft stays in the panel.
+- Its callers: `threads_page::open_thread`'s panel branch (Marley layout), `rail::show_thread`
+  (then the store's record through `open_saved`, unarchived first, and only with no record the
+  panel's load), `MarleyThreadHost.reveal` (`reveal_for`: `show_here` in the Marley layout,
+  `activate_for` in Zed's). `Rail::open_manager_thread` starts the Manager with `thread_tab::start`;
+  `agents::start_thread` went.
+- `threads_page::ReopenThread` opens `ReopenThreadPicker` (`Picker::uniform_list`): the store's
+  unarchived, non-draft records newest first (`conversations`, sharing `row_of` with the page),
+  fuzzy over "title folder", two-line rows; confirm dismisses and defers `open_thread`. The rail's
+  `+` (`Rail::reopen_thread`) and the pane's `+` (`agents::new_item_entries`) list it under New
+  Agent….
+- In the Marley layout `ThreadTab::tab_extra_context_menu_actions` is empty and
+  `thread_tab::filter_palette` hides `MoveThreadToPanel` and `OpenThreadInCenter` (rechecked on
+  every settings change); the rail's row menu has no Open in Center. `harness::manager_in_front`
+  also counts a thread tab on the Manager entry (`thread_tab::shows_agent`).
+
 ## One New Agent… (`src/agents.rs`, `src/rail.rs`, `src/thread_tab.rs`, #744)
 
 - `agents::places_for` puts `workspace.root_paths(cx).first()` first, noted "this project", and

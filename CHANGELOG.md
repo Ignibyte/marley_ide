@@ -997,6 +997,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Reopen Thread…, and threads in tabs** (#772, 2026-10-11). Reopen Thread…, in a project's `+`,
+  every pane's `+` and the palette (`marley: reopen thread`), lists your saved conversations,
+  newest first, with their agent, folder and time; Enter opens one in a tab where you are, with its
+  earlier turns, or brings its tab forward. In the Marley layout no thread shows in Zed's Agent
+  Panel any more: a rail thread row, Archived Threads, the Threads page, the Needs you inbox's
+  Manager entry and a notification's click open the thread in a tab, moving one the panel still
+  holds. Open in Center and Move Thread to Panel leave the Marley layout's menus and palette;
+  Zed's layout keeps them.
+
 - **One New Agent…** (#744, 2026-10-11). A project's or group's `+` in the rail has one way to start
   an agent, New Agent…, in place of New Agent Thread and the list of agent CLIs; the picker it
   opens lists both. In a project, Where starts on the project's folder, marked "this project", then

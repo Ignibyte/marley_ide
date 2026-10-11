@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #772 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** not started; the design is drafted in [744's queued spec](../../pipeline/queued/744-one-new-agent.spec.md) (its Reopen Thread… and "threads open in tabs" parts, REQ-007 to REQ-012)
+- **Pipeline doc:** [772-reopen-thread-and-threads-in-tabs.spec.md](../../pipeline/completed/772-reopen-thread-and-threads-in-tabs.spec.md)
 - **Source ticket:** split from #744 on 2026-10-11, at its promotion, to keep each slice one
   shippable change. Chad, 2026-10-11, of "New Agent from Thread": "my thought is that you would re
   open it". Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Reopen Thread… (`marley: reopen thread`) is a picker over the saved conversations, newest first,

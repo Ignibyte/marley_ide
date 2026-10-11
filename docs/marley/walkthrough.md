@@ -365,7 +365,7 @@ Then start Marley again from the app menu.
   terminals back in their folders.
 - [ ] Under that dimmed header are its agent threads and the ports listening in its folders, and
   its chevron folds them (#617). Clicking one of its threads opens the project with that thread
-  in the Agent Panel.
+  in a tab (#772).
 
 ### 2.3 Dots that ask for you (#438)
 
@@ -1427,7 +1427,7 @@ agent such as Claude Agent. Ctrl+Alt+C in the panel opens its settings.
 
 - [ ] A thread row appears under the project's terminals, reading `<agent> · working`, then idle.
 - [ ] Its dot lights when the run ends while the thread is off screen.
-- [ ] A click opens the thread, focused, in the Agent Panel on the right.
+- [ ] A click opens the thread, focused, in a tab of the project (#772).
 - [ ] Pointing at the row shows Archive at its end, "Archive Thread" on hover; a click archives the
   thread and its row goes, without opening it (#605). A right-click on another thread's row offers
   Archive Thread too. Archived threads stay out after a restart.

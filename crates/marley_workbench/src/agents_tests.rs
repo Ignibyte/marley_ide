@@ -2,6 +2,7 @@
 //! test starts a real agent: every terminal is display-only, and the agent CLIs are empty
 //! programs in a temporary directory.
 
+use agent_ui::AgentPanel;
 use agent_ui::test_support::active_thread_id;
 use gpui::{KeyBinding, TestAppContext, UpdateGlobal as _, VisualTestContext, actions};
 use project::agent_registry_store::{RegistryAgentMetadata, RegistryNpxAgent};

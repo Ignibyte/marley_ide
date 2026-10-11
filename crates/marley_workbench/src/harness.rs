@@ -437,7 +437,7 @@ fn has_manager(cx: &App) -> bool {
 }
 
 /// Whether the user is looking at the manager thread: the active window's workspace shows the
-/// Agent Panel with the Manager agent selected (#688).
+/// Agent Panel with the Manager agent selected (#688), or a thread tab on it in front (#772).
 fn manager_in_front(cx: &App) -> bool {
     let Some(multi_workspace) = cx
         .active_window()
@@ -450,11 +450,17 @@ fn manager_in_front(cx: &App) -> bool {
     let manager = Agent::Custom {
         id: project::AgentId::new(MANAGER_ENTRY),
     };
-    AgentPanel::is_visible(workspace, cx)
+    let in_panel = AgentPanel::is_visible(workspace, cx)
         && workspace
             .read(cx)
             .panel::<AgentPanel>(cx)
-            .is_some_and(|panel| panel.read(cx).selected_agent(cx) == manager)
+            .is_some_and(|panel| panel.read(cx).selected_agent(cx) == manager);
+    in_panel
+        || crate::thread_tab::shows_agent(
+            workspace.read(cx),
+            &project::AgentId::new(MANAGER_ENTRY),
+            cx,
+        )
 }
 
 /// A page of `thread_read` (#688).
