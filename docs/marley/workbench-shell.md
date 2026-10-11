@@ -397,7 +397,8 @@ a tab; #738 opens Marley and Rusty in tabs anywhere;
 #740 follows one harness per host, each under its name in the rail; #741 starts a new agent on one
 as a seat, with a terminal attached through `ssh -t`; #742 opens a seat as a thread tab through the
 harness's `rh acp --seat`; #743 retires the Rusty group, Rusty's screens opening in the group on
-screen, and calls the Home group Default;
+screen, and calls the Home group Default; #744 makes New Agent… the one way to start an agent, from
+the rail's `+`, every pane's `+` and the sparkle;
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
 listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
 CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.

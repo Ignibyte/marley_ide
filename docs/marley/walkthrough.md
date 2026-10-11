@@ -485,7 +485,7 @@ Leave the server running: Parts 5 and 7 use it.
 
 - [ ] The menu offers New Group…, New Terminal, New Browser Tab and the agent CLIs.
 - [ ] Scratch lists after your projects with a group icon, a chevron and a `+`; its `+` has no
-  New Agent Thread, worktree or Launch entry.
+  worktree or Launch entry; its New Agent… starts in your home folder.
 - [ ] Its terminal's `pwd` prints your home folder.
 - [ ] Step 3 puts a terminal in `~` in the Default group (called Home before #743).
 - [ ] Rename shows Tools; Remove takes the group and its rows away.
@@ -1421,7 +1421,8 @@ agent such as Claude Agent. Ctrl+Alt+C in the panel opens its settings.
 
 ### 6.1 Threads in the rail (#439, #468)
 
-1. Click `marley-tour`'s `+`, then New Agent Thread, and pick an agent.
+1. Click `marley-tour`'s `+`, then New Agent…, and pick an agent marked Thread; Enter on the first
+   Where row (`marley-tour`, "this project").
 2. Send a prompt, and click a terminal while it works.
 
 - [ ] A thread row appears under the project's terminals, reading `<agent> · working`, then idle.

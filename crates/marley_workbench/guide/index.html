@@ -472,9 +472,8 @@ th { background: var(--panel); font-weight: 650; }
 <tr><th>Entry</th><th>What it does</th></tr>
 <tr><td>New Terminal</td><td>A shell in the project's folder, in the main area</td></tr>
 <tr><td>New Browser Tab</td><td>A blank page in a Browser tab of the project, the cursor in the address bar</td></tr>
-<tr><td>New Agent Thread</td><td>A submenu of Zed's agents (the Zed Agent and each external agent you configured); starts a thread in the Agent Panel</td></tr>
+<tr><td>New Agent…</td><td>The New Agent picker: an agent, then where, the project's folder first; a thread in a tab or a CLI in a terminal</td></tr>
 <tr><td>New Agent in Worktree</td><td>For a local git project: a submenu of the installed agent CLIs, each started in a new git worktree on a branch of its own (see <a href="#worktree-agents">Worktree agents</a>)</td></tr>
-<tr><td>Agent CLIs</td><td>Under their own header, each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a new terminal at the project root</td></tr>
 <tr><td>Launch</td><td>The project's launch configs, from <code>.zed/marley.json</code> (see <a href="#launch-configs">Launch configs</a>)</td></tr>
 </table>
 <p class="note"><kbd>Ctrl+Alt+N</kbd> opens the same agents in the New Agent picker, filtered as you type.</p>
@@ -1481,7 +1480,7 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Set up an agent in the panel first: a model for the Zed Agent, or an external agent such as Claude Agent (<kbd>Ctrl+Alt+C</kbd> in the panel opens its settings).</li>
-<li>Click a project's <kbd>+</kbd>, then New Agent Thread and an agent. <kbd>Ctrl+?</kbd> focuses the panel.</li>
+<li>Click a project's <kbd>+</kbd>, then New Agent… and an agent marked Thread. In the Marley layout the status bar's sparkle and <kbd>Ctrl+?</kbd> open the same picker.</li>
 <li>The thread's row reads <code>&lt;agent&gt; · working</code>, then <code>idle</code>. Its dot lights when a run ends while the thread is off screen.</li>
 <li>Click the row to open the thread in the panel. For a thread in a center tab, the click brings that tab forward instead (see <a href="#thread-in-center">An agent thread in a center tab</a>).</li>
 <li>Right-click a thread's row for Open in Center, which moves the thread into a center tab; Archive Thread, which puts it away; and Delete Thread…, which asks first and deletes it for good.</li>
@@ -1526,7 +1525,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> An agent that explains Marley and Zed and changes Marley's settings with you. It reads this guide, Zed's docs and your settings through Marley's tools, and every change it proposes waits for your Apply. It is on by default and runs on an agent you are already signed in to.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Choose New Agent Thread → <strong>Marley</strong>, in the Agent Panel or a project's <kbd>+</kbd>. On Zed's agent, open a Zed Agent thread and pick the <strong>Marley</strong> profile (<kbd>Ctrl+I</kbd>).</li>
+<li>Choose New Agent… → <strong>Marley</strong>, from a project's <kbd>+</kbd>, a pane's <kbd>+</kbd> or the sparkle. On Zed's agent, open a Zed Agent thread and pick the <strong>Marley</strong> profile (<kbd>Ctrl+I</kbd>).</li>
 <li>Ask how a feature works, what a setting does or is set to, or which key runs a command.</li>
 <li>Ask it to change a setting or bind a key. A notification names the change, with Apply and Decline; nothing is written until you click Apply.</li>
 <li>Pick what it runs on under Settings → Marley → Marley Agent → <strong>Agent</strong>. The <strong>Marley Agent</strong> switch above it turns it off, and off leaves nothing of it.</li>
@@ -1581,9 +1580,9 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Turn Rusty on in the Rusty section of the Marley page (<code>marley.rusty.enabled</code>). The entry comes once Marley connects to Rusty.</li>
-<li>Choose New Agent Thread → <strong>Rusty</strong>, in the Agent Panel or a project's <kbd>+</kbd>. On Zed's agent, pick the <strong>Rusty</strong> profile.</li>
+<li>Choose New Agent… → <strong>Rusty</strong>, from a project's <kbd>+</kbd>, a pane's <kbd>+</kbd> or the sparkle. On Zed's agent, pick the <strong>Rusty</strong> profile.</li>
 <li>Ask it about your tasks, notes, memories or brain pages.</li>
-<li>Turn Rusty off and the entry leaves New Agent Thread. A thread already open stays in the panel.</li>
+<li>Turn Rusty off and the entry leaves New Agent…. A thread already open stays where it is.</li>
 </ol>
 <ul class="points">
 <li><strong>Claude Code:</strong> its sessions carry Rusty's server themselves, so Rusty's tools reach this entry alone. Bash, Edit, Write, NotebookEdit, MultiEdit and all of Marley's tools are off.</li>
@@ -2040,7 +2039,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <p class="what"><strong>What it is.</strong> When the harness has a manager, the Agent Panel lists <strong>Manager</strong>: a thread with the manager through the harness's <code>rh acp</code>. You write to it there, and Marley raises its reports while you look elsewhere.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>With harness writes on, give the harness a manager: a seat whose role is <code>manager</code>. New Agent Thread then lists <strong>Manager</strong>; with no manager it does not.</li>
+<li>With harness writes on, give the harness a manager: a seat whose role is <code>manager</code>. New Agent… then lists <strong>Manager</strong>; with no manager it does not.</li>
 <li>Type in its thread. The harness hands your message to the manager once the manager is idle, and the turn ends.</li>
 <li>Read the manager's messages and reports (<code>Report: …</code>) as its replies, between your turns too. A confirmation it asks for comes up as a permission request, Allow or Reject, for 60 seconds.</li>
 <li>While the Manager thread is not in front, each new record shows a desktop notice, such as <code>Manager: Report</code> with its first line, and a Needs you entry, <code>Manager · Report: …</code>, until you look. The entry opens the Manager thread.</li>

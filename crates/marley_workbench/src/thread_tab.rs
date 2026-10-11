@@ -22,6 +22,7 @@
 //! table, and restoring it loads the thread as the Agent Panel loads one from its history, once
 //! the workspace's panel exists.
 
+use std::any::TypeId;
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
@@ -38,6 +39,7 @@ use agent_ui::{
 };
 use anyhow::Context as _;
 use collections::HashMap;
+use command_palette_hooks::CommandPaletteFilter;
 use fs::Fs;
 use gpui::{
     Action, App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
@@ -130,7 +132,13 @@ pub(crate) fn init(cx: &mut App) {
     });
     load_saved_tabs(cx);
     workspace::register_serializable_item::<ThreadTab>(cx);
-    cx.observe_new(|workspace: &mut Workspace, _, _| {
+    cx.observe_new(|workspace: &mut Workspace, _, cx| {
+        // New Agent… is the palette's one way to start an agent (#744); a key bound to
+        // `marley::NewAgentThread` still starts a thread. The filter exists once the palette is
+        // set up, which is before any workspace.
+        CommandPaletteFilter::update_global(cx, |filter, _| {
+            filter.hide_action_types(&[TypeId::of::<NewAgentThread>()]);
+        });
         workspace.register_action(|workspace, _: &OpenThreadInCenter, window, cx| {
             open_in_center(workspace, window, cx);
         });

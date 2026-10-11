@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use agent_ui::{Agent, AgentPanel, NewExternalAgentThread};
+use agent_ui::{Agent, AgentPanel, NewExternalAgentThread, NewThread, ToggleNewThreadMenu};
 use anyhow::Context as _;
 use askpass::{AskPassDelegate, EncryptedPassword, PasswordProxy};
 use collections::HashMap;
@@ -32,10 +32,14 @@ use settings::{ClaudeCodePermissions, CodexPermissions, MarleySettingsContent, S
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
-use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
+use ui::{ContextMenu, HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
-use workspace::{ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace, WorkspaceDb};
+use workspace::{
+    MarleyNewItemMenu, ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace,
+    WorkspaceDb,
+};
+use zed_actions::assistant;
 
 use crate::harness::Slot;
 use crate::harness_seat::SeatView;
@@ -646,12 +650,63 @@ fn ask_passphrase(
 }
 
 /// Registers `marley::NewAgent` on every workspace. [`crate::init`] calls it once.
-pub fn init(cx: &App) {
+///
+/// It also catches Zed's ways to a new Agent Panel thread in the Marley layout, and puts New Agent…
+/// at the head of every pane's `+` menu (#744).
+pub fn init(cx: &mut App) {
     fix_askpass_program();
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(new_agent);
+        // In the capture phase, before Zed's handlers on the same root, as `routing.rs` catches
+        // the Terminal Panel's toggles.
+        workspace.register_action_renderer(|div, _, _, cx| {
+            div.capture_action(cx.listener(picker_in_place_of::<assistant::ToggleFocus>))
+                .capture_action(cx.listener(picker_in_place_of::<assistant::Toggle>))
+                .capture_action(cx.listener(picker_in_place_of::<assistant::FocusAgent>))
+                .capture_action(cx.listener(picker_in_place_of::<NewThread>))
+                .capture_action(cx.listener(picker_in_place_of::<ToggleNewThreadMenu>))
+        });
     })
     .detach();
+    cx.set_global(MarleyNewItemMenu(Arc::new(new_item_entries)));
+}
+
+/// The status bar's sparkle (`agent::ToggleFocus`), Zed's other ways to the Agent Panel and its
+/// new thread: in the Marley layout the New Agent picker, so a group with no folder starts an
+/// agent too (#744); in the Zed layout the action goes on to the panel.
+fn picker_in_place_of<A>(
+    workspace: &mut Workspace,
+    _: &A,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if crate::marley_layout(cx) {
+        cx.stop_propagation();
+        show_picker(workspace, None, window, cx);
+    }
+}
+
+/// A pane's `+` menu with New Agent… at its head while AI is on (#744), Zed's entries after it.
+fn new_item_entries(
+    menu: ContextMenu,
+    workspace: &WeakEntity<Workspace>,
+    _: &mut Window,
+    cx: &mut App,
+) -> ContextMenu {
+    if DisableAiSettings::get_global(cx).disable_ai {
+        return menu;
+    }
+    let workspace = workspace.clone();
+    menu.entry(
+        "New Agent…",
+        Some(NewAgent::default().boxed_clone()),
+        move |window, cx| {
+            workspace
+                .update(cx, |workspace, cx| show_picker(workspace, None, window, cx))
+                .log_err();
+        },
+    )
+    .separator()
 }
 
 /// Fixes the program every askpass script runs to Marley's executable while the file is still
@@ -744,13 +799,22 @@ pub(crate) fn show_picker(
     });
 }
 
-/// Where the picker offers to start an agent: the guess first, then the window's open projects,
-/// then Browse…, then each harness that takes a seat (#741); recent projects join before Browse…
-/// once they load. `workspace` is being updated, so it is read through its reference, never
-/// through its entity (`current`).
+/// Where the picker offers to start an agent: the project's root first in a group with a project
+/// (#744), then the guess when it is another folder, then the window's open projects, then
+/// Browse…, then each harness that takes a seat (#741); recent projects join before Browse… once
+/// they load. `workspace` is being updated, so it is read through its reference, never through
+/// its entity (`current`).
 fn places_for(workspace: &Workspace, current: EntityId, window: &Window, cx: &App) -> Vec<Place> {
+    let mut places: Vec<Place> = workspace
+        .root_paths(cx)
+        .first()
+        .map(|root| Place::folder(root.to_path_buf(), "this project"))
+        .into_iter()
+        .collect();
     let (guess, note) = guess(workspace, cx);
-    let mut places = vec![Place::folder(guess, note)];
+    if !places.iter().any(|place| place.path() == Some(&guess)) {
+        places.push(Place::folder(guess, note));
+    }
     let open = window
         .root::<MultiWorkspace>()
         .flatten()

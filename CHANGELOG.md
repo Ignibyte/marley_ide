@@ -997,6 +997,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **One New Agent…** (#744, 2026-10-11). A project's or group's `+` in the rail has one way to start
+  an agent, New Agent…, in place of New Agent Thread and the list of agent CLIs; the picker it
+  opens lists both. In a project, Where starts on the project's folder, marked "this project", then
+  the active terminal's or file's folder. Every pane's `+` starts with New Agent… too. In the
+  Marley layout the status bar's sparkle, Ctrl+? and Zed's `agent: new thread` open the same
+  picker instead of Zed's Agent Panel, which starts nothing in a group with no folder.
+  `marley: new agent thread` leaves the palette; a key bound to it still works.
+
 - **No Rusty group; Home is Default** (#743, 2026-10-11). The rail no longer makes a Rusty group,
   at the start or when a Rusty screen opens. Rusty's screens and pages (Brain, Today's Note, Graph,
   Tasks, Decisions, Memory, Skills, Secrets, Open Page, page links) open as tabs of the group you

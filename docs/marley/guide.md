@@ -307,16 +307,18 @@ A project's `+` ("New in this project") starts things in that project.
 |---|---|
 | New Terminal | A shell in the project's directory, in the main area |
 | New Browser Tab | Shows the project and opens a blank page in a new Browser tab, the cursor in the address bar, starting Chromium if it must |
-| New Agent… | The New Agent picker, below, opened on this project |
-| New Agent Thread | A submenu with the Zed Agent and each external agent configured in Zed, by name; starts a thread in a tab of this project (#734) |
-| Agent CLIs | Under their own header, each agent CLI found on the PATH; starts it in a new terminal at the project root |
+| New Agent… | The New Agent picker, below, opened on this project: the one way to start an agent, a thread or a CLI (#744) |
 
-Ctrl+Alt+N opens the New Agent picker ("Start an agent…") in either layout. Zed's agents are
-marked Thread and the CLIs Terminal, and typing filters the list. After the agent, it asks where
-(#735):
+Ctrl+Alt+N opens the New Agent picker ("Start an agent…") in either layout. So does every pane's
+`+` (New Agent… at its head), and in the Marley layout the status bar's sparkle, Ctrl+? and Zed's
+`agent: new thread` too, in place of Zed's Agent Panel, which starts nothing in a group with no
+folder (#744). Zed's agents are marked Thread and the CLIs Terminal, and typing filters the list.
+After the agent, it asks where (#735):
 
-- **The guess** comes first: the active terminal's folder, else the active file's project, else
-  the shown project's root, else your home folder. Enter twice starts the agent where you are.
+- **The project's root** comes first in a group with a project, marked "this project" (#744), so
+  Enter twice starts the agent in the project.
+- **The guess** follows when it is another folder: the active terminal's folder, else the active
+  file's project. In a group with no folder it comes first, else your home folder.
 - Then the window's open projects, your recent projects, and **Browse…**, Zed's own folder prompt
   (a file picked there means its folder).
 - A thread opens in a tab of the shown group (#734), a CLI in a new terminal there, each working in
@@ -353,8 +355,8 @@ New Group… asks for a name and makes a group with no folder, listed after the 
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
 the agent CLIs in the same menu open in the window's Default group. A group's `+`
-has no New Agent in Worktree or Launch, which need a folder; its New Agent Thread starts a thread
-in a tab of the group, in your home folder (#734). Right-click a
+has no New Agent in Worktree or Launch, which need a folder; its New Agent… starts a thread in a
+tab of the group, or a CLI in a terminal, in your home folder (#734, #744). Right-click a
 group's header for Rename Group… and Remove Group. Groups come back after a restart with their
 names, order, terminals and Browser tabs (#601).
 
@@ -1597,8 +1599,8 @@ picks what it runs on:
 
 - **Turning it off.** Settings → Marley → **Marley Agent** (`marley.assistant.enabled`), on by
   default, and **Agent** below it. Off, nothing of it is left.
-- **Using it.** On Claude Code or Codex: New Agent Thread → **Marley**, from the Agent Panel or a
-  project's + in the rail. On Zed's agent: a Zed Agent thread, then the profile picker (Ctrl+I) →
+- **Using it.** On Claude Code or Codex: New Agent… → **Marley**, from a project's + in the rail,
+  a pane's +, the status bar's sparkle or Ctrl+Alt+N. On Zed's agent: a Zed Agent thread, then the profile picker (Ctrl+I) →
   **Marley**. Ask how a feature works, what a setting does or is set to, or which key runs a
   command. You can also ask it to change a setting or bind a key. Picking the profile makes it
   your default profile, as any pick does. When the profile goes away, a default of Marley goes
@@ -1651,8 +1653,8 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
 
 An agent thread can sit in the main content, as a tab beside your terminals and files.
 
-- **Start one in a tab** (#734). A project's or a group's `+` → **New Agent Thread** → an agent
-  starts a thread in a tab of that project or group. Groups with no folder have it too: Default
+- **Start one in a tab** (#734, #744). A project's or a group's `+` → **New Agent…** → an agent
+  marked Thread starts a thread in a tab of that project or group. Groups with no folder have it too: Default
   and the groups you named. The thread works in the project's root, or in your home folder
   in a group with no folder. Its row in the rail sits under the group that holds the tab, with its
   status, and its waits reach **Needs you**.
@@ -2487,7 +2489,7 @@ the picker lists the profiles, and you can always type a name.
 
 **The manager in the Agent Panel** (#694). While the switch is on and the harness has a manager (a
 session whose `role` label is `manager`, which the harness moves with the designation), the Agent
-Panel's New Agent Thread lists **Manager**. Its thread is the manager thread, through the harness's
+Panel's agents and New Agent… list **Manager**. Its thread is the manager thread, through the harness's
 `rh acp`, run with the command Marley follows the harness with, ending in `acp`:
 - **Sending.** What you type goes into the thread as your message, and the harness hands it to
   the manager once the manager is idle. The turn ends after that.

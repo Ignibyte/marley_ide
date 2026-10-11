@@ -213,7 +213,7 @@ pub struct Rail {
     panel_subscriptions: HashMap<EntityId, [Subscription; 3]>,
     /// Per live thread: the events that can change its row.
     thread_subscriptions: HashMap<EntityId, Subscription>,
-    /// Per project: its agent servers, which name the New Agent Thread entries.
+    /// Per project: its agent servers, which give the thread rows their agents' icons.
     agent_server_subscriptions: HashMap<EntityId, Subscription>,
     /// The thread metadata store, once it exists: it notifies and emits nothing else.
     thread_store_subscription: Option<Subscription>,
@@ -3063,22 +3063,6 @@ impl Rail {
         Ok(())
     }
 
-    /// Shows `workspace` and starts a thread of `agent` in a center tab of it, working in its
-    /// root, or the home folder for a group with no folder (#734).
-    fn new_agent_thread(
-        &self,
-        workspace: &WeakEntity<Workspace>,
-        agent: &AgentId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        let workspace = self.activate_workspace(workspace, window, cx)?;
-        workspace.update(cx, |workspace, cx| {
-            crate::thread_tab::start(workspace, Some(agent.clone()), None, window, cx);
-        });
-        Ok(())
-    }
-
     /// Puts the keyboard's row where `to` says, from the rail as it stands.
     fn move_cursor(
         &mut self,
@@ -5189,6 +5173,8 @@ impl Rail {
                                         .flatten()
                                         .log_err();
                                 });
+                            // The one way to start an agent, a thread or a CLI (#744); its Where
+                            // starts on this project's root.
                             let menu = menu.entry("New Agent…", None, move |window, cx| {
                                 picker_rail
                                     .update(cx, |rail, cx| {
@@ -5197,21 +5183,11 @@ impl Rail {
                                     .flatten()
                                     .log_err();
                             });
-                            // A thread starts in a tab, so a group with no folder has one too (#734).
-                            let menu = menu.submenu("New Agent Thread", move |menu, _, cx| {
-                                Self::agent_menu(menu, &rail, &workspace, cx)
-                            });
                             let menu = Self::worktree_agent_entries(
                                 menu,
                                 &cli_workspace,
                                 agent_search_path.as_deref(),
                                 cx,
-                            );
-                            let menu = Self::agent_cli_entries(
-                                menu,
-                                &cli_rail,
-                                &cli_workspace,
-                                agent_search_path.as_deref(),
                             );
                             Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
                         }))
@@ -5220,70 +5196,8 @@ impl Rail {
             )
     }
 
-    /// The New Agent Thread entries: the Zed Agent, then every agent the project's agent servers
-    /// list, as the Agent Panel's own menu names and orders them.
-    fn agent_menu(
-        menu: ContextMenu,
-        rail: &WeakEntity<Self>,
-        workspace: &WeakEntity<Workspace>,
-        cx: &App,
-    ) -> ContextMenu {
-        let choices = workspace
-            .upgrade()
-            .map(|workspace| agents::thread_agents(workspace.read(cx).project(), cx))
-            .unwrap_or_default();
-        choices.into_iter().fold(menu, |menu, (agent, name, icon)| {
-            let rail = rail.clone();
-            let workspace = workspace.clone();
-            let entry = ContextMenuEntry::new(name);
-            let entry = match icon {
-                AgentIcon::Named(icon) => entry.icon(icon),
-                AgentIcon::Svg(path) => entry.custom_icon_svg(path),
-            };
-            menu.item(entry.icon_color(Color::Muted).handler(move |window, cx| {
-                rail.update(cx, |rail, cx| {
-                    rail.new_agent_thread(&workspace, &agent, window, cx)
-                })
-                .flatten()
-                .log_err();
-            }))
-        })
-    }
-
-    /// The agent CLIs the search path holds, one entry each under a header, after New Agent
-    /// Thread and New Agent in Worktree; nothing when none is installed.
-    fn agent_cli_entries(
-        menu: ContextMenu,
-        rail: &WeakEntity<Self>,
-        workspace: &WeakEntity<Workspace>,
-        search_path: Option<&OsStr>,
-    ) -> ContextMenu {
-        let agents = agents::installed_clis(search_path);
-        if agents.is_empty() {
-            return menu;
-        }
-        agents
-            .into_iter()
-            .fold(menu.separator().header("Agent CLIs"), |menu, kind| {
-                let rail = rail.clone();
-                let workspace = workspace.clone();
-                menu.item(
-                    ContextMenuEntry::new(kind.display_name())
-                        .icon(agents::cli_icon(kind))
-                        .icon_color(Color::Muted)
-                        .handler(move |window, cx| {
-                            rail.update(cx, |rail, cx| {
-                                rail.new_agent(&workspace, kind, window, cx)
-                            })
-                            .flatten()
-                            .log_err();
-                        }),
-                )
-            })
-    }
-
-    /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, right after New Agent
-    /// Thread (#598), for a local project whose folder is a git repository.
+    /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, right after New Agent…
+    /// (#598, #744), for a local project whose folder is a git repository.
     fn worktree_agent_entries(
         menu: ContextMenu,
         workspace: &WeakEntity<Workspace>,

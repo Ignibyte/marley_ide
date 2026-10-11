@@ -2145,6 +2145,27 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## One New Agent… (`src/agents.rs`, `src/rail.rs`, `src/thread_tab.rs`, #744)
+
+- `agents::places_for` puts `workspace.root_paths(cx).first()` first, noted "this project", and
+  #735's `guess` after it unless it is the same folder; with no root the guess leads as before.
+- `agents::init` (`&mut App`) registers capture listeners on every workspace's root for
+  `agent::{ToggleFocus, Toggle, FocusAgent}` (`zed_actions::assistant`) and
+  `agent_ui::{NewThread, ToggleNewThreadMenu}`, one generic `picker_in_place_of::<A>`: in the
+  Marley layout it stops propagation and runs `show_picker`; in Zed's it does nothing, so the panel
+  gets the action. The status bar's sparkle is Zed's `PanelButtons` entry, whose click dispatches
+  `ToggleFocus` from the dock inside the workspace, so the capture sees it. A key from the rail
+  reaches none of them: the rail is the `MultiWorkspace`'s sidebar, outside the workspace's element.
+- `agents::init` sets `MarleyNewItemMenu` (Zed's `pane.rs` hook, #699) to `new_item_entries`:
+  New Agent… (with `marley::NewAgent`'s key shown; the entry's handler alone runs) and a separator
+  ahead of Zed's entries while AI is on.
+- `Rail::render_project_menu` lists New Terminal, New Browser Tab, New Agent…, New Agent in
+  Worktree and the launch configs; `agent_menu`, `agent_cli_entries` and `new_agent_thread` went.
+  The empty-space menu keeps its CLI entries. `agent_server_subscriptions` stays: thread rows take
+  their icons from each project's agent-server store (`agents::thread_icon`).
+- `thread_tab::init` hides `NewAgentThread` from the palette (`CommandPaletteFilter`) in each new
+  workspace's setup; the action and its keys stay.
+
 ## No Rusty group; Home is Default (`src/groups.rs`, `src/rail.rs`, `src/rusty.rs`, `src/rusty/home_tab.rs`, #743)
 
 The sections on the Rusty group (#675), its + menu (#699) and the home page's place in it (#679)

@@ -5325,3 +5325,13 @@ then switching to the debug build: `binary "$HOME/.local/lib/marley/marley"` at 
 `steps`, after `quit_marley`, `use_binary "${CARGO_TARGET_DIR:-target}/debug/marley"` and
 `open_path ""` so the relaunch restores the last session instead of opening a path. Seeding the
 store by hand would miss what the old build really writes.
+
+## L-claude-744-a-key-sent-from-the-rail-misses-the-workspaces-listeners-001
+*category: testing · topic: driving a workspace action in a scenario after a click in the rail · from: pipeline 744*
+
+The rail is the `MultiWorkspace`'s sidebar, drawn outside the workspace's element, so a key
+pressed while the rail holds the focus never reaches the workspace's action listeners, captured or
+not: after a click on a rail row, `ctrl-?` did nothing. A scenario clicks into the center pane
+before a key meant for the workspace. Separately, `wtype` sends a shifted punctuation key such as
+`ctrl-?` as Ctrl+Shift+/, which an editor takes for Ctrl+/; run such an action from the palette
+(`palette "agent: toggle focus"`), which dispatches it from the focused center element.
