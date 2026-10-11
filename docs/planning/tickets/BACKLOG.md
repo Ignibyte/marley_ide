@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-754](open/TICKET-754-cli-sessions-in-threads.md) | feature | Claude Code and Codex sessions in Threads, reopened with `--resume` |
 | [TICKET-712](open/TICKET-712-lsp-tools-for-agents.md) | feature | `editor_diagnostics`, `editor_definition`, `editor_references`, `editor_hover` for every agent, over Zed's LSP store |
 | [TICKET-755](open/TICKET-755-three-small-hardening-fixes.md) | chore | Codex's config written safely, a token per terminal, Chromium units survive a killed renderer |
 | [TICKET-720](open/TICKET-720-mcp-manager-and-cli-update-checks.md) | feature | a tab of every CLI's MCP servers, and warnings for CLIs too old |

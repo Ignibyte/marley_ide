@@ -5521,3 +5521,16 @@ the query loop returns `api_error`, and the `StopFailure` hooks run with that er
 carries no reset. Read on the box from the installed binary with Python's `re` (the shell's grep
 is ugrep, which refuses long patterns): `executeStopFailureHooks` and the `StopFailure` input's
 error enum are plain text in it.
+
+## L-claude-754-the-clis-session-files-say-who-started-them-001
+*category: data · topic: Claude Code's and Codex's own session files · from: pipeline 754*
+
+Which session a user had in the CLI's own terminal is in each file, not in where it sits. Claude
+Code's records carry `entrypoint` (`cli` for its TUI; `sdk-cli` and `sdk-ts` for `claude -p`, the
+harness and Zed's agent), its titles are `custom-title.customTitle` and `ai-title.aiTitle`, and user
+records carry `isMeta`, `isSidechain` and `toolUseResult`. Codex's rollout opens with
+`session_meta`, whose `originator` (`codex-tui`, or `Codex Desktop`, `codex_work_desktop`, `zed`)
+and `thread_source` (`user`, `subagent`, `guardian_review`) decide it; its `source` does not (a TUI
+on an App Server writes `vscode`). Codex 0.162 writes prompts as `item_completed` `UserMessage`
+items, names threads only in `session_index.jsonl`, and a rollout can pass 100 MB, so read a head
+and a tail.

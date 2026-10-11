@@ -344,6 +344,30 @@ fn agent_line(
     }
 }
 
+/// What resumes the session `session` of `kind` in a terminal of `workspace` in `folder` (#754),
+/// as [`agent_line`] starts one: its resume line with the permission mode's arguments, and for a
+/// Codex that joins an App Server of its own, the server (#650). `None` for a session id the CLI's
+/// resume would not take.
+pub(crate) fn resume_input(
+    workspace: &Workspace,
+    kind: AgentKind,
+    session: &str,
+    folder: &Path,
+    cx: &App,
+) -> Option<(Vec<u8>, Option<crate::codex_server::Joining>)> {
+    let mode = launch_mode(workspace, kind, cx);
+    let shown = folder.to_string_lossy();
+    let plain = marley_agent::resume_line(kind, mode, session, &shown, None)?;
+    let prepared = (kind == AgentKind::Codex)
+        .then(|| crate::codex_server::prepare(workspace.project().read(cx), Some(folder), cx))
+        .flatten();
+    let Some(prepared) = prepared else {
+        return Some((plain, None));
+    };
+    let line = marley_agent::resume_line(kind, mode, session, &shown, Some(&prepared.remote()))?;
+    Some((line, Some(crate::codex_server::Joining { prepared, plain })))
+}
+
 /// The permission mode `kind` starts with in `workspace`'s project (#532); a remote project takes
 /// the defaults, since the per-project entries name local folders.
 pub(crate) fn launch_mode(workspace: &Workspace, kind: AgentKind, cx: &App) -> LaunchMode {

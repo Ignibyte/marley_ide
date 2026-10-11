@@ -1357,7 +1357,8 @@ The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THR
 the rail focused, swaps the project rows for every saved conversation, newest first, each with its
 agent's icon, its title, and its agent and folder. The search field above the list matches titles
 and folders. A click opens the conversation in a tab of the group you are looking at, or brings its
-tab forward where it is open. PROJECTS, or Ctrl+G again, brings the projects back; while the
+tab forward where it is open. Your Claude Code and Codex CLI sessions are listed too, and a click
+resumes one (#754). PROJECTS, or Ctrl+G again, brings the projects back; while the
 conversations show, PROJECTS carries a dot when a project needs you. The rail starts on the
 projects. For agent filters and archived conversations, open the Threads page: the Threads button
 on the Home page's NEW AGENT card, or `marley: open threads`.
@@ -1855,8 +1856,9 @@ into a tab (it stays the same thread: it keeps running and its history), or open
 store in a tab.
 
 - **Reopen Thread…** (#772), in a project's `+`, every pane's `+` and the palette
-  (`marley: reopen thread`), lists the saved conversations, newest first, with their agent,
-  folder and time; typing matches the title and the folder. Enter opens one in a tab of the group
+  (`marley: reopen thread`), lists the saved conversations, and your Claude Code and Codex CLI
+  sessions (#754), newest first, with their agent, folder and time; typing matches the title and
+  the folder. Enter opens one in a tab of the group
   you are in, with its earlier turns, or brings its tab forward.
 - **Zed's layout** keeps the panel: `marley: open thread in center` moves the panel's active
   thread into a tab (#697), and `marley: move thread to panel`, or **Move Thread to Panel** on the
@@ -1880,6 +1882,18 @@ sidebar, which the Marley layout replaces with the rail; this page takes its pla
 - **Opening one:** a conversation already open comes forward in its tab; one an Agent Panel holds
   moves into a tab (#772). Any other opens in a tab of the page's group, with its earlier turns, its folder joining
   the project hidden when it needs to, as a new tab's does (#734).
+- **Your CLI sessions** (#754): the Claude Code and Codex sessions you ran in terminals are listed
+  among the conversations, from the CLIs' own files (Claude Code's under `~/.claude/projects`, or
+  `CLAUDE_CONFIG_DIR`; Codex's under `~/.codex/sessions`, or `CODEX_HOME`), each titled by the
+  CLI's own title or its first prompt, with a chip each, Claude Code CLI and Codex CLI. Only the
+  sessions you started in the CLI's own terminal show; `claude -p`, the SDKs, subagents, reviews
+  and Codex's desktop app stay out. The search also finds a session by the words of your prompts,
+  and shows them under the row. Clicking one brings forward the Marley terminal running it, or
+  runs `claude --resume <id>` or `codex resume <id>` in a new terminal in the session's folder,
+  with your permission settings for the project; a folder that is gone says so instead. The rail's
+  Threads view and Reopen Thread… list them too. Marley reads the newest 500 files per CLI, the
+  start and end of a long one, and never writes to them; **List CLI Sessions** on the Marley page
+  (Agents) turns the listing off.
 
 ## Marley's MCP server
 

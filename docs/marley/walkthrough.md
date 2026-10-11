@@ -1464,6 +1464,19 @@ agent such as Claude Agent. Ctrl+Alt+C in the panel opens its settings.
 - [ ] Right-click a thread's row and choose Delete Thread…: Marley asks first; after Delete Thread
   the row goes, and it does not come back after a restart, nor under Archived Threads.
 
+### 6.1b Your CLI sessions in Threads (#754)
+
+1. Run `marley: open threads` from the palette.
+2. Type a word from a prompt you gave Claude Code or Codex earlier in a terminal.
+
+- [ ] Your Claude Code and Codex sessions are listed among the conversations, each with its
+  CLI's icon, a title, `Claude Code CLI · <folder>` or `Codex CLI · <folder>`, and a time; the
+  chips Claude Code CLI and Codex CLI keep only those.
+- [ ] The search finds a session by your prompt's words and shows them under the row.
+- [ ] Clicking a session that no terminal runs opens a terminal in its folder running `claude
+  --resume <id>` or `codex resume <id>`; clicking it again brings that terminal forward.
+- [ ] The rail's THREADS view and Reopen Thread… list them too.
+
 ### 6.2 Zed's agents use Marley's tools (#501)
 
 1. In the thread, ask: "List my Marley terminals and tell me which command failed."

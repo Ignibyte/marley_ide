@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #754 (feature, the finish line: old CLI sessions in Threads)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [754-cli-sessions-in-threads.spec.md](../../pipeline/queued/754-cli-sessions-in-threads.spec.md)
+- **Pipeline doc:** [754-cli-sessions-in-threads.spec.md](../../pipeline/completed/754-cli-sessions-in-threads.spec.md)
 - **Source ticket:** Chad, 2026-10-11, on the survey list's item 4 ("Old CLI sessions in Threads …
   finishes the Reopen Thread you just asked for"): "4.) yes". Earlier the same day, of New Agent from
   Thread: "my thought is that you would re open it". The T3 Code survey's item 3
   (`docs/t3code_architecture/README.md`), reports 01 (item 4) and 02 (item 2). Plan:
   [the finish line](../../design-notes/finish-line-2026-10-11.md), Now, after the tabs batch
   (#743 to #749) and #750.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed's thread store knows only the conversations its Agent Panel had. The Claude Code and Codex

@@ -5019,3 +5019,18 @@ and Enter as #750's Continue does, only while the seat still reads the same fail
 session; an arm keeps the terminal's weak handle and the view's id. Rejected: reading the reset from
 the message's text (a locale's clock, not a moment), and clearing Claude Code's composer before
 typing (Marley cannot see it).
+
+## AD-claude-754-past-cli-sessions-are-read-from-the-clis-files-and-reopened-with-their-resume-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-737-marleys-thread-history-is-a-page-over-zeds-store-001, AD-claude-540-a-claude-code-session-resumes-by-the-terminals-id-001*
+
+Past Claude Code and Codex sessions come from each CLI's own files, parsed by a pure module in
+`marley_agent`, read off the main thread in bounded windows (the newest 500 files per CLI, the
+first MiB and last 256 KiB of each) with a cache by size and time, and listed among Zed's
+conversations in the one `Row` the Threads page, the rail's Threads view and Reopen Thread… share;
+a session the store holds by its session id is listed once, as Zed's. Reopening brings forward the
+terminal whose seat runs that session, else runs the CLI's own resume in a new terminal in the
+session's folder with the project's permission arguments. The files only list what can be
+reopened; which session a live terminal runs still comes from the hooks, a report or the App
+Server. Rejected: Zed's Import Threads over the ACP adapters (one-off, archived rows, reopened in
+the adapter, not the TUI), Codex's `state_5.sqlite` (an internal store), the App Server's
+`thread/list` (a server per scan), and a section of their own (one history).

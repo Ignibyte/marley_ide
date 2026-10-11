@@ -40,6 +40,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub continue_at_reset: Option<bool>,
+    /// Whether the Threads page, the rail's Threads view and Reopen Thread… list the Claude Code
+    /// and Codex sessions in the CLIs' own files beside Zed's conversations (#754). Off, no
+    /// session file is read.
+    ///
+    /// Default: true
+    pub list_cli_sessions: Option<bool>,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check (#569);
     /// the next come at twice, four and eight times it, and 0 turns the quiet checks off.
     ///

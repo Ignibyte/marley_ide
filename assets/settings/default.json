@@ -1714,6 +1714,9 @@
     // Whether a Claude Code, or a Codex on Marley's App Server, that stopped at its usage limit
     // continues by itself once the limit resets, as Continue at Reset in Needs you does (#715, #765).
     "continue_at_reset": false,
+    // Whether the Threads page, the rail's Threads view and Reopen Thread… list the Claude Code
+    // and Codex sessions in the CLIs' own files, to reopen with their resume (#754).
+    "list_cli_sessions": true,
     // Seconds a working Claude Code may be quiet before the stall kind's first check, with the
     // next at twice, four and eight times it (#569); 0 turns the quiet checks off. The stall kind
     // runs only while system_one.uses.stall_kind is on.

@@ -43,6 +43,7 @@ pub mod browser;
 pub mod browser_tools;
 pub mod claude_ide;
 pub mod claude_plugin;
+pub mod cli_sessions;
 pub mod click_pause;
 pub mod clients;
 pub mod close_guard;
@@ -389,6 +390,8 @@ pub struct MarleySettings {
     pub resume_agents: ResumeAgents,
     /// Whether a limited Codex is armed to continue at its reset without a click (#715).
     pub continue_at_reset: ContinueAtReset,
+    /// Whether past CLI sessions are listed in Threads (#754).
+    pub list_cli_sessions: ListCliSessions,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check; 0 is none
     /// (#569).
     pub stall_check_after_seconds: u64,
@@ -637,6 +640,26 @@ impl ResumeAgents {
     }
 }
 
+/// Whether past Claude Code and Codex sessions are listed in Threads, from
+/// `marley.list_cli_sessions` (#754).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListCliSessions {
+    /// Listed beside Zed's conversations.
+    Listed,
+    /// Not read.
+    Off,
+}
+
+impl ListCliSessions {
+    /// The setting's value: listed unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.list_cli_sessions) {
+            Some(false) => Self::Off,
+            _ => Self::Listed,
+        }
+    }
+}
+
 /// When a limited Codex continues at its reset, from `marley.continue_at_reset` (#715).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContinueAtReset {
@@ -720,6 +743,7 @@ impl Settings for MarleySettings {
                 .unwrap_or(30),
             resume_agents: ResumeAgents::from_content(marley),
             continue_at_reset: ContinueAtReset::from_content(marley),
+            list_cli_sessions: ListCliSessions::from_content(marley),
             stall_check_after_seconds: marley
                 .and_then(|marley| marley.stall_check_after_seconds)
                 .unwrap_or(60),
@@ -960,6 +984,7 @@ pub fn init(cx: &mut App) {
     agent_notify::init(cx);
     agent_versions::init(cx);
     codex_server::init(cx);
+    cli_sessions::init(cx);
     agent_activity::init(cx);
     agent_control::init(cx);
     agent_bar::init(cx);

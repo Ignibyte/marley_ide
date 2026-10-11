@@ -2124,10 +2124,38 @@ alike.
 - `OpenThreads` (`marley: open threads`) brings the workspace's `ThreadsPage` forward or adds one to
   its center. The page observes Zed's `ThreadMetadataStore` and its search editor, and redraws on
   either.
-- `sections` takes the store's entries (drafts left out) and archived entries, newest `updated_at`
-  first, keeps those whose title or folder paths hold the search (case-insensitive) and whose agent
-  is the chip's, and splits them: Marley and Rusty (`assistant::is_assistant`), All conversations,
-  Archived (shown on its button). The chips list every agent the store holds.
+- `sections` takes the store's entries (drafts left out; the entries hold the archived ones, each
+  once, #754), newest `updated_at` first, keeps those whose title or folder paths hold the search
+  (case-insensitive) and whose agent is the chip's, and splits them: Marley and Rusty
+  (`assistant::is_assistant`), All conversations, Archived (shown on its button). The chips list
+  every agent the store holds.
+- **CLI sessions (#754).** `Row` names its `Target` (`Thread { thread_id, agent }` or
+  `Cli(Arc<CliSession>)`), the moment it sorts by, and a search snippet; `icon`, `detail` and
+  `key` draw it for the page, the rail's Threads view and Reopen Thread…, and `open_row` opens
+  either. `cli_rows` makes rows of `cli_sessions::listed`, leaving out a session whose id a store
+  entry holds as its session id; `conversations` (unarchived conversations, as its doc says, and
+  CLI rows by title and folder) feeds the rail and the picker, and `sections` adds the CLI rows to
+  All conversations by time, with a `Chip::Cli` per CLI (`Claude Code CLI`, `Codex CLI`) and the
+  prompts searched (`CliSearch::Prompts`, the snippet through `mcp::for_agents`). The page
+  observes the `CliSessions` global; opening it, the rail's Threads view and Reopen Thread… call
+  `cli_sessions::refresh`.
+
+## Past CLI sessions (`src/cli_sessions.rs`, #754)
+
+- `refresh` scans off the main thread, unless one runs or the last is under 30 s old, with
+  `marley.list_cli_sessions` on: `scan_in(claude_dir, codex_dir, cache)` lists Claude Code's
+  `<config>/projects/*/*.jsonl` and Codex's `<home>/sessions/YYYY/MM/DD/rollout-*.jsonl`, the newest
+  500 per CLI by modification time, reads each file whole, or its first MiB and last 256 KiB
+  (`Windows`), and parses it with `marley_agent::cli_sessions`; a file the cache holds at the same
+  size and time is not read again. Codex's titles come from `session_index.jsonl` each scan.
+  `CliSessions` holds the list, newest first, and the cache between scans; `listed` gives nothing
+  while the switch is off.
+- `reopen(workspace, session, window)`: `agent_events::view_running` (a seat of the session's CLI,
+  not done, whose `session_id` or `thread` label is the session's) finds a terminal among the
+  window's workspaces, which `browser::reveal_terminal` brings forward. Otherwise the folder is
+  checked off the main thread, and `agents::resume_input` (the resume line with the project's
+  permission arguments, and a Codex App Server through `Joining` when #650's switch is on) goes to
+  `start_in_terminal` in that folder; a missing folder or an id the CLI would not take is a toast.
 - A row's click (a plain closure over the page's weak workspace, PR-claude-701) runs
   `open_thread`: a tab with the thread anywhere in the window comes forward (its workspace shown,
   `thread_tab::activate_for`); a panel showing or retaining it shows it; else

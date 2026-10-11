@@ -1,7 +1,7 @@
 ---
 pipeline_id: b24d5935-511e-4225-bb4b-8efb9f969d5f
 ticket: docs/planning/tickets/open/TICKET-754-cli-sessions-in-threads.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: CLI sessions in Threads
 type: feature
 slice: the finish line (docs/planning/design-notes/finish-line-2026-10-11.md), item 4, old CLI sessions in Threads; finishes #744's Reopen Thread…
@@ -60,6 +60,9 @@ just asked for"): "4.) yes"; of New Agent from Thread: "my thought is that you w
   `resume_line` (#750): `claude [#532's arguments] --resume <id>`, or `codex resume [#532's
   arguments] <id>` with Marley's App Server when it is on (#650). A folder that no longer exists
   starts nothing and says so in a toast.
+- **Archived threads once:** the page lists each archived conversation once (it listed them
+  twice), and Reopen Thread… and the rail's Threads view list unarchived ones, as `conversations`
+  says.
 - **One row per conversation:** a CLI session whose id is a Zed conversation's `session_id` (Zed's
   Import Threads brings Claude Code sessions in through its ACP adapter) is listed once, as Zed's.
 - **The switch:** `marley.list_cli_sessions: Option<bool>`, default `true`, in
@@ -147,8 +150,8 @@ conversations onto the page too, as in #737; the checks rest on the fixture's ro
 Shots:
 - `754-01-page`: the Threads page with the three fixture sessions, each with its CLI's icon, title,
   folder and time; no `sdk-cli` or subagent row.
-- `754-02-search`: `tokenizer` in the search: the first Claude Code session, with its prompt's
-  snippet.
+- `754-02-search`: `parser`, a word only its prompt holds, in the search: the first Claude Code
+  session, with its prompt's snippet.
 - `754-03-chip`: the Codex chip: only the Codex session.
 - `754-04-reopen`: the first Claude Code row clicked: a terminal tab in the repository; the log's
   `--resume <id>` in the repository.
@@ -156,8 +159,8 @@ Shots:
 - `754-06-forward`: the first Claude Code row clicked again: the same terminal tab in front, no new
   terminal, no new log line.
 - `754-07-rail`: the rail's Threads list with the fixture's rows.
-- `754-08-reopen-thread`: Reopen Thread… from the repository's row lists them; the `sub` session
-  chosen: the log's `--resume <id>` in `sub`.
+- `754-08-reopen-thread`: Reopen Thread… from the repository's `+` lists them; "release notes"
+  finds the `sub` session; Enter: the log's `--resume <id>` in `sub`.
 - `754-09-off`: `marley.list_cli_sessions` false: the page with no CLI row.
 
 ## Locked-In Decisions
@@ -202,6 +205,7 @@ Shots:
 | REQ-011 | WHEN a CLI session's id is a Zed conversation's session id, the system shall list it once, as that conversation. | Review of the diff |
 | REQ-012 | WHEN a chosen session's folder no longer exists, the system shall start nothing and say so. | Review of the diff |
 | REQ-013 | The system shall read the CLIs' files off the main thread, within the bounds of D4, and never write to them. | Review of the diff |
+| REQ-014 | The Threads page shall list each archived conversation once, and Reopen Thread… and the rail's Threads view shall list no archived conversation. | Review of the diff |
 
 ## Phase Plan
 - **P1 Plan** — this spec, and the design in the notes, re-verified at promotion against what #744,

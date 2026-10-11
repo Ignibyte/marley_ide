@@ -214,6 +214,16 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   the turn's id and `LIMIT_RESETS_AT_LABEL` to `limit_reset`, the latest reset after the failure
   among the windows at 100 % or more, none when a full window gives no reset; `TurnStarted` clears
   both. `seat_words` reads `limited` for a limited seat.
+- **`src/cli_sessions.rs` (#754)** parses the CLIs' own session files, never reading the disk:
+  `Windows { head, tail }` gives each whole line of a file's head and tail; `parse_claude` keeps a
+  transcript whose records say `entrypoint: "cli"`, its id from `sessionId` (else the file's
+  name), its folder from `cwd`, its title the newest `custom-title`, then `ai-title`, and the
+  user's prompts from `user` records that are not meta, a sidechain's or a tool's result and that
+  `claude_events::prompt_origin` reads as the user's; `parse_codex` keeps a rollout whose
+  `session_meta` names `codex-tui` (or `codex_cli_rs`) as its originator with a user's thread, its
+  prompts from `UserMessage` items and older `user_message` events; `codex_names` reads the
+  session index. Prompts are kept up to 64 KiB. `CliSession::search` matches the title and folder,
+  then a prompt, with a 240-character snippet.
 - **`src/usage.rs` (#765)** holds the limited state both agents share: `LIMITED_LABEL` (the
   failure's identity), `LIMIT_RESETS_AT_LABEL` (a reset the fold fixed, Codex's),
   `LIMITED_AT_LABEL` (the failure's moment), `Limit { turn, resets_at_ms }`, and `limit(seat)`:

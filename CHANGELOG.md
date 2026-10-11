@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Your Claude Code and Codex sessions in Threads** (#754, 2026-10-11). The Threads page, the
+  rail's Threads view and Reopen Thread… list the sessions you ran in the CLIs' own terminals,
+  read from their own files, beside Zed's conversations, with a chip each. The page's search also
+  finds a session by the words of your prompts. Clicking one brings forward the terminal running
+  it, or runs `claude --resume` or `codex resume` in a new terminal in its folder. List CLI
+  Sessions on the Marley page turns it off.
+
 - **Claude Code's limited state and Continue at Reset** (#765, 2026-10-11). A Claude Code whose
   turn its usage limit stopped reads `limited · resets in …` in the warning color instead of
   `failed`, and Needs you offers Continue at Reset, which types "Continue where you left off." into
@@ -1275,6 +1282,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **Archived threads listed once** (#754). The Threads page counted and listed each archived
+  conversation twice, and Reopen Thread… and the rail's Threads view listed archived ones.
 
 - **The rail's cleanup** (#713, 2026-10-11). A terminal printing steadily no longer redraws the
   rail on every chunk of output: the rail redraws when a row would change (a command starting or

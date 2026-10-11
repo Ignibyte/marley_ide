@@ -3844,3 +3844,14 @@ anyway. The scenario did not reach it: it never cancelled with the setting on. F
 `cancel` records the dropped limit in `handled`, beside the limits already continued, and the
 setting never arms a handled limit; `715-10-cancelled` shows the entry back to Continue at Reset
 after an update.
+
+## F-claude-754-the-threads-page-listed-archived-threads-twice-001
+*severity: low · found in: pipeline 754's promotion (the seams' second look) · class: a store query chained with a subset of itself*
+
+#737's `sections` chained `ThreadMetadataStore::entries()` with `archived_entries()`, but
+`entries()` already holds the archived threads (`archived_entries()` is `entries()` filtered), so
+every archived conversation showed twice under ARCHIVED and in its count. Beside it,
+`conversations` said it listed unarchived conversations and never checked `archived`, so Reopen
+Thread… and the rail's Threads view listed archived ones. Both passed their scenarios, whose
+profiles held no archived thread they looked for. Fixed in #754: `sections` reads `entries()` once
+and buckets by `archived`; `conversations` leaves archived ones out.

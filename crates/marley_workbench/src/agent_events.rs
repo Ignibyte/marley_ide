@@ -109,6 +109,26 @@ fn seat_id(view: EntityId) -> String {
     view.as_u64().to_string()
 }
 
+/// The terminal view whose `kind` seat runs the session `session` now (#754): Claude Code's by its
+/// session id, Codex's by its lead thread.
+pub(crate) fn view_running(kind: AgentKind, session: &str, cx: &App) -> Option<EntityId> {
+    let label = match kind {
+        AgentKind::Codex => codex_events::THREAD_LABEL,
+        _ => SESSION_LABEL,
+    };
+    cx.try_global::<AgentEvents>()?
+        .snapshot
+        .seats()
+        .iter()
+        .find(|seat| {
+            seat.state != State::Done
+                && seat_agent(seat) == Some(kind)
+                && seat.labels.get(label).is_some_and(|id| id == session)
+        })
+        .and_then(|seat| seat.id.parse::<u64>().ok())
+        .map(EntityId::from)
+}
+
 /// The agent a seat belongs to, by its agent label: Claude Code's events (#519) or Codex's App
 /// Server (#650).
 pub(crate) fn seat_agent(seat: &Session) -> Option<AgentKind> {

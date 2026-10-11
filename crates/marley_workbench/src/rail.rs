@@ -218,7 +218,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 9],
+    _agent_events: [Subscription; 10],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -977,13 +977,19 @@ enum InboxTarget {
 impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
-    /// sessions (#534, #740), Codex's requests (#651) and its arms to continue at a reset (#715).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 9] {
+    /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
+    /// while the Threads view shows, the CLI sessions it lists (#754).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 10] {
         [
             cx.observe_global_in::<Harness>(window, Self::refresh),
             cx.observe_global_in::<crate::harness_hosts::Hosts>(window, Self::refresh),
             cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
             cx.observe_global_in::<crate::limits::Arms>(window, Self::refresh),
+            cx.observe_global_in::<crate::cli_sessions::CliSessions>(window, |rail, _, cx| {
+                if rail.threads.shown {
+                    cx.notify();
+                }
+            }),
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
@@ -5100,6 +5106,8 @@ impl Rail {
         }
         self.threads.shown = threads;
         if threads {
+            // The CLI sessions the list shows beside Zed's conversations (#754).
+            crate::cli_sessions::refresh(cx);
             window.focus(&self.threads.search.focus_handle(cx), cx);
         } else {
             window.focus(&self.focus_handle, cx);
@@ -5178,29 +5186,22 @@ impl Rail {
             .children(rows.into_iter().enumerate().map(|(index, row)| {
                 let icon = project
                     .as_ref()
-                    .map_or(AgentIcon::Named(IconName::Sparkle), |project| {
-                        agents::thread_icon(&row.agent, project, cx)
-                    });
-                let icon = match icon {
-                    AgentIcon::Named(name) => Icon::new(name),
-                    AgentIcon::Svg(path) => Icon::from_external_svg(path),
-                }
-                .size(IconSize::Small)
-                .color(Color::Muted)
-                .into_any_element();
-                let agent_name = project.as_ref().map_or_else(
-                    || SharedString::from(row.agent.0.to_string()),
-                    |project| agents::thread_agent_name(&row.agent, project, cx),
-                );
-                let detail = row.folder.as_ref().map_or_else(
-                    || agent_name.to_string(),
-                    |folder| format!("{agent_name} · {folder}"),
+                    .map_or_else(
+                        || Icon::new(IconName::Sparkle),
+                        |project| row.icon(project, cx),
+                    )
+                    .size(IconSize::Small)
+                    .color(Color::Muted)
+                    .into_any_element();
+                let detail = project.as_ref().map_or_else(
+                    || row.folder.clone().unwrap_or_default(),
+                    |project| row.detail(project, cx),
                 );
                 let title = Label::new(row.title.clone())
                     .size(LabelSize::Small)
                     .truncate()
                     .into_any_element();
-                let thread_id = row.thread_id;
+                let target = row.target;
                 row_card(
                     ("marley-rail-thread-row", index),
                     format!("marley-rail-threads-icon-{index}"),
@@ -5211,15 +5212,21 @@ impl Rail {
                     cx,
                 )
                 .on_click(cx.listener(move |rail, _, window, cx| {
-                    rail.open_conversation(thread_id, window, cx);
+                    rail.open_conversation(target.clone(), window, cx);
                 }))
                 .into_any_element()
             }))
     }
 
-    /// Shows the conversation `thread_id` in a tab of the shown group, or its tab forward (#745).
-    /// Deferred: the open reads every workspace of the window.
-    fn open_conversation(&self, thread_id: ThreadId, window: &Window, cx: &mut Context<Self>) {
+    /// Shows the conversation `target` stands for in a tab of the shown group, or its tab forward
+    /// (#745); a CLI session reopens with its resume (#754). Deferred: the open reads every
+    /// workspace of the window.
+    fn open_conversation(
+        &self,
+        target: crate::threads_page::Target,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(shown) = self
             .multi_workspace
             .upgrade()
@@ -5228,7 +5235,7 @@ impl Rail {
             return;
         };
         window.defer(cx, move |window, cx| {
-            crate::threads_page::open_thread(&shown, thread_id, window, cx);
+            crate::threads_page::open_row(&shown, &target, window, cx);
         });
     }
 

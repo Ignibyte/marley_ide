@@ -9,18 +9,28 @@
 //!
 //! Reopen Thread… (#772) is the same list as a picker: the unarchived conversations, newest first,
 //! opened the page's way.
+//!
+//! The Claude Code and Codex sessions in the CLIs' own files are listed among them (#754, from
+//! `cli_sessions`), with a chip per CLI; the page's search also finds one by its prompts, and a
+//! click reopens it with its CLI's resume, or brings forward the terminal running it. A session
+//! Zed's store already holds, by its session id, is listed once, as Zed's.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use agent_ui::AgentPanel;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use chrono::{DateTime, Utc};
 use editor::{Editor, EditorEvent};
 use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
     App, AppContext as _, Context, DismissEvent, Empty, Entity, EventEmitter, FocusHandle,
     Focusable, SharedString, Subscription, Task, WeakEntity, Window, actions,
 };
+use marley_agent::AgentKind;
+use marley_agent::cli_sessions::{CliSession, Found};
+use marley_mcp::redact::Redactor;
 use picker::{Picker, PickerDelegate};
 use project::{AgentId, DisableAiSettings, Project};
 use settings::Settings as _;
@@ -65,6 +75,7 @@ pub(crate) fn reopen(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     if DisableAiSettings::get_global(cx).disable_ai {
         return;
     }
+    crate::cli_sessions::refresh(cx);
     let handle = workspace.weak_handle();
     let project = workspace.project().clone();
     let rows = conversations("", cx);
@@ -73,39 +84,102 @@ pub(crate) fn reopen(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     });
 }
 
-/// The store's unarchived conversations, not drafts, newest first, whose title or folder holds
-/// `query`: what Reopen Thread… (#772) and the rail's Threads view (#745) list.
+/// The store's unarchived conversations, not drafts, and the CLI sessions (#754), newest first,
+/// whose title or folder holds `query`: what Reopen Thread… (#772) and the rail's Threads view
+/// (#745) list.
 pub(crate) fn conversations(query: &str, cx: &App) -> Vec<Row> {
-    let Some(store) = ThreadMetadataStore::try_global(cx) else {
-        return Vec::new();
-    };
-    let store = store.read(cx);
     let query = query.to_lowercase();
-    let mut records: Vec<&ThreadMetadata> = store
-        .entries()
-        .filter(|record| !record.is_draft() && matches(record, &query))
-        .collect();
-    records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
-    records.into_iter().map(row_of).collect()
+    let mut rows: Vec<Row> = ThreadMetadataStore::try_global(cx)
+        .map(|store| {
+            store
+                .read(cx)
+                .entries()
+                .filter(|record| !record.is_draft() && !record.archived && matches(record, &query))
+                .map(row_of)
+                .collect()
+        })
+        .unwrap_or_default();
+    rows.extend(cli_rows(cx).into_iter().filter_map(|(mut row, session)| {
+        matches_cli(&mut row, &session, &query, &CliSearch::Titles).then_some(row)
+    }));
+    rows.sort_by_key(|row| std::cmp::Reverse(row.updated_at));
+    rows
 }
 
 /// `record` as the page and the picker list it.
 fn row_of(record: &ThreadMetadata) -> Row {
     Row {
-        thread_id: record.thread_id,
-        agent: record.agent_id.clone(),
+        target: Target::Thread {
+            thread_id: record.thread_id,
+            agent: record.agent_id.clone(),
+        },
         title: record.display_title(),
         folder: record
             .folder_paths()
             .paths()
             .first()
             .map(|path| shown_folder(path)),
-        when: record
-            .updated_at
-            .with_timezone(&chrono::Local)
-            .format("%b %-d, %H:%M")
-            .to_string(),
+        updated_at: record.updated_at,
+        snippet: None,
+        when: when(record.updated_at),
     }
+}
+
+/// The CLI sessions the last scan found (#754), as rows, each with its session, but for the ones
+/// Zed's store holds by their session id.
+fn cli_rows(cx: &App) -> Vec<(Row, Arc<CliSession>)> {
+    let known: HashSet<String> = ThreadMetadataStore::try_global(cx)
+        .map(|store| {
+            store
+                .read(cx)
+                .entries()
+                .filter_map(|record| record.session_id.as_ref().map(|id| id.0.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    crate::cli_sessions::listed(cx)
+        .iter()
+        .filter(|listed| !known.contains(&listed.session.id))
+        .map(|listed| {
+            let session = Arc::clone(&listed.session);
+            let row = Row {
+                target: Target::Cli(Arc::clone(&session)),
+                title: session.shown_title().into(),
+                folder: Some(shown_folder(std::path::Path::new(&session.folder))),
+                updated_at: listed.modified,
+                snippet: None,
+                when: when(listed.modified),
+            };
+            (row, session)
+        })
+        .collect()
+}
+
+/// How a CLI session's row is searched: by its title and folder, or by its prompts too, whose
+/// snippet goes through #516's redactor while agents' redaction is on.
+enum CliSearch<'a> {
+    Titles,
+    Prompts(Option<&'a Redactor>),
+}
+
+/// Whether a CLI session's row matches `query` (lowercase): by its title or folder, or by one of
+/// its prompts, which gives the row its snippet.
+fn matches_cli(row: &mut Row, session: &CliSession, query: &str, search: &CliSearch<'_>) -> bool {
+    match (session.search(query), search) {
+        (Some(Found::Listed), _) => true,
+        (Some(Found::Prompt(snippet)), CliSearch::Prompts(redactor)) => {
+            row.snippet = Some(crate::mcp::for_agents(&snippet, *redactor).text);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// When a row last changed, in the local clock: `Oct 11, 15:05`.
+fn when(at: DateTime<Utc>) -> String {
+    at.with_timezone(&chrono::Local)
+        .format("%b %-d, %H:%M")
+        .to_string()
 }
 
 /// Brings `workspace`'s Threads page forward, or opens one in its center.
@@ -118,6 +192,7 @@ pub(crate) fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
         workspace.activate_item(&page, true, true, window, cx);
         return;
     }
+    crate::cli_sessions::refresh(cx);
     let handle = workspace.weak_handle();
     let page = cx.new(|cx| ThreadsPage::new(handle, window, cx));
     workspace.add_item_to_center(Box::new(page.clone()), window, cx);
@@ -128,8 +203,8 @@ pub(crate) fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
 pub struct ThreadsPage {
     workspace: WeakEntity<Workspace>,
     search: Entity<Editor>,
-    /// The agent whose chip is chosen; none lists every agent.
-    agent: Option<AgentId>,
+    /// The chip chosen; none lists every agent.
+    agent: Option<Chip>,
     /// Whether the archived conversations are listed.
     archived_open: bool,
     focus_handle: FocusHandle,
@@ -146,27 +221,85 @@ impl std::fmt::Debug for ThreadsPage {
 
 /// One conversation as the page lists it, and the rail's Threads view (#745).
 pub(crate) struct Row {
-    pub(crate) thread_id: ThreadId,
-    pub(crate) agent: AgentId,
+    pub(crate) target: Target,
     pub(crate) title: SharedString,
     /// Its first folder, the home folder as `~`; none for a conversation with no folder.
     pub(crate) folder: Option<String>,
+    /// When it last changed, which orders the lists.
+    updated_at: DateTime<Utc>,
+    /// The words around a prompt the page's search found it by (#754).
+    snippet: Option<String>,
     when: String,
 }
 
-/// The page's rows, by section, and the agents the chips offer.
+/// What a row opens: one of Zed's conversations, or a CLI session (#754).
+#[derive(Clone)]
+pub(crate) enum Target {
+    Thread { thread_id: ThreadId, agent: AgentId },
+    Cli(Arc<CliSession>),
+}
+
+impl Row {
+    /// The row's identity in element ids.
+    pub(crate) fn key(&self) -> String {
+        match &self.target {
+            Target::Thread { thread_id, .. } => thread_id.to_key_string(),
+            Target::Cli(session) => format!("cli-{}", session.id),
+        }
+    }
+
+    /// The icon of the row's agent: Zed's agent's, or the CLI's.
+    pub(crate) fn icon(&self, project: &Entity<Project>, cx: &App) -> Icon {
+        match &self.target {
+            Target::Thread { agent, .. } => match agents::thread_icon(agent, project, cx) {
+                AgentIcon::Named(name) => Icon::new(name),
+                AgentIcon::Svg(path) => Icon::from_external_svg(path),
+            },
+            Target::Cli(session) => Icon::new(agents::cli_icon(session.agent)),
+        }
+    }
+
+    /// The row's second line: its agent, and its folder when it has one.
+    pub(crate) fn detail(&self, project: &Entity<Project>, cx: &App) -> String {
+        let agent = match &self.target {
+            Target::Thread { agent, .. } => agents::thread_agent_name(agent, project, cx),
+            Target::Cli(session) => cli_name(session.agent).into(),
+        };
+        self.folder
+            .as_ref()
+            .map_or_else(|| agent.to_string(), |folder| format!("{agent} · {folder}"))
+    }
+}
+
+/// A CLI's name beside Zed's agents of the same name: `Claude Code CLI`, `Codex CLI`.
+fn cli_name(agent: AgentKind) -> String {
+    format!("{} CLI", agent.display_name())
+}
+
+/// A chip of the page: one of Zed's agents, or a CLI (#754).
+#[derive(Clone, PartialEq)]
+enum Chip {
+    Agent(AgentId),
+    Cli(AgentKind),
+}
+
+/// The page's rows, by section, and the chips offered.
 struct Sections {
     assistants: Vec<Row>,
     others: Vec<Row>,
     archived: Vec<Row>,
-    agents: Vec<AgentId>,
+    chips: Vec<Chip>,
 }
 
 impl ThreadsPage {
     fn new(workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let search = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("Search conversations by title or folder…", window, cx);
+            editor.set_placeholder_text(
+                "Search conversations by title or folder, and CLI sessions by their prompts…",
+                window,
+                cx,
+            );
             editor
         });
         let mut subscriptions = vec![cx.subscribe(&search, |_, _, event: &EditorEvent, cx| {
@@ -177,6 +310,11 @@ impl ThreadsPage {
         if let Some(store) = ThreadMetadataStore::try_global(cx) {
             subscriptions.push(cx.observe(&store, |_, _, cx| cx.notify()));
         }
+        subscriptions.push(
+            cx.observe_global::<crate::cli_sessions::CliSessions>(|_, cx| {
+                cx.notify();
+            }),
+        );
         Self {
             workspace,
             search,
@@ -194,28 +332,25 @@ impl ThreadsPage {
             assistants: Vec::new(),
             others: Vec::new(),
             archived: Vec::new(),
-            agents: Vec::new(),
+            chips: Vec::new(),
         };
-        let Some(store) = ThreadMetadataStore::try_global(cx) else {
-            return sections;
-        };
-        let store = store.read(cx);
-        let mut records: Vec<&ThreadMetadata> = store
-            .entries()
-            .filter(|record| !record.is_draft())
-            .chain(store.archived_entries())
-            .collect();
+        // The store's entries hold the archived conversations too, each once.
+        let mut records: Vec<&ThreadMetadata> = ThreadMetadataStore::try_global(cx)
+            .map(|store| {
+                store
+                    .read(cx)
+                    .entries()
+                    .filter(|record| !record.is_draft())
+                    .collect()
+            })
+            .unwrap_or_default();
         records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
         for record in records {
-            if !sections.agents.contains(&record.agent_id) {
-                sections.agents.push(record.agent_id.clone());
+            let chip = Chip::Agent(record.agent_id.clone());
+            if !sections.chips.contains(&chip) {
+                sections.chips.push(chip.clone());
             }
-            if self
-                .agent
-                .as_ref()
-                .is_some_and(|agent| *agent != record.agent_id)
-                || !matches(record, &query)
-            {
+            if self.agent.as_ref().is_some_and(|agent| *agent != chip) || !matches(record, &query) {
                 continue;
             }
             let row = row_of(record);
@@ -227,12 +362,28 @@ impl ThreadsPage {
                 sections.others.push(row);
             }
         }
+        let redactor = crate::mcp::agent_redactor(cx);
+        let search = CliSearch::Prompts(redactor.as_deref());
+        for (mut row, session) in cli_rows(cx) {
+            let chip = Chip::Cli(session.agent);
+            if !sections.chips.contains(&chip) {
+                sections.chips.push(chip.clone());
+            }
+            if self.agent.as_ref().is_none_or(|agent| *agent == chip)
+                && matches_cli(&mut row, &session, &query, &search)
+            {
+                sections.others.push(row);
+            }
+        }
+        sections
+            .others
+            .sort_by_key(|row| std::cmp::Reverse(row.updated_at));
         sections
     }
 
     fn render_chips(
         &self,
-        agents: &[AgentId],
+        chips: &[Chip],
         project: &Entity<Project>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
@@ -247,18 +398,19 @@ impl ThreadsPage {
             .flex_wrap()
             .gap_1()
             .child(all)
-            .children(agents.iter().enumerate().map(|(index, agent)| {
-                let chosen = agent.clone();
-                Button::new(
-                    ("marley-threads-chip", index),
-                    agents::thread_agent_name(agent, project, cx),
-                )
-                .style(ButtonStyle::Subtle)
-                .toggle_state(self.agent.as_ref() == Some(agent))
-                .on_click(cx.listener(move |page, _, _, cx| {
-                    page.agent = Some(chosen.clone());
-                    cx.notify();
-                }))
+            .children(chips.iter().enumerate().map(|(index, chip)| {
+                let chosen = chip.clone();
+                let name: SharedString = match chip {
+                    Chip::Agent(agent) => agents::thread_agent_name(agent, project, cx),
+                    Chip::Cli(agent) => cli_name(*agent).into(),
+                };
+                Button::new(("marley-threads-chip", index), name)
+                    .style(ButtonStyle::Subtle)
+                    .toggle_state(self.agent.as_ref() == Some(chip))
+                    .on_click(cx.listener(move |page, _, _, cx| {
+                        page.agent = Some(chosen.clone());
+                        cx.notify();
+                    }))
             }))
     }
 
@@ -288,22 +440,15 @@ impl ThreadsPage {
     }
 
     fn render_row(&self, row: Row, project: &Entity<Project>, cx: &Context<Self>) -> AnyElement {
-        let icon = match agents::thread_icon(&row.agent, project, cx) {
-            AgentIcon::Named(name) => Icon::new(name),
-            AgentIcon::Svg(path) => Icon::from_external_svg(path),
-        };
-        let agent_name = agents::thread_agent_name(&row.agent, project, cx);
-        let detail = row.folder.as_ref().map_or_else(
-            || agent_name.to_string(),
-            |folder| format!("{agent_name} · {folder}"),
-        );
+        let icon = row.icon(project, cx);
+        let detail = row.detail(project, cx);
         // A plain closure over a weak handle: opening a conversation updates the workspace, which
         // reads its items, this page among them (PR-claude-701).
         let workspace = self.workspace.clone();
-        let thread_id = row.thread_id;
+        let target = row.target.clone();
         ListItem::new(SharedString::from(format!(
             "marley-threads-row-{}",
-            row.thread_id.to_key_string()
+            row.key()
         )))
         .spacing(ListItemSpacing::Sparse)
         .start_slot(icon.color(Color::Muted))
@@ -316,7 +461,16 @@ impl ThreadsPage {
                         .size(LabelSize::Small)
                         .color(Color::Muted)
                         .truncate(),
-                ),
+                )
+                .when_some(row.snippet, |lines, snippet| {
+                    lines.child(
+                        Label::new(snippet)
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                            .italic()
+                            .truncate(),
+                    )
+                }),
         )
         .end_slot(
             Label::new(row.when)
@@ -324,9 +478,23 @@ impl ThreadsPage {
                 .color(Color::Muted),
         )
         .on_click(move |_, window, cx| {
-            open_thread(&workspace, thread_id, window, cx);
+            open_row(&workspace, &target, window, cx);
         })
         .into_any_element()
+    }
+}
+
+/// Opens what a row stands for: a conversation the page's way, or a CLI session with its resume
+/// (#754).
+pub(crate) fn open_row(
+    workspace: &WeakEntity<Workspace>,
+    target: &Target,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    match target {
+        Target::Thread { thread_id, .. } => open_thread(workspace, *thread_id, window, cx),
+        Target::Cli(session) => crate::cli_sessions::reopen(workspace, session, window, cx),
     }
 }
 
@@ -460,7 +628,7 @@ impl Render for ThreadsPage {
                     .rounded_md()
                     .child(self.search.clone()),
             )
-            .child(self.render_chips(&sections.agents, &project, cx))
+            .child(self.render_chips(&sections.chips, &project, cx))
             .when(empty, |page| page.child(muted("No conversation matches.")))
             .child(self.render_section("MARLEY AND RUSTY", sections.assistants, &project, cx))
             .child(self.render_section("ALL CONVERSATIONS", sections.others, &project, cx))
@@ -644,21 +812,21 @@ impl PickerDelegate for ReopenThreadDelegate {
     }
 
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        let thread_id = self
+        let target = self
             .matches
             .get(self.selected_index)
             .and_then(|found| self.rows.get(found.candidate_id))
-            .map(|row| row.thread_id);
+            .map(|row| row.target.clone());
         self.modal
             .update(cx, |_, cx| cx.emit(DismissEvent))
             .log_err();
-        let Some(thread_id) = thread_id else {
+        let Some(target) = target else {
             return;
         };
         let workspace = self.workspace.clone();
         // The open reads every workspace, this one included, and may show a modal (PR-claude-735).
         window.defer(cx, move |window, cx| {
-            open_thread(&workspace, thread_id, window, cx);
+            open_row(&workspace, &target, window, cx);
         });
     }
 
@@ -677,15 +845,8 @@ impl PickerDelegate for ReopenThreadDelegate {
     ) -> Option<Self::ListItem> {
         let found = self.matches.get(index)?;
         let row = self.rows.get(found.candidate_id)?;
-        let icon = match agents::thread_icon(&row.agent, &self.project, cx) {
-            AgentIcon::Named(name) => Icon::new(name),
-            AgentIcon::Svg(path) => Icon::from_external_svg(path),
-        };
-        let agent_name = agents::thread_agent_name(&row.agent, &self.project, cx);
-        let detail = row.folder.as_ref().map_or_else(
-            || agent_name.to_string(),
-            |folder| format!("{agent_name} · {folder}"),
-        );
+        let icon = row.icon(&self.project, cx);
+        let detail = row.detail(&self.project, cx);
         let title_end = row.title.len();
         let positions = found
             .positions

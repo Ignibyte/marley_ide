@@ -167,7 +167,7 @@ fn layout_section() -> [SettingsPageItem; 6] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 20] {
+fn agents_section() -> [SettingsPageItem; 21] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -256,6 +256,29 @@ fn agents_section() -> [SettingsPageItem; 20] {
                         .marley
                         .get_or_insert_default()
                         .continue_at_reset = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: past CLI sessions listed in Threads (#754).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "List CLI Sessions",
+            description: "List the Claude Code and Codex sessions in the CLIs' own files on the Threads page, in the rail's Threads view and in Reopen Thread…, beside Zed's conversations. Choosing one resumes it in a terminal in its folder, or brings forward the terminal it runs in. Off, no session file is read.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.list_cli_sessions"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.list_cli_sessions.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .list_cli_sessions = value;
                 },
             }),
             metadata: None,

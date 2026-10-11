@@ -35,6 +35,7 @@ use std::time::Duration;
 use marley_fleet::State;
 
 pub mod claude_events;
+pub mod cli_sessions;
 pub mod codex_events;
 pub mod report;
 pub mod risk;
