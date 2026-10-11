@@ -1,7 +1,7 @@
 ---
 pipeline_id: 96dcb201-0928-4d7c-bfd0-6793f94d533a
 ticket: docs/planning/tickets/open/TICKET-715-usage-meter-and-resume-at-reset.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A usage meter, and resume at the reset
 type: feature
 slice: prong 2; T3 Code survey items 2 and 12, MonoCode finding 2; first of two slices (Codex's limit, both agents' meter)
@@ -42,7 +42,8 @@ Reset (Out).
   turn's end, and `apply_report` puts them on the seat as the same labels.
 - **The meter.** A Claude Code or Codex row whose seat carries quota windows gets #640's quota
   line, `five_hour 62 % · resets in 1 h 35 m`, the most-used window, and #640's tooltip, every
-  window most used first with its reset. One drawing for harness, Claude Code and Codex rows.
+  window most used first with its reset. One drawing for harness, Claude Code and Codex rows, and
+  one reading: a percent above 100 reads as 100, a full window, for harness rows too.
 - **Limited.** A Codex turn that completes `failed` with `codexErrorInfo` `usageLimitExceeded` or
   `rateLimitExceeded` makes the seat limited. Its reset is the latest reset among the windows at
   100 % or more that reset after the failure, none when such a window has no reset or none is
@@ -54,7 +55,8 @@ Reset (Out).
   no button and a click shows the terminal.
 - **Continue.** At the armed reset, or at once for Continue, Marley sends `turn/start` on the lead
   thread with the text "Continue where you left off.", once per (terminal, connection generation,
-  thread, failed turn, reset). Codex's TUI draws it as a user message.
+  thread, failed turn, reset), and only while the thread is idle: Codex 0.162 takes a `turn/start`
+  sent during a turn as more input to that turn. Codex's TUI draws it as a user message.
 - **Guards**, after T3 Code's `UsageLimitRecoveryWorker.ts:11-70`: no arm when the reset was not
   after the failure; an arm drops, sending nothing, when any turn starts on the thread, the thread
   waits on a request, the thread closes, Marley's connection ends or the terminal closes. A reset
@@ -146,25 +148,30 @@ Reset (Out).
 `script/e2e/715-usage-meter-and-resume-at-reset.sh`, under `compositor sway` (buttons are clicked
 and the pointer rests on a row). Fakes only: #650's stand-in `codex` (`codex-fixture.sh`,
 `MARLEY_CODEX`, `marley.codex_app_server` on in the run's copy) with new cues `limits
-five_hour:62:+95m seven_day:31:+3d` (an `account/rateLimits/updated`), `limited +40s` (an update
-with `five_hour` at 100 % resetting in 40 seconds, then `turn/completed` `failed` with
-`usageLimitExceeded`), and `limited-unknown` (the same failure with no full window); its server
+five_hour:62:+95m seven_day:31:+3d` (an `account/rateLimits/updated`), `limited +80s` (an update
+with `five_hour` at 100 % resetting in 80 seconds, then `turn/completed` `failed` with
+`usageLimitExceeded`), and `limited-unknown` (`rateLimitExceeded` with no full window); its server
 logs every `turn/start` with its client and text. A stand-in `claude` that runs `"$MARLEY_BIN"
 report idle --quota five_hour:41:<ms> --quota seven_day:12:<ms>` as the shared plugin does.
-Shots:
-- `715-01-meters`: a Codex row with `five_hour 62 % · resets in 1 h 35 m` and a Claude Code row
-  with `five_hour 41 % · resets in …`.
-- `715-02-tooltip`: the pointer on the Codex row: both windows, most used first, with resets.
-- `715-03-limited`: after `limited +40s`: the row `limited · resets in 1 m`, not `failed`, and the
-  Needs you entry with Continue at Reset.
+Shots (the reset is `+80s`, so the countdown reads `resets in 1 m`):
+- `715-01-meters`: a Codex row with `5 h 62 % · resets in 1 h 34 m` and a Claude Code row with
+  `5 h 41 % · resets in 2 h 9 m` (`5 h` and `7 d` are the row's short words for `five_hour` and
+  `seven_day`).
+- `715-02-tooltip`: the pointer on the Codex row: "Codex usage", both windows by name, most used
+  first, with resets.
+- `715-03-limited`: after `limited +80s`: the row `limited · resets in 1 m`, not `failed`, in the
+  warning colour, and the Needs you entry with Continue at Reset.
 - `715-04-armed`: Continue at Reset clicked: "Continues at <time>" and Cancel.
-- `715-05-continued`: 40 seconds on: the row `working`, the entry gone; the server log's one
-  `turn/start` from Marley with "Continue where you left off."; the TUI shows it as a user message.
-- `715-06-dropped`: a second `limited +40s`, armed, then `work` typed in the terminal before the
-  reset: the entry gone, and 40 seconds on no `turn/start` from Marley in the log.
+- `715-05-continued`: 85 seconds on: the row `working`, the entry gone; the server log's one
+  `turn/start` from Marley with "Continue where you left off."; the TUI prints it as a user message.
+- `715-06-dropped`: a second `limited +80s`, armed, then `work` cued before the reset: the entry
+  gone, and 85 seconds on no second `turn/start` from Marley in the log.
 - `715-07-no-reset`: `limited-unknown`: the row `limited`, the entry with no button.
-- `715-08-setting`: the Agents section's "Continue Limited Agents at Reset", off; turned on, a
-  third `limited +40s` arms with no click ("Continues at <time>").
+- `715-08-setting-off` and `715-08-setting`: the Agents section's "Continue Limited Agents at
+  Reset", off, then on.
+- `715-09-armed-by-setting`: a third `limited +80s` arms with no click ("Continues at <time>").
+- `715-10-cancelled`: Cancel clicked with the setting on, then a rate-limit update folds the seat
+  again: the entry back to Continue at Reset, not armed again.
 
 ## Locked-In Decisions
 - **D1:** The meter is a line on the agent's rail row and its tooltip, #640's drawing reused for

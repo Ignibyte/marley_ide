@@ -19,7 +19,13 @@
 # <question>` (no options), `toolok <server> <persist,…> <message>` (a tool call's approval with
 # nothing to fill in) and `form <server> <message>` (a field); and a turn's edits (#753): `prompt
 # <text>` (a turn and its `userMessage` item), `write <path> <text>` and `sh <command>` (in the
-# thread's folder) and `interrupt`. `resume … <id>` with `--remote` is the TUI
+# thread's folder) and `interrupt`; and the account's limits (#715): `limits
+# five_hour:62:+95m seven_day:31:+3d` (an `account/rateLimits/updated` to every connection, each
+# window `KIND:PERCENT[:+N(s|m|h|d)]`), `limited +40s` (the five-hour window full until then, and
+# the turn failed with `usageLimitExceeded`) and `limited-unknown` (the window at 20 % and the turn
+# failed with `rateLimitExceeded`). A client's `turn/start` starts a turn with its text as the
+# user's message, which the TUI prints, and is logged with the client and the text; during a turn
+# it is logged as steering. `resume … <id>` with `--remote` is the TUI
 # resuming that thread instead of starting one (#750): the server loads a thread it does not hold
 # as idle, as Codex loads one from its files, and announces it. The TUI logs each line typed into
 # it to `$E2E_WORK/tui.log`, and takes the lines written to `$E2E_WORK/tui.fifo` as typed ones
@@ -186,6 +192,49 @@ def ask(thread, method, params, flag="waitingOnApproval"):
         connection.send({"id": ident, "method": method, "params": params})
 
 
+# The windows of the account's `codex` bucket by kind: (slot, length in minutes) (#715).
+WINDOWS = {"five_hour": ("primary", 300), "seven_day": ("secondary", 10080),
+           "primary": ("primary", None), "secondary": ("secondary", None)}
+UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def rate_limits(words):
+    """Sends every joined connection an `account/rateLimits/updated` with the windows `words`
+    names, `KIND:PERCENT[:+N(s|m|h|d)]`, as Codex broadcasts its account's windows (#715)."""
+    snapshot = {"limitId": "codex", "limitName": None, "primary": None, "secondary": None,
+                "credits": None, "planType": "plus", "rateLimitReachedType": None}
+    for word in words:
+        kind, percent, *reset = word.split(":")
+        slot, length = WINDOWS[kind]
+        window = {"usedPercent": int(percent), "windowDurationMins": length, "resetsAt": None}
+        if reset:
+            offset = reset[0].removeprefix("+")
+            window["resetsAt"] = int(time.time()) + int(offset[:-1]) * UNITS[offset[-1]]
+        snapshot[slot] = window
+    log("server.log", f"{os.getpid()} - rate limits {' '.join(words)}")
+    notify(joined(), "account/rateLimits/updated", {"rateLimits": snapshot})
+
+
+def fail_turn(thread, message, code):
+    """Ends the thread's turn as failed with Codex's error code `code` (#715)."""
+    turn = {"id": thread["turn"], "status": "failed",
+            "error": {"message": message, "codexErrorInfo": code, "additionalDetails": None}}
+    notify(thread["subscribers"], "turn/completed", {"threadId": thread["id"], "turn": turn})
+    set_status(thread, {"type": "idle"})
+
+
+def start_turn(thread, text):
+    """A turn with `text` as the user's message, as Codex starts one for `turn/start`."""
+    thread["turn"] = str(uuid.uuid4())
+    notify(thread["subscribers"], "turn/started",
+           {"threadId": thread["id"], "turn": {"id": thread["turn"], "status": "inProgress"}})
+    set_status(thread, {"type": "active", "activeFlags": []})
+    notify(thread["subscribers"], "item/started", {
+        "threadId": thread["id"], "turnId": thread["turn"], "startedAtMs": now_ms(),
+        "item": {"type": "userMessage", "id": next_item("u"),
+                 "content": [{"type": "text", "text": text, "text_elements": []}]}})
+
+
 def next_item(prefix):
     STATE["item"] += 1
     return f"{prefix}{STATE['item']}"
@@ -320,14 +369,16 @@ def play(thread, cue):
         set_status(thread, {"type": "active", "activeFlags": ["waitingOnUserInput"]})
     elif cue == "prompt":
         # `prompt <text>`: a turn, and the user's message it answers (#753).
-        thread["turn"] = str(uuid.uuid4())
-        notify(subscribers, "turn/started",
-               {"threadId": thread["id"], "turn": {"id": thread["turn"], "status": "inProgress"}})
-        set_status(thread, {"type": "active", "activeFlags": []})
-        notify(subscribers, "item/started", {
-            "threadId": thread["id"], "turnId": thread["turn"], "startedAtMs": now_ms(),
-            "item": {"type": "userMessage", "id": next_item("u"),
-                     "content": [{"type": "text", "text": rest, "text_elements": []}]}})
+        start_turn(thread, rest)
+    elif cue == "limits":
+        rate_limits(rest.split())
+    elif cue == "limited":
+        # The five-hour window fills until `+N`, then the turn fails at the usage limit (#715).
+        rate_limits([f"five_hour:100:{rest}"])
+        fail_turn(thread, "You've hit your usage limit. Try again later.", "usageLimitExceeded")
+    elif cue == "limited-unknown":
+        rate_limits(["five_hour:20"])
+        fail_turn(thread, "Rate limit reached. Please try again.", "rateLimitExceeded")
     elif cue == "write":
         # `write <path> <text>`: the turn edits a file in the thread's folder (#753).
         path, _, text = rest.partition(" ")
@@ -435,6 +486,20 @@ def answer(connection, message):
             if thread is not None:
                 thread["subscribers"].discard(connection)
             reply({"status": "unsubscribed"})
+        elif method == "turn/start":
+            # A client starts a turn with its text, or steers the one that runs (#715).
+            thread = THREADS.get(params.get("threadId"))
+            text = " ".join(part.get("text", "") for part in params.get("input") or [])
+            if thread is None:
+                fail(-32600, "no such thread")
+                return
+            busy = thread["status"].get("type") == "active"
+            log("server.log", f"{os.getpid()} - turn/start by {connection.name}"
+                f"{' (steers)' if busy else ''}: {text}")
+            if not busy:
+                start_turn(thread, text)
+            reply({"turn": {"id": thread["turn"], "status": "inProgress", "items": [],
+                            "error": None}})
         elif method == "standIn/cue":
             thread = THREADS.get(params.get("threadId"))
             reply({})
@@ -538,6 +603,12 @@ def tui(path, folder):
                 request = message["params"]["requestId"]
                 if request not in answered:
                     print(f"closed {request}: answered elsewhere", flush=True)
+            elif message.get("method") == "item/started":
+                # A user's message, as Codex's TUI draws one another client sent (#715).
+                item = message["params"].get("item") or {}
+                if item.get("type") == "userMessage":
+                    text = " ".join(part.get("text", "") for part in item.get("content") or [])
+                    print(f"user: {text}", flush=True)
 
     threading.Thread(target=read, daemon=True).start()
     counter = [0]

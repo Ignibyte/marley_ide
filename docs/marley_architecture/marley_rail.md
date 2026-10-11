@@ -128,6 +128,9 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   `turns_open` whether the rail lists them under the row. The builders copy both to
   `TerminalRow`; the turns are drawn inside the terminal's row, not as rows of their own, so they
   move no selection and decide no order.
+- **`TerminalSnapshot::usage`** (#715) is the agent's account usage, `Usage { quota, limit }`: the
+  `QuotaWindow`s most used first (the one type #640's harness rows read too) and the
+  `codex_events::Limit` a Codex stopped at, which the crate re-exports. The builders copy it.
 - **The inbox (#508).** `RailSnapshot.inbox` holds what waits on the user as `InboxEntry`s: a
   key naming what waits and on what, the kind (`InboxKind::Thread` for an Agent Panel tool call
   waiting for confirmation, `Terminal` for an agent CLI waiting on a permission or a question,
@@ -135,7 +138,8 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   question, #534, `Codex` for a request a Codex App Server asks to approve, #651), the agent, the
   project, what it asks on one line, how long it has waited in words, and the answers it takes in
   place, as a list of `InboxAnswer`s (Allow, Allow session, Deny, Refuse, Stop turn, Dismiss, each
-  with its words, its tooltip and whether it allows, #651). `waited_words` gives the
+  with its words, its tooltip and whether it allows, #651; Continue at Reset, Continue and Cancel
+  for a limited Codex, which allow nothing, #715). `waited_words` gives the
   words: `now` under a minute, then `3 m`, then `1 h 5 m`. The inbox decides no row's order or
   visibility, and the fold and the filter leave it whole. Since #568 an entry also carries its
   `chips` (`marley_agent::risk::Chip`: what the action would do, and whether Marley's rules or a

@@ -1598,6 +1598,34 @@ alike.
   wait; its buttons come from the request's decisions (`inbox_answer`), wrap under the entry, and
   read `Sent: <decision>` once sent; `codex_waiting` gives #568's marks; a click sends through
   `codex_decision`, and the entry's body shows the terminal.
+- **Usage limits (#715).** `heard` takes `account/rateLimits/updated` before its thread filter:
+  `RateLimits::decode` passes over any bucket but `codex`, `Following.rate_limits` merges each
+  sparse update, and the merged windows fold into the lead's seat (`Input::RateLimits`), again
+  after a new lead, whose seat starts with no labels. The follow publishes its channel at its
+  start, so `generation_of` and `continue_lead` reach it before any request. `Event::Continue`
+  carries a `limits::Limited`; `continued` sends `turn/start` with `RESUME_PROMPT` only while the
+  generation, the lead's id, its idle state, an empty request list and the seat's limited turn
+  all still match, since a `turn/start` during a turn adds to that turn; a refusal or a failed
+  call is logged. `Following::fold` hands the seat to `limits::on_seat` after every fold, and the
+  follow's end and the terminal's release call `limits::forget`.
+- **`src/limits.rs` (#715).** The `Arms` global holds one armed `Limited` (generation, thread,
+  failed turn, reset) per terminal entity, the limits already continued or cancelled
+  (`handled`), and whether a check runs. `arm` starts a check at the earliest reset, 30 s at most,
+  against the wall clock (`now_ms`), so a reset that passed during sleep fires at the next check;
+  `fire_due` sends each due arm once. `on_seat` drops an arm the seat no longer matches (a turn
+  started, a wait, the thread closed or changed) and, with `ContinueAtReset::Always`, arms a new
+  limit with a known reset unless it was handled. `cancel` records the limit as handled, so the
+  setting does not arm it again; `continue_now` sends at once.
+- **The rail (#715).** `usage_of` gives each agent row its `Usage`: the quota windows through
+  `Signals::of` (a percent above 100 reads as 100, `used_percent_of`) and a Codex's `limit`.
+  `codex_line` adds the limit's reset; a limited row's line is drawn in the warning colour;
+  `usage_parts` gives the quota line (`quota_line`, the kind as `kind_words` writes it, `5 h` or
+  `7 d`) and the tooltip, titled `<agent> usage`, every window by name (`window_words`); harness
+  rows share `quota_line`. `next_reset_change` arms the minute timer for the next change of any
+  shown countdown. A limited Codex is an `InboxTarget::Limit` entry (`limit_entry`, keyed by the
+  view, the generation and the turn): Continue at Reset, Continue once the reset passed,
+  `Continues at <clock>` with Cancel while armed (`clock_words`, local time), or no button; the
+  rail observes `Arms`.
 
 ## Codex's and OpenCode's notifications (`src/agent_notify.rs`, #552)
 

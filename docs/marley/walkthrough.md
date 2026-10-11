@@ -1369,6 +1369,9 @@ Under Claude Code's row, open **Turns (N)**.
 - [ ] Turn on Codex notifications writes three keys under `[tui]` in Codex's `config.toml` and
   keeps the rest of the file. After it, Codex posts a notification when a turn ends in a
   terminal you are not looking at.
+- [ ] With Codex App Server on (Marley page, Agents), once Codex has answered a prompt its row
+  shows a usage line such as `5 h 12 % · resets in 3 h 40 m`, and pointing at the row lists
+  `five_hour` and `seven_day` with their resets (#715).
 
 ### 5.18 Permission modes (#532)
 

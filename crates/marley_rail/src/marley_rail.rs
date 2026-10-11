@@ -197,6 +197,8 @@ pub struct TerminalSnapshot {
     pub turns: Vec<TurnSnapshot>,
     /// Whether the row's turns are listed under it.
     pub turns_open: bool,
+    /// The agent's account usage (#715): its quota windows and the limit it stopped at.
+    pub usage: Usage,
     /// The folder of the linked worktree whose workspace holds the terminal, which lists it under
     /// that worktree's row (#510); `None` for the main checkout's.
     pub worktree: Option<String>,
@@ -227,6 +229,29 @@ pub struct RunningError {
     /// Whether a reading in `suggest`, not a shape, found it, which the mark shows with a `?`.
     pub questioned: bool,
 }
+
+/// An agent's account usage, as its row shows it (#715).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Usage {
+    /// The windows of the account's quota, most used first; empty until the agent reports one.
+    pub quota: Vec<QuotaWindow>,
+    /// The usage limit the agent stopped at; `None` while it is not limited.
+    pub limit: Option<Limit>,
+}
+
+/// One window of an agent account's quota (#640, #715).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotaWindow {
+    /// The window's kind as the agent or the harness names it, such as `five_hour`.
+    pub kind: String,
+    /// How much of the window is used, from 0 to 100.
+    pub percent_used: u8,
+    /// When the window resets, in milliseconds since the epoch.
+    pub resets_at_ms: Option<u64>,
+}
+
+/// A usage limit an agent stopped at (#715).
+pub use marley_agent::codex_events::Limit;
 
 /// One turn of a terminal's agent that changed the tree (#509, #753).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -497,6 +522,12 @@ pub enum InboxAnswer {
     AlwaysAllow,
     /// Answer a question with the option at this index; its label comes from the request (#752).
     Option(u8),
+    /// Continue a limited agent once its limit resets (#715).
+    ContinueAtReset,
+    /// Continue a limited agent now, its limit having reset (#715).
+    Continue,
+    /// Drop an armed continuation (#715).
+    Cancel,
 }
 
 impl InboxAnswer {
@@ -512,6 +543,9 @@ impl InboxAnswer {
             Self::Dismiss => "Dismiss",
             Self::AlwaysAllow => "Always allow",
             Self::Option(_) => "Answer",
+            Self::ContinueAtReset => "Continue at Reset",
+            Self::Continue => "Continue",
+            Self::Cancel => "Cancel",
         }
     }
 
@@ -523,6 +557,11 @@ impl InboxAnswer {
             Self::StopTurn => Some("Denied, and Codex's turn is interrupted"),
             Self::Dismiss => Some("The request is cancelled"),
             Self::AlwaysAllow => Some("Allowed, and Codex keeps allowing it in its own settings"),
+            Self::ContinueAtReset => {
+                Some("Sends \"Continue where you left off.\" when the limit resets")
+            }
+            Self::Continue => Some("Sends \"Continue where you left off.\" now"),
+            Self::Cancel => Some("Nothing is sent at the reset"),
             Self::Allow | Self::Deny | Self::Refuse | Self::Option(_) => None,
         }
     }
@@ -671,6 +710,8 @@ pub struct TerminalRow {
     pub turns: Vec<TurnSnapshot>,
     /// Whether the turns are listed.
     pub turns_open: bool,
+    /// The agent's account usage (see [`TerminalSnapshot::usage`]).
+    pub usage: Usage,
     /// The folder of the worktree whose row the row sits under (#510), if one.
     pub worktree: Option<String>,
     /// Whether this is the selected row.
@@ -1648,6 +1689,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 running_error: terminal.running_error.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
+                usage: terminal.usage.clone(),
                 worktree: snapshot
                     .projects
                     .get(index)
@@ -1760,6 +1802,7 @@ pub fn switcher_rows(
                 running_error: terminal.running_error.clone(),
                 turns: terminal.turns.clone(),
                 turns_open: terminal.turns_open,
+                usage: terminal.usage.clone(),
                 worktree: None,
                 selected: false,
                 highlight: Vec::new(),
@@ -1861,6 +1904,7 @@ mod tests {
             reporting: Reporting::Timer,
             turns: Vec::new(),
             turns_open: false,
+            usage: Usage::default(),
             worktree: None,
             matched: None,
         }
@@ -2040,6 +2084,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: false,
                     highlight: Vec::new(),
@@ -2057,6 +2102,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: false,
                     highlight: Vec::new(),
@@ -2083,6 +2129,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: true,
                     highlight: Vec::new(),
@@ -2128,6 +2175,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: false,
                     highlight: Vec::new(),
@@ -2281,6 +2329,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: false,
                     highlight: Vec::new(),
@@ -2325,6 +2374,7 @@ mod tests {
                     running_error: None,
                     turns: Vec::new(),
                     turns_open: false,
+                    usage: Usage::default(),
                     worktree: None,
                     selected: false,
                     highlight: Vec::new(),

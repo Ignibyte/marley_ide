@@ -1206,15 +1206,7 @@ pub(crate) struct Progress {
 }
 
 /// One window of an account's quota, from its `quota.KIND.` labels.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct QuotaWindow {
-    /// The window's kind as the harness sends it, such as `five_hour`.
-    pub(crate) kind: String,
-    /// How much of the window is used, from 0 to 100.
-    pub(crate) percent_used: u8,
-    /// When the window resets, in milliseconds since the epoch.
-    pub(crate) resets_at_ms: Option<u64>,
-}
+pub(crate) use marley_rail::QuotaWindow;
 
 /// What a harness session's labels say beside its state (#640). A value that does not parse is
 /// left out, never guessed.
@@ -1259,7 +1251,7 @@ impl Signals {
                     .and_then(|text| text.trim().parse().ok());
                 Some(QuotaWindow {
                     kind: kind.to_string(),
-                    percent_used: percent_of(value)?,
+                    percent_used: used_percent_of(value)?,
                     resets_at_ms,
                 })
             })
@@ -1306,7 +1298,22 @@ impl Signals {
 
 /// A percent label's value: a finite number from 0 to 100, rounded to a whole one.
 fn percent_of(text: &str) -> Option<u8> {
+    whole_percent(text.trim().parse().ok()?)
+}
+
+/// A quota window's used percent, as [`percent_of`] reads it but with above 100 read as 100: an
+/// agent at its limit reports a full window as 100 or more (#715).
+fn used_percent_of(text: &str) -> Option<u8> {
     let value: f64 = text.trim().parse().ok()?;
+    whole_percent(if value.is_finite() {
+        value.min(100.0)
+    } else {
+        value
+    })
+}
+
+/// `value` rounded to a whole percent, when it is finite and from 0 to 100.
+fn whole_percent(value: f64) -> Option<u8> {
     if !value.is_finite() || !(0.0..=100.0).contains(&value) {
         return None;
     }

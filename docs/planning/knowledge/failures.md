@@ -3833,3 +3833,14 @@ showed the list was empty. A repeat of F-claude-596's class: the rule named `win
 the handlers that run inside one. Fixed in #714: `workspaces(window, cx)` reaches the window in hand
 through `window.root::<MultiWorkspace>()`, and `mcp::terminals_of` takes that list. The rule now
 names menu entries, click listeners and `AsyncWindowContext::update`.
+
+## F-claude-715-cancel-could-not-hold-against-the-setting-that-arms-001
+*severity: medium · found in: pipeline 715's Code phase (the review of the diff) · class: an automatic rule redoing what the user just undid*
+
+With `marley.continue_at_reset` on, `limits::on_seat` arms any limited Codex that has no arm, at
+every fold of its seat. Cancel only removed the arm, so the next fold of the same limit (a
+rate-limit update, a token count) armed it again, and the continuation went out at the reset
+anyway. The scenario did not reach it: it never cancelled with the setting on. Fixed in #715:
+`cancel` records the dropped limit in `handled`, beside the limits already continued, and the
+setting never arms a handled limit; `715-10-cancelled` shows the entry back to Continue at Reset
+after an update.

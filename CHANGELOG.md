@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A usage meter, and Continue at Reset for a limited Codex** (#715, 2026-10-11). Claude Code and
+  Codex rows show their account's most-used usage window and when it resets, `5 h 62 % · resets in
+  1 h 35 m`, and every window when you point at the row; Codex's come from the numbers its App
+  Server already sends, Claude Code's from the shared plugin's reports. A Codex stopped by its
+  usage limit reads `limited · resets in …` in the warning color instead of `failed`, and Needs you
+  offers Continue at Reset, which sends "Continue where you left off." once the limit resets,
+  unless a turn starts first. Continue Limited Agents at Reset on the Marley page arms it without
+  the click; it is off by default.
+
 - **Keep or undo one agent turn** (#714, 2026-10-11). Right-click a turn under a terminal's
   **Turns (N)** for Keep, which marks it `kept`, or Undo This Turn…, which takes that turn's
   changes back out of your files while later turns' changes and your own edits stay. It names

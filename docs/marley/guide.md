@@ -872,6 +872,24 @@ question with options shows one button per option, and one with no options, a se
 questions shows its text and opens the terminal (#752). While it is joined, the user agent
 Codex sends with its requests names Marley. A Codex you type by hand runs as you typed it.
 
+**Usage limits** (#715). Codex's row carries its account's most-used rate-limit window on a line of
+its own, `5 h 62 % · resets in 1 h 35 m` (`5 h` is the five-hour window, `7 d` the weekly one),
+and the pointer on the row lists every window by name, most used first. The numbers are the ones
+Codex sends with its answers, so a Codex shows them from its first turn after Marley joined;
+Marley asks OpenAI for nothing. A Claude Code row shows the same line once the shared plugin
+(**Shared Claude Code Plugin**, below) reports a turn's end. When a turn stops at the usage limit, the Codex
+row reads `limited · resets in 1 h 35 m` in the warning color instead of `failed`, with Codex's
+message on the next line, and Needs you lists it, `Limited · resets in 1 h 35 m (15:05)`, with
+**Continue at Reset**. Clicked, the entry reads `Continues at 15:05` with Cancel, and at 15:05
+Marley sends the thread "Continue where you left off." through the App Server, which Codex shows as
+your message. Nothing is sent if a turn starts on the thread first, if Codex waits on a question,
+or if the thread, the server or the terminal closes; a reset that passed while the machine slept
+continues at the next check. Once the reset has passed the button reads Continue and sends at once.
+A rate limit with no full window gives no reset, so the row reads `limited` and the entry has no
+button. **Continue Limited Agents at Reset** (`marley.continue_at_reset`, Agents section, off by
+default) arms every limited Codex without the click; Cancel still holds. Claude Code's own limited
+state is not shown yet.
+
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.
 
 ### Launch configs
@@ -2915,6 +2933,9 @@ Marley's own keys in the file:
     "agent_editor_in_tab": false,
     // Codex's own App Server (#650): the rail reads each launched Codex's thread. Off by default.
     "codex_app_server": false,
+    // A Codex stopped at its usage limit continues by itself at the reset (#715). Off by default:
+    // Continue at Reset in Needs you does it on a click.
+    "continue_at_reset": false,
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },

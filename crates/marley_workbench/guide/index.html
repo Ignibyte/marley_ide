@@ -1310,6 +1310,19 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">The <code>full access</code> chip follows the sandbox the thread reports. It runs on Codex 0.155.1 to 0.162.0; on another version Codex starts as before and the agent bar says so. A Codex you type by hand runs as you typed it. The server stops with its terminal or with Marley.</p>
 </article>
 
+<article id="usage-limits">
+<h3>Usage meter, and Continue at Reset <span class="ticket">#715</span></h3>
+<p class="what"><strong>What it is.</strong> An agent's row shows how much of its account's usage window is gone and when it resets, and a Codex stopped by its usage limit reads <code>limited</code>, not <code>failed</code>, with a way to continue once the limit resets.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Read the row's line, such as <code>5 h 62 % · resets in 1 h 35 m</code>: the most-used window (<code>5 h</code> five hours, <code>7 d</code> a week). Point at the row for every window. Codex on its <a href="#codex-app-server">App Server</a> shows it from its first turn; Claude Code once the shared plugin reports a turn.</li>
+<li>When Codex hits its limit, its row reads <code>limited · resets in 1 h 35 m</code> and <a href="#needs-you">Needs you</a> lists it with <strong>Continue at Reset</strong>.</li>
+<li>Click it: the entry reads <code>Continues at 15:05</code> with Cancel. At the reset Marley sends the thread "Continue where you left off.", which Codex shows as your message.</li>
+<li>To continue every limited Codex without the click, turn on Continue Limited Agents at Reset on the Marley page (Agents).</li>
+</ol>
+<p class="note">Nothing is sent if you start a turn first, if Codex waits on a question, or if the thread or its terminal closes. Once the reset has passed the button reads Continue. A rate limit that names no reset shows <code>limited</code> with no button. Marley reads the numbers Codex already sends and asks OpenAI for nothing.</p>
+</article>
+
 <article id="agent-reads-terminals">
 <h3>Agents read your terminals <span class="ticket">#491 · #520 · #516 · #562</span></h3>
 <p class="what"><strong>What it is.</strong> With Marley's tools, an agent lists your terminals and reads each command's exit code and output, so you can ask "what failed in my other terminal?" instead of pasting output. Secrets are hidden from what it reads.</p>

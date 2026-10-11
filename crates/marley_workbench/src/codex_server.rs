@@ -12,8 +12,9 @@
 //! terminal's seat (`marley_agent::codex_events`): the status that every connection hears, and,
 //! once subscribed, the turns, the token use and the policies. A lead the TUI made before Marley
 //! joined is subscribed with `thread/resume` only while it is idle, since a resume renames the
-//! thread's client until the TUI's next turn. Marley sends no request that acts and answers none
-//! of the server's: any subscriber's answer resolves a request, and an error reads as a denial.
+//! thread's client until the TUI's next turn. Marley answers a request of the server's only from
+//! the inbox (#651), and starts a turn only to continue a limited lead at its reset (#715), on an
+//! idle thread, since a `turn/start` during a turn adds to that turn.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsStr;
@@ -31,7 +32,7 @@ use gpui::{
     AnyWindowHandle, App, AppContext as _, AsyncApp, Entity, EntityId, Global, Task, WeakEntity,
 };
 use marley_agent::codex_events::{
-    self, Decision, Input, Notification, Request, RequestKind, Thread, ThreadStatus,
+    self, Decision, Input, Notification, RateLimits, Request, RequestKind, Thread, ThreadStatus,
 };
 use marley_agent::versions::{self, CODEX_APP_SERVER, Found};
 use marley_agent::{AgentKind, Remote};
@@ -42,6 +43,7 @@ use settings::Settings as _;
 use terminal::Terminal;
 
 use crate::MarleySettings;
+use crate::limits::Limited;
 
 /// How long the server has to make its socket before Codex starts without it.
 const SOCKET_WAIT: Duration = Duration::from_secs(5);
@@ -137,6 +139,35 @@ pub(crate) struct Shown {
     pub(crate) request: Request,
     pub(crate) files: Option<Vec<String>>,
     pub(crate) sent: Option<Decision>,
+}
+
+/// The generation of `terminal`'s follow, while one runs.
+pub(crate) fn generation_of(terminal: EntityId, cx: &App) -> Option<u64> {
+    Some(
+        cx.try_global::<CodexRequests>()?
+            .terminals
+            .get(&terminal)?
+            .generation,
+    )
+}
+
+/// Asks `terminal`'s follow to continue its lead past `limited` (#715), which it does only while
+/// the same limit holds on the same idle thread of the same connection.
+pub(crate) fn continue_lead(terminal: EntityId, limited: &Limited, cx: &App) {
+    let Some(published) = cx
+        .try_global::<CodexRequests>()
+        .and_then(|requests| requests.terminals.get(&terminal))
+    else {
+        log::info!("codex app server: the terminal's follow has ended; no continuation sent");
+        return;
+    };
+    if published
+        .answers
+        .unbounded_send(Event::Continue(limited.clone()))
+        .is_err()
+    {
+        log::info!("codex app server: the terminal's follow has ended; no continuation sent");
+    }
 }
 
 /// The requests `terminal`'s Codex waits on that the inbox answers, with the connection's
@@ -240,6 +271,7 @@ impl Prepared {
 pub(crate) fn init(cx: &mut App) {
     cx.set_global(CodexServers::default());
     cx.set_global(CodexRequests::default());
+    crate::limits::init(cx);
     cx.on_app_quit(|cx| {
         let servers = std::mem::take(&mut cx.default_global::<CodexServers>().servers);
         let mut sockets = Vec::new();
@@ -418,9 +450,11 @@ async fn serve(
                     socket.display()
                 );
             }
-            // Whatever ended the follow, its requests can no longer be answered (#651).
+            // Whatever ended the follow, its requests can no longer be answered (#651), nor its
+            // lead continued (#715).
             cx.update(|cx| {
                 let _gone = cx.default_global::<CodexRequests>().terminals.remove(&id);
+                crate::limits::forget(id, cx);
             });
         }
     });
@@ -442,6 +476,7 @@ async fn serve(
         cx.on_release(move |_, cx| {
             let _stopped = cx.default_global::<CodexServers>().servers.remove(&id);
             let _gone = cx.default_global::<CodexRequests>().terminals.remove(&id);
+            crate::limits::forget(id, cx);
         })
         .detach();
     });
@@ -643,6 +678,8 @@ enum Event {
     },
     /// A decision the user picked in the inbox (#651).
     Answer(Answer),
+    /// Continue the lead past its usage limit (#715).
+    Continue(Limited),
 }
 
 /// Sorts one message from the server: a response, a notification, or a request of the server's.
@@ -831,6 +868,9 @@ struct Following {
     files: HashMap<String, Vec<String>>,
     /// The way an inbox answer comes back to this follow.
     answers: mpsc::UnboundedSender<Event>,
+    /// The account's `codex` rate-limit bucket, merged from every update this connection heard
+    /// (#715).
+    rate_limits: RateLimits,
 }
 
 impl Following {
@@ -874,15 +914,19 @@ impl Following {
         }
     }
 
-    /// Folds `input` into the seat of the terminal's view.
+    /// Folds `input` into the seat of the terminal's view, then lets the seat's arm to continue
+    /// at a reset follow it (#715).
     fn fold(&mut self, input: &Input<'_>, cx: &AsyncApp) {
         let terminal = self.terminal.entity_id();
         let known = self.view;
+        let generation = self.generation;
         let view = cx.update(|cx| {
             let view = known.or_else(|| view_of(terminal, cx))?;
             if let Some((before, after)) = crate::agent_events::fold_codex(view, input, cx) {
                 push_change(view, before, &after, cx);
             }
+            let seat = crate::agent_events::seat_of(view, AgentKind::Codex, cx).cloned();
+            crate::limits::on_seat(terminal, seat.as_ref(), generation, cx);
             Some(view)
         });
         self.view = view;
@@ -1048,7 +1092,10 @@ async fn follow(
         requests: Vec::new(),
         files: HashMap::new(),
         answers,
+        rate_limits: RateLimits::default(),
     };
+    // The way back for the inbox's answers and a limited lead's continuation, before any request.
+    following.publish(cx);
     loop {
         let tick = cx.background_executor().timer(TICK);
         let event = match futures::future::select(Box::pin(client.next()), tick).await {
@@ -1070,6 +1117,9 @@ async fn follow(
                 requested(&id, &method, &params, &mut following, cx);
             }
             Some(Event::Answer(answer)) => answered(&answer, &client, &mut following, cx),
+            Some(Event::Continue(limited)) => {
+                continued(&limited, &mut client, &following, cx).await;
+            }
             Some(Event::ServerExited(last)) => {
                 server_stopped(last.as_deref(), &mut following, cx);
                 return Ok(());
@@ -1203,6 +1253,11 @@ fn follow_lead(thread: &Thread, following: &mut Following, cx: &AsyncApp) {
     });
     following.keep_lead(cx);
     following.fold(&Input::Lead(thread), cx);
+    // A new lead's seat starts with no labels; the account's windows are still the account's.
+    if following.rate_limits != RateLimits::default() {
+        let limits = following.rate_limits;
+        following.fold(&Input::RateLimits(&limits), cx);
+    }
 }
 
 /// A notification: a new lead, a side thread to let go, or the lead's own messages for its seat.
@@ -1229,6 +1284,21 @@ async fn heard(
     }
     if method == "item/started" {
         item_started(params, following, cx);
+    }
+    // The account's windows, which name no thread: each update is merged into the last (#715).
+    if method == codex_events::RATE_LIMITS_UPDATED {
+        match RateLimits::decode(params) {
+            Ok(Some(update)) => {
+                following.rate_limits.merge(&update);
+                if following.lead.is_some() {
+                    let limits = following.rate_limits;
+                    following.fold(&Input::RateLimits(&limits), cx);
+                }
+            }
+            Ok(None) => {}
+            Err(error) => log::debug!("codex app server: {error}"),
+        }
+        return Ok(());
     }
     let notification = match Notification::decode(method, params) {
         Ok(Some(notification)) => notification,
@@ -1394,6 +1464,37 @@ fn answered(answer: &Answer, client: &Client, following: &mut Following, cx: &As
             following.publish(cx);
         }
         Err(error) => log::warn!("codex app server: answering: {error:#}"),
+    }
+}
+
+/// Continues the lead past its usage limit (#715): `turn/start` with the resume prompt, sent only
+/// while `limited` is this connection's, its thread is the lead and idle with no request open, and
+/// the seat still reads limited by the same turn. A refusal or a failed call only reaches the log;
+/// the entry keeps Continue.
+async fn continued(limited: &Limited, client: &mut Client, following: &Following, cx: &AsyncApp) {
+    let lead_idle = following
+        .lead
+        .as_ref()
+        .is_some_and(|lead| lead.id == limited.thread && lead.idle);
+    let generation = following.generation;
+    let still = following.view.is_some_and(|view| {
+        cx.update(|cx| {
+            crate::agent_events::seat_of(view, AgentKind::Codex, cx)
+                .and_then(|seat| Limited::of(seat, generation))
+                .is_some_and(|now| now.turn == limited.turn && now.thread == limited.thread)
+        })
+    });
+    if limited.generation != generation || !lead_idle || !following.requests.is_empty() || !still {
+        log::info!("codex app server: the limited lead moved on; no continuation sent");
+        return;
+    }
+    let params = json!({
+        "threadId": limited.thread,
+        "input": [{ "type": "text", "text": marley_agent::RESUME_PROMPT, "text_elements": [] }],
+    });
+    match client.call("turn/start", params).await {
+        Ok(_) => log::info!("codex app server: continued the limited lead"),
+        Err(error) => log::warn!("codex app server: continuing the limited lead: {error:#}"),
     }
 }
 

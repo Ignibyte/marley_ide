@@ -65,6 +65,7 @@ pub mod harness_hosts;
 pub mod harness_seat;
 pub mod home_page;
 pub mod launch;
+pub mod limits;
 pub mod links;
 pub mod markdown_commands;
 #[cfg(test)]
@@ -386,6 +387,8 @@ pub struct MarleySettings {
     pub no_update_after_minutes: u64,
     /// Whether a terminal's Claude Code session comes back after a restart (#540).
     pub resume_agents: ResumeAgents,
+    /// Whether a limited Codex is armed to continue at its reset without a click (#715).
+    pub continue_at_reset: ContinueAtReset,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check; 0 is none
     /// (#569).
     pub stall_check_after_seconds: u64,
@@ -634,6 +637,25 @@ impl ResumeAgents {
     }
 }
 
+/// When a limited Codex continues at its reset, from `marley.continue_at_reset` (#715).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContinueAtReset {
+    /// Only once Continue at Reset is clicked in Needs you.
+    OnClick,
+    /// Without a click, whenever Codex gave the reset.
+    Always,
+}
+
+impl ContinueAtReset {
+    /// The setting's value: on a click unless it is on.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.continue_at_reset) {
+            Some(true) => Self::Always,
+            _ => Self::OnClick,
+        }
+    }
+}
+
 /// Whether local terminals keep their output and draw it again, dimmed, after a restart, from
 /// `marley.restore_scrollback` (#751).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -697,6 +719,7 @@ impl Settings for MarleySettings {
                 .and_then(|marley| marley.no_update_after_minutes)
                 .unwrap_or(30),
             resume_agents: ResumeAgents::from_content(marley),
+            continue_at_reset: ContinueAtReset::from_content(marley),
             stall_check_after_seconds: marley
                 .and_then(|marley| marley.stall_check_after_seconds)
                 .unwrap_or(60),

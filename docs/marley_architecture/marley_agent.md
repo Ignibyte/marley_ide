@@ -203,6 +203,18 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   wait as an approval when Claude Code's question is a permission
   (`claude_events::waits_on_permission`) or Codex waits on `approval`; `kind()` names its push
   switch; `event_line(project, agent, event)` takes the agent's name as text.
+- Usage limits (#715): `RateLimits` (`primary`, `secondary`, each a `RateLimitWindow { used_percent,
+  window_duration_mins, resets_at }` in seconds) decodes `account/rateLimits/updated`
+  (`RATE_LIMITS_UPDATED`) for the `codex` bucket and passes over others; `merge` takes a sparse
+  update, keeping a duration or a reset it leaves out; `windows` names each `five_hour` or
+  `seven_day` by its length, else `primary` or `secondary`, rustal-harness's names.
+  `Input::RateLimits` replaces the seat's `quota.KIND.percent_used` and `quota.KIND.resets_at_ms`
+  labels. `TurnError.code` reads `codexErrorInfo` (a word, or an HTTP kind's name); a failed turn
+  whose code is `usageLimitExceeded` or `rateLimitExceeded` (`is_limit`) sets `LIMITED_LABEL` to
+  the turn's id and `LIMIT_RESETS_AT_LABEL` to `limit_reset`, the latest reset after the failure
+  among the windows at 100 % or more, none when a full window gives no reset; `TurnStarted` clears
+  both. `limit(seat)` gives a failed seat's `Limit { turn, resets_at_ms }`, and `seat_words` reads
+  `limited` for it.
 
 ## The versions integrations were tested on (`src/versions.rs`, #648)
 

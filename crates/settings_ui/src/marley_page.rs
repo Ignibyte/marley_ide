@@ -167,7 +167,7 @@ fn layout_section() -> [SettingsPageItem; 6] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 19] {
+fn agents_section() -> [SettingsPageItem; 20] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -233,6 +233,29 @@ fn agents_section() -> [SettingsPageItem; 19] {
                         .marley
                         .get_or_insert_default()
                         .resume_agents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: a limited Codex continued at its reset without a click (#715).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Continue Limited Agents at Reset",
+            description: "When a Codex on Marley's App Server stops at its usage limit, Marley sends it \"Continue where you left off.\" once the limit resets, without waiting for Continue at Reset in Needs you. Starting a turn yourself first cancels it.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.continue_at_reset"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.continue_at_reset.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .continue_at_reset = value;
                 },
             }),
             metadata: None,

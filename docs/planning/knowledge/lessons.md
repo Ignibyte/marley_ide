@@ -5501,3 +5501,13 @@ a plain file the reader then loops over), as #535's stand-in `claude` reads its 
 passes over a seat that is `Done` or `Error`. A Codex thread's close folds `Ended` (`Done`) and a
 server's stop folds `Error`, so anything those events must close is closed where they are heard,
 in `codex_server`'s follow, not left to the rail.
+
+## L-claude-715-a-codex-turn-start-during-a-turn-steers-it-001
+*category: protocol · topic: sending a prompt through Codex's App Server · from: pipeline 715*
+
+Codex 0.162's `TurnStartParams` says a `turn/start` sent while a turn runs "steers an
+already-active turn": its input joins that turn instead of starting one. A client that means a new
+turn sends it only while the thread is idle (the follow's `Lead.idle`, from `thread/status/changed`)
+and checks again on the follow's own task, where the send happens. Read it with `codex app-server
+generate-ts --out <dir>` on the installed Codex, which writes the field docs the JSON Schema
+leaves out.

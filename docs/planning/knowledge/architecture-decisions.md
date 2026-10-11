@@ -4992,3 +4992,18 @@ another undo runs in the repository; marks live on the in-memory row. Rejected: 
 user's index, leaves conflict markers), `git apply -R` alone (refuses clean merges), `git restore
 --source` (cannot remove a file the turn created), Claude Code's `/rewind` (misses shell edits,
 none for Codex), and chaining a second undo behind the first (its checkpoint would be stale).
+
+## AD-claude-715-a-limited-codex-is-a-state-and-continues-through-its-app-server-on-a-click-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-650-marley-joins-a-codex-app-server-of-its-own-per-terminal-001, AD-claude-651-codex-approvals-answer-in-the-inbox-only-when-clicked-001*
+
+A Codex turn that fails with `usageLimitExceeded` or `rateLimitExceeded` makes its seat limited,
+with the latest reset among the full windows, and Needs you offers Continue at Reset. At the reset
+Marley sends `turn/start` with "Continue where you left off." on its own App Server connection,
+the first prompt it sends there, and only while the same limit holds on the same idle thread of
+the same connection; a turn, a wait, a close or the connection's end drops the arm. Continuing
+without the click is `marley.continue_at_reset`, off by default, and a Cancel holds against it.
+The meter reads only what the agents already send: Codex's `account/rateLimits/updated` (the
+`codex` bucket, merged by slot) and the shared plugin's reports for Claude Code, through #640's
+`Signals` and line, a percent above 100 read as 100. Rejected: typing the prompt into the TUI
+(it would join whatever sits in Codex's composer), `account/rateLimits/read` (a request to OpenAI's
+backend on each call), a Usage tab (its own ticket), and a status-bar meter (#746 is moving it).

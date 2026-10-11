@@ -41,7 +41,7 @@ use marley_rail::{
     InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow,
     ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TabKind,
     TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
-    ThreadStatus, TurnSnapshot, WorktreeRow, WorktreeSnapshot,
+    ThreadStatus, TurnSnapshot, Usage, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -218,7 +218,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 8],
+    _agent_events: [Subscription; 9],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -965,17 +965,25 @@ enum InboxTarget {
         generation: u64,
         request: Box<codex_events::Request>,
     },
+    /// A terminal's Codex its usage limit stopped (#715): the terminal view, the terminal, and the
+    /// limit as its entry showed it.
+    Limit {
+        view: u64,
+        terminal: EntityId,
+        limited: crate::limits::Limited,
+    },
 }
 
 impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
-    /// sessions (#534, #740) and Codex's requests (#651).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 8] {
+    /// sessions (#534, #740), Codex's requests (#651) and its arms to continue at a reset (#715).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 9] {
         [
             cx.observe_global_in::<Harness>(window, Self::refresh),
             cx.observe_global_in::<crate::harness_hosts::Hosts>(window, Self::refresh),
             cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
+            cx.observe_global_in::<crate::limits::Arms>(window, Self::refresh),
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
@@ -1978,9 +1986,11 @@ impl Rail {
         if window.is_window_active() {
             for (key, state) in &mut self.routes {
                 let watched = match self.snapshot.inbox.get(key) {
-                    Some(InboxTarget::Terminal(id) | InboxTarget::Codex { view: id, .. }) => {
-                        focus.terminal == Some(*id) && focus.terminal_focused
-                    }
+                    Some(
+                        InboxTarget::Terminal(id)
+                        | InboxTarget::Codex { view: id, .. }
+                        | InboxTarget::Limit { view: id, .. },
+                    ) => focus.terminal == Some(*id) && focus.terminal_focused,
                     Some(InboxTarget::Thread { thread_key, .. }) => {
                         focus.thread.as_deref() == Some(thread_key.as_str())
                     }
@@ -2279,7 +2289,11 @@ impl Rail {
             Some(InboxTarget::Thread { thread_key, .. }) => {
                 self.open_thread(&thread_key, window, cx).log_err();
             }
-            Some(InboxTarget::Terminal(id) | InboxTarget::Codex { view: id, .. }) => {
+            Some(
+                InboxTarget::Terminal(id)
+                | InboxTarget::Codex { view: id, .. }
+                | InboxTarget::Limit { view: id, .. },
+            ) => {
                 if let Some(terminal) = self.snapshot.terminals.get(&id) {
                     self.activate_terminal(&terminal.workspace, &terminal.view, window, cx)
                         .log_err();
@@ -2625,6 +2639,17 @@ impl Rail {
                     crate::codex_server::answer(*terminal, *generation, request, decision, cx);
                 }
             }
+            Some(InboxTarget::Limit {
+                terminal, limited, ..
+            }) => {
+                let (terminal, limited) = (*terminal, limited.clone());
+                match answer {
+                    InboxAnswer::ContinueAtReset => crate::limits::arm(terminal, limited, cx),
+                    InboxAnswer::Continue => crate::limits::continue_now(terminal, limited, cx),
+                    InboxAnswer::Cancel => crate::limits::cancel(terminal, cx),
+                    _ => {}
+                }
+            }
             Some(InboxTarget::Terminal(_) | InboxTarget::Harness(..) | InboxTarget::Manager)
             | None => {}
         }
@@ -2652,9 +2677,14 @@ impl Rail {
             .map(|terminal| terminal.id)
             .collect();
         agent_events::end(&gone, cx);
-        let next = cx.try_global::<AgentEvents>().and_then(|events| {
-            events.next_quiet_change(agent_events::now_ms(), no_update_after_ms(cx))
-        });
+        let now_ms = agent_events::now_ms();
+        let quiet = cx
+            .try_global::<AgentEvents>()
+            .and_then(|events| events.next_quiet_change(now_ms, no_update_after_ms(cx)));
+        let next = quiet
+            .into_iter()
+            .chain(next_reset_change(rail, now_ms))
+            .min();
         match next {
             None => self.minute_timer = None,
             Some(delay) if self.minute_timer.is_none() => {
@@ -5995,48 +6025,18 @@ impl Rail {
     ) -> impl IntoElement {
         let id = row.id;
         let (workspace, view) = (terminal.workspace.clone(), terminal.view.clone());
-        let (close_workspace, close_view) = (terminal.workspace.clone(), terminal.view.clone());
-        let close = div()
-            .debug_selector(move || format!("marley-rail-terminal-close-{id}"))
-            .child(
-                IconButton::new(("marley-rail-terminal-close", id), IconName::Close)
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted)
-                    .tooltip(Tooltip::text("Close Terminal"))
-                    .on_click(cx.listener(move |_, _, window, cx| {
-                        // The row under the button would show the terminal it closes.
-                        cx.stop_propagation();
-                        Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
-                    })),
-            );
         let icon = div()
             .when(row.agent.is_some(), |icon| {
                 icon.debug_selector(move || format!("marley-rail-agent-{id}"))
             })
             .child(rail_terminal_icon(&row, cx))
             .into_any_element();
-        // The bell shows until the pointer is over the row, and the close button while it is.
-        let end = h_flex()
-            .flex_none()
-            .relative()
-            .child(h_flex().visible_on_hover(ROW_GROUP).child(close))
-            .when(row.bell, |end| {
-                end.child(
-                    h_flex()
-                        .absolute()
-                        .inset_0()
-                        .justify_center()
-                        .group_hover(ROW_GROUP, Styled::invisible)
-                        .child(
-                            div()
-                                .debug_selector(move || format!("marley-rail-bell-{id}"))
-                                .child(Indicator::dot().color(Color::Accent)),
-                        ),
-                )
-            });
+        let end = Self::terminal_row_end(id, row.bell, terminal, cx);
         let marks = terminal_marks(&row, cx);
         let interrupted = crate::resume::offered(id, cx)
             .then(|| Self::interrupted_chip(id, &terminal.workspace, &terminal.view, cx));
+        let limited = row.usage.limit.is_some();
+        let (quota, usage_tooltip) = usage_parts(&row);
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -6044,9 +6044,22 @@ impl Rail {
             icon,
             row_label(row.title, row.highlight, Color::Default),
             row.subtitle
+                .map(|subtitle| {
+                    // A limited agent's line reads as a warning, not a failure (#715).
+                    if limited {
+                        RowLine {
+                            text: subtitle,
+                            state: None,
+                            color: Color::Warning,
+                            cut: Cut::End,
+                        }
+                    } else {
+                        RowLine::muted(subtitle)
+                    }
+                })
                 .into_iter()
-                .chain(row.activity)
-                .map(RowLine::muted)
+                .chain(row.activity.map(RowLine::muted))
+                .chain(quota)
                 .chain(row.command.map(command_line))
                 .chain(row.running_error.map(|error| RowLine {
                     text: error.line,
@@ -6061,6 +6074,9 @@ impl Rail {
         )
         .children(marks)
         .child(end)
+        .when_some(usage_tooltip, |row, (title, meta)| {
+            row.tooltip(move |_, cx| Tooltip::with_meta(title.clone(), None, meta.clone(), cx))
+        })
         .on_click(cx.listener(move |rail, event: &ClickEvent, window, cx| {
             // The second click of a double-click renames, as a tab's does.
             if event.click_count() == 2 {
@@ -6094,6 +6110,43 @@ impl Rail {
                 )
             });
         v_flex().child(menu).children(turns)
+    }
+
+    /// A terminal row's end: the close button while the pointer is over the row, and the bell's
+    /// dot until it is.
+    fn terminal_row_end(id: u64, bell: bool, terminal: &TerminalEntry, cx: &Context<Self>) -> Div {
+        let (close_workspace, close_view) = (terminal.workspace.clone(), terminal.view.clone());
+        let close = div()
+            .debug_selector(move || format!("marley-rail-terminal-close-{id}"))
+            .child(
+                IconButton::new(("marley-rail-terminal-close", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted)
+                    .tooltip(Tooltip::text("Close Terminal"))
+                    .on_click(cx.listener(move |_, _, window, cx| {
+                        // The row under the button would show the terminal it closes.
+                        cx.stop_propagation();
+                        Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
+                    })),
+            );
+        h_flex()
+            .flex_none()
+            .relative()
+            .child(h_flex().visible_on_hover(ROW_GROUP).child(close))
+            .when(bell, |end| {
+                end.child(
+                    h_flex()
+                        .absolute()
+                        .inset_0()
+                        .justify_center()
+                        .group_hover(ROW_GROUP, Styled::invisible)
+                        .child(
+                            div()
+                                .debug_selector(move || format!("marley-rail-bell-{id}"))
+                                .child(Indicator::dot().color(Color::Accent)),
+                        ),
+                )
+            })
     }
 
     /// A terminal row's right-click menu: Rename, Open Agent Here… (#735), Move to Project (#613)
@@ -7281,6 +7334,26 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
                 }
                 continue;
             }
+            // A limited Codex waits for its reset, or for the user (#715).
+            let limited = crate::codex_server::generation_of(terminal, cx).and_then(|generation| {
+                let seat = agent_events::seat_of(view.entity_id(), AgentKind::Codex, cx)?;
+                crate::limits::Limited::of(seat, generation)
+            });
+            if let Some(limited) = limited {
+                let id = view.entity_id().as_u64();
+                let entry =
+                    limit_entry(project, id, &limited, crate::limits::armed_at(terminal, cx));
+                snapshot.inbox.insert(
+                    entry.key.clone(),
+                    InboxTarget::Limit {
+                        view: id,
+                        terminal,
+                        limited,
+                    },
+                );
+                snapshot.rail.inbox.push(entry);
+                continue;
+            }
             let waiting = cx
                 .try_global::<AgentEvents>()
                 .and_then(|events| events.seat(view.entity_id()))
@@ -7390,12 +7463,7 @@ fn harness_row(
         lines.push(RowLine::muted(text));
     }
     if let Some(window) = signals.quota.first() {
-        lines.push(RowLine {
-            text: window.kind.clone(),
-            state: Some(format!(" {}", used_words(window, now_ms))),
-            color: Color::Muted,
-            cut: Cut::End,
-        });
+        lines.push(quota_line(window, now_ms));
     }
     let icon = Indicator::dot()
         .color(if stale || weaker { Color::Muted } else { color })
@@ -7500,7 +7568,7 @@ fn signals_tooltip(signals: &Signals, title: &str, now_ms: u64) -> (SharedString
     let meta: Vec<String> = signals
         .quota
         .iter()
-        .map(|window| format!("{} {}", window.kind, used_words(window, now_ms)))
+        .map(|window| window_words(window, now_ms))
         .chain(
             signals
                 .account
@@ -7509,6 +7577,76 @@ fn signals_tooltip(signals: &Signals, title: &str, now_ms: u64) -> (SharedString
         )
         .collect();
     (source.into(), meta.join("\n").into())
+}
+
+/// A terminal row's account usage (#715): the most-used quota window on a line of its own, and
+/// every window in the row's tooltip, titled by the agent.
+fn usage_parts(row: &TerminalRow) -> (Option<RowLine>, Option<(SharedString, SharedString)>) {
+    let now_ms = agent_events::now_ms();
+    let quota = &row.usage.quota;
+    let line = quota.first().map(|window| quota_line(window, now_ms));
+    let tooltip = row.agent.filter(|_| !quota.is_empty()).map(|agent| {
+        let meta: Vec<String> = quota
+            .iter()
+            .map(|window| window_words(window, now_ms))
+            .collect();
+        (
+            SharedString::from(format!("{} usage", agent.kind.display_name())),
+            SharedString::from(meta.join("\n")),
+        )
+    });
+    (line, tooltip)
+}
+
+/// A row's quota line (#640, #715): the most-used window's kind, then how much of it is used and
+/// when it resets.
+fn quota_line(window: &QuotaWindow, now_ms: u64) -> RowLine {
+    RowLine {
+        text: kind_words(&window.kind).to_string(),
+        state: Some(format!(" {}", used_words(window, now_ms))),
+        color: Color::Muted,
+        cut: Cut::End,
+    }
+}
+
+/// A quota window's kind as a row's line says it, short enough to leave the rail's width to the
+/// percent and the reset: `5 h` and `7 d` for the two windows Claude Code and Codex name, else the
+/// kind as sent. The tooltip names the kind in full.
+fn kind_words(kind: &str) -> &str {
+    match kind {
+        "five_hour" => "5 h",
+        "seven_day" => "7 d",
+        other => other,
+    }
+}
+
+/// A quota window on a tooltip's line: `five_hour 62 % · resets in 1 h 35 m`.
+fn window_words(window: &QuotaWindow, now_ms: u64) -> String {
+    format!("{} {}", window.kind, used_words(window, now_ms))
+}
+
+/// How long until a countdown a terminal row shows next changes (#715): a quota window's or a
+/// limit's reset words move at each whole minute before the reset. `None` while no row shows a
+/// reset ahead.
+fn next_reset_change(rail: &RailSnapshot, now_ms: u64) -> Option<Duration> {
+    rail.projects
+        .iter()
+        .flat_map(|project| &project.terminals)
+        .flat_map(|terminal| {
+            let usage = &terminal.usage;
+            usage
+                .quota
+                .iter()
+                .filter_map(|window| window.resets_at_ms)
+                .chain(usage.limit.as_ref().and_then(|limit| limit.resets_at_ms))
+        })
+        .filter(|reset| *reset > now_ms)
+        .map(|reset| match (reset - now_ms) % 60_000 {
+            0 => 60_000,
+            left => left,
+        })
+        .min()
+        .map(Duration::from_millis)
 }
 
 /// How much of a quota window is used and when it resets: `62 % · resets in 1 h 35 m`.
@@ -7682,6 +7820,56 @@ fn codex_entry(
     }
 }
 
+/// A limited Codex as an inbox entry (#715): when its limit resets, with Continue at Reset; Continue
+/// once the reset has passed; `Continues at 15:05` with Cancel while armed (`armed_at`); and no
+/// button when Codex gave no reset.
+fn limit_entry(
+    project: &str,
+    view: u64,
+    limited: &crate::limits::Limited,
+    armed_at: Option<u64>,
+) -> InboxEntry {
+    let now = agent_events::now_ms();
+    let (ask, answers) = match (armed_at, limited.resets_at_ms) {
+        (Some(at), _) => (
+            format!("Continues at {}", clock_words(at)),
+            vec![InboxAnswer::Cancel],
+        ),
+        (None, Some(reset)) if reset > now => (
+            format!(
+                "Limited · {} ({})",
+                reset_words(reset, now),
+                clock_words(reset)
+            ),
+            vec![InboxAnswer::ContinueAtReset],
+        ),
+        (None, Some(_)) => ("Limited · reset".to_string(), vec![InboxAnswer::Continue]),
+        (None, None) => ("Limited".to_string(), Vec::new()),
+    };
+    InboxEntry {
+        key: format!("limit:{view}:{}:{}", limited.generation, limited.turn),
+        kind: InboxKind::Codex,
+        agent: AgentKind::Codex.display_name().to_string(),
+        project: project.to_string(),
+        ask,
+        waited: String::new(),
+        answers,
+        chips: Vec::new(),
+        level: 0,
+        route: None,
+    }
+}
+
+/// A moment in milliseconds since the epoch as the local clock shows it: `15:05`.
+fn clock_words(at_ms: u64) -> String {
+    i64::try_from(at_ms)
+        .ok()
+        .and_then(chrono::DateTime::from_timestamp_millis)
+        .map_or_else(String::new, |at| {
+            at.with_timezone(&chrono::Local).format("%H:%M").to_string()
+        })
+}
+
 /// The inbox's button for a Codex decision: `cancel` stops the turn on an approval and dismisses
 /// an elicitation (#651); a question's option is answered by its index (#752).
 const fn inbox_answer(decision: codex_events::Decision, elicitation: bool) -> InboxAnswer {
@@ -7705,7 +7893,10 @@ const fn codex_decision(answer: InboxAnswer) -> Option<codex_events::Decision> {
         InboxAnswer::StopTurn | InboxAnswer::Dismiss => Some(codex_events::Decision::Cancel),
         InboxAnswer::AlwaysAllow => Some(codex_events::Decision::AcceptAlways),
         InboxAnswer::Option(index) => Some(codex_events::Decision::Option(index)),
-        InboxAnswer::Refuse => None,
+        InboxAnswer::Refuse
+        | InboxAnswer::ContinueAtReset
+        | InboxAnswer::Continue
+        | InboxAnswer::Cancel => None,
     }
 }
 
@@ -8437,8 +8628,20 @@ fn terminal_snapshot(
             })
             .collect(),
         turns_open: false,
+        usage: seat.map(usage_of).unwrap_or_default(),
         worktree: None,
         matched: None,
+    }
+}
+
+/// An agent seat's account usage for its row (#715): its quota windows, read as #640 reads a
+/// harness session's, and a Codex's usage limit.
+fn usage_of(seat: &marley_fleet::Session) -> Usage {
+    Usage {
+        quota: Signals::of(&seat.labels).quota,
+        limit: codex_events::is_codex(seat)
+            .then(|| codex_events::limit(seat))
+            .flatten(),
     }
 }
 
@@ -8545,10 +8748,14 @@ fn agent_mark(
     )
 }
 
-/// A Codex row's line from its App Server's thread (#650): the state's words, and the thread's
-/// token use once Codex reported it, such as `working · 41k tokens`.
+/// A Codex row's line from its App Server's thread (#650): the state's words, a limit's reset
+/// (#715), and the thread's token use once Codex reported it, such as `working · 41k tokens`.
 fn codex_line(seat: &marley_fleet::Session, cx: &App) -> String {
-    let words = codex_events::seat_words(seat, agent_events::now_ms(), no_update_after_ms(cx));
+    let now_ms = agent_events::now_ms();
+    let mut words = codex_events::seat_words(seat, now_ms, no_update_after_ms(cx));
+    if let Some(reset) = codex_events::limit(seat).and_then(|limit| limit.resets_at_ms) {
+        words = format!("{words} · {}", reset_words(reset, now_ms));
+    }
     match codex_events::tokens(seat) {
         Some(tokens) => format!("{words} · {} tokens", crate::fleet::compact(tokens)),
         None => words,

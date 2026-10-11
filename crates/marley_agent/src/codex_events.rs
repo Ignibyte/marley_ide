@@ -9,7 +9,9 @@
 //!   `notLoaded` ends the seat;
 //! - a turn that completes as `failed` makes the seat failed with the turn's error, through the
 //!   `idle` that follows, until the next turn starts;
-//! - token use and the thread's approval and sandbox policies ride on the seat as labels.
+//! - token use and the thread's approval and sandbox policies ride on the seat as labels;
+//! - the account's rate-limit windows ride on the seat as `quota.KIND.` labels, and a turn that
+//!   fails at the usage limit makes the seat limited until the next turn starts (#715).
 //!
 //! The shapes are the ones Codex 0.155.1, 0.158.0 and 0.162.0 generate as JSON Schema; a field
 //! Marley does not read is ignored, and a message that does not parse leaves the seat as it was.
@@ -39,6 +41,15 @@ pub const SANDBOX_LABEL: &str = "sandbox";
 pub const APPROVAL_LABEL: &str = "approval";
 /// Marks a seat whose last turn failed, so the `idle` after it keeps it failed.
 const TURN_FAILED_LABEL: &str = "turn_failed";
+/// The label for a limited seat (#715): the id of the turn Codex's usage limit failed.
+pub const LIMITED_LABEL: &str = "limited";
+/// The label for when a limited seat's limit resets, in milliseconds since the epoch; absent when
+/// no full window says.
+pub const LIMIT_RESETS_AT_LABEL: &str = "limit_resets_at_ms";
+/// The notification that carries the account's rate-limit windows (#715).
+pub const RATE_LIMITS_UPDATED: &str = "account/rateLimits/updated";
+/// The `codexErrorInfo` codes of a turn stopped by the account's limits, as T3 Code classes them.
+const LIMIT_CODES: [&str; 2] = ["usageLimitExceeded", "rateLimitExceeded"];
 
 /// [`WAIT_LABEL`]'s value while Codex waits on an approval.
 pub const WAITS_ON_APPROVAL: &str = "approval";
@@ -123,6 +134,114 @@ pub struct Turn {
 pub struct TurnError {
     /// Its message.
     pub message: String,
+    /// Codex's code for it (`codexErrorInfo`): a word such as `usageLimitExceeded`, or for an
+    /// HTTP failure the name of its kind, such as `httpConnectionFailed` (#715).
+    #[serde(default, rename = "codexErrorInfo", deserialize_with = "error_code")]
+    pub code: Option<String>,
+}
+
+impl TurnError {
+    /// Whether the account's usage or rate limit stopped the turn (#715).
+    #[must_use]
+    pub fn is_limit(&self) -> bool {
+        self.code
+            .as_deref()
+            .is_some_and(|code| LIMIT_CODES.contains(&code))
+    }
+}
+
+/// `codexErrorInfo`'s word, or the one key of its object form.
+fn error_code<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(code) => Some(code),
+        Value::Object(object) if object.len() == 1 => object.keys().next().cloned(),
+        _ => None,
+    })
+}
+
+/// One window of the account's `codex` rate-limit bucket, as Codex sends it (#715).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateLimitWindow {
+    /// How much of it is used, in percent; 100 or more is full.
+    pub used_percent: i64,
+    /// How long it lasts, in minutes, when Codex says.
+    #[serde(default)]
+    pub window_duration_mins: Option<i64>,
+    /// When it resets, in seconds since the epoch, when Codex says.
+    #[serde(default)]
+    pub resets_at: Option<i64>,
+}
+
+/// The account's `codex` bucket: its primary and secondary windows (#715).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub struct RateLimits {
+    /// The shorter window, usually five hours.
+    #[serde(default)]
+    pub primary: Option<RateLimitWindow>,
+    /// The longer window, usually a week.
+    #[serde(default)]
+    pub secondary: Option<RateLimitWindow>,
+}
+
+impl RateLimits {
+    /// The `codex` bucket's windows an `account/rateLimits/updated` carries; `None` for another
+    /// bucket, such as a model's own, which Marley passes over.
+    ///
+    /// # Errors
+    ///
+    /// When the parameters do not have the shape Codex generates.
+    pub fn decode(params: &Value) -> Result<Option<Self>, String> {
+        let snapshot = params
+            .get("rateLimits")
+            .ok_or_else(|| format!("{RATE_LIMITS_UPDATED} has no rateLimits"))?;
+        match snapshot.get("limitId") {
+            None | Some(Value::Null) => {}
+            Some(Value::String(id)) if id == "codex" => {}
+            Some(Value::String(_)) => return Ok(None),
+            Some(_) => return Err(format!("{RATE_LIMITS_UPDATED}: limitId is not a string")),
+        }
+        serde_json::from_value(snapshot.clone())
+            .map(Some)
+            .map_err(|error| format!("{RATE_LIMITS_UPDATED}: {error}"))
+    }
+
+    /// Takes a sparse update in: each window it carries replaces the last, keeping a duration or a
+    /// reset the update leaves out.
+    pub fn merge(&mut self, update: &Self) {
+        for (slot, window) in [
+            (&mut self.primary, update.primary),
+            (&mut self.secondary, update.secondary),
+        ] {
+            if let Some(mut window) = window {
+                if let Some(last) = slot {
+                    window.window_duration_mins =
+                        window.window_duration_mins.or(last.window_duration_mins);
+                    window.resets_at = window.resets_at.or(last.resets_at);
+                }
+                *slot = Some(window);
+            }
+        }
+    }
+
+    /// Each window with its kind: `five_hour` or `seven_day` by its length, as Claude Code names
+    /// them, otherwise `primary` or `secondary`, as rustal-harness names the same windows.
+    fn windows(&self) -> impl Iterator<Item = (&'static str, RateLimitWindow)> {
+        [("primary", self.primary), ("secondary", self.secondary)]
+            .into_iter()
+            .filter_map(|(slot, window)| {
+                let window = window?;
+                let kind = match window.window_duration_mins {
+                    Some(300) => "five_hour",
+                    Some(10_080) => "seven_day",
+                    _ => slot,
+                };
+                Some((kind, window))
+            })
+    }
 }
 
 /// A thread's approval and sandbox policies, in Codex's words.
@@ -327,6 +446,8 @@ pub enum Input<'a> {
     Notification(&'a Notification),
     /// The lead's policies, from Marley's `thread/resume`.
     Policies(&'a Policies),
+    /// The account's rate-limit windows, merged from every update so far (#715).
+    RateLimits(&'a RateLimits),
     /// The App Server stopped, with its last error line when it printed one.
     ServerStopped(Option<&'a str>),
 }
@@ -355,7 +476,12 @@ pub fn fold(
         Input::Notification(notification) => match notification {
             Notification::StatusChanged { status, .. } => moving.take_status(status),
             Notification::TurnStarted { .. } => {
-                moving.clear(&[TURN_FAILED_LABEL, ERROR_LABEL]);
+                moving.clear(&[
+                    TURN_FAILED_LABEL,
+                    ERROR_LABEL,
+                    LIMITED_LABEL,
+                    LIMIT_RESETS_AT_LABEL,
+                ]);
                 moving.state = State::Working;
                 Step::Moved
             }
@@ -366,6 +492,13 @@ pub fn fold(
                     .map_or("the turn failed", |error| error.message.as_str());
                 moving.set(ERROR_LABEL, &one_line(message));
                 moving.set(TURN_FAILED_LABEL, "true");
+                if turn.error.as_ref().is_some_and(TurnError::is_limit) {
+                    moving.set(LIMITED_LABEL, &turn.id);
+                    match limit_reset(&moving.labels, now_ms) {
+                        Some(reset) => moving.set(LIMIT_RESETS_AT_LABEL, &reset.to_string()),
+                        None => moving.clear(&[LIMIT_RESETS_AT_LABEL]),
+                    }
+                }
                 moving.state = State::Error;
                 moving.clear(&[WAIT_LABEL]);
                 Step::Moved
@@ -387,6 +520,7 @@ pub fn fold(
             Notification::ThreadClosed { .. } => Step::Ended,
         },
         Input::Policies(policies) => moving.take_policies(policies),
+        Input::RateLimits(limits) => moving.take_rate_limits(limits),
         Input::ServerStopped(last) => {
             let error = last.map_or_else(
                 || "Codex's App Server stopped".to_string(),
@@ -408,13 +542,73 @@ pub fn fold(
     }
 }
 
+/// The prefix of the labels that carry an account's quota windows, as `report.rs` writes them.
+const QUOTA_PREFIX: &str = "quota.";
+
+/// When a limited seat's limit resets (#715): the latest reset after `now_ms` among the windows
+/// at 100 % or more, since every full window must reopen before a turn can run. `None` when a
+/// full window gives no reset, or none is full.
+fn limit_reset(labels: &BTreeMap<String, String>, now_ms: u64) -> Option<u64> {
+    let mut latest = None;
+    for (key, value) in labels {
+        let Some(kind) = key
+            .strip_prefix(QUOTA_PREFIX)
+            .and_then(|key| key.strip_suffix(".percent_used"))
+        else {
+            continue;
+        };
+        if !value
+            .trim()
+            .parse::<f64>()
+            .is_ok_and(|percent| percent >= 100.0)
+        {
+            continue;
+        }
+        let reset: u64 = labels
+            .get(&format!("{QUOTA_PREFIX}{kind}.resets_at_ms"))?
+            .parse()
+            .ok()?;
+        if reset > now_ms {
+            latest = latest.max(Some(reset));
+        }
+    }
+    latest
+}
+
+/// A usage limit an agent stopped at (#715).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Limit {
+    /// The turn the limit failed.
+    pub turn: String,
+    /// When the limit resets, in milliseconds since the epoch; `None` when the agent did not say.
+    pub resets_at_ms: Option<u64>,
+}
+
+/// The limit a limited seat stopped at (#715); `None` when the seat is not limited.
+#[must_use]
+pub fn limit(seat: &Session) -> Option<Limit> {
+    if seat.state != State::Error {
+        return None;
+    }
+    Some(Limit {
+        turn: seat.labels.get(LIMITED_LABEL)?.clone(),
+        resets_at_ms: seat
+            .labels
+            .get(LIMIT_RESETS_AT_LABEL)
+            .and_then(|reset| reset.parse().ok()),
+    })
+}
+
 /// The words a Codex row's line starts with.
 ///
-/// `working`, `waiting on approval`, `waiting on input`, `idle`, `failed`, or `no update in N m`
-/// for a working seat whose last event is `no_update_after_ms` old or more at `now_ms` (#547; 0
-/// never marks it).
+/// `working`, `waiting on approval`, `waiting on input`, `idle`, `failed`, `limited` for a turn
+/// the usage limit stopped (#715), or `no update in N m` for a working seat whose last event is
+/// `no_update_after_ms` old or more at `now_ms` (#547; 0 never marks it).
 #[must_use]
 pub fn seat_words(seat: &Session, now_ms: u64, no_update_after_ms: u64) -> String {
+    if limit(seat).is_some() {
+        return "limited".to_string();
+    }
     match seat.state {
         State::Working
             if no_update_after_ms > 0
@@ -531,6 +725,33 @@ impl Moving {
             None => self.clear(&[WAIT_LABEL]),
         }
         Step::Moved
+    }
+
+    /// The seat's `quota.` labels made the windows of `limits`; still when nothing changed.
+    fn take_rate_limits(&mut self, limits: &RateLimits) -> Step {
+        let before = self.labels.clone();
+        self.labels.retain(|key, _| !key.starts_with(QUOTA_PREFIX));
+        for (kind, window) in limits.windows() {
+            self.set(
+                &format!("{QUOTA_PREFIX}{kind}.percent_used"),
+                &window.used_percent.max(0).to_string(),
+            );
+            let reset = window
+                .resets_at
+                .and_then(|seconds| u64::try_from(seconds).ok())
+                .map(|seconds| seconds.saturating_mul(1000));
+            if let Some(reset) = reset {
+                self.set(
+                    &format!("{QUOTA_PREFIX}{kind}.resets_at_ms"),
+                    &reset.to_string(),
+                );
+            }
+        }
+        if self.labels == before {
+            Step::Still
+        } else {
+            Step::Moved
+        }
     }
 
     fn take_policies(&mut self, policies: &Policies) -> Step {

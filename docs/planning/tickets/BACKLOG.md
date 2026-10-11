@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-715](open/TICKET-715-usage-meter-and-resume-at-reset.md) | feature | a usage meter on agent rows; Codex's limited state and Continue at Reset |
 | [TICKET-765](open/TICKET-765-claude-codes-limited-state.md) | feature | Claude Code's limited state and Continue at Reset |
 | [TICKET-754](open/TICKET-754-cli-sessions-in-threads.md) | feature | Claude Code and Codex sessions in Threads, reopened with `--resume` |
 | [TICKET-712](open/TICKET-712-lsp-tools-for-agents.md) | feature | `editor_diagnostics`, `editor_definition`, `editor_references`, `editor_hover` for every agent, over Zed's LSP store |
