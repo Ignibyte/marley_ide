@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #748 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [748-more-side-panels-as-tabs.spec.md](../../pipeline/queued/748-more-side-panels-as-tabs.spec.md)
+- **Pipeline doc:** [748-more-side-panels-as-tabs.spec.md](../../pipeline/completed/748-more-side-panels-as-tabs.spec.md)
 - **Source ticket:** Chad, 2026-10-11 (see #747), and of Debug: "yes debug moves to bottom left and
   stays the exception". Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The rest of the right dock's panels take #747's tab: the collab panel, Fleet, Knowledge and

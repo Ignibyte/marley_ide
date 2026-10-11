@@ -443,8 +443,9 @@ toggle.
 
 ### Side panels as tabs (#747)
 
-In the Marley layout the project panel, the git panel and the outline panel open as tabs in the pane
-you are in, not in the right dock. Their buttons at the right of the status bar, their keys
+In the Marley layout the project panel, the git panel, the outline panel, the collab panel, Fleet,
+Knowledge and Containers open as tabs in the pane you are in, not in the right dock (#747, #748).
+Only the Agent Panel stays in the right dock, and Debug in the bottom one. Their buttons at the right of the status bar, their keys
 (Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B) and Zed's own ways to them, such as Reveal in Project
 Panel, bring the panel's tab forward where it is, or open one. Each sits in the rail like any tab.
 
@@ -454,10 +455,12 @@ Panel, bring the panel's tab forward where it is, or open one. Each sits in the 
 - **The docks.** A dock that opens on one of the three by itself, such as the project panel Zed opens
   on a new project, closes again and makes no tab. With the Agent Panel open in the right dock, a
   panel's button opens its tab and leaves the Agent Panel where it is.
+- **Fleet and Knowledge** keep working while their own tab is in front: Fleet keeps reading its
+  providers, Knowledge keeps the page it follows. A panel turned off (Knowledge while Rusty is off,
+  Containers while hidden) closes its tab.
 - **Zed's layout** keeps its docks: switching to it closes the panel tabs.
 
-The collab panel, Fleet, Knowledge and Containers follow in #748. A panel tab does not come back
-after a restart yet (#773).
+A panel tab does not come back after a restart yet (#773).
 
 ## The block terminal
 

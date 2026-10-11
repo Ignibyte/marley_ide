@@ -27,8 +27,17 @@ use workspace::item::{Item, ItemEvent};
 use workspace::pane::{SplitDown, SplitLeft, SplitMode, SplitRight, SplitUp};
 use workspace::{DraggedTab, MultiWorkspace, Pane, SaveIntent, SplitDirection, Workspace};
 
-/// The panels a tab draws in the Marley layout, by their persistent names (D3).
-const MOVED: [&str; 3] = ["Project Panel", "GitPanel", "Outline Panel"];
+/// The panels a tab draws in the Marley layout, by their persistent names (#747's D3, #748's D1).
+/// The Agent Panel stays in the right dock, and Debug in the bottom one.
+const MOVED: [&str; 7] = [
+    "Project Panel",
+    "GitPanel",
+    "Outline Panel",
+    "CollabPanel",
+    "MarleyFleetPanel",
+    "MarleyKnowledgePanel",
+    "MarleyContainersPanel",
+];
 
 /// Whether the panel named `name` opens as a tab in the Marley layout.
 fn is_moved(name: &str) -> bool {
@@ -72,12 +81,20 @@ pub(crate) fn init(cx: &mut App) {
     let mut marley_layout = crate::marley_layout(cx);
     cx.observe_global::<SettingsStore>(move |cx| {
         let now = crate::marley_layout(cx);
-        if marley_layout && !now {
-            close_every_tab(cx);
-        }
+        // The Zed layout shows every panel in its dock (D10); a panel turned off (Knowledge while
+        // Rusty is off, Containers while hidden) loses its tab, as Zed hides its button (#748).
+        let leaving = marley_layout && !now;
+        close_tabs(cx, |panel, cx| leaving || !panel.enabled(cx));
         marley_layout = now;
     })
     .detach();
+}
+
+/// Whether `item` is a panel tab drawing a panel of type `P`: Fleet counts its tab as a place it
+/// shows (#748).
+pub(crate) fn shows_panel<P: 'static>(item: &dyn workspace::item::ItemHandle, cx: &App) -> bool {
+    item.downcast::<PanelTab>()
+        .is_some_and(|tab| tab.read(cx).panel.to_any().downcast::<P>().is_ok())
 }
 
 /// A dock of `workspace` changed. In the Marley layout, a dock open on a moved panel closes again,
@@ -199,8 +216,9 @@ fn move_split(
     });
 }
 
-/// Closes every panel tab of every window: the Zed layout shows its panels in their docks (D10).
-fn close_every_tab(cx: &mut App) {
+/// Closes every panel tab of every window whose panel `close` names: all of them when the Zed
+/// layout is chosen (D10), a disabled panel's otherwise (#748).
+fn close_tabs(cx: &mut App, close: impl Fn(&dyn PanelHandle, &App) -> bool) {
     for window in cx.windows() {
         let Some(window) = window.downcast::<MultiWorkspace>() else {
             continue;
@@ -214,6 +232,7 @@ fn close_every_tab(cx: &mut App) {
                         let tabs: Vec<EntityId> = pane
                             .read(cx)
                             .items_of_type::<PanelTab>()
+                            .filter(|tab| close(tab.read(cx).panel.as_ref(), cx))
                             .map(|tab| tab.entity_id())
                             .collect();
                         for tab in tabs {

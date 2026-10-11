@@ -338,10 +338,15 @@ impl KnowledgePanel {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
-        let page = workspace
-            .read(cx)
-            .active_item(cx)
-            .and_then(|item| super::page::page_in(item.as_ref(), cx));
+        let active = workspace.read(cx).active_item(cx);
+        // This panel's own tab in the Marley layout (#748) keeps the page it follows.
+        if active
+            .as_ref()
+            .is_some_and(|item| item.item_focus_handle(cx) == self.focus_handle)
+        {
+            return;
+        }
+        let page = active.and_then(|item| super::page::page_in(item.as_ref(), cx));
         let Some(page) = page else {
             self.page_tab = None;
             self.show(None, cx);
@@ -1340,11 +1345,16 @@ impl Panel for KnowledgePanel {
     }
 
     fn set_active(&mut self, active: bool, window: &mut Window, cx: &mut Context<Self>) {
-        self.shown_in_dock = if active {
+        let shown = if active {
             InDock::Shown
         } else {
             InDock::Hidden
         };
+        // A tab and its dock may both say so (#748): only a change reads Rusty again.
+        if self.shown_in_dock == shown {
+            return;
+        }
+        self.shown_in_dock = shown;
         if active {
             // The dock opens inside the workspace's update; the join reads the workspace.
             cx.defer_in(window, |this, _, cx| this.refresh_join(cx));

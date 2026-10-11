@@ -97,7 +97,95 @@
   connection line, as the dock did.
 
 ## Phase 2 — Code
+- **Built:** `panel_tabs.rs`: `MOVED` takes `CollabPanel`, `MarleyFleetPanel`,
+  `MarleyKnowledgePanel` and `MarleyContainersPanel`; the settings observer closes a tab whose
+  panel is disabled (and every tab on a switch to Zed's layout) through one `close_tabs`;
+  `shows_panel::<P>` tells whether an item is a tab of a `P`. `fleet.rs`: `fleet_shows` counts a
+  Fleet tab in front of a pane. `knowledge_panel.rs`: `follow_active_item` returns early when the
+  active item is the panel's own tab (its focus handle is the panel's), and `set_active` acts only
+  on a change. Collab and Containers needed nothing (D5).
+- **Review:** `follow_active_item` asks the tab for its focus handle inside the panel's update,
+  which #747's kept handle makes safe (PR-claude-747); a panel turned off closes its tab before
+  it could draw an empty one.
+- **Gate:** GATE GREEN [diff], 17 passed.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/748-more-side-panels-as-tabs.sh`, `compositor sway`: Rusty's stand-in
+  over #646's scratch pages, Fleet's pseudo provider, a fake `docker` and a stand-in
+  `docker-proxy` on port 748. A first run with `STOP_AT_BAR=1` measured the buttons (Containers
+  1402, Knowledge 1429, Fleet 1455, Collab 1507); the full run exits 0 with no panic.
+- **Shots:**
+  - `748-01-collab`: a Collab Panel tab ("Work with your team…", Sign In with GitHub), no right
+    dock. REQ-001.
+  - `748-02-fleet`: a Fleet tab: the pseudo provider's hosts and agents (build-1 working, review-1
+    waiting, docs-1 in error). REQ-001, REQ-002.
+  - `748-03-knowledge`: the Demo page tab, then the Knowledge tab in front: Demo's tags
+    (#project, #area/demo, #draft), backlinks (Orbit, Demo uses Orbit) and links (Orbit, Missing
+    Page). REQ-001, REQ-003.
+  - `748-04-containers`: a Containers tab listing :748 docker (and the box's own published ports).
+    REQ-001.
+  - `748-05-rusty-off`: `marley.rusty.enabled` false: the Knowledge tab is gone; Collab, Fleet,
+    Demo and Containers stay. REQ-004.
+- **Reviewed, not shot:** REQ-004's Containers half (the same `close_tabs` on
+  `marley.rail_containers`), REQ-005 (`set_active` acts only on a change).
+- **Pre-existing, not in scope:** the Containers tab lists the box's own published ports, as #673
+  noted for the panel.
 
 ## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`; the guide's "Side panels as tabs"; the architecture note; the
+  slice line. No Zed path is touched.
+- **Knowledge appended:** none: no bug reached a run.
+- **Ticket:** closed; its BACKLOG row left at promotion; #774 carries the Debug button.
+- **Gate:** GATE GREEN [diff], 17 passed, on the tree committed.
+
+### Promotion (2026-10-11, at fb109b8906)
+- **Split.** The Debug button (D6, D7; REQ-007 to REQ-009) goes to TICKET-774; the restore of a
+  disabled panel's tab (REQ-006) to #773, which restores panel tabs at all.
+- **Seams re-checked against #747's `panel_tabs.rs`:** `MOVED` takes the four names; the settings
+  observer in `init` is where D4's close goes; `PanelTab` gains a typed check for Fleet
+  (`shows_panel::<P>`). `fleet.rs` `fleet_shows` 330 (the dock's visible panel or an Agent tab in
+  front; `FleetPanel`'s render starts the polling, 1432); `knowledge_panel.rs`
+  `follow_active_item` 335 (reads the workspace's active item; clears on a non-Page item),
+  `set_active` 1342 (refreshes on every `true`), `Focusable` 1292.
+
+## Phase 2 — Code
+- **Built:** `panel_tabs.rs`: `MOVED` takes `CollabPanel`, `MarleyFleetPanel`,
+  `MarleyKnowledgePanel` and `MarleyContainersPanel`; the settings observer closes a tab whose
+  panel is disabled (and every tab on a switch to Zed's layout) through one `close_tabs`;
+  `shows_panel::<P>` tells whether an item is a tab of a `P`. `fleet.rs`: `fleet_shows` counts a
+  Fleet tab in front of a pane. `knowledge_panel.rs`: `follow_active_item` returns early when the
+  active item is the panel's own tab (its focus handle is the panel's), and `set_active` acts only
+  on a change. Collab and Containers needed nothing (D5).
+- **Review:** `follow_active_item` asks the tab for its focus handle inside the panel's update,
+  which #747's kept handle makes safe (PR-claude-747); a panel turned off closes its tab before
+  it could draw an empty one.
+- **Gate:** GATE GREEN [diff], 17 passed.
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/748-more-side-panels-as-tabs.sh`, `compositor sway`: Rusty's stand-in
+  over #646's scratch pages, Fleet's pseudo provider, a fake `docker` and a stand-in
+  `docker-proxy` on port 748. A first run with `STOP_AT_BAR=1` measured the buttons (Containers
+  1402, Knowledge 1429, Fleet 1455, Collab 1507); the full run exits 0 with no panic.
+- **Shots:**
+  - `748-01-collab`: a Collab Panel tab ("Work with your team…", Sign In with GitHub), no right
+    dock. REQ-001.
+  - `748-02-fleet`: a Fleet tab: the pseudo provider's hosts and agents (build-1 working, review-1
+    waiting, docs-1 in error). REQ-001, REQ-002.
+  - `748-03-knowledge`: the Demo page tab, then the Knowledge tab in front: Demo's tags
+    (#project, #area/demo, #draft), backlinks (Orbit, Demo uses Orbit) and links (Orbit, Missing
+    Page). REQ-001, REQ-003.
+  - `748-04-containers`: a Containers tab listing :748 docker (and the box's own published ports).
+    REQ-001.
+  - `748-05-rusty-off`: `marley.rusty.enabled` false: the Knowledge tab is gone; Collab, Fleet,
+    Demo and Containers stay. REQ-004.
+- **Reviewed, not shot:** REQ-004's Containers half (the same `close_tabs` on
+  `marley.rail_containers`), REQ-005 (`set_active` acts only on a change).
+- **Pre-existing, not in scope:** the Containers tab lists the box's own published ports, as #673
+  noted for the panel.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`; the guide's "Side panels as tabs"; the architecture note; the
+  slice line. No Zed path is touched.
+- **Knowledge appended:** none: no bug reached a run.
+- **Ticket:** closed; its BACKLOG row left at promotion; #774 carries the Debug button.
+- **Gate:** GATE GREEN [diff], 17 passed, on the tree committed.

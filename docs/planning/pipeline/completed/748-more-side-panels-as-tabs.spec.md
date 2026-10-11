@@ -1,7 +1,7 @@
 ---
 pipeline_id: f0b56f32-0311-431b-948d-ebd6262c057a
-ticket: docs/planning/tickets/open/TICKET-748-more-side-panels-as-tabs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-748-more-side-panels-as-tabs.md
+status: Phase 4 — Complete PASS
 title: Side panels open as tabs - Collab, Fleet, Knowledge and Containers; Debug to the left
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), tabs everywhere (docs/planning/design-notes/tabs-everywhere-2026-10-11.md)
@@ -31,13 +31,12 @@ consistent", and of Debug: "yes debug moves to bottom left and stays the excepti
   `set_active` only when it changes.
 - A panel tab closes when its panel turns disabled: Knowledge while Rusty is off, Containers while
   `marley.rail_containers` is off. A disabled panel's saved tab is not restored.
-- Debug: the panel stays in the bottom dock. In the Marley layout its button leaves the bottom
-  dock's buttons at the right and sits at the left end of the status bar, toggled while the bottom
-  dock shows it; a click does what Zed's button did. Zed's layout keeps Zed's button.
 - `docs/marley/guide.md` and `docs/marley/walkthrough.md`: the four panels open as tabs; the Debug
   button at the left.
 
 ### Out (explicitly deferred)
+- The Debug button at the status bar's left: #774 (D6, D7), split off at promotion.
+- A saved tab of a disabled panel after a restart: #773, which restores panel tabs at all.
 - The Agent Panel. It stays in the right dock, the one panel left there in the Marley layout: #744
   gives its button the New Agent picker, and whatever else opens the panel (its palette actions,
   Zed's agent settings and history) still opens the dock (D8). A tab for it waits on Chad.
@@ -93,18 +92,12 @@ layout: Rusty on through its stand-in `rusty-mcp` with a page; Fleet's pseudo pr
 `docker-proxy` publishing port 748, with `marley.rail_containers` on. Collab is signed out.
 
 Shots:
-- `bar`: the status bar: Debug at the left end; at the right the Collab, Fleet, Knowledge and
-  Containers buttons and no Debug button (REQ-007).
 - `collab`, `fleet`, `knowledge`, `containers`: each button clicked: its tab in the repo's active
   pane, the right dock closed (REQ-001); `fleet` lists the pseudo agents (REQ-002); `containers`
   lists :748.
 - `knowledge-split`: a brain page open in a Page tab, the Knowledge tab dragged to a split, then
   clicked: it still shows the page's tags and links (REQ-003).
 - `rusty-off`: `marley.rusty.enabled` turned off: the Knowledge tab gone (REQ-004).
-- `debug`: the Debug button clicked: the bottom dock open on the Debug panel, the button toggled
-  (REQ-008).
-- `zed-layout`: `marley: use zed layout`: Zed's Debug button back among the bottom dock's buttons
-  at the right, none at the left (REQ-009).
 
 ## Locked-In Decisions
 - **D1 — The four join #747's moved list by persistent name** (`CollabPanel`, `MarleyFleetPanel`,
@@ -117,13 +110,13 @@ Shots:
 - **D3 — Fleet counts its tab as a showing surface**: `fleet_shows` also asks whether a Fleet
   panel tab is the front item of a pane in a window's shown workspace. Rejected: driving the
   polling from `set_active` (Fleet has none, and the Agent tab already reads the windows).
-- **D4 — A tab closes when its panel turns disabled.** #747's tab checks `Panel::enabled` on each
-  settings change and closes itself when it is false, as Zed hides a disabled panel's button; the
-  restore refuses a disabled panel. The panels' own `close_while_off` and `close_while_hidden`
+- **D4 — A tab closes when its panel turns disabled.** `panel_tabs`' settings observer (#747's,
+  which closes the tabs on a switch to Zed's layout) also closes every tab whose panel's
+  `enabled` is false, as Zed hides a disabled panel's button; #773's restore refuses one. The panels' own `close_while_off` and `close_while_hidden`
   stay for the Zed layout's dock.
 - **D5 — Collab and Containers need nothing of their own**: Collab's toast dismissal and
   Containers' port scan already follow `set_active`, which #747 drives from the tab.
-- **D6 — Debug stays in the bottom dock; its button moves.** In the Marley layout `debugger.button`
+- **D6 — Debug stays in the bottom dock; its button moves (#774, split off at promotion).** In the Marley layout `debugger.button`
   defaults to false, patched beside `terminal.button` with Zed's value kept for the switch back, so
   the bottom dock's buttons drop it. A Marley status item, inserted after the left dock's
   `PanelButtons` (`position_of_item::<PanelButtons>`, `insert_item_after`), draws the Debug icon
@@ -134,7 +127,7 @@ Shots:
   as Zed's does. Rejected: moving Zed's bottom `PanelButtons` to the left (the status bar finds
   items by type and the three `PanelButtons` share one, so it needs a Zed hunk); the Debug panel
   in the left dock (Chad kept the bottom dock).
-- **D7 — The Debug item is Marley-layout only**; in Zed's layout it draws nothing and Zed's own
+- **D7 — The Debug item is Marley-layout only (#774)**; in Zed's layout it draws nothing and Zed's own
   button returns with the restored default.
 - **D8 — The Agent Panel stays in the right dock.** As a tab it would also need its zoom handled:
   it emits `PanelEvent::ZoomIn` (`agent_panel.rs`), which draws it in the workspace's zoom layer, a
@@ -149,10 +142,6 @@ Shots:
 | REQ-003 | While its own tab is the active item, the Knowledge panel shall keep showing the Page tab it follows. | shot `knowledge-split` |
 | REQ-004 | WHEN Rusty turns off, the system shall close the Knowledge tab; WHEN `marley.rail_containers` turns off, the system shall close the Containers tab. | shot `rusty-off`; review of the diff for Containers |
 | REQ-005 | The Knowledge panel shall read Rusty again only when its `set_active` value changes. | review of the diff |
-| REQ-006 | WHEN Marley starts with a saved tab of a disabled panel, the system shall not restore it. | review of the diff |
-| REQ-007 | In the Marley layout the status bar shall show the Debug button at its left end and none among the bottom dock's buttons at its right. | shot `bar` |
-| REQ-008 | WHEN the Debug button is clicked, the system shall open the bottom dock on the Debug panel, and the button shall show as toggled while it is open. | shot `debug` |
-| REQ-009 | WHEN the layout switches to Zed's, the system shall show Zed's Debug button among the bottom dock's buttons and no Debug button at the left. | shot `zed-layout` |
 | REQ-010 | The change shall pass `script/gates.sh --diff`. | the gate's exit code |
 
 ## Phase Plan

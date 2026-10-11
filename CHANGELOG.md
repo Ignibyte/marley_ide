@@ -997,6 +997,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Collab, Fleet, Knowledge and Containers open as tabs** (#748, 2026-10-11). The rest of the right
+  dock's panels follow #747: each opens as a tab in the pane you are in. Fleet keeps reading its
+  providers while its tab is in front, Knowledge keeps showing the page it follows while its own
+  tab is in front, and a panel turned off (Knowledge while Rusty is off, Containers while hidden)
+  closes its tab. Only the Agent Panel stays in the right dock.
+
 - **Files, Git and Outline open as tabs** (#747, 2026-10-11). In the Marley layout the project
   panel, the git panel and the outline panel open as tabs in the pane you are in, not in the right
   dock: their status-bar buttons, their keys (Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B) and Zed's

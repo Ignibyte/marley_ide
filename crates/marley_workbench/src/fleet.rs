@@ -339,11 +339,13 @@ fn fleet_shows(cx: &App) -> bool {
                 .read(cx)
                 .visible_panel()
                 .is_some_and(|panel| panel.to_any().downcast::<FleetPanel>().is_ok());
+            // An Agent tab, or Fleet's own tab in the Marley layout (#748), in front of a pane.
             panel
                 || workspace.panes().iter().any(|pane| {
-                    pane.read(cx)
-                        .active_item()
-                        .is_some_and(|item| item.downcast::<AgentView>().is_some())
+                    pane.read(cx).active_item().is_some_and(|item| {
+                        item.downcast::<AgentView>().is_some()
+                            || crate::panel_tabs::shows_panel::<FleetPanel>(item.as_ref(), cx)
+                    })
                 })
         })
 }

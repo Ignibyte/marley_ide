@@ -2145,6 +2145,18 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## More side panels as tabs (`src/panel_tabs.rs`, `src/fleet.rs`, `src/rusty/knowledge_panel.rs`, #748)
+
+- `MOVED` adds `CollabPanel`, `MarleyFleetPanel`, `MarleyKnowledgePanel` and
+  `MarleyContainersPanel`; the Marley layout's right dock opens only on the Agent Panel.
+- `panel_tabs::init`'s settings observer runs `close_tabs` with "leaving the Marley layout, or the
+  panel is not `enabled`", so Knowledge's tab closes while Rusty is off and Containers' while it
+  is hidden. `shows_panel::<P>` answers whether an item is a tab of a `P`.
+- `fleet::fleet_shows` counts a Fleet tab in front of a pane as a place Fleet shows, which keeps its
+  polling loop going (`FleetPanel`'s render starts it).
+- `KnowledgePanel::follow_active_item` keeps its page when the active item is its own tab;
+  `set_active` acts only on a change, since the tab and the dock may both say so.
+
 ## Side panels as tabs (`src/panel_tabs.rs`, Zed's `outline_panel.rs`, #747)
 
 - `MOVED` names the panels a tab draws, by persistent name (`Project Panel`, `GitPanel`,
