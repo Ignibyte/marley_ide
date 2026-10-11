@@ -27,12 +27,15 @@ use async_tungstenite::tungstenite::Message;
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
 use futures::{AsyncBufReadExt as _, StreamExt as _};
-use gpui::{App, AppContext as _, AsyncApp, Entity, EntityId, Global, Task, WeakEntity};
+use gpui::{
+    AnyWindowHandle, App, AppContext as _, AsyncApp, Entity, EntityId, Global, Task, WeakEntity,
+};
 use marley_agent::codex_events::{
     self, Decision, Input, Notification, Request, RequestKind, Thread, ThreadStatus,
 };
 use marley_agent::versions::{self, CODEX_APP_SERVER, Found};
 use marley_agent::{AgentKind, Remote};
+use marley_fleet::{Session, State};
 use project::Project;
 use serde_json::{Value, json};
 use settings::Settings as _;
@@ -875,7 +878,9 @@ impl Following {
         let known = self.view;
         let view = cx.update(|cx| {
             let view = known.or_else(|| view_of(terminal, cx))?;
-            crate::agent_events::fold_codex(view, input, cx);
+            if let Some((before, after)) = crate::agent_events::fold_codex(view, input, cx) {
+                push_change(view, before, &after, cx);
+            }
             Some(view)
         });
         self.view = view;
@@ -889,6 +894,28 @@ impl Following {
                 crate::agent_bar::agent_in(terminal.read(cx)) == Some(AgentKind::Codex)
             })
         })
+    }
+}
+
+/// Pushes the change the Codex seat of the terminal view `view` made (#752), in the window that
+/// shows the view, as a hook frame's change pushes; a view in no window pushes nothing.
+fn push_change(view: EntityId, before: State, after: &Session, cx: &mut App) {
+    let Some((workspace, view)) = crate::mcp::terminals(cx)
+        .into_iter()
+        .find(|(_, shown)| shown.entity_id() == view)
+    else {
+        return;
+    };
+    let Some(window) = crate::browser::window_of(&workspace, cx) else {
+        return;
+    };
+    let pushed = AnyWindowHandle::from(window).update(cx, |_, window, cx| {
+        view.update(cx, |view, cx| {
+            crate::push::on_change(view, before, after, window, cx);
+        });
+    });
+    if pushed.is_err() {
+        log::debug!("codex app server: the terminal's window closed before its push");
     }
 }
 

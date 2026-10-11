@@ -190,6 +190,19 @@ pub fn prompt_origin(prompt: &str) -> PromptOrigin;                 // #509
   permissions back with scope `turn` or `session` and an empty grant for a denial, `{action}`);
   `ask(files)` the inbox's line. `resolved` and `file_change_started` read `serverRequest/resolved`
   and a file change's `item/started`.
+- Since #752 it reads two more shapes. `item/tool/requestUserInput` is `RequestKind::Question`
+  (each `Asked`: id, header, question, secret, the options' labels); one question with options
+  that is not secret offers `Decision::Option(index)` for each, answered `{"answers": {<id>:
+  {"answers": [<label>]}}}`, and any other offers nothing. An elicitation's `approval` is
+  `Some` for a form with no fields (`approval_of`): `tool` from `_meta.codex_approval_kind`
+  `mcp_tool_call`, `persist` from `_meta.persist`; it offers Accept, the persistences offered
+  (`AcceptForSession`, `AcceptAlways`), Decline unless a tool's, and Cancel, answered `{"action":
+  "accept"}` or with `"_meta": {"persist": "session" | "always"}`. `Thread.cwd` sets the seat's
+  `cwd` label, which names the project in a push.
+- `TurnEvent` (`marley_agent.rs`) gains `NeedsApproval` (#752): `of_seat(before, seat)` reads a
+  wait as an approval when Claude Code's question is a permission
+  (`claude_events::waits_on_permission`) or Codex waits on `approval`; `kind()` names its push
+  switch; `event_line(project, agent, event)` takes the agent's name as text.
 
 ## The versions integrations were tested on (`src/versions.rs`, #648)
 

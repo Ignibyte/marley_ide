@@ -866,7 +866,10 @@ It runs on Codex 0.155.1 to 0.162.0; on another version Codex starts as before, 
 bar's chip says which version Marley found (App Server on Untested Codex, in the Agent Versions
 section, runs it anyway). Codex's approval requests (a command, a file change, extra
 permissions, an MCP server's elicitation) also show in the rail's Needs you with the decisions
-each offers, and Marley answers only the one you pick (#651). While it is joined, the user agent
+each offers, and Marley answers only the one you pick (#651). An MCP server that only asks to run
+a tool offers Allow, Allow session or Always allow as it offers them, and Dismiss; Codex's own
+question with options shows one button per option, and one with no options, a secret or more
+questions shows its text and opens the terminal (#752). While it is joined, the user agent
 Codex sends with its requests names Marley. A Codex you type by hand runs as you typed it.
 
 The first time Claude Code starts in bypass it asks you to accept its warning, in the terminal.

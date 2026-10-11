@@ -2444,10 +2444,20 @@ impl Rail {
                 .children(entry.answers.iter().map(|answer| {
                     let answer = *answer;
                     let answer_key = key.clone();
-                    let word = answer.words().to_lowercase().replace(' ', "-");
+                    // A Codex question's option says its own label (#752).
+                    let (word, label) = match (answer, self.snapshot.inbox.get(&key)) {
+                        (InboxAnswer::Option(index), Some(InboxTarget::Codex { request, .. })) => (
+                            format!("option-{index}"),
+                            codex_answer_words(request, answer),
+                        ),
+                        _ => (
+                            answer.words().to_lowercase().replace(' ', "-"),
+                            answer.words().to_string(),
+                        ),
+                    };
                     Button::new(
                         SharedString::from(format!("marley-rail-inbox-{word}-{key}")),
-                        answer.words(),
+                        label,
                     )
                     .when(answer == InboxAnswer::Allow, |button| {
                         button.style(ButtonStyle::Filled)
@@ -7603,7 +7613,7 @@ fn codex_entry(
             (
                 format!(
                     "Sent: {} · {}",
-                    inbox_answer(decision, elicitation).words(),
+                    codex_answer_words(request, inbox_answer(decision, elicitation)),
                     request.ask(files)
                 ),
                 Vec::new(),
@@ -7625,7 +7635,7 @@ fn codex_entry(
 }
 
 /// The inbox's button for a Codex decision: `cancel` stops the turn on an approval and dismisses
-/// an elicitation (#651).
+/// an elicitation (#651); a question's option is answered by its index (#752).
 const fn inbox_answer(decision: codex_events::Decision, elicitation: bool) -> InboxAnswer {
     match decision {
         codex_events::Decision::Accept => InboxAnswer::Allow,
@@ -7633,6 +7643,8 @@ const fn inbox_answer(decision: codex_events::Decision, elicitation: bool) -> In
         codex_events::Decision::Decline => InboxAnswer::Deny,
         codex_events::Decision::Cancel if elicitation => InboxAnswer::Dismiss,
         codex_events::Decision::Cancel => InboxAnswer::StopTurn,
+        codex_events::Decision::AcceptAlways => InboxAnswer::AlwaysAllow,
+        codex_events::Decision::Option(index) => InboxAnswer::Option(index),
     }
 }
 
@@ -7643,8 +7655,18 @@ const fn codex_decision(answer: InboxAnswer) -> Option<codex_events::Decision> {
         InboxAnswer::AllowSession => Some(codex_events::Decision::AcceptForSession),
         InboxAnswer::Deny => Some(codex_events::Decision::Decline),
         InboxAnswer::StopTurn | InboxAnswer::Dismiss => Some(codex_events::Decision::Cancel),
+        InboxAnswer::AlwaysAllow => Some(codex_events::Decision::AcceptAlways),
+        InboxAnswer::Option(index) => Some(codex_events::Decision::Option(index)),
         InboxAnswer::Refuse => None,
     }
+}
+
+/// A button's words for a Codex request: a question's option's label, else the answer's words
+/// (#752).
+fn codex_answer_words(request: &codex_events::Request, answer: InboxAnswer) -> String {
+    codex_decision(answer)
+        .and_then(|decision| request.option_label(decision))
+        .map_or_else(|| answer.words().to_string(), str::to_string)
 }
 
 /// Each Browser tab of `member` that holds an agent's click, as an inbox entry, once a page; with
@@ -7898,10 +7920,19 @@ fn codex_waiting(shown: &crate::codex_server::Shown) -> Waiting {
             paths.iter().map(PathBuf::from).collect(),
             None,
         ),
-        codex_events::RequestKind::Elicitation { server, message } => (
+        codex_events::RequestKind::Elicitation {
+            server, message, ..
+        } => (
             ToolClass::Question,
             server.clone(),
             message.clone(),
+            Vec::new(),
+            None,
+        ),
+        codex_events::RequestKind::Question { .. } => (
+            ToolClass::Question,
+            "requestUserInput".to_string(),
+            request.ask(None),
             Vec::new(),
             None,
         ),

@@ -20,7 +20,7 @@ use gpui::{
     SystemNotification, SystemNotificationResponse, WeakEntity, Window, WindowHandle,
 };
 use marley_agent::claude_events::banner_body;
-use marley_agent::{AgentKind, TurnEvent, event_line};
+use marley_agent::{TurnEvent, event_line};
 use marley_fleet::{Session, State};
 use terminal::{Event, Terminal};
 use terminal_view::TerminalView;
@@ -139,7 +139,7 @@ pub(crate) fn on_seat_change(
     window: &Window,
     cx: &mut Context<TerminalView>,
 ) {
-    let Some(event) = TurnEvent::of_change(before, seat.state) else {
+    let Some(event) = TurnEvent::of_seat(before, seat) else {
         return;
     };
     if looking_at(view, window, cx) {
@@ -152,7 +152,11 @@ pub(crate) fn on_seat_change(
         return;
     }
     let tag = SharedString::from(format!("marley-terminal-{}", cx.entity_id()));
-    let title = event_line(&crate::push::project_name(seat), AgentKind::Claude, event);
+    let title = event_line(
+        &crate::push::project_name(seat),
+        &crate::push::agent_name(seat),
+        event,
+    );
     post(
         tag,
         SharedString::from(title),

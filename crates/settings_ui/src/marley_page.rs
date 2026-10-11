@@ -1135,13 +1135,14 @@ fn assistant_section() -> [SettingsPageItem; 3] {
     ]
 }
 
-// Marley: the ntfy server Claude Code's events are pushed to, for the phone (#535).
-fn push_section() -> [SettingsPageItem; 4] {
+// Marley: the ntfy server agents' events are pushed to, for the phone (#535), and which kinds go
+// (#752).
+fn push_section() -> [SettingsPageItem; 8] {
     [
         SettingsPageItem::SectionHeader("Push"),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Push Server",
-            description: "An ntfy server on this machine, such as http://127.0.0.1:8090. When Claude Code in a terminal you are not looking at needs input, finishes or fails, Marley pushes one line to it, which the ntfy app shows on your phone. Empty pushes nothing.",
+            description: "An ntfy server on this machine, such as http://127.0.0.1:8090. When an agent you are not looking at needs a permission or an answer, finishes or fails, Marley pushes one line to it, which the ntfy app shows on your phone. Empty pushes nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.push.url"),
@@ -1209,6 +1210,107 @@ fn push_section() -> [SettingsPageItem; 4] {
                         .push
                         .get_or_insert_default()
                         .token_file = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: each kind of event pushed or not (#752).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Approvals",
+            description: "Whether an agent that needs a permission pushes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.approval"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.approval.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .approval = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Questions",
+            description: "Whether an agent that asks a question pushes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.input"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.input.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .input = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Finished Turns",
+            description: "Whether an agent whose turn finished pushes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.finish"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.finish.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .finish = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Push Failures",
+            description: "Whether an agent whose turn failed pushes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.push.failure"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.push.as_ref())
+                        .and_then(|push| push.failure.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .push
+                        .get_or_insert_default()
+                        .failure = value;
                 },
             }),
             metadata: None,

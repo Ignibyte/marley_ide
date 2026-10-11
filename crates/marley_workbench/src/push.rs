@@ -1,8 +1,10 @@
-//! Claude Code's events pushed to the phone through ntfy (#535).
+//! Agents' events pushed to the phone through ntfy (#535).
 //!
-//! When Claude Code in a terminal the user is not looking at needs input, finishes or fails,
-//! `on_change` posts one line to the ntfy server `marley.push` names, such as
-//! `marley_ide: Claude needs input`. The line carries nothing the agent wrote. The server must be
+//! When an agent the user is not looking at needs a permission or an answer, finishes or fails,
+//! Marley posts one line to the ntfy server `marley.push` names, such as
+//! `marley_ide: Claude needs approval`: `on_change` for a Claude Code or Codex seat in a terminal,
+//! `on_thread` for a Zed agent thread, when Zed decides the user should hear of it (#752). Each
+//! kind of event has its switch. The line carries nothing the agent wrote. The server must be
 //! on this machine (ntfy on the dev box, which `tailscale serve` publishes to the phone), a token
 //! comes from a file only its owner can read, a burst of events from one project makes one push,
 //! and a server that does not answer shows one toast until it answers again.
@@ -13,17 +15,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use agent_ui::MarleyAttention;
 use anyhow::{Context as _, bail};
 use gpui::{App, AppContext as _, Context, Global, WeakEntity, Window};
 use http_client::{AsyncBody, Host, HttpClient, Method, Request, Url};
 use marley_agent::claude_events::CWD_LABEL;
 use marley_agent::{AgentKind, TurnEvent, event_line};
 use marley_fleet::{Session, State};
+use project::AgentId;
 use settings::Settings as _;
 use terminal_view::TerminalView;
 use util::ResultExt as _;
 use workspace::notifications::NotificationId;
-use workspace::{Toast, Workspace};
+use workspace::{MultiWorkspace, Toast, Workspace};
 
 use crate::{MarleySettings, PushSettings, notifications};
 
@@ -49,7 +53,8 @@ enum Outcome {
 }
 
 /// Pushes the event, if any, that `view`'s seat made by moving from `before` to its state in
-/// `seat`, unless no server is set or the user is looking at the terminal.
+/// `seat`, unless no server is set, its kind is off, or the user is looking at the terminal. The
+/// seat names its agent, Claude Code or Codex (#752).
 pub(crate) fn on_change(
     view: &TerminalView,
     before: State,
@@ -57,13 +62,79 @@ pub(crate) fn on_change(
     window: &Window,
     cx: &mut Context<TerminalView>,
 ) {
-    let Some(event) = TurnEvent::of_change(before, seat.state) else {
-        return;
-    };
-    let Some(settings) = MarleySettings::get_global(cx).push.clone() else {
+    let Some(event) = TurnEvent::of_seat(before, seat) else {
         return;
     };
     if notifications::looking_at(view, window, cx) {
+        return;
+    }
+    push(
+        &project_name(seat),
+        &agent_name(seat),
+        event,
+        view.marley_workspace().clone(),
+        cx,
+    );
+}
+
+/// Pushes what a Zed agent thread asks of the user, told by Zed where it decides the user should
+/// hear of it (#752), unless the user can see the thread. `agent` is the thread's agent's id and
+/// `folders` its folders, the first of which names the project.
+pub(crate) fn on_thread(
+    attention: MarleyAttention,
+    visible: bool,
+    agent: &str,
+    folders: &[PathBuf],
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if visible {
+        return;
+    }
+    let event = match attention {
+        MarleyAttention::Approval => TurnEvent::NeedsApproval,
+        MarleyAttention::Input => TurnEvent::NeedsInput,
+        MarleyAttention::Finish => TurnEvent::Finished,
+        MarleyAttention::Failure => TurnEvent::Failed,
+    };
+    let workspace = window
+        .root::<MultiWorkspace>()
+        .flatten()
+        .map(|multi_workspace| multi_workspace.read(cx).workspace().clone());
+    let agent = workspace.as_ref().map_or_else(
+        || agent.to_string(),
+        |workspace| {
+            let project = workspace.read(cx).project().clone();
+            crate::agents::thread_agent_name(&AgentId(agent.to_string().into()), &project, cx)
+                .to_string()
+        },
+    );
+    let project = folders
+        .first()
+        .and_then(|folder| folder.file_name())
+        .map_or_else(
+            || "A thread".to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+    let workspace =
+        workspace.map_or_else(WeakEntity::new_invalid, |workspace| workspace.downgrade());
+    push(&project, &agent, event, workspace, cx);
+}
+
+/// Posts `event`'s line for `agent` in `project`, unless no server is set, the event's kind is
+/// off, or the project pushed within the cooldown; a server that does not take it shows a toast
+/// in `workspace`.
+fn push(
+    project: &str,
+    agent: &str,
+    event: TurnEvent,
+    workspace: WeakEntity<Workspace>,
+    cx: &mut App,
+) {
+    let Some(settings) = MarleySettings::get_global(cx).push.clone() else {
+        return;
+    };
+    if !settings.pushes(event) {
         return;
     }
     let target = match target_url(&settings) {
@@ -73,9 +144,12 @@ pub(crate) fn on_change(
             return;
         }
     };
-    let project = project_name(seat);
     let now = cx.background_executor().now();
-    match cx.default_global::<Pushes>().last.entry(project.clone()) {
+    match cx
+        .default_global::<Pushes>()
+        .last
+        .entry(project.to_string())
+    {
         Entry::Occupied(mut last) => {
             if now.saturating_duration_since(*last.get()) < COOLDOWN {
                 return;
@@ -86,7 +160,7 @@ pub(crate) fn on_change(
             let _stored = slot.insert(now);
         }
     }
-    let line = event_line(&project, AgentKind::Claude, event);
+    let line = event_line(project, agent, event);
     let post = cx.background_spawn(post(
         cx.http_client(),
         target,
@@ -94,12 +168,18 @@ pub(crate) fn on_change(
         line,
         event,
     ));
-    let workspace = view.marley_workspace().clone();
-    cx.spawn(async move |_, cx| {
+    cx.spawn(async move |cx| {
         let outcome = post.await;
         cx.update(|cx| report(outcome, &settings.url, &workspace, cx));
     })
     .detach();
+}
+
+/// The short name of the agent `seat` belongs to, as a line gives it: `Claude` or `Codex` (#752).
+pub(crate) fn agent_name(seat: &Session) -> String {
+    crate::agent_events::seat_agent(seat)
+        .map_or("Agent", AgentKind::short_name)
+        .to_string()
 }
 
 /// The topic's URL on the server, when the server is on this machine and the topic is one ntfy
@@ -131,8 +211,8 @@ fn target_url(settings: &PushSettings) -> anyhow::Result<Url> {
     Url::parse(&target).with_context(|| format!("`{target}` is not a URL"))
 }
 
-/// The project's name for the line: the last folder of where Claude Code started, as the
-/// plugin's desktop notification names it.
+/// The project's name for the line: the last folder of where the agent started, as Claude Code's
+/// plugin's desktop notification names it; a Codex seat's is its lead thread's folder (#752).
 pub(crate) fn project_name(seat: &Session) -> String {
     seat.labels
         .get(CWD_LABEL)
@@ -156,6 +236,7 @@ async fn post(
         Err(error) => return Outcome::Refused(format!("{error:#}")),
     };
     let (priority, tag) = match event {
+        TurnEvent::NeedsApproval => ("4", "lock"),
         TurnEvent::NeedsInput => ("4", "question"),
         TurnEvent::Finished => ("3", "white_check_mark"),
         TurnEvent::Failed => ("4", "x"),

@@ -4949,3 +4949,18 @@ the latest failure, its header says `restored` where the branch goes, and `termi
 it. Rejected: a `.blocks.jsonl` with byte offsets (compaction cuts the head and the writer
 batches), absolute lines (the replay's width and cut differ), a `restored` field on
 `AnchoredBlock` (its literals), and a guessed branch.
+
+## AD-claude-752-a-push-follows-each-sources-own-decision-and-four-kinds-switch-it-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-535-agent-events-reach-the-phone-as-one-line-through-ntfy-on-the-box-001, AD-claude-651-codex-approvals-answer-in-the-inbox-only-when-clicked-001*
+
+Every agent pushes from the place that already decides it changed: a Claude Code or Codex seat's
+change through one `TurnEvent::of_seat` (Codex's from `fold_codex`, in the window that shows its
+terminal), and a Zed thread where Zed's `ConversationView` calls `notify_with_sound`, which hands
+Marley's host the kind and Zed's own visibility. The kinds are T3 Code's four, approval, input,
+finish and failure, each a switch in `marley.push`, on by default; the line names the agent and
+says `needs approval` for a permission. Codex's question is answered in place only when it is one
+question with options and not secret, by the option's label; an MCP server's request is accepted
+in place only when it has nothing to fill in, with only the persistence it offers; every answer is
+a click through #651's table. Rejected: Marley judging Zed's thread events itself, the hook in
+`show_notification` (a banner's absence would silence the phone), a list setting the settings page
+cannot draw, and a text field in the rail.

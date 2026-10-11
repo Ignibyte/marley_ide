@@ -3811,3 +3811,11 @@ at each window close. Fixed in #751: a `TerminalView` released while its window 
 `thread_rng` nor `uuid`'s `v4`; `just clippy marley_terminal` alone failed in untouched code, while
 every build with another crate that turned them on passed. Fixed in #751: the manifest asks for both.
 The same class as F-claude-771-marley-fleet-built-only-beside-a-crate-that-turned-on-serde-derive-001.
+
+## F-claude-752-a-reporting-codex-pushed-as-claude-001
+*severity: low · found in: pipeline 752's Code phase (the seams' second look) · class: a name fixed where the source varies*
+
+`push::on_change` and #538's banner wrote `AgentKind::Claude` into every line, which was true while
+Claude Code's frames were their only caller. #652's agent reports call them too, and a report's
+agent comes from the terminal's program, which can be Codex, so a reporting Codex would have pushed
+`Claude needs input`. Fixed in #752: both name the seat's agent (`push::agent_name`).

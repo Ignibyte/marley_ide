@@ -566,7 +566,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Read an entry: the agent, its project, what it asks, and how long it has waited (<code>now</code>, <code>3 m</code>, <code>1 h 5 m</code>).</li>
 <li>For a Zed agent thread's tool call, click Allow or Deny right in the entry. A prompt with more choices opens the thread instead.</li>
 <li>For Claude Code in a terminal, click the entry to go to its terminal and answer there.</li>
-<li>For Codex with Codex App Server on (Settings → Marley → Agents), each request it asks you to approve has an entry: a command and its folder, the files a change edits, the permissions it asks for, or an MCP server's question. A command or a file change offers Allow, Allow session (no more asking for the same this session), Deny and Stop turn (deny, and Codex's turn stops); permissions offer Allow, Allow session and Deny; an MCP server's question offers Deny and Dismiss. Codex's own prompt in the terminal then closes. A question of Codex's own reads "Waits on an answer" and opens the terminal.</li>
+<li>For Codex with Codex App Server on (Settings → Marley → Agents), each request it asks you to approve has an entry: a command and its folder, the files a change edits, the permissions it asks for, or an MCP server's question. A command or a file change offers Allow, Allow session (no more asking for the same this session), Deny and Stop turn (deny, and Codex's turn stops); permissions offer Allow, Allow session and Deny; an MCP server's question offers Deny and Dismiss, and one that only asks to run a tool offers Allow, Allow session or Always allow as it offers them, and Dismiss (#752). Codex's own prompt in the terminal then closes. A question of Codex's own with options shows one button per option; one with no options, a secret or more questions shows its text and opens the terminal.</li>
 <li>For an agent's browser click that Marley holds (see <a href="#click-consequence">Consequential clicks</a>), click Refuse or Allow.</li>
 <li>The entry leaves once the wait ends, wherever you answered it. The filter and folded projects never hide the section.</li>
 </ol>
@@ -1409,13 +1409,14 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="push-to-phone">
-<h3>Agent events on your phone <span class="ticket">#535</span></h3>
-<p class="what"><strong>What it is.</strong> With an ntfy server on this machine, Marley pushes one line to your phone when Claude Code in a terminal you are not looking at needs input, finishes or fails.</p>
+<h3>Agent events on your phone <span class="ticket">#535 · #752</span></h3>
+<p class="what"><strong>What it is.</strong> With an ntfy server on this machine, Marley pushes one line to your phone when an agent you are not looking at needs a permission or an answer, finishes or fails: Claude Code or Codex in a terminal, or a thread in the Agent Panel or a tab.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Run an ntfy server on this machine and subscribe to a topic in the ntfy app on your phone.</li>
 <li>On the Marley page (Push), set the server (<code>http://127.0.0.1:&lt;port&gt;</code>), the topic, and a token file if your server wants one.</li>
-<li>Pushes read like <code>marley_ide: Claude needs input</code>. They carry nothing the agent wrote, and a burst from one project makes one push.</li>
+<li>Pushes read like <code>marley_ide: Codex needs approval</code> or <code>marley_ide: Claude needs input</code>. They carry nothing the agent wrote, and a burst from one project makes one push.</li>
+<li>Push Approvals, Push Questions, Push Finished Turns and Push Failures, in the same section, turn each kind off or on.</li>
 </ol>
 </article>
 
@@ -2241,7 +2242,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>long_command_seconds</code></td><td><code>30</code></td><td>When a finished command posts a notification (0 turns it off)</td></tr>
 <tr><td><code>browser_click_pause_agents</code></td><td><code>"agents_without_prompts"</code></td><td>Whose consequential clicks wait, or <code>"all_agents"</code></td></tr>
 <tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>
-<tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine</td></tr>
+<tr><td><code>push</code></td><td>none</td><td><code>{ "url", "topic", "token_file" }</code> of an ntfy server on this machine, and <code>approval</code>, <code>input</code>, <code>finish</code>, <code>failure</code> (each <code>true</code>)</td></tr>
 <tr><td><code>fleet</code></td><td><code>{ "providers": [], "hosts": [], "agent_processes": [] }</code></td><td>Where the Fleet panel's agents come from; <code>{ "kind": "pseudo" }</code> is Marley's example data; <code>hosts</code> are machines Marley reads over SSH or locally (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>embedded_harness</code></td><td><code>false</code></td><td>Marley runs rustal-harness's runtime itself and shows its sessions in the rail (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>harness_writes</code></td><td><code>false</code></td><td>A harness session's tab answers, sends and watches, and agents may propose seats (in <code>settings.json</code> only)</td></tr>

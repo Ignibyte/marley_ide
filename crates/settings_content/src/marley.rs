@@ -342,6 +342,22 @@ pub struct MarleyPushSettingsContent {
     pub topic: Option<String>,
     /// A file holding an ntfy access token, readable by its owner alone.
     pub token_file: Option<String>,
+    /// Whether an agent that needs a permission pushes (#752).
+    ///
+    /// Default: true
+    pub approval: Option<bool>,
+    /// Whether an agent that asks a question pushes (#752).
+    ///
+    /// Default: true
+    pub input: Option<bool>,
+    /// Whether an agent whose turn finished pushes (#752).
+    ///
+    /// Default: true
+    pub finish: Option<bool>,
+    /// Whether an agent whose turn failed pushes (#752).
+    ///
+    /// Default: true
+    pub failure: Option<bool>,
 }
 
 /// Marley's own agent (#683).

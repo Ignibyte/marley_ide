@@ -1430,7 +1430,11 @@ Needs an ntfy server on this machine. In `settings.json`:
 ```
 
 - [ ] When Claude Code needs input, finishes or fails in a terminal you are not looking at, one
-  line such as `marley-tour: Claude needs input` arrives, with nothing the agent wrote.
+  line such as `marley-tour: Claude needs input` arrives, with nothing the agent wrote. A
+  permission reads `needs approval` (#752).
+- [ ] Codex on its App Server, and a thread in the Agent Panel or a tab you cannot see, push the
+  same way (`marley-tour: Codex finished`). Push Finished Turns off on the Marley page's Push
+  section stops the finished ones (#752).
 
 ## Part 6. Zed's Agent Panel
 

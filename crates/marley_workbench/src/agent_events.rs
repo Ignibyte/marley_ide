@@ -127,21 +127,29 @@ pub(crate) fn seat_of(view: EntityId, kind: AgentKind, cx: &App) -> Option<&Sess
 }
 
 /// Folds `input` from the Codex App Server of the terminal `view` into the view's seat (#650). A
-/// seat of another agent, or one that ended, starts over.
-pub(crate) fn fold_codex(view: EntityId, input: &codex_events::Input<'_>, cx: &mut App) {
+/// seat of another agent, or one that ended, starts over. Gives the state before and the seat
+/// after, when its state moved, for the push (#752).
+pub(crate) fn fold_codex(
+    view: EntityId,
+    input: &codex_events::Input<'_>,
+    cx: &mut App,
+) -> Option<(State, Session)> {
     let seat = seat_id(view);
     let previous = cx
         .try_global::<AgentEvents>()
         .and_then(|events| events.snapshot.get(&seat))
         .filter(|session| codex_events::is_codex(session) && session.state != State::Done);
+    let before = previous.map_or(State::Starting, |session| session.state);
     let events = codex_events::fold(&seat, previous, input, now_ms());
     if events.is_empty() {
-        return;
+        return None;
     }
     let agent_events = cx.default_global::<AgentEvents>();
     for event in &events {
         marley_fleet::apply(&mut agent_events.snapshot, event);
     }
+    let after = agent_events.snapshot.get(&seat)?.clone();
+    (after.state != before).then_some((before, after))
 }
 
 /// Applies an agent's `report` to the seat of the terminal `view` (#652): its state and question,

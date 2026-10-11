@@ -184,8 +184,137 @@ a real Codex asking a question or a tool approval (it needs a model turn).
   through Marley, queued in the same batch). Whichever lands second keeps both rules: the skip
   applies to Claude Code seats, the kinds to every source.
 
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/`; the BACKLOG row removed; the ticket in progress. Brain:
+  consultation 34b08565a45b4512ac611569a3a77418, nothing on this seam.
+- **Seams checked again** at `9e5428bf75` (an Explore pass over all thirteen). Unchanged since the
+  draft: `push.rs`, `notifications.rs`, `agent_events.rs`, `agent_reports.rs`, `claude_events.rs`,
+  `marley_rail.rs`, `conversation_view.rs`, `agent_ui.rs`. Moved: `marley_agent.rs` `TurnEvent`
+  655-664, `of_change` 670-678, `words` 682-688, `event_line` 694-700; `codex_server.rs`
+  `Following` 813-829 (now with `folder`), `fold` 873-882, `view_of` 896-901, `requested`
+  1220-1254 (unknown methods left to the TUI at 1223), `answered` 1259-1285; `rail.rs`
+  `inbox_entries` 7185, the Codex request entries 7203-7225, `codex_entry` 7582-7625,
+  `inbox_answer` 7629, `codex_decision` 7640, `render_inbox_entry` 2394-2480 (buttons 2438-2464),
+  `answer_inbox` 2584-2621; `marley_page.rs` `push_section` 1138-1218 (four items);
+  `MarleyPushSettingsContent` 335-345; `versions.rs` `CODEX_APP_SERVER` tested 0.155.1 before
+  0.162.1 (#771), so the box's 0.162.0 is in range and the draft's first risk is gone.
+- **What differs from the draft, and where the design takes it:**
+  - **Two callers of `push::on_change`**, not one: `agent_reports::announce` (`agent_reports.rs:337`)
+    pushes for a reporting agent, which can be Codex, and both it and #538's banner
+    (`notifications.rs:155`) hard-code `AgentKind::Claude`. The agent's name comes from the seat
+    (`agent_events::seat_agent`) at both sites, so a reporting Codex says Codex too.
+  - **The follow keeps no window:** `Following` caches the view's id. After a fold that moved the
+    seat, the follow finds the workspace and view through `mcp::terminals`, the window through
+    `browser::window_of`, and pushes in it, as `agent_reports::announce` does.
+  - **`InboxAnswer` and Codex's `Decision` are closed sets.** `InboxAnswer` gains
+    `Option(SharedString)` and `AlwaysAllow`; Codex's `Decision` gains `Option(String)` and
+    `AcceptFor(Persist)`, so one `Answer` path carries every reply.
+  - **A Claude permission is told from a question** by its wait's prompt prefix, `Permission for `
+    (`claude_events.rs:668`, private), as `banner_body` and the rail already do; a public
+    `claude_events::waits_on_permission(seat)` says it once.
+  - **The stand-in's `input` cue is unreachable** (`codex-fixture.sh:247` sends every `input` to
+    `play_request`); the new `ask`, `ask2`, `askfree`, `toolok` and `form` cues go through
+    `play_request` and `ask()`. #651's scenario expected the input question to stay unlisted
+    (`651:153-157`); its expectation changes with this ticket.
+  - **#508's way to a stand-in thread is stale** (#744 removed the New Agent Thread submenu): the
+    scenario binds a key to `marley::NewAgentThread` on a custom agent server, as #734's does, with
+    #508's stand-in ACP agent that asks a tool's permission.
+
 ## Phase 2 — Code
+- **Built:**
+  - `marley_agent`: `TurnEvent::NeedsApproval`, `of_seat`, `kind`; `event_line(project, agent:
+    &str, event)`; `claude_events::waits_on_permission`, `banner_body` for an approval;
+    `codex_events`: `Thread.cwd` into the seat's `cwd` label, `Decision::{AcceptAlways,
+    Option(u8)}`, `Asked`, `Persist`, `Approval`, `RequestKind::Question`, the elicitation's
+    `approval` (`approval_of`), `asked_of`, `option_label`, `decisions` and `response` for both.
+  - `marley_rail`: `InboxAnswer::{AlwaysAllow, Option(u8)}`, their words, tooltip and `allows`.
+  - `marley_workbench`: `push.rs` (`on_change` from the seat, `on_thread`, a shared `push`,
+    `agent_name`, the approval's tag); `notifications.rs` (the banner's agent from the seat);
+    `agent_events::fold_codex` returns the change; `codex_server::push_change`; `thread_tab` sets
+    the host's `attention`; `rail.rs` (`inbox_answer`, `codex_decision`, `codex_answer_words`, an
+    option's button label from the request, the question in the risk reading);
+    `PushSettings::kinds` and `pushes`, `EnglishHint`'s neighbours untouched.
+  - Zed paths: `agent_ui.rs` (`MarleyAttention`, `MarleyThreadHost::attention`),
+    `conversation_view.rs` (`notify_with_sound`'s kind, `marley_attention`), the push switches in
+    `settings_content`, `default.json` and the Push section (eight items).
+  - Fixtures: the stand-in Codex's cues `ask`, `ask2`, `askfree`, `toolok`, `form`, and its TUI
+    reading `tui.fifo`; #651's scenario's label for the question step.
+  - Guides: the in-app guide (push article, Needs you, settings row), `docs/marley/guide.md`
+    (Codex's entries), `docs/marley/walkthrough.md` 5.22.
+- **Deviations from the plan:**
+  - A Codex view in no window pushes nothing (the draft said it would push as one not looked
+    at): `on_change` needs the window to know whether the user looks.
+  - A tool approval's cancel is the inbox's existing Dismiss, as #651 named an elicitation's
+    cancel; the spec's REQ-014 says "Cancel".
+  - Four booleans would trip clippy's `struct_excessive_bools` on `PushSettings`; it keeps the set
+    of kinds left on.
+  - `push` takes the names by reference (clippy's `needless_pass_by_value`).
+  - The option's button reads its label from the request the entry targets, so `InboxEntry` takes
+    no new field.
+- **Review of the diff:**
+  - Found (F-claude-752-a-reporting-codex-pushed-as-claude-001): the report path pushed every
+    agent as Claude; both lines now name the seat's agent.
+  - REQ-009: a Codex push goes through `on_change`'s `looking_at`; a thread's through Zed's
+    `agent_status_visible`, which `on_thread` refuses on.
+  - REQ-018: an option, an allow or a persistence goes only from a click, through #651's
+    `answer`, which checks the request's generation, id and params; a question with no answer in
+    place gets no buttons.
+  - Re-entrancy: `marley_attention` runs inside `ConversationView`'s update and the push touches
+    no `ConversationView`; `push_change` runs from the follow's `cx.update`, outside any entity.
+  - Provenance: Codex's protocol (Apache-2.0) and T3's report (MIT) as research; nothing from
+    Warp.
+- **Gate:** `just gate-diff` RED on rustfmt alone (one `match` in `push.rs`), 15 passed; after
+  `rustfmt`, GREEN, 17 passed.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/752-codex-push-and-answers.sh` (`compositor sway`). Two calibration
+  runs: New Agent's folder question needed a second Return, and the TUI's FIFO had to exist before
+  the first write; then the `main`/`dev` buttons (231,151), Allow session (122,267) and the entry
+  (110,230) from the shots. The last run passed every check.
+- **Shots:**
+  - `752-01-codex-approval` (REQ-001): Needs you "Codex · repo", `rm -rf build · in …`, Allow,
+    Allow session, Deny, Stop turn; the row `waiting on approval`; the push `repo: Codex needs
+    approval`, priority 4, tag `lock`.
+  - `752-02-codex-input`, `752-07-question` (REQ-002, REQ-011): "Codex · repo", `Branch: Which
+    branch?`, buttons `main` and `dev`; the row `waiting on input`; the push `repo: Codex needs
+    input`.
+  - `752-08-answered` (REQ-012, REQ-017): `dev` clicked; the entry gone; the TUI `closed 102:
+    answered elsewhere`; the server's `answered 102 by marley: {"answers": {"choice": {"answers":
+    ["dev"]}}}`.
+  - `752-03-codex-ends` (REQ-003, REQ-004): the row `failed · 12k tokens`, `stream disconnected
+    before co…`; the pushes `repo: Codex finished` (3, `white_check_mark`) and `repo: Codex
+    failed` (4, `x`).
+  - `752-05-claude-kinds` (REQ-006): the stand-in's steps 1 and 2; Needs you "Claude Code · repo,
+    Which base branch?"; the pushes `repo: Claude needs approval` then `repo: Claude needs input`.
+  - `752-04-thread-approval` (REQ-005): the "Edit the README" tab waiting on Allow or Reject; Needs
+    you "Stand-in · repo" with Deny and Allow; the push `repo: Stand-in needs approval`.
+  - `752-06-switches` (REQ-007, REQ-008): the Push section with Push Approvals, Push Questions,
+    Push Finished Turns (off) and Push Failures; then a Codex `done` with the window away and
+    `pushes so far: 7`, unchanged.
+  - `752-10-tool-approval` (REQ-014): "Codex · repo", `docs: Run search?`, Allow, Allow session,
+    Always allow, Dismiss.
+  - `752-11-allowed-for-session` (REQ-015, REQ-017): the entry gone; the server's `{"_meta":
+    {"persist": "session"}, "action": "accept"}`; the TUI `closed 103`.
+  - `752-09-question-in-terminal` (REQ-013): `Name: What is the branch called… · and 1 more`, no
+    buttons; clicked, the Codex terminal in front with `asks 104`.
+  - `752-12-form` (REQ-016): `docs: Your name?`, Deny and Dismiss only.
+- **Checks:** every push's line, priority and tag as above; no push carries a header beyond the
+  known ones (REQ-010); `request 106` (an `askfree`) got nothing from Marley in ten seconds
+  (REQ-018).
+- REQ-009 by the review.
+- **Not reached by a scenario:** the phone (ntfy on the box, #535's hand check); a real Codex's
+  question or tool approval (a model turn).
 
 ## Phase 4 — Complete
+- **Docs:** `CHANGELOG.md` (Added); the in-app guide (the push article, Needs you, the settings
+  row); `docs/marley/guide.md` (Codex's entries); `docs/marley/walkthrough.md` 5.22;
+  `docs/marley_architecture/marley_workbench.md` (Pushes, four kinds and more sources) and
+  `marley_agent.md` (the two shapes, `NeedsApproval`); `docs/marley/zed-touchpoints.md`, the rows
+  of `agent_ui.rs`, `conversation_view.rs`, `settings_content/src/marley.rs`,
+  `settings_ui/src/marley_page.rs` and `default.json` widened.
+- **Ledgers:** F-claude-752-a-reporting-codex-pushed-as-claude-001,
+  L-claude-752-a-stand-in-cued-through-a-fifo-plays-while-the-window-is-away-001,
+  L-claude-750-new-agent-asks-where-when-the-front-terminal-is-elsewhere-001 (widened),
+  AD-claude-752-a-push-follows-each-sources-own-decision-and-four-kinds-switch-it-001.
+- **Brain:** consultation 34b08565a45b4512ac611569a3a77418, `brain decide`.
+- Ticket closed, pipeline archived, committed.

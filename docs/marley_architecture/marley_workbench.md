@@ -2676,6 +2676,16 @@ below describe what #743 retired.
   can read the file; `Title: Marley`, `Priority` 4 (needs input, failed) or 3 (finished), `Tags`
   `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
   failure too, with one toast (`Pushes::failing`) until a post succeeds.
+- **More sources and four kinds (#752).** `on_change` reads the event with `TurnEvent::of_seat`
+  (an approval, a question, a finish, a failure) and names the seat's agent (`agent_name`, from
+  `agent_events::seat_agent`); its callers are the frames, an agent's report
+  (`agent_reports::announce`) and Codex's follow (`codex_server::push_change`, after
+  `agent_events::fold_codex` gives the change, in the window `browser::window_of` finds). A Zed
+  thread pushes through `on_thread`, which `thread_tab` sets as `MarleyThreadHost::attention`:
+  Zed's `ConversationView::notify_with_sound` hands it the event's `MarleyAttention`, whether the
+  thread is visible, its agent's id (named through `agents::thread_agent_name`) and its folders.
+  `push` posts only a kind `PushSettings::kinds` holds (`marley.push.approval`, `input`,
+  `finish`, `failure`, each on unless set false); an approval's tag is `lock`.
 
 ## System One (`src/system_one.rs`, `src/system_one_calls.rs`, #565, #659, #548)
 

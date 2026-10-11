@@ -1733,6 +1733,14 @@
     // you can read, and shows it dimmed above the new prompt when Marley starts again. Turning it
     // off deletes every kept file (#751).
     "restore_scrollback": true,
+    // Which agent events push to the phone once `push.url` and `push.topic` are set: a needed
+    // permission, a question, a finished turn and a failed one (#752).
+    "push": {
+      "approval": true,
+      "input": true,
+      "finish": true,
+      "failure": true
+    },
     // Whether a block's prompt rows are drawn as Marley's header, the command and its pill in
     // place of the shell's prompt, with the folder it ran in and its git branch; the prompt
     // waiting for a command stays the shell's (#628, #630).

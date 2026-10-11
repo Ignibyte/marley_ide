@@ -63,6 +63,9 @@ pub struct Thread {
     /// When it was made, in seconds since the epoch.
     #[serde(default)]
     pub created_at: i64,
+    /// The folder it works in, which names its project in a push (#752).
+    #[serde(default)]
+    pub cwd: Option<String>,
     /// Its status.
     pub status: ThreadStatus,
 }
@@ -332,6 +335,9 @@ pub fn fold(
                 moving = Moving::from_seat(None);
                 moving.set(THREAD_LABEL, &thread.id);
             }
+            if let Some(cwd) = &thread.cwd {
+                moving.set(claude_events::CWD_LABEL, cwd);
+            }
             moving.take_status(&thread.status)
         }
         Input::Notification(notification) => match notification {
@@ -568,17 +574,23 @@ pub enum Decision {
     Decline,
     /// `cancel`: denied and the turn interrupted, or the request cancelled.
     Cancel,
+    /// An MCP server's approval accepted for good, `_meta.persist` `always` (#752).
+    AcceptAlways,
+    /// The option at this index of a question's options (#752).
+    Option(u8),
 }
 
 impl Decision {
-    /// The protocol's word for it.
+    /// The protocol's word for it: the decision's, or `accept` for an approval kept for good and
+    /// `answer` for a question's option, which their responses spell out.
     #[must_use]
     pub const fn word(self) -> &'static str {
         match self {
-            Self::Accept => "accept",
+            Self::Accept | Self::AcceptAlways => "accept",
             Self::AcceptForSession => "acceptForSession",
             Self::Decline => "decline",
             Self::Cancel => "cancel",
+            Self::Option(_) => "answer",
         }
     }
 
@@ -592,6 +604,51 @@ impl Decision {
         .into_iter()
         .find(|decision| decision.word() == word)
     }
+}
+
+/// One question of `item/tool/requestUserInput` (#752).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asked {
+    /// The id its answer is keyed by.
+    pub id: String,
+    /// Its short heading.
+    pub header: String,
+    /// The question.
+    pub question: String,
+    /// Whether its answer is a secret, which Codex's TUI hides as it is typed.
+    pub secret: bool,
+    /// Its options' labels, in order.
+    pub options: Vec<String>,
+}
+
+/// How long an accepted MCP server approval lasts, as `_meta.persist` offers it (#752).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Persist {
+    /// For the rest of the session.
+    Session,
+    /// For good, in Codex's own configuration.
+    Always,
+}
+
+impl Persist {
+    /// The protocol's word for it.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Session => "session",
+            Self::Always => "always",
+        }
+    }
+}
+
+/// An MCP server's request that asks only for an approval: a form with nothing to fill in, as
+/// Codex's TUI reads one (#752).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Approval {
+    /// Whether it approves a tool call (`_meta.codex_approval_kind` `mcp_tool_call`).
+    pub tool: bool,
+    /// How long an accept may last beyond this once, as `_meta.persist` offers.
+    pub persist: Vec<Persist>,
 }
 
 /// What a request asks, as the inbox reads it.
@@ -634,6 +691,14 @@ pub enum RequestKind {
         server: String,
         /// What it asks.
         message: String,
+        /// The approval it asks for, when it asks for nothing more (#752); a form with fields, a
+        /// URL or a user's verification has none.
+        approval: Option<Approval>,
+    },
+    /// `item/tool/requestUserInput`: Codex's own questions (#752).
+    Question {
+        /// The questions, in order.
+        questions: Vec<Asked>,
     },
 }
 
@@ -655,7 +720,7 @@ pub struct Request {
 
 impl Request {
     /// The request `method` with `id` and `params` carries; `None` for a method the inbox does not
-    /// list, such as Codex's own questions.
+    /// list.
     ///
     /// # Errors
     ///
@@ -704,6 +769,14 @@ impl Request {
                 message: text("message")
                     .map(|message| one_line(&message))
                     .unwrap_or_default(),
+                approval: approval_of(params),
+            },
+            "item/tool/requestUserInput" => RequestKind::Question {
+                questions: params
+                    .get("questions")
+                    .and_then(Value::as_array)
+                    .map(|questions| questions.iter().filter_map(asked_of).collect())
+                    .unwrap_or_default(),
             },
             _ => return Ok(None),
         };
@@ -750,8 +823,50 @@ impl Request {
                 Decision::AcceptForSession,
                 Decision::Decline,
             ],
-            RequestKind::Elicitation { .. } => vec![Decision::Decline, Decision::Cancel],
+            RequestKind::Elicitation {
+                approval: Some(approval),
+                ..
+            } => {
+                let mut decisions = vec![Decision::Accept];
+                if approval.persist.contains(&Persist::Session) {
+                    decisions.push(Decision::AcceptForSession);
+                }
+                if approval.persist.contains(&Persist::Always) {
+                    decisions.push(Decision::AcceptAlways);
+                }
+                if !approval.tool {
+                    decisions.push(Decision::Decline);
+                }
+                decisions.push(Decision::Cancel);
+                decisions
+            }
+            RequestKind::Elicitation { approval: None, .. } => {
+                vec![Decision::Decline, Decision::Cancel]
+            }
+            // One question with options, not secret, is answered by an option's label, as the TUI
+            // answers it; any other waits in the terminal.
+            RequestKind::Question { questions } => match questions.as_slice() {
+                [asked] if !asked.secret => (0..asked.options.len())
+                    .filter_map(|index| u8::try_from(index).ok())
+                    .map(Decision::Option)
+                    .collect(),
+                _ => Vec::new(),
+            },
         }
+    }
+
+    /// The label of the option `decision` picks, for a question's button and its `Sent:` line.
+    #[must_use]
+    pub fn option_label(&self, decision: Decision) -> Option<&str> {
+        let (RequestKind::Question { questions }, Decision::Option(index)) = (&self.kind, decision)
+        else {
+            return None;
+        };
+        questions
+            .first()?
+            .options
+            .get(usize::from(index))
+            .map(String::as_str)
     }
 
     /// The response that carries `decision` for this request; `None` for a decision it does not
@@ -760,9 +875,10 @@ impl Request {
     #[must_use]
     pub fn response(&self, decision: Decision) -> Option<Value> {
         match &self.kind {
-            RequestKind::Command { .. } | RequestKind::FileChange { .. } => {
-                Some(serde_json::json!({ "decision": decision.word() }))
-            }
+            RequestKind::Command { .. } | RequestKind::FileChange { .. } => match decision {
+                Decision::AcceptAlways | Decision::Option(_) => None,
+                _ => Some(serde_json::json!({ "decision": decision.word() })),
+            },
             RequestKind::Permissions { .. } => {
                 let asked = self
                     .params
@@ -779,15 +895,41 @@ impl Request {
                     Decision::Decline => {
                         Some(serde_json::json!({ "permissions": {}, "scope": "turn" }))
                     }
-                    Decision::Cancel => None,
+                    Decision::Cancel | Decision::AcceptAlways | Decision::Option(_) => None,
                 }
             }
-            RequestKind::Elicitation { .. } => match decision {
-                Decision::Decline | Decision::Cancel => {
-                    Some(serde_json::json!({ "action": decision.word() }))
+            RequestKind::Elicitation { approval, .. } => {
+                let persist = |kept: Persist| {
+                    approval
+                        .as_ref()
+                        .filter(|approval| approval.persist.contains(&kept))
+                        .map(|_| {
+                            serde_json::json!({
+                                "action": "accept",
+                                "_meta": { "persist": kept.word() },
+                            })
+                        })
+                };
+                match decision {
+                    Decision::Decline | Decision::Cancel => {
+                        Some(serde_json::json!({ "action": decision.word() }))
+                    }
+                    Decision::Accept => approval
+                        .as_ref()
+                        .map(|_| serde_json::json!({ "action": "accept" })),
+                    Decision::AcceptForSession => persist(Persist::Session),
+                    Decision::AcceptAlways => persist(Persist::Always),
+                    Decision::Option(_) => None,
                 }
-                Decision::Accept | Decision::AcceptForSession => None,
-            },
+            }
+            RequestKind::Question { questions } => {
+                let asked = questions.first()?;
+                let label = self.option_label(decision)?;
+                let answers: serde_json::Map<String, Value> =
+                    std::iter::once((asked.id.clone(), serde_json::json!({ "answers": [label] })))
+                        .collect();
+                Some(serde_json::json!({ "answers": answers }))
+            }
         }
     }
 
@@ -833,9 +975,84 @@ impl Request {
                 };
                 with_reason(format!("Permissions: {asks}"), reason)
             }
-            RequestKind::Elicitation { server, message } => format!("{server}: {message}"),
+            RequestKind::Elicitation {
+                server, message, ..
+            } => format!("{server}: {message}"),
+            RequestKind::Question { questions } => {
+                let Some(first) = questions.first() else {
+                    return "A question".to_string();
+                };
+                let text = if first.header.trim().is_empty() {
+                    one_line(&first.question)
+                } else {
+                    format!("{}: {}", one_line(&first.header), one_line(&first.question))
+                };
+                match questions.len() {
+                    1 => text,
+                    count => format!("{text} · and {} more", count - 1),
+                }
+            }
         }
     }
+}
+
+/// The approval an elicitation asks for, when it is a form with nothing to fill in (#752).
+fn approval_of(params: &Value) -> Option<Approval> {
+    let mode = params.get("mode").and_then(Value::as_str).unwrap_or("form");
+    let schema = params.get("requestedSchema");
+    let fields = schema
+        .and_then(|schema| schema.get("properties"))
+        .and_then(Value::as_object)
+        .is_some_and(|properties| !properties.is_empty());
+    if mode != "form" || fields {
+        return None;
+    }
+    let meta = params.get("_meta");
+    let tool = meta
+        .and_then(|meta| meta.get("codex_approval_kind"))
+        .and_then(Value::as_str)
+        == Some("mcp_tool_call");
+    let offered: Vec<&str> = match meta.and_then(|meta| meta.get("persist")) {
+        Some(Value::String(word)) => vec![word.as_str()],
+        Some(Value::Array(words)) => words.iter().filter_map(Value::as_str).collect(),
+        _ => Vec::new(),
+    };
+    let persist = [Persist::Session, Persist::Always]
+        .into_iter()
+        .filter(|kept| offered.contains(&kept.word()))
+        .collect();
+    Some(Approval { tool, persist })
+}
+
+/// One question of `item/tool/requestUserInput`, when it names its id.
+fn asked_of(question: &Value) -> Option<Asked> {
+    let text = |key: &str| {
+        question
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    Some(Asked {
+        id: question.get("id").and_then(Value::as_str)?.to_string(),
+        header: text("header"),
+        question: text("question"),
+        secret: question
+            .get("isSecret")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        options: question
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| option.get("label").and_then(Value::as_str))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
 }
 
 /// A permission profile in words, `read a, write b, network`, and the paths it names.

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Codex and Zed's threads push to the phone, and Codex's questions answer from Needs you**
+  (#752, 2026-10-11). With an ntfy server set, Codex on Marley's App Server and a thread in the
+  Agent Panel or a tab you cannot see push the same one-line notices Claude Code does, and a
+  permission now reads `needs approval`. Four switches on the Marley page's Push section turn
+  approvals, questions, finished turns and failures on or off. In Needs you, Codex's own question
+  with options shows a button per option and answers with the one you click, and an MCP server
+  that only asks to run a tool offers Allow, Allow session or Always allow as it offers them.
+
 - **Earlier commands come back as blocks** (#764, 2026-10-11). After a restart, the commands a
   terminal ran before come back over their dimmed output as blocks: the bar, the exit pill, and
   a header that says `restored` where the branch goes. A restored block is history: it offers no

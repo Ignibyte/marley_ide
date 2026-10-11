@@ -150,7 +150,8 @@ steps() {
   shot 651-08-opened
   cue n
 
-  echo "== a question the inbox does not list"
+  # Since #752 a question is listed; one with no options takes no answer there.
+  echo "== a question with no options: no answer in place"
   cue "input Which branch?" 10
   shot 651-09-unlisted
   expect "Marley sent nothing for 107" test "$(logged '107 by marley')" = 0

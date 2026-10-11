@@ -667,6 +667,16 @@ fn tool_call(key: &str) -> Option<&str> {
 /// How a permission request's question starts, before the tool and what it acts on.
 const PERMISSION_FOR: &str = "Permission for ";
 
+/// Whether `seat` waits on a permission request, not a question (#752).
+#[must_use]
+pub fn waits_on_permission(seat: &Session) -> bool {
+    seat.state == State::Waiting
+        && seat
+            .question
+            .as_ref()
+            .is_some_and(|question| question.prompt.starts_with(PERMISSION_FOR))
+}
+
 /// The most characters a banner's body holds, Orca's limit, which fits two or three lines.
 const BANNER_BODY_MAX: usize = 180;
 
@@ -679,12 +689,14 @@ const BANNER_BODY_MAX: usize = 180;
 pub fn banner_body(event: TurnEvent, seat: &Session) -> String {
     let text = match event {
         TurnEvent::Finished => seat.labels.get(MESSAGE_LABEL).cloned(),
-        TurnEvent::NeedsInput => seat.question.as_ref().map(|question| {
-            question
-                .prompt
-                .strip_prefix(PERMISSION_FOR)
-                .map_or_else(|| question.prompt.clone(), |asked| format!("Using {asked}"))
-        }),
+        TurnEvent::NeedsApproval | TurnEvent::NeedsInput => {
+            seat.question.as_ref().map(|question| {
+                question
+                    .prompt
+                    .strip_prefix(PERMISSION_FOR)
+                    .map_or_else(|| question.prompt.clone(), |asked| format!("Using {asked}"))
+            })
+        }
         TurnEvent::Failed => seat
             .labels
             .get(ERROR_LABEL)

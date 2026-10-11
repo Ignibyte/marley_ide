@@ -129,6 +129,7 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(MarleyThreadHost {
         shows: shows_view,
         reveal: reveal_for,
+        attention: crate::push::on_thread,
     });
     cx.observe_global::<SettingsStore>(filter_palette).detach();
     load_saved_tabs(cx);

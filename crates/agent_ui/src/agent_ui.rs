@@ -522,9 +522,26 @@ pub struct MarleyThreadHost {
     pub shows: fn(&Workspace, gpui::EntityId, &App) -> bool,
     /// Brings forward the tab showing the thread, answering whether one did.
     pub reveal: fn(&mut Workspace, ThreadId, &mut Window, &mut Context<Workspace>) -> bool,
+    // Marley: the phone push, told each time Zed decides the user should hear of a thread (#752).
+    /// Told what the thread asks, whether the user can see it, its agent's id and its folders.
+    pub attention: fn(MarleyAttention, bool, &str, &[PathBuf], &mut Window, &mut App),
 }
 
 impl gpui::Global for MarleyThreadHost {}
+
+// Marley: what a thread's event asks of the user, for Marley's push (#752).
+/// What a thread's event asks of the user.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarleyAttention {
+    /// A tool's permission.
+    Approval,
+    /// An answer to a question or a form.
+    Input,
+    /// Nothing: the turn finished.
+    Finish,
+    /// Nothing: the turn failed, was refused or stopped at its limit.
+    Failure,
+}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

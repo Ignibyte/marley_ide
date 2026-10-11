@@ -1,7 +1,7 @@
 ---
 pipeline_id: 80736367-3f05-4429-a1b2-9f04258d8ffd
 ticket: docs/planning/tickets/open/TICKET-752-codex-push-and-answers.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Codex push and answers
 type: feature
 slice: prong 2; T3 Code survey item 5 ("Codex gets what Claude Code gets"), first half

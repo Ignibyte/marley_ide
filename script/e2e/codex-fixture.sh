@@ -14,10 +14,14 @@
 # "closed: answered elsewhere" for one resolved by another client, and sends any other line to
 # the server as a cue it plays: `work`, `done`, `fail`, `approve`, `input`, `full`, `scoped`,
 # `crash`, and the requests `command <line>`, `file <paths>`, `perms write:<path> network`,
-# `elicit <server> <message>` and `input <question>`. `resume … <id>` with `--remote` is the TUI
+# `elicit <server> <message>` and `input <question>`, and Codex's questions and app approvals
+# (#752): `ask <header>|<question>|<option>,<option>`, `ask2` (two questions), `askfree
+# <question>` (no options), `toolok <server> <persist,…> <message>` (a tool call's approval with
+# nothing to fill in) and `form <server> <message>` (a field). `resume … <id>` with `--remote` is the TUI
 # resuming that thread instead of starting one (#750): the server loads a thread it does not hold
 # as idle, as Codex loads one from its files, and announces it. The TUI logs each line typed into
-# it to `$E2E_WORK/tui.log`. Without `--remote` it prints its arguments and reads lines, as #532's
+# it to `$E2E_WORK/tui.log`, and takes the lines written to `$E2E_WORK/tui.fifo` as typed ones
+# (#752). Without `--remote` it prints its arguments and reads lines, as #532's
 # fake does. Never the user's Codex, and no network.
 
 write_codex_stand_in() {
@@ -220,6 +224,44 @@ def play_request(thread, cue, rest):
             "itemId": next_item("q"),
             "questions": [{"id": "q", "header": "Branch", "question": rest, "options": None}]},
             flag="waitingOnUserInput")
+    elif cue in ("ask", "ask2", "askfree"):
+        # `ask <header>|<question>|<option>,<option>`; `ask2` two questions; `askfree <question>`
+        # one with no options (#752).
+        def question(ident, header, text, options):
+            return {"id": ident, "header": header, "question": text, "isOther": False,
+                    "isSecret": False,
+                    "options": [{"label": label, "description": ""} for label in options]
+                    if options else None}
+        if cue == "ask":
+            header, _, rest = rest.partition("|")
+            text, _, options = rest.partition("|")
+            questions = [question("choice", header, text, options.split(","))]
+        elif cue == "ask2":
+            questions = [question("first", "Name", "What is the branch called?", None),
+                         question("second", "Base", "Which base?", ["main", "dev"])]
+        else:
+            questions = [question("free", "Note", rest, None)]
+        ask(thread, "item/tool/requestUserInput",
+            {"itemId": next_item("q"), "questions": questions, "isBlocking": True},
+            flag="waitingOnUserInput")
+    elif cue == "toolok":
+        # `toolok <server> <persist,...> <message>`: a tool call's approval with nothing to fill
+        # in (#752).
+        server, _, rest = rest.partition(" ")
+        persist, _, message = rest.partition(" ")
+        ask(thread, "mcpServer/elicitation/request", {
+            "serverName": server, "mode": "form", "message": message,
+            "requestedSchema": {"type": "object", "properties": {}},
+            "_meta": {"codex_approval_kind": "mcp_tool_call",
+                      "persist": [word for word in persist.split(",") if word]}})
+    elif cue == "form":
+        # `form <server> <message>`: an elicitation with a field to fill in (#752).
+        server, _, message = rest.partition(" ")
+        ask(thread, "mcpServer/elicitation/request", {
+            "serverName": server, "mode": "form", "message": message,
+            "requestedSchema": {"type": "object",
+                                "properties": {"name": {"type": "string", "title": "Name"}},
+                                "required": ["name"]}})
 
 
 def response(connection, ident, result):
@@ -244,7 +286,8 @@ def response(connection, ident, result):
 def play(thread, cue):
     subscribers = thread["subscribers"]
     cue, _, rest = cue.partition(" ")
-    if cue in ("command", "file", "perms", "elicit", "input"):
+    if cue in ("command", "file", "perms", "elicit", "input", "ask", "ask2", "askfree", "toolok",
+               "form"):
         play_request(thread, cue, rest)
     elif cue == "work":
         thread["turn"] = str(uuid.uuid4())
@@ -513,20 +556,36 @@ def tui(path, folder):
         sock.sendall(frame(json.dumps({"id": request, "result": result}).encode(), True))
         print(f"answered {request}", flush=True)
 
-    for line in sys.stdin:
+    def handle(line):
+        nonlocal titled
         word = line.strip()
         if not word:
-            continue
+            return
         log("tui.log", word)
         if word in ("y", "n"):
             reply(word == "y")
-            continue
+            return
         call("standIn/cue", {"threadId": thread, "cue": word})
         print(f"cue: {word}", flush=True)
         if word == "work" and not titled:
             titled = True
             call("thread/start", {"cwd": folder, "ephemeral": True, "threadSource": "system",
                                   "approvalPolicy": "never", "sandbox": "read-only"})
+
+    # Lines written to tui.fifo are typed lines too, so a scenario cues a TUI whose terminal does
+    # not have the keys, as while Marley's window is away (#752).
+    def from_fifo():
+        path = f"{WORK}/tui.fifo"
+        if not os.path.exists(path):
+            os.mkfifo(path)
+        while True:
+            with open(path, encoding="utf-8") as fifo:
+                for line in fifo:
+                    handle(line)
+
+    threading.Thread(target=from_fifo, daemon=True).start()
+    for line in sys.stdin:
+        handle(line)
 
 
 if ARGS[:1] == ["--version"]:

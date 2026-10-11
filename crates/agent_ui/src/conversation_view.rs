@@ -1885,11 +1885,23 @@ impl ConversationView {
                 self.load_subagent_session(subagent_session_id.clone(), session_id, window, cx)
             }
             AcpThreadEvent::ToolAuthorizationRequested(_) => {
-                self.notify_with_sound("Waiting for tool confirmation", IconName::Info, window, cx);
+                self.notify_with_sound(
+                    "Waiting for tool confirmation",
+                    IconName::Info,
+                    crate::MarleyAttention::Approval,
+                    window,
+                    cx,
+                );
             }
             AcpThreadEvent::ToolAuthorizationReceived(_) => {}
             AcpThreadEvent::ElicitationRequested(_) => {
-                self.notify_with_sound("Waiting for input", IconName::Info, window, cx);
+                self.notify_with_sound(
+                    "Waiting for input",
+                    IconName::Info,
+                    crate::MarleyAttention::Input,
+                    window,
+                    cx,
+                );
             }
             AcpThreadEvent::ElicitationResponded(_) => {}
             AcpThreadEvent::Retry(retry) => {
@@ -1952,6 +1964,7 @@ impl ConversationView {
                     self.notify_with_sound(
                         "Agent stopped at the output token limit",
                         IconName::Warning,
+                        crate::MarleyAttention::Failure,
                         window,
                         cx,
                     );
@@ -1969,6 +1982,7 @@ impl ConversationView {
                     self.notify_with_sound(
                         "Agent refused to respond to this request",
                         IconName::Warning,
+                        crate::MarleyAttention::Failure,
                         window,
                         cx,
                     );
@@ -2004,6 +2018,7 @@ impl ConversationView {
                             "New message"
                         },
                         IconName::ZedAssistant,
+                        crate::MarleyAttention::Finish,
                         window,
                         cx,
                     );
@@ -2021,7 +2036,13 @@ impl ConversationView {
                     let model_or_agent_name = self.current_model_name(cx);
                     let notification_message =
                         format!("{} refused to respond to this request", model_or_agent_name);
-                    self.notify_with_sound(&notification_message, IconName::Warning, window, cx);
+                    self.notify_with_sound(
+                        &notification_message,
+                        IconName::Warning,
+                        crate::MarleyAttention::Failure,
+                        window,
+                        cx,
+                    );
                 }
             }
             AcpThreadEvent::Error => {
@@ -2042,6 +2063,7 @@ impl ConversationView {
                     self.notify_with_sound(
                         "Agent stopped due to an error",
                         IconName::Warning,
+                        crate::MarleyAttention::Failure,
                         window,
                         cx,
                     );
@@ -3111,12 +3133,43 @@ impl ConversationView {
         &mut self,
         caption: impl Into<SharedString>,
         icon: IconName,
+        marley_attention: crate::MarleyAttention,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.marley_attention(marley_attention, window, cx);
         #[cfg(feature = "audio")]
         self.play_notification_sound(window, cx);
         self.show_notification(caption, icon, window, cx);
+    }
+
+    // Marley: the phone push, where Zed decides the user should hear of the thread, whether or not
+    // a banner shows (#752).
+    fn marley_attention(
+        &self,
+        attention: crate::MarleyAttention,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(tell) = cx
+            .try_global::<crate::MarleyThreadHost>()
+            .map(|host| host.attention)
+        else {
+            return;
+        };
+        let visible = self.agent_status_visible(window, cx);
+        let folders = self
+            .root_thread_view()
+            .and_then(|view| {
+                view.read(cx)
+                    .thread
+                    .read(cx)
+                    .work_dirs()
+                    .map(|dirs| dirs.paths().to_vec())
+            })
+            .unwrap_or_default();
+        let agent = self.agent.agent_id().0;
+        tell(attention, visible, &agent, &folders, window, cx);
     }
 
     fn is_visible(&self, multi_workspace: &Entity<MultiWorkspace>, cx: &Context<Self>) -> bool {

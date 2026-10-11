@@ -482,6 +482,10 @@ pub enum InboxAnswer {
     StopTurn,
     /// Cancel the request.
     Dismiss,
+    /// Allow it for good, as an MCP server's approval offers (#752).
+    AlwaysAllow,
+    /// Answer a question with the option at this index; its label comes from the request (#752).
+    Option(u8),
 }
 
 impl InboxAnswer {
@@ -495,6 +499,8 @@ impl InboxAnswer {
             Self::Refuse => "Refuse",
             Self::StopTurn => "Stop turn",
             Self::Dismiss => "Dismiss",
+            Self::AlwaysAllow => "Always allow",
+            Self::Option(_) => "Answer",
         }
     }
 
@@ -505,14 +511,18 @@ impl InboxAnswer {
             Self::AllowSession => Some("Allowed, and Codex asks no more for the same this session"),
             Self::StopTurn => Some("Denied, and Codex's turn is interrupted"),
             Self::Dismiss => Some("The request is cancelled"),
-            Self::Allow | Self::Deny | Self::Refuse => None,
+            Self::AlwaysAllow => Some("Allowed, and Codex keeps allowing it in its own settings"),
+            Self::Allow | Self::Deny | Self::Refuse | Self::Option(_) => None,
         }
     }
 
     /// Whether the answer lets the action run.
     #[must_use]
     pub const fn allows(self) -> bool {
-        matches!(self, Self::Allow | Self::AllowSession)
+        matches!(
+            self,
+            Self::Allow | Self::AllowSession | Self::AlwaysAllow | Self::Option(_)
+        )
     }
 }
 

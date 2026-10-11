@@ -468,6 +468,16 @@ pub struct PushSettings {
     pub topic: String,
     /// The file holding the access token, when there is one.
     pub token_file: Option<String>,
+    /// The kinds of event pushed, each a `TurnEvent::kind` the user left on (#752).
+    pub kinds: BTreeSet<&'static str>,
+}
+
+impl PushSettings {
+    /// Whether `event`'s kind is pushed (#752).
+    #[must_use]
+    pub fn pushes(&self, event: marley_agent::TurnEvent) -> bool {
+        self.kinds.contains(event.kind())
+    }
 }
 
 /// Whether an agent's `terminal_run` commands enter the shell's history and Marley's suggestions,
@@ -788,10 +798,21 @@ fn push_settings(push: &settings::MarleyPushSettingsContent) -> Option<PushSetti
             .filter(|value| !value.is_empty())
             .map(str::to_string)
     };
+    let kinds = [
+        ("approval", push.approval),
+        ("input", push.input),
+        ("finish", push.finish),
+        ("failure", push.failure),
+    ]
+    .into_iter()
+    .filter(|(_, on)| on.unwrap_or(true))
+    .map(|(kind, _)| kind)
+    .collect();
     Some(PushSettings {
         url: set(&push.url)?,
         topic: set(&push.topic)?,
         token_file: set(&push.token_file),
+        kinds,
     })
 }
 

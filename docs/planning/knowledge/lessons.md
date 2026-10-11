@@ -5453,12 +5453,13 @@ The runner exports `CODEX_HOME=$E2E_WORK/codex-home` without making it, and Code
 finding codex home"). A scenario that runs a real Codex makes the folder in `setup`.
 
 ## L-claude-750-new-agent-asks-where-when-the-front-terminal-is-elsewhere-001
-*category: testing · topic: scenarios that start an agent from New Agent · from: pipeline 750*
+*category: testing · topic: scenarios that start an agent from New Agent · from: pipeline 750, widened by 752*
 
-New Agent (Ctrl+Alt+N) asks "Where should Codex start?" when the terminal in front is in a folder
-other than its project's root, with the project first. A scenario that types the agent's name and
-Return, then its first prompt, sends that prompt to the question instead: no agent starts, and the
-words land in the old terminal. After a `cd` into a subfolder, the scenario presses Return twice.
+New Agent (Ctrl+Alt+N) asks "Where should Codex start?" after the agent is picked, with the
+project first, whether the terminal in front is in a subfolder (#750) or at the project's root
+(#752). A scenario that types the agent's name and Return, then its first prompt, sends that prompt
+to the question instead: no agent starts, and the words land in the old terminal. The scenario
+presses Return twice.
 
 ## L-claude-750-tee-dev-stderr-truncates-a-redirected-log-001
 *category: testing · topic: checks inside a scenario · from: pipeline 750*
@@ -5484,3 +5485,11 @@ first block with an end and stamps the rest finished now, and many readers take 
 as the terminal's latest. Blocks put there from anywhere else (a restore) must be counted and kept
 out of those walks (`live`, `restored_count`), or the first live hook rewrites their times and the
 readers act on history.
+
+## L-claude-752-a-stand-in-cued-through-a-fifo-plays-while-the-window-is-away-001
+*category: testing · topic: scenarios that push · from: pipeline 752*
+
+A push needs the user not to be looking at the agent, and keys reach only the focused window, so
+a stand-in cued by typing cannot be cued while Marley's window is away. The Codex stand-in's TUI
+also reads `$E2E_WORK/tui.fifo` (the scenario makes it in `setup`; a write to a missing FIFO makes
+a plain file the reader then loops over), as #535's stand-in `claude` reads its steps' FIFO.

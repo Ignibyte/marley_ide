@@ -655,7 +655,9 @@ impl AgentStatus {
 /// What an agent's turn came to, for a line that names it outside Marley (#535).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnEvent {
-    /// It asks for a permission or a choice.
+    /// It asks for a permission (#752).
+    NeedsApproval,
+    /// It asks a question or for a choice.
     NeedsInput,
     /// Its turn ended.
     Finished,
@@ -677,10 +679,41 @@ impl TurnEvent {
         }
     }
 
+    /// The event `seat`'s change from `before` makes, a wait told apart as an approval or a
+    /// question by what the seat waits on: Claude Code's permission request, or Codex's
+    /// `approval` wait (#752).
+    #[must_use]
+    pub fn of_seat(before: State, seat: &marley_fleet::Session) -> Option<Self> {
+        let event = Self::of_change(before, seat.state)?;
+        let approval = claude_events::waits_on_permission(seat)
+            || seat
+                .labels
+                .get(codex_events::WAIT_LABEL)
+                .map(String::as_str)
+                == Some(codex_events::WAITS_ON_APPROVAL);
+        Some(if event == Self::NeedsInput && approval {
+            Self::NeedsApproval
+        } else {
+            event
+        })
+    }
+
+    /// The name of the push setting that lets the event's kind through (#752).
+    #[must_use]
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::NeedsApproval => "approval",
+            Self::NeedsInput => "input",
+            Self::Finished => "finish",
+            Self::Failed => "failure",
+        }
+    }
+
     /// The words a line gives the event.
     #[must_use]
     pub const fn words(self) -> &'static str {
         match self {
+            Self::NeedsApproval => "needs approval",
             Self::NeedsInput => "needs input",
             Self::Finished => "finished",
             Self::Failed => "failed",
@@ -689,14 +722,19 @@ impl TurnEvent {
 }
 
 /// A line that names an agent's event outside Marley, such as `marley_ide: Claude needs input`
-/// (#535). The project's name loses its control characters; nothing the agent wrote goes in.
+/// (#535).
+///
+/// `agent` is the agent's short name ([`AgentKind::short_name`]) or the name Zed shows for a
+/// thread's agent (#752). The names lose their control characters; nothing the agent wrote goes
+/// in.
 #[must_use]
-pub fn event_line(project: &str, kind: AgentKind, event: TurnEvent) -> String {
-    let project: String = project
-        .chars()
-        .filter(|character| !character.is_control())
-        .collect();
-    format!("{project}: {} {}", kind.short_name(), event.words())
+pub fn event_line(project: &str, agent: &str, event: TurnEvent) -> String {
+    let plain = |text: &str| -> String {
+        text.chars()
+            .filter(|character| !character.is_control())
+            .collect()
+    };
+    format!("{}: {} {}", plain(project), plain(agent), event.words())
 }
 
 /// The heading of the dialog where ssh in an agent's terminal asks for a passphrase, such as
