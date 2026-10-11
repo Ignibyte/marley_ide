@@ -2145,6 +2145,23 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## Panel tabs after a restart (`src/panel_tabs.rs`, Zed's `dock.rs` and `outline_panel.rs`, #773)
+
+- `PanelTab` is a `SerializableItem` of kind `MarleyPanelTab`, registered in `panel_tabs::init`.
+  Its row, in its own table `marley_panel_tabs` (`MarleyPanelTabsDb`), is the workspace id, the
+  item id and the panel's persistent name; `init` reads every row into the `SavedPanelTabs` global,
+  and a restore reads the global. Zed writes the row when the tab joins a pane;
+  `should_serialize` answers false.
+- `deserialize` refuses at once in Zed's layout, for an item with no row and for a name outside
+  `MOVED`; otherwise its task looks every 100 ms, up to 10 s, for the panel of that name in the
+  workspace's docks (`Dock::panel_for_persistent_name`, a Zed hunk), then refuses a disabled panel
+  or one the group already shows in a tab. `cleanup` drops the rows of items no longer alive.
+- `PanelTab::new` builds the tab for `show_tab` and for the restore alike.
+- `dock_changed` re-tells both the dock's previous panel and the one just asked for that their tab
+  is in front: `activate_panel` tells the previous one it is inactive.
+- `outline_panel::marley_active_editor` takes the panel's entity id: while no dock shows the
+  panel, any active item that is not an editor stands for the editor used last.
+
 ## More side panels as tabs (`src/panel_tabs.rs`, `src/fleet.rs`, `src/rusty/knowledge_panel.rs`, #748)
 
 - `MOVED` adds `CollabPanel`, `MarleyFleetPanel`, `MarleyKnowledgePanel` and
@@ -2178,7 +2195,8 @@ alike.
 - The split keys (`pane::Split{Left,Right,Up,Down}`) are caught in the capture phase: on a panel
   tab, a `ClonePane` split becomes `MovePane`. Switching to Zed's layout closes every panel tab.
 - `outline_panel::marley_active_editor` (a Zed hunk): an active item whose focus handle is the
-  panel's own stands for the editor used last, at both of the panel's reads of the active editor.
+  panel's own stands for the editor used last, at both of the panel's reads of the active editor
+  (#773 widens it to any active item that is not an editor).
 
 ## Marley and Rusty in the title bar (`src/status_buttons.rs`, Zed's `title_bar.rs`, #746)
 

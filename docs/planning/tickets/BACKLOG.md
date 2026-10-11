@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-773](open/TICKET-773-panel-tabs-after-a-restart.md) | feature | panel tabs come back after a restart (split from #747) |
 | [TICKET-774](open/TICKET-774-the-debug-button-at-the-left.md) | feature | the Debug button at the status bar's left; the panel stays in the bottom dock (split from #748) |
 | [TICKET-749](open/TICKET-749-marley-commands.md) | feature | `marley <command>`: agent-thread, agent-cli, terminal, talk, threads, home, rusty, panel, browser, help (folds in #721's quick prompt) |
 | [TICKET-713](open/TICKET-713-rail-cleanup.md) | chore | the rail: unregister a swapped sidebar, refresh only on row changes, a silent swap, save after restore |

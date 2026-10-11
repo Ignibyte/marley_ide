@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #773 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** not started; the design is #747's D9 ([747's spec](../../pipeline/completed/747-side-panels-as-tabs.spec.md))
+- **Pipeline doc:** [773's spec](../../pipeline/completed/773-panel-tabs-after-a-restart.spec.md); the design is #747's D9
 - **Source ticket:** split from #747 at its promotion (2026-10-11), to keep #747 one shippable slice.
   Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #747's panel tab is a center item, but not yet a serializable one, so a restart leaves no Files,

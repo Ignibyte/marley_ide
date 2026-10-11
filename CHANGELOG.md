@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Panel tabs come back after a restart** (#773, 2026-10-11). A Files, Git, Outline, Collab,
+  Fleet, Knowledge or Containers tab open when Marley quits is back in its pane at the next start,
+  next to the editors that come back there. A panel that is turned off at the start (Knowledge
+  while Rusty is off, Containers while hidden) leaves no tab, and Zed's layout restores none.
+
 - **A thread on a harness seat** (#742, 2026-10-11). New Agent → Claude Agent → **On box-2…** makes
   a Claude Code seat on that harness and opens it as a thread tab: what you type goes to the seat,
   and its replies come back through the harness's window onto the seat (rustal-harness TICKET-116,
@@ -1184,6 +1189,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **The Outline tab keeps its outline** (#773, 2026-10-11). It used to empty itself whenever
+  another tab without an editor took the focus, the Files tab or a terminal beside it, and after a
+  restart it started empty. It now keeps listing the symbols of the editor you were in last.
 
 - **A tab opened into Home comes to the front** (#703, 2026-10-09). When Home's page was added in
   front of a tab just opened into the Home group, the page took the front and hid the new tab.

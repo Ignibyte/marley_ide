@@ -3730,3 +3730,23 @@ it, the pane's drop-target group among them. A probe that dragged an ordinary `l
 same way split at once. Fixed in #747: the tab draws a transparent drop layer of its own over the
 panel and hands the drop to `Pane::handle_tab_drop`, at the split direction the pane tracks in the
 capture phase.
+
+## F-claude-773-the-outline-tab-cleared-when-another-item-took-the-focus-001
+*severity: medium · found in: pipeline 773's Test phase · class: a Zed hook that stands in for a dock but covers one case*
+
+#747's outline hunk let only the Outline tab itself stand for the editor used last. In the Marley
+layout the Files tab, the Git tab and a terminal are center items too, so using one beside the
+Outline tab made it the workspace's active item, and the outline cleared while it stayed in view;
+a restored session, whose active item was the Files tab in the other pane, started with an empty
+Outline tab. In a dock none of this arises, since a dock panel is never the active item. Fixed in
+#773: while no dock shows the panel, any active item that is not an editor stands for the editor
+used last.
+
+## F-claude-773-the-dock-observer-re-told-only-the-panel-just-asked-for-001
+*severity: medium · found in: pipeline 773's Test phase · class: a correction applied to one of the two parties a call touched · prevented by: PR-claude-773-a-dock-call-tells-two-panels-re-tell-both-001*
+
+The Files button opens the right dock on the project panel. `Dock::activate_panel` first tells the
+dock's previous panel, the outline panel, that it is inactive, and the outline panel clears itself
+on that. #747's `dock_changed` closed the dock again and re-told only the project panel that its
+tab was in front, so the Outline tab beside it went empty. Fixed in #773: `dock_changed` re-tells
+the dock's previous panel as well.

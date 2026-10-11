@@ -5344,3 +5344,22 @@ in a throwaway scenario under the scratchpad before suspecting the virtual point
 editor's tab split at once, which put the fault in the panel tab (its panel blocked the drop
 target), not in sway or the timing. A drag in a scenario presses, pauses 0.3 s, and moves in
 several steps with short sleeps, as #613's does; one jump starts the drag but reaches no target.
+
+## L-claude-773-the-runners-copy-turns-containers-off-001
+*category: testing · topic: the e2e runner's profile copy · from: pipeline 773*
+
+`script/e2e.sh` writes `marley.rail_containers: false` into the run's profile copy (#669), so the
+Containers panel is disabled in every scenario unless its `setup` runs
+`profile_setting marley.rail_containers true`. Zed's `toggle_panel_focus` ignores `Panel::enabled`,
+so `marley: toggle containers` still opened a Containers tab in #773's first run, and the restart
+then refused it as turned off: a restore that drops a tab can be right while the scenario is
+wrong. Read the log's refusal line before blaming the restore.
+
+## L-claude-773-a-restore-is-checked-by-relaunching-with-the-same-path-001
+*category: testing · topic: e2e scenarios that restart Marley · from: pipeline 773*
+
+A relaunch with the scenario's path (`quit_marley`, then `launch_marley` with `OPEN` kept) opens
+that path's saved workspace with its items, so it is enough to check that a tab comes back (#736,
+#773). L-claude-601 and L-claude-670 still hold for the window's own state (the rail, its groups),
+which only a start with no path restores. Between two launches `profile_setting` changes the copy's
+settings, which is how #773 started once with a panel turned off and once in Zed's layout.

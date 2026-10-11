@@ -4844,3 +4844,17 @@ Rejected:
 - Remembering the view across a restart: a restart that opens on Threads hides the projects the
   window restored.
 - Icon buttons for the switch: the labels say which view shows without a tooltip.
+
+## AD-claude-773-a-panel-tab-is-saved-as-its-panels-name-001
+*decided at: 2026-10-11 · status: shipped · builds on: #736's thread tabs after a restart (`thread_tab.rs`)*
+
+A panel tab is a `SerializableItem` whose row holds only its panel's persistent name, in a table of
+its own. The panel itself stays the dock's, with its own state saved by Zed as before; the restore
+waits for the workspace's panel of that name and draws it, as the thread tab waits for the Agent
+Panel. It refuses in Zed's layout, for a name outside the moved list, for a disabled panel and for a
+panel the group already shows, and Zed's cleanup drops the refused rows. Finding the panel by name
+takes one Zed accessor, `Dock::panel_for_persistent_name`.
+
+Rejected: typed lookups per panel, which would add `project_panel`, `outline_panel` and
+`collab_ui` to `marley_workbench` for one search; keeping the panel's state in the row, which would
+duplicate what each panel already saves.

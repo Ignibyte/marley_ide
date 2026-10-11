@@ -2954,3 +2954,11 @@ An item that draws another entity's view (a panel in a tab, a thread view in a t
 questions that view may ask about the active item (`focus_handle`, `tab_content_text`,
 `act_as`) from values it kept when it was made, never by reading the hosted entity: the hosted
 entity asks while it is being updated.
+
+## PR-claude-773-a-dock-call-tells-two-panels-re-tell-both-001
+*severity: medium · prevents: F-claude-773-the-dock-observer-re-told-only-the-panel-just-asked-for-001*
+
+`Dock::activate_panel` tells the outgoing panel `set_active(false)` and the incoming one `true`;
+`set_open` tells the active one. Code that undoes a dock change for panels drawn elsewhere (#747's
+panel tabs) re-tells every panel the call touched, the previous active panel included, not just the
+one the user asked for.

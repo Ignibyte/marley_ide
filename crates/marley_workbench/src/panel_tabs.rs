@@ -14,18 +14,26 @@
 //! frame, so the dock never shows the panel. The Zed layout keeps its docks.
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use anyhow::Context as _;
+use collections::HashMap;
 use gpui::{
     App, AppContext as _, Context, DefiniteLength, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, Render, SharedString, WeakEntity, Window,
+    Focusable, Global, Render, SharedString, Task, WeakEntity, Window,
 };
+use project::Project;
 use settings::SettingsStore;
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::dock::{Dock, PanelHandle};
-use workspace::item::{Item, ItemEvent};
+use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::pane::{SplitDown, SplitLeft, SplitMode, SplitRight, SplitUp};
-use workspace::{DraggedTab, MultiWorkspace, Pane, SaveIntent, SplitDirection, Workspace};
+use workspace::{
+    DraggedTab, ItemId, MultiWorkspace, Pane, SaveIntent, SplitDirection, Workspace, WorkspaceId,
+};
+
+use persistence::MarleyPanelTabsDb;
 
 /// The panels a tab draws in the Marley layout, by their persistent names (#747's D3, #748's D1).
 /// The Agent Panel stays in the right dock, and Debug in the bottom one.
@@ -44,8 +52,9 @@ fn is_moved(name: &str) -> bool {
     MOVED.contains(&name)
 }
 
-/// Installs the dock observers and the split keys on every workspace, and closes every panel tab
-/// when the Zed layout is chosen. [`crate::init`] calls it once.
+/// Installs the dock observers and the split keys on every workspace, closes every panel tab when
+/// the Zed layout is chosen, and lets a panel tab come back after a restart (#773). [`crate::init`]
+/// calls it once.
 pub(crate) fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
@@ -88,6 +97,8 @@ pub(crate) fn init(cx: &mut App) {
         marley_layout = now;
     })
     .detach();
+    load_saved_tabs(cx);
+    workspace::register_serializable_item::<PanelTab>(cx);
 }
 
 /// Whether `item` is a panel tab drawing a panel of type `P`: Fleet counts its tab as a place it
@@ -138,6 +149,9 @@ fn dock_changed(
     if asked {
         show_tab(workspace, Arc::clone(&panel), window, cx);
     }
+    // The dock's calls told this panel, and the one it showed before, that they are inactive: the
+    // Outline tab emptied when the Files button moved the dock off the outline panel (#773).
+    retell(workspace, last.0, window, cx);
     retell(workspace, Some(panel.panel_id()), window, cx);
     let dock = dock.read(cx);
     (
@@ -181,20 +195,8 @@ fn show_tab(
         workspace.activate_item(&tab, true, true, window, cx);
         return;
     }
-    let name = panel
-        .icon_tooltip(window, cx)
-        .unwrap_or_else(|| panel.persistent_name());
-    let icon = panel.icon(window, cx);
-    let focus = panel.panel_focus_handle(cx);
-    let workspace_handle = workspace.weak_handle();
-    let tab = cx.new(|_| PanelTab {
-        panel,
-        workspace: workspace_handle,
-        focus,
-        name: SharedString::new_static(name),
-        icon,
-        front: false,
-    });
+    let tab = PanelTab::new(panel, workspace.weak_handle(), window, cx);
+    let tab = cx.new(|_| tab);
     workspace.add_item_to_active_pane(Box::new(tab), None, true, window, cx);
 }
 
@@ -336,6 +338,29 @@ impl Render for PanelTab {
 }
 
 impl PanelTab {
+    /// The tab for `panel`, named and drawn as its status-bar button. A click and a restart build
+    /// the same tab (#773's D5).
+    fn new(
+        panel: Arc<dyn PanelHandle>,
+        workspace: WeakEntity<Workspace>,
+        window: &Window,
+        cx: &App,
+    ) -> Self {
+        let name = panel
+            .icon_tooltip(window, cx)
+            .unwrap_or_else(|| panel.persistent_name());
+        let icon = panel.icon(window, cx);
+        let focus = panel.panel_focus_handle(cx);
+        Self {
+            panel,
+            workspace,
+            focus,
+            name: SharedString::new_static(name),
+            icon,
+            front: false,
+        }
+    }
+
     /// The pane holding this tab.
     fn pane(&self, cx: &Context<Self>) -> Option<Entity<Pane>> {
         let id = cx.entity_id();
@@ -404,6 +429,209 @@ impl Item for PanelTab {
             .any(|dock| dock.read(cx).panel_for_id(id).is_some());
         if !held {
             cx.defer_in(window, |_, _, cx| cx.emit(ItemEvent::CloseItem));
+        }
+    }
+}
+
+/// A panel tab is saved with its workspace (#773): its row names the panel, and the restore draws
+/// the workspace's panel of that name, as a click on its button would.
+impl SerializableItem for PanelTab {
+    fn serialized_item_kind() -> &'static str {
+        "MarleyPanelTab"
+    }
+
+    fn cleanup(
+        workspace_id: WorkspaceId,
+        alive_items: Vec<ItemId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<()>> {
+        cx.default_global::<SavedPanelTabs>()
+            .0
+            .retain(|(workspace, item), _| {
+                *workspace != workspace_id || alive_items.contains(item)
+            });
+        workspace::delete_unloaded_items(
+            alive_items,
+            workspace_id,
+            "marley_panel_tabs",
+            &MarleyPanelTabsDb::global(cx),
+            cx,
+        )
+    }
+
+    fn deserialize(
+        _project: Entity<Project>,
+        workspace: WeakEntity<Workspace>,
+        workspace_id: WorkspaceId,
+        item_id: ItemId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<anyhow::Result<Entity<Self>>> {
+        // Each refusal leaves no tab: Zed logs it, and the cleanup drops the row (D4). Zed's layout
+        // has no panel tabs (#747's D10).
+        if !crate::marley_layout(cx) {
+            return Task::ready(Err(anyhow::anyhow!(
+                "panel tabs are not restored in Zed's layout"
+            )));
+        }
+        let Some(name) = saved_tab(workspace_id, item_id, cx) else {
+            return Task::ready(Err(anyhow::anyhow!("no panel tab was saved for the item")));
+        };
+        if !is_moved(&name) {
+            return Task::ready(Err(anyhow::anyhow!("{name} does not open as a tab")));
+        }
+        window.spawn(cx, async move |cx| {
+            // Zed adds the workspace's panels while it still restores items
+            // (L-claude-736-a-restored-item-waits-for-its-workspaces-panels-001).
+            let mut panel = None;
+            for _ in 0..PANEL_WAITS {
+                panel = workspace
+                    .read_with(cx, |workspace, cx| workspace_panel(workspace, &name, cx))?;
+                if panel.is_some() {
+                    break;
+                }
+                cx.background_executor().timer(PANEL_WAIT).await;
+            }
+            let panel =
+                panel.with_context(|| format!("the workspace has no {name} for its tab"))?;
+            cx.update(|window, cx| {
+                anyhow::ensure!(panel.enabled(cx), "{name} is turned off");
+                let shown = workspace
+                    .upgrade()
+                    .context("the workspace closed before its panel tab was restored")?
+                    .read(cx)
+                    .items_of_type::<Self>(cx)
+                    .any(|tab| tab.read(cx).panel.panel_id() == panel.panel_id());
+                anyhow::ensure!(!shown, "the group already shows {name} in a tab");
+                let tab = Self::new(panel, workspace, window, cx);
+                Ok(cx.new(|_| tab))
+            })?
+        })
+    }
+
+    fn serialize(
+        &mut self,
+        workspace: &mut Workspace,
+        item_id: ItemId,
+        _closing: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<Task<anyhow::Result<()>>> {
+        let workspace_id = workspace.database_id()?;
+        Some(save_tab(
+            workspace_id,
+            item_id,
+            self.panel.persistent_name(),
+            cx,
+        ))
+    }
+
+    /// Nothing about the tab changes: Zed writes its row once, when the tab joins a pane.
+    fn should_serialize(&self, _event: &ItemEvent) -> bool {
+        false
+    }
+}
+
+/// How often, and how many times, a restored panel tab looks for its panel.
+const PANEL_WAITS: usize = 100;
+const PANEL_WAIT: Duration = Duration::from_millis(100);
+
+/// The panel named `name` in any of `workspace`'s docks.
+fn workspace_panel(workspace: &Workspace, name: &str, cx: &App) -> Option<Arc<dyn PanelHandle>> {
+    workspace
+        .all_docks()
+        .into_iter()
+        .find_map(|dock| dock.read(cx).panel_for_persistent_name(name).cloned())
+}
+
+/// The saved tabs' panel names, read once at start, so `deserialize` finds one at once and a
+/// cleanup between two restores cannot take it
+/// (PR-claude-a-row-a-restore-reads-is-read-before-any-cleanup-001).
+#[derive(Default)]
+struct SavedPanelTabs(HashMap<(WorkspaceId, ItemId), String>);
+
+impl Global for SavedPanelTabs {}
+
+fn load_saved_tabs(cx: &mut App) {
+    let saved = MarleyPanelTabsDb::global(cx)
+        .all_tabs()
+        .log_err()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(workspace_id, item_id, panel)| ((workspace_id, item_id), panel))
+        .collect();
+    cx.set_global(SavedPanelTabs(saved));
+}
+
+fn saved_tab(workspace_id: WorkspaceId, item_id: ItemId, cx: &App) -> Option<String> {
+    cx.try_global::<SavedPanelTabs>()?
+        .0
+        .get(&(workspace_id, item_id))
+        .cloned()
+}
+
+/// Keeps the tab's panel for the item, in memory and in the table.
+fn save_tab(
+    workspace_id: WorkspaceId,
+    item_id: ItemId,
+    panel: &str,
+    cx: &mut App,
+) -> Task<anyhow::Result<()>> {
+    let panel = panel.to_string();
+    let _previous = cx
+        .default_global::<SavedPanelTabs>()
+        .0
+        .insert((workspace_id, item_id), panel.clone());
+    let db = MarleyPanelTabsDb::global(cx);
+    cx.background_spawn(async move { db.save_tab(item_id, workspace_id, panel).await })
+}
+
+mod persistence {
+    use db::query;
+    use db::sqlez::domain::Domain;
+    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
+    use db::sqlez_macros::sql;
+    use workspace::{ItemId, WorkspaceDb, WorkspaceId};
+
+    /// The panel tabs' own table (#773): each tab's panel by its persistent name. Keyed by
+    /// workspace and item, with no `UNIQUE(item_id)`: ids repeat across launches (#576).
+    pub(super) struct MarleyPanelTabsDb(ThreadSafeConnection);
+
+    impl Domain for MarleyPanelTabsDb {
+        const NAME: &str = stringify!(MarleyPanelTabsDb);
+
+        const MIGRATIONS: &[&str] = &[sql!(
+            CREATE TABLE marley_panel_tabs (
+                workspace_id INTEGER,
+                item_id INTEGER,
+                panel TEXT NOT NULL,
+
+                PRIMARY KEY(workspace_id, item_id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
+                ON DELETE CASCADE
+            ) STRICT;
+        )];
+    }
+
+    db::static_connection!(MarleyPanelTabsDb, [WorkspaceDb]);
+
+    impl MarleyPanelTabsDb {
+        query! {
+            pub(super) async fn save_tab(
+                item_id: ItemId,
+                workspace_id: WorkspaceId,
+                panel: String
+            ) -> Result<()> {
+                INSERT OR REPLACE INTO marley_panel_tabs(item_id, workspace_id, panel)
+                VALUES (?, ?, ?)
+            }
+        }
+
+        query! {
+            pub(super) fn all_tabs() -> Result<Vec<(WorkspaceId, ItemId, String)>> {
+                SELECT workspace_id, item_id, panel
+                FROM marley_panel_tabs
+            }
         }
     }
 }

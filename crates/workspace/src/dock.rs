@@ -549,6 +549,14 @@ impl Dock {
             .map(|entry| &entry.panel)
     }
 
+    // Marley: a panel tab restored after a restart finds its panel by the name its row keeps (#773).
+    pub fn panel_for_persistent_name(&self, name: &str) -> Option<&Arc<dyn PanelHandle>> {
+        self.panel_entries
+            .iter()
+            .find(|entry| entry.panel.persistent_name() == name)
+            .map(|entry| &entry.panel)
+    }
+
     pub fn first_enabled_panel_idx(&mut self, cx: &mut Context<Self>) -> anyhow::Result<usize> {
         self.panel_entries
             .iter()
