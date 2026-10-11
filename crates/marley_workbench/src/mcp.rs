@@ -988,15 +988,24 @@ fn terminal_blocks(arguments: &Value, caller: &Caller, cx: &App) -> Result<ToolA
         .map(|block| {
             let command = for_agents(&block.command, redactor.as_deref());
             redacted += command.count;
-            block_entry(
+            let times = anchored.times(block.index);
+            let mut entry = block_entry(
                 block,
                 &command.text,
                 anchored.block_host(block.index),
-                anchored.times(block.index),
+                times,
                 terminal.block_output_kept(block),
                 crate::terminal_drive::run_by_agent(view.entity_id(), block.index, cx),
                 now,
-            )
+            );
+            // A block from before a restart is history; one the quit cut off has no end and
+            // no duration (#764).
+            let restored = anchored.is_restored(block.index);
+            entry["restored"] = Value::Bool(restored);
+            if restored && times.is_some_and(|times| times.finished.is_none()) {
+                entry["duration_ms"] = Value::Null;
+            }
+            entry
         })
         .collect();
     Ok(ToolAnswer {

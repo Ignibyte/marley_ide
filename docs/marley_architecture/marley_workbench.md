@@ -3686,12 +3686,20 @@ below describe what #743 retired.
   over `<data dir>/terminal_history` and an `Arc<AtomicBool>` read from
   `MarleySettings::restore_scrollback`, starts the writer task, and sends it the start's `Retain`:
   the files of `terminal_ids::known_ids`, or none with the setting off.
-- `recorder(id)`, called in each local interactive terminal's builder: a closure run on the
-  terminal's IO thread, fed by the event loop with what the parser sees, that keeps what draws
-  (`marley_dcs::history::Allowlist`) and sends it to the writer while the setting is on.
+- `recorder(id, nonce)`, called in each local interactive terminal's builder: a closure run on
+  the terminal's IO thread, fed by the event loop with what the parser sees and each hook frame as
+  it came. A `DcsScanner` splits the two: the bytes go through `marley_dcs::history::Allowlist`,
+  and `mark_of` turns a `Preexec` (not Zed's startup check) or a `Precmd` into a
+  `marley_terminal::history::Mark`, a command's verified against `nonce`, none while the alternate
+  screen shows (#764). Both go to the writer while the setting is on.
   `restored(id)`, called in a restored terminal's builder before its recorder: the kept tail
-  (`marley_terminal::history::read_in`) as `marley_dcs::history::replay`, and `SESSION_END` sent to
-  the writer, so the file holds the break the replay draws.
+  (`marley_terminal::history::read_in`) cut into pieces at its marks (`history::restore`), and
+  `SESSION_END` sent to the writer, so the file holds the break the replay draws. The builder
+  places the blocks (`marley_terminal::Restoring`, `AnchoredBlocks::restore`).
+- A restored block is history (#764): `rerun_offered` refuses it; `send_block`'s chip, `english`'s
+  hint, the rail's command line, System One's last command, `typed_line`'s last exit and
+  `failures` read `AnchoredBlocks::live`; `block_headers` records no branch for it and shows
+  `restored`; `terminal_blocks` marks it `restored`.
 - The writer (`write`, `Pending`) appends a terminal's output at most `WRITE_AFTER` (a second)
   after it came, or at once past `MAX_BYTES`; compacts a file past twice `MAX_BYTES` or past
   `MAX_LINES` new lines; acts on `Retain`, `Remove` and `Flush` in order; and drops the output of

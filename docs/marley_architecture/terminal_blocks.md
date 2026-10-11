@@ -407,6 +407,14 @@ already exited. The pump logs a shell hook it drops for arriving before `InitShe
   write; `read_in` reads the last `MAX_BYTES` (8 MiB) and keeps the newest `MAX_LINES` (5,000)
   lines, cut at a line's start; `compact_in` rewrites the file to that tail through a `.partial`
   file and a rename; `remove_in` and `retain_in` delete. Every function takes the folder.
+- A `Mark` (#764) is where a block began (`Command`: the text, whether the terminal's nonce
+  verified it, the time) or ended (`Prompt`: the exit code, the folder, the time), kept in the file
+  as `ESC P p mark;… ESC \` with its text hex-encoded. `restore(kept)` splits a file into `Piece`s,
+  dimmed bytes to draw and the marks between them.
+- `anchored::Restoring` builds finished blocks from the marks at the lines the replay reached, as
+  `apply` does from hooks; a command still running at the end ends there with no exit code.
+  `AnchoredBlocks::restore` puts them first on an empty list and counts them: `is_restored`,
+  `restored_count`, `live` (the rest); `rerun_offered` refuses them and `stamp` leaves their times.
 
 ## Key decisions
 - **UI-agnostic** (no gpui) — the render is `app_shell`/a panel (M1.B/M2).

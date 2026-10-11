@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Earlier commands come back as blocks** (#764, 2026-10-11). After a restart, the commands a
+  terminal ran before come back over their dimmed output as blocks: the bar, the exit pill, and
+  a header that says `restored` where the branch goes. A restored block is history: it offers no
+  Rerun, Reinput or Ask the agent, publishes no diagnostics, and is not the terminal's last
+  command in the rail; Marley's `terminal_blocks` tool marks it `restored`. A command still
+  running at the quit comes back without an exit pill.
+
 - **Earlier output after a restart** (#751, 2026-10-11). A local terminal that Marley restores
   after a restart shows the output it held before, dimmed, above its new prompt. Each local
   terminal keeps its newest 5,000 lines (8 MiB at most) in a file only you can read. The file

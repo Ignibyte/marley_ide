@@ -615,9 +615,16 @@ above the new shell's first prompt. Each local terminal keeps its newest 5,000 l
 a folder of mode 0700), written within a second of the output and at the quit.
 
 - **Text and colour only.** The file keeps what draws: text, colours and styles, cursor motion,
-  erasing and scrolling. Every terminal query, mode change, title, notification, clipboard
-  escape and Marley's own reports are left out, so nothing in the old output answers into the new
-  shell, and the old lines carry no blocks. The first command you run makes a block as usual.
+  erasing and scrolling. Every terminal query, mode change, title, notification and clipboard
+  escape is left out, so nothing in the old output answers into the new shell.
+- **Blocks come back too (#764).** Where each command started and ended is kept as a mark of
+  Marley's own beside the text, with the command, its exit code, its folder and its times. The
+  old commands come back as blocks over their output: the bar, the exit pill, and a header that
+  says `restored` where the branch goes. A restored block is history. It offers no Rerun or
+  Reinput, no Ask the agent and no English hint, publishes no diagnostics, and is not the
+  terminal's last command in the rail or for System One; `terminal_blocks` marks it `restored`.
+  A command still running at the quit comes back without an exit pill. The first command you run
+  makes a live block as usual.
 - **Full-screen programs.** What a program draws on the alternate screen (`less`, `vim`, `htop`)
   is not kept, so a program open at the quit leaves the lines before it and none of its screen.
 - **Going away.** Closing a terminal deletes its file. Closing a window or quitting keeps the

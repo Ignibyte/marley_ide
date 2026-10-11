@@ -90,9 +90,11 @@ fn record_branches(view: &TerminalView, terminal: &Entity<Terminal>, cx: &mut Ap
         return;
     }
     let id = terminal.entity_id();
+    // A block from before a restart ran on a branch no one recorded (#764).
     let started: Vec<(usize, String)> = terminal
         .read(cx)
-        .blocks()
+        .marley_anchored()
+        .live()
         .iter()
         .filter(|block| block.state != BlockState::Pending)
         .filter(|block| !cx.global::<Branches>().0.contains_key(&(id, block.index)))
@@ -127,7 +129,8 @@ fn header(
     if MarleySettings::get_global(cx).block_headers != BlockHeaders::Native {
         return None;
     }
-    let block = terminal.read(cx).blocks().get(index)?;
+    let anchored = terminal.read(cx).marley_anchored();
+    let block = anchored.blocks().get(index)?;
     let mut lines = block.command.trim().lines();
     let first = lines.next().unwrap_or_default();
     let command = if lines.next().is_some() {
@@ -135,10 +138,14 @@ fn header(
     } else {
         first.to_string()
     };
-    let branch = cx
-        .try_global::<Branches>()
-        .and_then(|branches| branches.0.get(&(terminal.entity_id(), index)).cloned())
-        .flatten();
+    // A block from before a restart says so where its branch would go (#764).
+    let branch = if anchored.is_restored(index) {
+        Some(SharedString::new_static("restored"))
+    } else {
+        cx.try_global::<Branches>()
+            .and_then(|branches| branches.0.get(&(terminal.entity_id(), index)).cloned())
+            .flatten()
+    };
     let place = [
         block.prompt.pwd.as_deref().map(folder_label),
         branch.map(String::from),

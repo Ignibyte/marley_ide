@@ -32,6 +32,7 @@ use std::time::{Duration, SystemTime};
 use crate::apply::ApplyHookError;
 use crate::block::{BlockState, ExitCode, PromptInfo};
 use crate::dcs::DcsHook;
+use crate::history::Mark;
 
 /// The start of the marker Zed's startup check prints, `__zed_init_command_ready_<n>__`
 /// (`INIT_COMMAND_STARTUP_MARKER_PREFIX` in `terminal.rs`), which only Zed types (#639).
@@ -145,6 +146,84 @@ pub struct BlockTimes {
     pub finished: Option<SystemTime>,
 }
 
+/// The blocks a restore draws again, built from the marks in a terminal's kept output, each at the
+/// absolute line the replay reached (#764), as `AnchoredBlocks::apply` builds them from hooks.
+#[derive(Debug, Default)]
+pub struct Restoring {
+    blocks: Vec<(AnchoredBlock, BlockTimes)>,
+    staged: Option<(PromptInfo, u64)>,
+}
+
+impl Restoring {
+    /// Takes `mark` at the absolute `line`: a command opens a block from the staged prompt, and a
+    /// prompt finishes the running block and stages itself.
+    pub fn mark(&mut self, mark: Mark, line: u64) {
+        match mark {
+            Mark::Command {
+                at_ms,
+                verified,
+                command,
+            } => {
+                self.finish_running(line, ExitCode(None), None);
+                let (prompt, prompt_line) = self.staged.take().map_or_else(
+                    || (PromptInfo::default(), None),
+                    |(prompt, at)| (prompt, Some(at)),
+                );
+                let block = AnchoredBlock {
+                    index: self.blocks.len(),
+                    command,
+                    command_verified: verified,
+                    state: BlockState::Running,
+                    exit_code: ExitCode(None),
+                    prompt,
+                    prompt_line,
+                    output_start: line,
+                    output_end: None,
+                };
+                let times = BlockTimes {
+                    started: time_of(at_ms),
+                    finished: None,
+                };
+                self.blocks.push((block, times));
+            }
+            Mark::Prompt { at_ms, exit, pwd } => {
+                self.finish_running(line, ExitCode(exit), Some(time_of(at_ms)));
+                let prompt = PromptInfo {
+                    pwd,
+                    ..PromptInfo::default()
+                };
+                self.staged = Some((prompt, line));
+            }
+        }
+    }
+
+    /// The blocks, a command still running at the quit ended at the absolute `line` with no exit
+    /// code.
+    #[must_use]
+    pub fn finish(mut self, line: u64) -> Vec<(AnchoredBlock, BlockTimes)> {
+        self.finish_running(line, ExitCode(None), None);
+        self.blocks
+    }
+
+    fn finish_running(&mut self, line: u64, exit_code: ExitCode, at: Option<SystemTime>) {
+        if let Some((block, times)) = self
+            .blocks
+            .last_mut()
+            .filter(|(block, _)| block.state == BlockState::Running)
+        {
+            block.state = BlockState::Finished;
+            block.exit_code = exit_code;
+            block.output_end = Some(line);
+            times.finished = at;
+        }
+    }
+}
+
+/// The time `at_ms` milliseconds after the Unix epoch.
+fn time_of(at_ms: u64) -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_millis(at_ms)
+}
+
 /// Which shell sent a frame, by the nonce it carried (#526).
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Shell {
@@ -211,6 +290,8 @@ pub struct AnchoredBlocks {
     /// The last clears that moved the cursor's line: the grid's count once each was done, and
     /// the cursor's absolute line before and after it (#639).
     clears: Vec<(u64, u64, u64)>,
+    /// How many of the first blocks a restore drew again from before a restart (#764).
+    restored: usize,
 }
 
 impl AnchoredBlocks {
@@ -363,6 +444,7 @@ impl AnchoredBlocks {
     #[must_use]
     pub fn rerun_offered(&self, block: &AnchoredBlock) -> bool {
         block.command_verified
+            && !self.is_restored(block.index)
             && block.state == BlockState::Finished
             && self
                 .prompt_shell()
@@ -379,6 +461,40 @@ impl AnchoredBlocks {
     #[must_use]
     pub fn blocks(&self) -> &[AnchoredBlock] {
         &self.blocks
+    }
+
+    /// Adds the blocks a restore drew again (#764) to a list that has none yet, ahead of every
+    /// block the terminal runs; they stay restored.
+    pub fn restore(&mut self, restored: Vec<(AnchoredBlock, BlockTimes)>) {
+        if !self.blocks.is_empty() {
+            return;
+        }
+        for (index, (mut block, times)) in restored.into_iter().enumerate() {
+            block.index = index;
+            self.blocks.push(block);
+            self.times.push(times);
+            self.hosts.push(None);
+        }
+        self.restored = self.blocks.len();
+    }
+
+    /// Whether block `index` was drawn again from before a restart (#764): history, which is
+    /// never run again nor read as the terminal's latest.
+    #[must_use]
+    pub const fn is_restored(&self, index: usize) -> bool {
+        index < self.restored
+    }
+
+    /// How many of the first blocks were drawn again from before a restart (#764).
+    #[must_use]
+    pub const fn restored_count(&self) -> usize {
+        self.restored
+    }
+
+    /// The blocks the terminal ran since it started, after the restored ones (#764).
+    #[must_use]
+    pub fn live(&self) -> &[AnchoredBlock] {
+        self.blocks.get(self.restored..).unwrap_or_default()
     }
 
     /// The folder the block holding the absolute `line` ran its command in (#619), with
@@ -403,8 +519,15 @@ impl AnchoredBlocks {
             });
         }
         // One block runs at a time, so only the newest can have finished since the last stamp:
-        // the walk back stops at the first block that has its end.
-        for (block, times) in self.blocks.iter().zip(self.times.iter_mut()).rev() {
+        // the walk back stops at the first block that has its end, and before the restored ones,
+        // whose times are their own (#764).
+        for (block, times) in self
+            .blocks
+            .iter()
+            .zip(self.times.iter_mut())
+            .skip(self.restored)
+            .rev()
+        {
             if times.finished.is_some() {
                 break;
             }

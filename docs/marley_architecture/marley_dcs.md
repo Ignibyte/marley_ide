@@ -41,9 +41,12 @@ stay there without a cycle. Pure, with no dependencies, MIT OR Apache-2.0.
   scroll region, and saving and restoring the cursor. Every other control is dropped: queries and
   reports, mode changes, OSC, DCS, SOS, PM, APC, BEL, and a sequence whose parameters pass
   `MAX_PARAMETERS`. While `?47`, `?1047` or `?1049` has the alternate screen on, nothing is kept.
-- `Allowlist::dimming` puts SGR 2 after each SGR it keeps; `history::replay` filters kept bytes
-  again with it, starts dim and ends with `SESSION_END` (the scroll region and the attributes
-  reset around a saved cursor, then CR LF).
+- `Allowlist::dimming` puts SGR 2 after each SGR it keeps; a restore
+  (`marley_terminal::history::restore`) filters kept bytes again with it, starts with `DIM` and
+  ends with `SESSION_END` (the scroll region and the attributes reset around a saved cursor, then
+  CR LF). `Allowlist::on_alternate_screen` says whether nothing is kept now, so a hook there leaves
+  no mark (#764).
+- `RawDcs::to_bytes` gives a frame as it came, for the history sink and for a mark (#764).
 
 ## Consumers
 
@@ -53,7 +56,9 @@ stay there without a cycle. Pure, with no dependencies, MIT OR Apache-2.0.
   notification is reported as `Event::Notification` (#478).
 - `marley_terminal`'s `TerminalSession::ingest`, the gpui era's own PTY engine.
 - `marley_workbench::scrollback`: each terminal's recorder keeps its output through an
-  `Allowlist`, and a restored terminal's builder feeds `history::replay`'s bytes to its term (#751).
+  `Allowlist` and finds the hook frames the event loop hands it with a `DcsScanner` (#751, #764);
+  `marley_terminal::history::restore` splits a kept file with a `DcsScanner` and dims it with an
+  `Allowlist`.
 
 ## Tests
 

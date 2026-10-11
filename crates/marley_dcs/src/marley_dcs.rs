@@ -68,6 +68,18 @@ pub struct RawDcs {
     pub payload: Vec<u8>,
 }
 
+impl RawDcs {
+    /// The frame as it came: `ESC P <selector> <payload> ESC \` (#764).
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.payload.len() + 5);
+        bytes.extend_from_slice(&[ESC, DCS_INTRODUCER, self.final_byte]);
+        bytes.extend_from_slice(&self.payload);
+        bytes.extend_from_slice(&[ESC, ST_TAIL]);
+        bytes
+    }
+}
+
 /// One item of [`DcsScanner::feed`]'s result, in stream order.
 ///
 /// Emitting passthrough and hooks as one ordered stream keeps a coalesced `[hook]output[hook]`

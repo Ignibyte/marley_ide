@@ -158,8 +158,9 @@ pub(crate) fn chip(
         );
     }
     let anchored = terminal.marley_anchored();
+    // A block from before a restart is history, which no agent is asked about (#764).
     let block = anchored
-        .blocks()
+        .live()
         .last()
         .filter(|block| block.index == index)?;
     let failed =

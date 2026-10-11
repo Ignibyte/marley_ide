@@ -846,7 +846,7 @@ def main():
         for terminal in (listed or {}).get("structuredContent", {}).get("terminals", []):
             answer = (client.tool("terminal_blocks", {"terminal": terminal["id"]}) or {}).get("structuredContent", {})
             for block in answer.get("blocks", []):
-                print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}, verified {block['verified']}, host {block.get('host')}, agent {block.get('agent')}")
+                print(f"  block {block['index']}: {block['command']!r}, exit {block['exit_code']}, running {block['running']}, kept {block['output_kept']}, verified {block['verified']}, host {block.get('host')}, agent {block.get('agent')}, restored {block.get('restored')}")
     elif command == "fleet":
         answer = (client.tool("fleet_snapshot") or {}).get("structuredContent") or {}
         seats = answer.get("seats", [])

@@ -1029,7 +1029,8 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ul class="points">
 <li>Nothing to do: each local terminal keeps its newest 5,000 lines in a file only you can read, and the restored terminal draws them.</li>
-<li>The old lines are text and colour only. They have no blocks, and nothing in them answers into the new shell; a full-screen program open at the quit, such as <code>less</code>, leaves no screen behind.</li>
+<li>The old lines are text and colour only, so nothing in them answers into the new shell; a full-screen program open at the quit, such as <code>less</code>, leaves no screen behind.</li>
+<li>The commands come back as blocks, with their bars and exit pills, and a header that says <code>restored</code> where the branch goes <span class="ticket">#764</span>. A restored block is history: it offers no Rerun or Reinput, no Ask the agent, publishes no diagnostics, and is not the terminal's last command in the rail. A command still running at the quit comes back without an exit pill.</li>
 <li>Closing a terminal deletes its file. Restore Scrollback on the Marley page (Terminal), <code>marley.restore_scrollback</code>, turns it off and deletes every file.</li>
 </ul>
 </article>

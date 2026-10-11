@@ -332,9 +332,11 @@ fn asking(
     let in_history = history
         .iter()
         .any(|command| command.starts_with(text.trim()));
+    // A block from before a restart is not the last exit (#764).
     let last_exit = terminal
         .read(cx)
-        .blocks()
+        .marley_anchored()
+        .live()
         .iter()
         .rev()
         .find(|block| block.state == BlockState::Finished)

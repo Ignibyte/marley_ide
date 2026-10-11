@@ -5475,3 +5475,12 @@ A scenario that checks a line cap and also looks for marker lines prints the bul
 first and the markers after it. The spec's first order, the coloured lines before the numbers,
 would have put them past the newest 5,000 lines, and the restore would rightly have shown none of
 them.
+
+## L-claude-764-blocks-added-from-elsewhere-keep-out-of-the-live-walks-001
+*category: design · topic: AnchoredBlocks · from: pipeline 764*
+
+`AnchoredBlocks` assumes every block came from a hook in this session: `stamp` walks back to the
+first block with an end and stamps the rest finished now, and many readers take `blocks().last()`
+as the terminal's latest. Blocks put there from anywhere else (a restore) must be counted and kept
+out of those walks (`live`, `restored_count`), or the first live hook rewrites their times and the
+readers act on history.

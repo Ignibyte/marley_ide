@@ -137,10 +137,13 @@ fn watch(view: &TerminalView, cx: &mut Context<TerminalView>) {
 /// output, so this returns at once when no block finished.
 fn read_finished(terminal: &Entity<Terminal>, workspace: &WeakEntity<Workspace>, cx: &mut App) {
     let id = terminal.entity_id();
+    // A block from before a restart published its failures then; reading it again would put
+    // them back (#764).
     let next = cx
         .try_global::<BlockFailures>()
         .and_then(|failures| failures.next.get(&id).copied())
-        .unwrap_or(0);
+        .unwrap_or(0)
+        .max(terminal.read(cx).marley_anchored().restored_count());
     let (found, runs, read_to) = {
         let terminal = terminal.read(cx);
         let blocks = terminal.blocks();

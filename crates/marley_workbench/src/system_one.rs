@@ -1348,10 +1348,11 @@ fn check_asking(
     let project = project_name(&folders);
     let title = terminal_view.tab_content_text(0, cx).to_string();
     let terminal = terminal_view.terminal().read(cx);
-    let block = terminal
-        .blocks()
-        .last()
-        .ok_or_else(|| "System One: the terminal has run no command to check yet.".to_string())?;
+    // A block from before a restart is not the last command (#764).
+    let block =
+        terminal.marley_anchored().live().last().ok_or_else(|| {
+            "System One: the terminal has run no command to check yet.".to_string()
+        })?;
     let exit = block.exit_code.0;
     Ok(Asking {
         subject: view.entity_id().to_string(),

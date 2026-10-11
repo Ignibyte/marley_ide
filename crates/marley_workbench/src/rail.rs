@@ -8369,7 +8369,8 @@ const COMMAND_LINE_MAX: usize = 60;
 /// its exit and how long it took, and whether it reads a password (#551).
 fn command_snapshot(terminal: &Terminal) -> Option<CommandSnapshot> {
     let anchored = terminal.marley_anchored();
-    let block = anchored.blocks().last()?;
+    // A block from before a restart is not the terminal's last command (#764).
+    let block = anchored.live().last()?;
     // An agent's block is the agent's session, which its own row told (#551's watch agrees).
     if marley_agent::agent_kind_of(&block.command).is_some() {
         return None;

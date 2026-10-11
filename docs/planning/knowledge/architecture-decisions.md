@@ -4933,3 +4933,19 @@ snapshot (alacritty has no serializer), T3's blocklist alone (it keeps titles, n
 the clipboard), a replay from the view (the prompt can come first), a flag around the replay
 (answers reach the PTY later through a channel), an overlay over the old rows (it must follow
 rewraps and clears), and blocks from replayed bytes (#764 redraws them from records).
+
+## AD-claude-764-a-restored-block-is-placed-from-a-mark-in-the-kept-bytes-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-751-a-terminals-output-is-kept-as-filtered-bytes-and-replayed-dim-before-its-shell-001, AD-claude-464-blocks-are-anchored-ranges-read-from-the-grid-001*
+
+Each shell hook that opens or closes a block leaves a mark in the kept bytes at the place it fell:
+`ESC P p mark;kind=command|prompt;…`, the command's text, its verification against the
+terminal's live nonce (no nonce is written), the exit code, the folder and the time. The vendored
+event loop hands the sink each hook frame as it came; the recorder finds it with a `DcsScanner`.
+A restore cuts the kept bytes at the marks and the builder places each block at the absolute line
+the replay reached, as a hook is placed, so restored blocks are ordinary `AnchoredBlock`s at the
+front of the list, counted by `AnchoredBlocks` (`is_restored`, `live`). A restored block is drawn
+like any other but is history: nothing runs or retypes it, nothing reads it as the last command or
+the latest failure, its header says `restored` where the branch goes, and `terminal_blocks` marks
+it. Rejected: a `.blocks.jsonl` with byte offsets (compaction cuts the head and the writer
+batches), absolute lines (the replay's width and cut differ), a `restored` field on
+`AnchoredBlock` (its literals), and a guessed branch.

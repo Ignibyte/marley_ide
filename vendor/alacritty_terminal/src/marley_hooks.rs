@@ -71,7 +71,8 @@ impl HookPosition {
 
 /// Parses `bytes` into `term`, taking Marley's hook frames out and reporting each one to
 /// `listener` as an [`Event::ShellHook`] at the position where it fell, and each notification
-/// escape as an [`Event::Notification`]. `history` is fed what the parser sees (#751).
+/// escape as an [`Event::Notification`]. `history` is fed what the parser sees (#751) and each
+/// hook frame as it came, in stream order (#764).
 pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
     parser: &mut ansi::Processor,
     scanner: &mut DcsScanner,
@@ -92,11 +93,17 @@ pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
                     history(&bytes);
                 }
             },
-            DcsEvent::Hook(frame) => listener.send_event(Event::ShellHook(ShellHook {
-                final_byte: frame.final_byte,
-                payload: frame.payload,
-                position: HookPosition::of(term),
-            })),
+            DcsEvent::Hook(frame) => {
+                // Marley: the history keeps where each block began and ended (#764).
+                if let Some(history) = history.as_mut() {
+                    history(&frame.to_bytes());
+                }
+                listener.send_event(Event::ShellHook(ShellHook {
+                    final_byte: frame.final_byte,
+                    payload: frame.payload,
+                    position: HookPosition::of(term),
+                }));
+            },
         }
     }
 }

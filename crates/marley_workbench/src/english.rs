@@ -305,8 +305,9 @@ pub(crate) fn asks_on_127(terminal: &Terminal, index: usize, cx: &App) -> Option
         return None;
     }
     let anchored = terminal.marley_anchored();
+    // A block from before a restart is history (#764).
     let block = anchored
-        .blocks()
+        .live()
         .last()
         .filter(|block| block.index == index)?;
     let not_found = block.state == BlockState::Finished

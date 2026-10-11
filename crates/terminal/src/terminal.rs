@@ -1114,10 +1114,11 @@ impl gpui::Global for MarleyAgentHistory {}
 /// Where a local interactive terminal's output is kept, and how it comes back.
 #[derive(Clone)]
 pub struct MarleyTerminalHistory {
-    /// The bytes that draw the terminal `id`'s kept output, ready for the parser, or `None`.
-    pub restored: Arc<dyn Fn(&str) -> Option<Vec<u8>> + Send + Sync>,
-    /// A sink fed every byte the terminal `id`'s parser sees, Marley's hook frames taken out.
-    pub recorder: Arc<dyn Fn(&str) -> Box<dyn FnMut(&[u8]) + Send> + Send + Sync>,
+    /// What draws the terminal `id`'s kept output, cut at its blocks' marks (#764), or `None`.
+    pub restored: Arc<dyn Fn(&str) -> Option<Vec<marley_terminal::history::Piece>> + Send + Sync>,
+    /// A sink fed every byte the terminal `id`'s parser sees and each of Marley's hook frames, given
+    /// the terminal's nonce.
+    pub recorder: Arc<dyn Fn(&str, Option<&str>) -> Box<dyn FnMut(&[u8]) + Send> + Send + Sync>,
 }
 
 impl gpui::Global for MarleyTerminalHistory {}
@@ -1484,13 +1485,32 @@ impl TerminalBuilder {
             // Marley: a restored local terminal draws its kept output, dimmed, before its shell
             // starts, so the shell's first prompt comes below it. The kept bytes hold only what
             // draws, so nothing in them answers into the new shell. The recorder keeps what the
-            // terminal prints from here for its next restore (#751).
+            // terminal prints from here for its next restore (#751). Each block's mark is placed
+            // at the line the bytes before it reached, as a hook is, and the blocks join the
+            // terminal's as restored ones (#764).
+            let mut marley_restored_blocks = Vec::new();
             let marley_recorder = match (&marley_history, &marley_terminal_id) {
                 (Some(history), Some(id)) if !no_pty => {
-                    if marley_restored && let Some(replay) = (history.restored)(id) {
-                        Processor::<StdSyncHandler>::new().advance(&mut *term.lock(), &replay);
+                    if marley_restored && let Some(pieces) = (history.restored)(id) {
+                        let mut term = term.lock();
+                        let mut processor = Processor::<StdSyncHandler>::new();
+                        let mut restoring = marley_terminal::Restoring::default();
+                        for piece in pieces {
+                            match piece {
+                                marley_terminal::history::Piece::Draw(bytes) => {
+                                    processor.advance(&mut *term, &bytes)
+                                }
+                                marley_terminal::history::Piece::Mark(mark) => {
+                                    let position =
+                                        alacritty_terminal::marley_hooks::HookPosition::of(&term);
+                                    restoring.mark(mark, position.absolute_line())
+                                }
+                            }
+                        }
+                        let end = alacritty_terminal::marley_hooks::HookPosition::of(&term);
+                        marley_restored_blocks = restoring.finish(end.absolute_line());
                     }
-                    Some((history.recorder)(id))
+                    Some((history.recorder)(id, marley_nonce.as_deref()))
                 }
                 _ => None,
             };
@@ -1673,6 +1693,7 @@ impl TerminalBuilder {
                     if marley_agents_out_of_history {
                         blocks.keep_agents_out_of_history();
                     }
+                    blocks.restore(marley_restored_blocks);
                     if let Some((command, pwd)) = marley_task_block {
                         blocks.open_task(command, pwd, 0);
                         blocks.stamp(std::time::SystemTime::now());

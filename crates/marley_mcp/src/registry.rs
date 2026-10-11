@@ -156,7 +156,9 @@ const REGISTRY: &[ToolSpec] = &[
                       out), the commands run in it, oldest first: each command, \
                       whether the shell's own hook reported it, its exit code, working directory, \
                       start time and duration, whether it still runs, and whether its output is \
-                      still in the scrollback. Secrets in commands come back as \
+                      still in the scrollback. A block marked `restored` ran before Marley \
+                      restarted: its output is the earlier session's, drawn again, and it is \
+                      never the terminal's latest command. Secrets in commands come back as \
                       `[redacted: <kind>]`, counted in `redacted`, unless the user turned \
                       redaction off.",
     },
@@ -1957,6 +1959,10 @@ fn terminal_blocks_schemas() -> (Value, Value) {
                             "output_kept": {
                                 "type": "boolean",
                                 "description": "Whether the output is still in the terminal's scrollback."
+                            },
+                            "restored": {
+                                "type": "boolean",
+                                "description": "Whether the block ran before Marley restarted and was drawn again from the terminal's kept output (#764)."
                             }
                         },
                         "required": ["index", "command", "verified", "running", "output_kept"]

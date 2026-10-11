@@ -9,9 +9,9 @@
 //! shell and nothing raised but drawing. While a program shows the alternate screen nothing is
 //! kept, so a full-screen program's screen never comes back.
 //!
-//! [`replay`] gives kept bytes the form a restored terminal draws: filtered again, since a file
-//! can come from an older build or a hand, every cell dim, and the attributes and the scroll
-//! region reset at the end.
+//! A restore filters kept bytes again with [`Allowlist::dimming`], since a file can come from an
+//! older build or a hand, starts with [`DIM`] and ends with [`SESSION_END`]
+//! (`marley_terminal::history::restore`).
 
 use crate::{CAN, ESC, ST_TAIL, SUB};
 
@@ -23,8 +23,8 @@ pub const MAX_PARAMETERS: usize = 64;
 const BEL: u8 = 0x07;
 /// BS.
 const BACKSPACE: u8 = 0x08;
-/// SGR 2, dim, which [`Allowlist::dimming`] puts after every SGR.
-const DIM: &[u8] = b"\x1b[2m";
+/// SGR 2, dim, which [`Allowlist::dimming`] puts after every SGR, and a restore starts with.
+pub const DIM: &[u8] = b"\x1b[2m";
 /// The end of a session's output.
 ///
 /// The cursor saved, the scroll region reset (which homes the cursor), the cursor restored, the
@@ -68,6 +68,13 @@ impl Allowlist {
             dim: true,
             ..Self::default()
         }
+    }
+
+    /// Whether a program has the alternate screen on, so nothing is kept (#764: a hook there
+    /// opens no block).
+    #[must_use]
+    pub const fn on_alternate_screen(&self) -> bool {
+        self.alternate_screen
     }
 
     /// Reads `bytes` and appends to `kept` what of them draws. A sequence split across reads is
@@ -232,17 +239,4 @@ const fn draws(final_byte: u8) -> bool {
                 | b's'
                 | b'u'
     )
-}
-
-/// The bytes that draw `kept`, a terminal's earlier output, in a restored terminal.
-///
-/// They go through the allowlist again with every cell dim, and end with the scroll region and
-/// the attributes reset and a new line, where the new shell's prompt goes.
-#[must_use]
-pub fn replay(kept: &[u8]) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(kept.len() + DIM.len() + SESSION_END.len());
-    bytes.extend_from_slice(DIM);
-    Allowlist::dimming().feed(kept, &mut bytes);
-    bytes.extend_from_slice(SESSION_END);
-    bytes
 }
