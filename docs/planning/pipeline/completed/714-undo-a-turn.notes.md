@@ -164,3 +164,117 @@ turn.
   promotion checks.
 - The rail's rows move when a terminal's turns are open; the scenario takes its points from a first
   run, as #509's did.
+
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/`; the BACKLOG row removed; the ticket in progress. Brain:
+  consultation af6cd524427d438eb37abe7851422298, nothing on this seam. git on the box is 2.55.
+- **Seams checked again** at `5c8c40a44e` (an Explore pass over all nine). D11 holds: #753's Codex
+  turns are `turns::Turn` rows in the same store (`on_codex` pushes into `Seat.turns`), so the
+  menu covers them. `Turn` (36-50, `Clone`, the full `sha` and the `repository`, no mark);
+  `Turns::of` 109, `repository_of` 117; the rail observes the `Turns` global (`rail.rs:980`), so a
+  mark written through `default_global` redraws it. `turn_git.rs` and `process::output` (21-26,
+  `Output` with the status, an `env` for `GIT_INDEX_FILE`). `render_turns` 6234-6327, an
+  associated function, rows `marley-rail-turn-{id}-{index}` with no right-click; the terminal
+  row's `right_click_menu` 6079 and `terminal_context_menu` 6102; `open_turn` 4725;
+  `TurnSnapshot` (`marley_rail.rs:232-244`) built at one place, `rail.rs:8382`, and in no test.
+  `Repository::checkpoint` (`git_store.rs:9975`) gives `GitRepositoryCheckpoint { commit_sha }`.
+  `BufferStore::get_by_path`, `Buffer::is_dirty`, `Project::find_project_path` as cited.
+- **What differs from the draft, and where the design takes it:**
+  - **Private helpers:** `close_guard::working_status` and `rail::live_threads` become
+    `pub(crate)`; `send_selection::terminal_views` is not needed, since `mcp::terminals` walks
+    every window's terminals.
+  - **`turn_git`'s helpers fold every failure into one error,** so the merge's own helper reads
+    the exit status: 1 is a conflict.
+  - **No canonicalizing:** `fs::canonicalize` on the main thread is blocking IO (gate:21's
+    `blocking_io_on_foreground`); the agent check compares the absolute paths terminals and threads
+    report, as `turns.rs` finds a terminal's repository.
+  - **`find_project_path` searches visible worktrees only**; the unsaved check asks each project
+    for the path's project path and takes a miss as no open buffer there.
+
+## Phase 2 — Code
+- **Built.** `turn_git.rs`: `UndoMerge` and `undo_merge_in` (`merge-tree --write-tree --name-only
+  -z --merge-base=<turn> <now> <turn>^`; exit 1 lists the conflicting paths; a refused
+  `--merge-base` names `git --version`), `PathChange` and `changed_paths_in` (`diff-tree -r -z
+  --no-renames --name-status`), `UndoWrite` and `write_merged_in` (a temporary
+  `index-marley-undo-<uuid>.tmp` in `rev-parse --absolute-git-dir` through `GIT_INDEX_FILE`,
+  `read-tree <now>`, `update-index -q --refresh`, `read-tree -m -u <now> <merged>`; "not uptodate"
+  or "would be overwritten" give `Changed`; the index removed whatever happens). `turn_undo.rs`
+  (new): `keep`, `undo`, `run`, the question, the refusals, `agent_at_work`, `unsaved_among`,
+  `workspaces`. `turns.rs`: `Turn.mark` and `Turns::mark`. `marley_rail.rs`: `TurnMark` and
+  `TurnSnapshot.mark`. `rail.rs`: each turn row in a `right_click_menu`, `turn_menu`,
+  `turn_marks`. `close_guard::working_status` and `rail::live_threads` are `pub(crate)`;
+  `mcp::terminals_of` (Test's fix). Both guides and walkthrough stop 5.15.
+- **Deviations from the design.**
+  - `kept` and `undone` became one `mark: Option<TurnMark>`: a turn is never both, Undone is never
+    overridden, and two more bools put `TurnSnapshot` over clippy's `struct_excessive_bools`.
+  - One undo per repository refuses the second ("An undo is already running in this repository")
+    rather than chaining it: a chained undo would have merged against a checkpoint the first one
+    made stale.
+  - The agent check returns the first agent it finds, not a list: the message names one.
+  - The changed paths come from `git diff-tree` in `turn_git`, not `Repository::diff_tree`, so
+    every git run of the undo goes through the one adapter (REQ-017).
+- **Review against the criteria.** No entity is read while it updates: the undo reads `Turns`
+  and the projects in `cx.update` and writes the mark after the write returns. The question and
+  each refusal show paths through `launch::verbatim`. A failed spawn or git error reaches the
+  window as "The turn could not be undone." with git's text. No Zed path changed; no ledger row.
+  Clippy found `struct_excessive_bools` (above), `too_many_lines` in `render_turns`
+  (`turn_menu` and `turn_marks` split out) and a long first doc paragraph.
+- **Gate:** `just gate-diff` green, 17 passed and 0 failed, after Test's fix and both guides.
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/714-undo-a-turn.sh` under `compositor sway`. #509's stand-in claude
+  with a `turns` case (Add a README, Shout iota, Fix the typo in util, Shout gamma) and a `busy`
+  case (a prompt, then 25 s at work). The user's edits (`notes.txt`, lines 3 and 5) are made from
+  the script while no turn is open. Six checks, all pass on the final run.
+- **Shots, final run:**
+  - `714-00-turns`: Turns (4), newest first, each `· 1 file` or `· 2 files`.
+  - `714-01-menu` (REQ-001): Keep and Undo This Turn… under "Add a README".
+  - `714-02-confirm` (REQ-002): "Undo the turn “Add a README”?", `remove  README.md`,
+    `restore src/lib.txt`, and the line that the agent's conversation is not changed; Undo Turn and
+    Cancel. The prompt closes up the blank line before that last line; it reads fine.
+  - `714-03-undone` (REQ-003 to REQ-006): the row `· undone`; the log: `README.md` gone, line 1
+    `alpha`, lines 3 and 5 the user's, line 9 `IOTA`, `notes.txt` kept; `HEAD`, the index and the
+    refs as before.
+  - `714-04-conflict` (REQ-008): the refusal names `src/lib.txt`; no file changed.
+  - `714-05-kept` (REQ-009): "Fix the typo in util" `· kept` in the success color.
+  - `714-06-unsaved` (REQ-010): `src/util.txt` open with "unsaved " typed; the refusal names
+    `src/util.txt`; no file changed.
+  - `714-07-another-agent` (REQ-011): the second claude `working · Think hard`; the refusal names
+    Claude Code and the scratch repository's folder; no file changed.
+  - `714-08-changed-meanwhile` (REQ-013): line 9 changed while the question was open; "A file
+    changed after the question opened, so nothing was written", git's `Entry 'src/lib.txt' not
+    uptodate. Cannot merge.` below; line 9 stays `iota-late`.
+- **Not driven** (review and the gate): REQ-007 (an undone row's menu shows only "This turn was
+  undone", disabled), REQ-012 (the busy check does not skip the turn's own terminal), REQ-014,
+  REQ-015 (git on the box is 2.55), REQ-016 (the undo reads only the row's sha and its parent, so
+  #753's Codex rows take the same path), REQ-017 (gate:22).
+- **Fixed in Test.**
+  - **The unsaved check missed the window it ran in** (run 1, shot 714-06 showed the question).
+    `unsaved_among` and `agent_at_work` gathered workspaces through `cx.windows()` and each
+    window's handle, from inside that window's update, where gpui has taken the window out of the
+    app: the one window holding the dirty buffer and the busy terminal gave no workspaces. A debug
+    line inside the lookup never logged, which showed the project list was empty. The
+    busy-agent check had the same blind spot (its step had not run yet). `workspaces(window, cx)`
+    now reaches the window in hand through `window.root::<MultiWorkspace>()` and the others
+    through their handles; `mcp::terminals_of` takes that list. A repeat of
+    F-claude-596's class; PR-claude-596 already says it.
+  - Scenario only: Ctrl+P typed into the terminal (Marley binds no file finder there), so the
+    file is opened through the palette; the row's tooltip covered the menu in the first shot, so
+    the pointer moves off the row before it.
+- **Gate after the fix:** the same run as Phase 2's (the fix and the guides came before it).
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`; `docs/marley/guide.md` (Per-turn diffs: the marks, Keep, Undo,
+  the refusals, two notes on what Undo leaves); the in-app guide's `#turns`; walkthrough stop 5.15;
+  `docs/marley_architecture/marley_workbench.md` (Keep and Undo) and `marley_rail.md`
+  (`TurnSnapshot.mark`); `docs/marley/borrowing.md` (T3 Code item 6 and MonoCode). No Zed path
+  changed, so no ledger row.
+- **Knowledge:** F-claude-714-the-undos-lookups-missed-the-window-they-ran-in-001;
+  AD-claude-714-a-turn-is-undone-by-a-three-way-merge-written-through-a-temporary-index-001;
+  PR-claude-596-look-up-across-windows-before-updating-one-001 widened to name the handlers that
+  run inside a window's update.
+- **Brain:** consultation af6cd524427d438eb37abe7851422298 closed with
+  `decisions/marley-undo-one-agent-turn-by-a-three-way-merge-written-through-a-temporary-index-714`
+  (follow-up 2026-11-11).
+- **Left for the next change to `rail.rs`:** `render_turns`' doc names neither the marks nor the
+  menu; the gate had run, so it waits for the next ticket that touches the file.

@@ -1363,15 +1363,16 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="turns">
-<h3>Each agent turn as its own diff <span class="ticket">#509 · #753</span></h3>
-<p class="what"><strong>What it is.</strong> Marley keeps what each turn of Claude Code (with the plugin connected) or of Codex on its App Server changed in the repository, so you can review the agent's work one prompt at a time.</p>
+<h3>Each agent turn as its own diff <span class="ticket">#509 · #753 · #714</span></h3>
+<p class="what"><strong>What it is.</strong> Marley keeps what each turn of Claude Code (with the plugin connected) or of Codex on its App Server changed in the repository, so you can review the agent's work one prompt at a time, and take one turn back out.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Under a Claude Code or Codex terminal's row, open <strong>Turns (N)</strong>.</li>
 <li>Each turn that changed files is listed, newest first: its prompt and how many files it changed (<code>· failed</code> for an API error or a failed Codex turn, <code>· injected</code> for a prompt a harness sent).</li>
 <li>Click a turn to open Zed's commit view with only that turn's changes.</li>
+<li>Right-click a turn for <strong>Keep</strong>, which marks it <code>· kept</code>, or <strong>Undo This Turn…</strong>: Marley names each file it will restore or remove, and after you confirm puts those files back as the turn found them. Later turns' changes and your own edits stay. The row then says <code>· undone</code>.</li>
 </ol>
-<p class="note">Your index, branches and <code>HEAD</code> are never touched: turns are kept under <code>refs/marley/turns/</code>, and refs older than 30 days are deleted.</p>
+<p class="note">Your index, branches and <code>HEAD</code> are never touched: turns are kept under <code>refs/marley/turns/</code>, and refs older than 30 days are deleted. The agent's conversation still has an undone turn, so tell it what you undid. The undo refuses, changing nothing, while an agent works in that checkout, when a later change touched the same lines, when a file it would change has unsaved edits, or when a file changes while it asks.</p>
 </article>
 
 <article id="review-notes">

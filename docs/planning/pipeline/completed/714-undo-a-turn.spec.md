@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5c94bac9-e515-4351-b298-3e173c1abfa8
 ticket: docs/planning/tickets/open/TICKET-714-undo-a-turn.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Undo a turn
 type: feature
 slice: the finish line (docs/planning/design-notes/finish-line-2026-10-11.md row 5), prong 2 (review), on #509's turns; builds after #753

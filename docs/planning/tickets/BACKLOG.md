@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-714](open/TICKET-714-undo-a-turn.md) | feature | Undo This Turn and Keep on a turn row, for Claude Code and Codex |
 | [TICKET-715](open/TICKET-715-usage-meter-and-resume-at-reset.md) | feature | a usage meter on agent rows; Codex's limited state and Continue at Reset |
 | [TICKET-765](open/TICKET-765-claude-codes-limited-state.md) | feature | Claude Code's limited state and Continue at Reset |
 | [TICKET-754](open/TICKET-754-cli-sessions-in-threads.md) | feature | Claude Code and Codex sessions in Threads, reopened with `--resume` |

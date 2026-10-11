@@ -2581,6 +2581,31 @@ below describe what #743 retired.
   closes the turn at `thread/closed` and at the server's stop, which leave a seat the rail's
   `end` passes over. The record, the refs and the rows are #509's.
 
+- **Keep and Undo (`src/turn_undo.rs`, #714).** Each turn row sits in a `right_click_menu`;
+  `turn_menu` offers Keep (unless kept) and Undo This Turn…, or a disabled "This turn was undone".
+  `Turn.mark` (`marley_rail::TurnMark`, `Kept` or `Undone`, an undone turn never re-marked) goes
+  through `Turns::mark`, which writes the global the rail observes; `turn_marks` draws `· kept`
+  in the success color and `· undone` in the warning color.
+  - `undo` checks for an agent at work (`agent_at_work`: each terminal whose `agent_in` has a
+    `close_guard::working_status`, its folder the seat's `cwd` label or the terminal's working
+    directory, and each Agent Panel thread `Generating` in its `work_dirs` or the workspace's
+    roots; a hit is either path starting with the other, the turn's own agent included), takes
+    one slot per work directory in the `Undoing` global, and asks the repository for a
+    checkpoint.
+  - `run`, on the window: `turn_git::undo_merge_in` merges with the turn's commit as base, the
+    checkpoint as ours and the turn's parent as theirs (`git merge-tree --write-tree
+    --merge-base`, git 2.40 or later); a conflict refuses with its paths. `changed_paths_in`
+    lists what the merged tree changes against the checkpoint; none says there is nothing to
+    undo. `unsaved_among` asks each project's `BufferStore` for a dirty buffer at each path. The
+    question names each file, then the agent check runs again and `write_merged_in` writes the
+    merge through a temporary index (`read-tree -m -u`), which refuses a file changed since the
+    checkpoint. The mark follows a write.
+  - The cross-window lookups run inside the window's update, where that window's handle reads as
+    gone; `workspaces(window, cx)` reaches it through `window.root` and the rest through their
+    handles, and `mcp::terminals_of` takes that list (PR-claude-596).
+  - The user's index, `HEAD`, branches and the turn refs are never written; the undone turn's ref
+    keeps its diff.
+
 ## Stalled or looping agents (`src/stall.rs`, #569)
 
 - `on_frame` calls `stall::moved` after each fold and arms `stall::watch` while the seat works,

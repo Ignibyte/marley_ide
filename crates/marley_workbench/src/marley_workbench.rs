@@ -109,6 +109,7 @@ pub mod thread_tab;
 pub mod thread_tools;
 pub mod threads_page;
 pub mod turn_git;
+pub mod turn_undo;
 pub mod turns;
 pub mod typed_line;
 pub mod voice;

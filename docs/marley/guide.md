@@ -1177,12 +1177,33 @@ agent, newest first:
 | `· 2 files` | How many files the turn changed |
 | `· failed` | The turn ended in an API error, or the Codex turn failed |
 | `· injected` | A harness's prompt started it, not yours |
+| `· kept` | You chose Keep: the turn is reviewed |
+| `· undone` | You undid the turn |
 
 A click opens the turn in Zed's commit view in the terminal's project: the files the turn changed
 against its start, shell commands' edits as much as the agent's, and nothing of the turns before
 or after it. The turns stay listed after Claude Code exits, until the terminal closes; the refs
 keep the commits after that. A session's first turn deletes the repository's turn refs whose
 commits are older than 30 days.
+
+Right-click a turn row for **Keep** and **Undo This Turn…** (#714). Keep marks the turn reviewed
+and changes nothing on disk. Undo takes that one turn's changes out of your files: each file the
+turn changed goes back to how the turn found it and each file it created goes away, while what
+later turns and you yourself changed stays, in the same files and in others. Marley asks first,
+naming each file it will restore or remove. Your index, `HEAD`, your branches and the turn refs
+stay as they were, and the undone turn's row keeps its diff for a click. The agent is not told:
+its conversation still has the turn, so tell it what you undid.
+
+The undo refuses, says why and changes no file:
+
+- while an agent works in the turn's checkout, a folder inside it or a folder around it, the
+  turn's own agent included (wait for it, or stop it);
+- when a later change, a turn's or yours, touched the same lines (the message names the files);
+- when a file it would change is open in Marley with unsaved edits (save or revert it first);
+- when a file it would change changes while the question is open (try again);
+- when Marley's `git` is older than 2.40, which the merge needs.
+
+When the files already match the turn's start, it says there is nothing to undo.
 
 Worth knowing:
 
@@ -1192,6 +1213,9 @@ Worth knowing:
   agent's in the same checkout, land in it.
 - A remote project's terminals get no turns.
 - Marley runs the `git` on its PATH for the turn's commit and its refs.
+- Undo takes out only what the turn's commit holds, so what the checkpoint leaves out stays.
+- Undo writes your files and nothing else: a change you staged after the turn stays staged, and
+  `git status` shows it beside the undo.
 
 ### Review notes to the agent
 

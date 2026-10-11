@@ -23,6 +23,7 @@ use marley_agent::claude_events::{
     CWD_LABEL, HookEvent, PROMPT_LABEL, PromptOrigin, PromptReading, SESSION_LABEL,
 };
 use marley_fleet::Session;
+use marley_rail::TurnMark;
 use project::git_store::Repository;
 use terminal_view::TerminalView;
 use util::ResultExt as _;
@@ -47,6 +48,8 @@ pub struct Turn {
     pub sha: String,
     /// The repository it was taken in, which holds its commit.
     pub repository: WeakEntity<Repository>,
+    /// What the user did with it from its row's menu (#714).
+    pub mark: Option<TurnMark>,
 }
 
 /// A checkpoint being taken, shared so a turn's close waits for its open.
@@ -110,6 +113,22 @@ impl Turns {
         cx.try_global::<Self>()
             .and_then(|turns| turns.seats.get(&view))
             .map_or(&[], |seat| seat.turns.as_slice())
+    }
+
+    /// Marks the turn `sha` of the terminal `view` (#714); the rail, which observes the turns,
+    /// redraws.
+    pub(crate) fn mark(view: u64, sha: &str, mark: TurnMark, cx: &mut App) {
+        if let Some(turn) = cx
+            .default_global::<Self>()
+            .seats
+            .get_mut(&view)
+            .and_then(|seat| seat.turns.iter_mut().find(|turn| turn.sha == sha))
+        {
+            // An undone turn stays undone; Keep marks only a turn not undone.
+            if turn.mark != Some(TurnMark::Undone) {
+                turn.mark = Some(mark);
+            }
+        }
     }
 
     /// The repository the turn `sha` of the terminal `view` was taken in.
@@ -491,6 +510,7 @@ async fn record(
         injected: turn.open.injected,
         sha,
         repository: repository.clone(),
+        mark: None,
     };
     let id = turn.id;
     cx.update(|cx| {

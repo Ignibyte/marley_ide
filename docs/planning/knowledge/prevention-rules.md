@@ -2629,7 +2629,8 @@ session from the profile copy, Agent Panel threads and all.
 ## PR-claude-596-look-up-across-windows-before-updating-one-001
 *severity: high · prevents: F-claude-596-a-lookup-inside-a-window-update-lost-that-windows-terminals-001*
 
-Inside `window.update(…)` (or `update_in`, `update_window`), never call a helper that reads windows
+Inside `window.update(…)` (or `update_in`, `update_window`, and any callback handed `window`: a
+menu entry's handler, a click listener, `AsyncWindowContext::update`), never call a helper that reads windows
 through their handles (`cx.windows()`, `WindowHandle::read`, `downcast::<…>()?.read(cx)`, such as
 `mcp::terminals`): the window being updated is out of the app for the duration and reads as gone,
 so the lookup silently misses exactly the window in hand. Do the cross-window lookup first, in

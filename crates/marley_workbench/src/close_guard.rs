@@ -181,7 +181,11 @@ fn working_agents(items: &[Box<dyn ItemHandle>], cx: &App) -> Vec<Working> {
 /// The word for an agent that is working, or `None` when it may close unasked. For Claude Code
 /// with a seat, or Codex with its App Server's (#650): a turn, a permission or a question in
 /// flight. Otherwise the quiet timer's: output within two seconds, and no bell.
-fn working_status(view: &Entity<TerminalView>, kind: AgentKind, cx: &App) -> Option<&'static str> {
+pub(crate) fn working_status(
+    view: &Entity<TerminalView>,
+    kind: AgentKind,
+    cx: &App,
+) -> Option<&'static str> {
     if let Some(seat) = crate::agent_events::seat_of(view.entity_id(), kind, cx) {
         return matches!(
             seat.state,

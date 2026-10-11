@@ -811,6 +811,14 @@ pub(crate) fn terminals(cx: &App) -> Vec<(Entity<Workspace>, Entity<TerminalView
         .filter_map(|window| window.downcast::<MultiWorkspace>()?.read(cx).ok())
         .flat_map(|multi_workspace| multi_workspace.workspaces().cloned().collect::<Vec<_>>())
         .collect();
+    terminals_of(workspaces, cx)
+}
+
+/// The terminal views of `workspaces`, each with its workspace.
+pub(crate) fn terminals_of(
+    workspaces: Vec<Entity<Workspace>>,
+    cx: &App,
+) -> Vec<(Entity<Workspace>, Entity<TerminalView>)> {
     workspaces
         .into_iter()
         .flat_map(|workspace| {

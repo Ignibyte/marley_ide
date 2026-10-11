@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #714 (feature; size medium; the finish line, after #753)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [714-undo-a-turn.spec.md](../../pipeline/queued/714-undo-a-turn.spec.md)
+- **Pipeline doc:** [714-undo-a-turn.spec.md](../../pipeline/completed/714-undo-a-turn.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 1; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; the T3 Code survey, report 03 item 1 and report 01 item 7; Chad, 2026-10-11: "meh not sure. convince me of this or not", then, after the case for and against, "ok we can build it". Plan: [finish-line shelf](../../design-notes/finish-line-2026-10-11.md), row 5.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Keep and Undo This Turn… in a right-click menu on each turn row of #509. A turn is already a

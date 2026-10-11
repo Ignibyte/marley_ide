@@ -1337,12 +1337,15 @@ Marley trusts, from that release up to 2.2.0.
   agent.
 - [ ] English at the Prompt on the Marley page turns the hint off.
 
-### 5.15 Each turn as its own diff (#509)
+### 5.15 Each turn as its own diff (#509, #714)
 
 Under Claude Code's row, open **Turns (N)**.
 
 - [ ] Each turn that changed files is listed, newest first: its prompt and `· 1 file`.
 - [ ] A click opens Zed's commit view with only that turn's changes.
+- [ ] Right-clicking a turn offers Keep and Undo This Turn…; Keep marks the row `· kept`.
+- [ ] Undo This Turn… asks first, naming each file it would restore or remove, and says the
+  agent's conversation is not changed. Choose Cancel: 5.16 reviews the turn's change.
 
 ### 5.16 Review notes to the agent (#522)
 

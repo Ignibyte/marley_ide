@@ -6228,6 +6228,67 @@ impl Rail {
         });
     }
 
+    /// A turn row's marks: the files it changed, then `failed`, `injected`, and what the user did
+    /// with it, `kept` or `undone` (#714).
+    fn turn_marks(files: &str, turn: &TurnSnapshot) -> Div {
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .child(
+                Label::new(format!("· {files}"))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .when(turn.failed, |marks| {
+                marks.child(
+                    Label::new("· failed")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Error),
+                )
+            })
+            .when(turn.injected, |marks| {
+                marks.child(
+                    Label::new("· injected")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+            })
+            .when_some(turn.mark, |marks, mark| {
+                let (word, color) = match mark {
+                    marley_rail::TurnMark::Kept => ("· kept", Color::Success),
+                    marley_rail::TurnMark::Undone => ("· undone", Color::Warning),
+                };
+                marks.child(Label::new(word).size(LabelSize::XSmall).color(color))
+            })
+    }
+
+    /// A turn row's right-click menu (#714): Keep unless kept, and Undo This Turn…; an undone
+    /// turn's says so and offers neither.
+    fn turn_menu(
+        id: u64,
+        sha: &str,
+        (kept, undone): (bool, bool),
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<ContextMenu> {
+        let (keep_sha, undo_sha) = (sha.to_string(), sha.to_string());
+        ContextMenu::build(window, cx, move |menu, _, _| {
+            if undone {
+                return menu.item(ContextMenuEntry::new("This turn was undone").disabled(true));
+            }
+            let menu = if kept {
+                menu
+            } else {
+                menu.entry("Keep", None, move |_, cx| {
+                    crate::turn_undo::keep(id, &keep_sha, cx);
+                })
+            };
+            menu.entry("Undo This Turn…", None, move |window, cx| {
+                crate::turn_undo::undo(id, &undo_sha, window, cx);
+            })
+        })
+    }
+
     /// Under a terminal's card, its turns (#509): a "Turns (N)" line whose disclosure lists them,
     /// newest first, each with its title, the files it changed, and whether it failed or a
     /// harness started it. A click on a turn opens its diff.
@@ -6269,8 +6330,12 @@ impl Rail {
                 } else {
                     format!("{} files", turn.files)
                 };
+                let marks = Self::turn_marks(&files, &turn);
                 let (sha, workspace) = (turn.sha, workspace.clone());
-                h_flex()
+                let menu_sha = sha.clone();
+                let kept = turn.mark == Some(marley_rail::TurnMark::Kept);
+                let undone = turn.mark == Some(marley_rail::TurnMark::Undone);
+                let row = h_flex()
                     .id(("marley-rail-turn", index))
                     .debug_selector(move || format!("marley-rail-turn-{id}-{index}"))
                     .h_6()
@@ -6286,34 +6351,17 @@ impl Rail {
                             .min_w_0()
                             .child(Label::new(turn.title).size(LabelSize::XSmall).truncate()),
                     )
-                    .child(
-                        h_flex()
-                            .flex_none()
-                            .gap_1()
-                            .child(
-                                Label::new(format!("· {files}"))
-                                    .size(LabelSize::XSmall)
-                                    .color(Color::Muted),
-                            )
-                            .when(turn.failed, |marks| {
-                                marks.child(
-                                    Label::new("· failed")
-                                        .size(LabelSize::XSmall)
-                                        .color(Color::Error),
-                                )
-                            })
-                            .when(turn.injected, |marks| {
-                                marks.child(
-                                    Label::new("· injected")
-                                        .size(LabelSize::XSmall)
-                                        .color(Color::Muted),
-                                )
-                            }),
-                    )
+                    .child(marks)
                     .on_click(cx.listener(move |rail, _, window, cx| {
                         rail.open_turn(id, sha.clone(), &workspace, window, cx)
                             .log_err();
-                    }))
+                    }));
+                // Keep and Undo This Turn… (#714); an undone turn offers neither again.
+                right_click_menu(SharedString::from(format!(
+                    "marley-rail-turn-menu-{id}-{index}"
+                )))
+                .trigger(move |_, _, _| row)
+                .menu(move |window, cx| Self::turn_menu(id, &menu_sha, (kept, undone), window, cx))
             })
         });
         Some(
@@ -8124,7 +8172,7 @@ fn one_line(text: &str) -> String {
 
 /// The root thread of each conversation a workspace holds: its panel's, shown or kept in the
 /// background, and its thread tabs' (#734).
-fn live_threads(workspace: &Workspace, cx: &App) -> Vec<Entity<AcpThread>> {
+pub(crate) fn live_threads(workspace: &Workspace, cx: &App) -> Vec<Entity<AcpThread>> {
     crate::thread_tab::conversations_of(workspace, cx)
         .into_iter()
         .filter_map(|conversation| {
@@ -8385,6 +8433,7 @@ fn terminal_snapshot(
                 failed: turn.failed,
                 injected: turn.injected,
                 sha: turn.sha.clone(),
+                mark: turn.mark,
             })
             .collect(),
         turns_open: false,

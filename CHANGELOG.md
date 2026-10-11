@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Keep or undo one agent turn** (#714, 2026-10-11). Right-click a turn under a terminal's
+  **Turns (N)** for Keep, which marks it `kept`, or Undo This Turn…, which takes that turn's
+  changes back out of your files while later turns' changes and your own edits stay. It names
+  each file it will restore or remove and asks first; the row then reads `undone`. It refuses,
+  changing nothing, while an agent works in that checkout, when a later change touched the same
+  lines, when a file it would change has unsaved edits, or when a file changes while it asks. Your
+  index, branches, `HEAD` and the turn's diff stay. Claude Code's and Codex's turns work alike.
+
 - **Codex's turns as their own diffs** (#753, 2026-10-11). Codex on Marley's App Server keeps each
   turn that changed the repository as Claude Code's are kept: under its terminal's row, **Turns
   (N)** lists them with the prompt, the files and `failed`, and a click opens the turn's changes

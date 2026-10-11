@@ -228,7 +228,7 @@ pub struct RunningError {
     pub questioned: bool,
 }
 
-/// One turn of a terminal's Claude Code that changed the tree (#509).
+/// One turn of a terminal's agent that changed the tree (#509, #753).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TurnSnapshot {
     /// The prompt on one line, the slash command, or what injected it.
@@ -241,6 +241,17 @@ pub struct TurnSnapshot {
     pub injected: bool,
     /// Its commit, in full: what a click on its row opens.
     pub sha: String,
+    /// What the user did with it from its menu (#714).
+    pub mark: Option<TurnMark>,
+}
+
+/// What the user did with a turn from its row's menu (#714).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnMark {
+    /// Keep: reviewed.
+    Kept,
+    /// Undo This Turn: taken out of the tree.
+    Undone,
 }
 
 /// One Browser tab (#504).

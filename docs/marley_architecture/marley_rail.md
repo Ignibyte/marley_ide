@@ -123,7 +123,8 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   `PermissionMark`, when it runs without its permission prompts; the builders copy it with the
   agent, and it decides no order or visibility.
 - **`TerminalSnapshot::turns`** (#509) are the turns of the terminal's Claude Code that changed
-  the tree, newest first, as `TurnSnapshot { title, files, failed, injected, sha }`, and
+  the tree, newest first, as `TurnSnapshot { title, files, failed, injected, sha, mark }`, where
+  `mark` is the `TurnMark` (`Kept` or `Undone`, #714) the user gave it, and
   `turns_open` whether the rail lists them under the row. The builders copy both to
   `TerminalRow`; the turns are drawn inside the terminal's row, not as rows of their own, so they
   move no selection and decide no order.

@@ -4974,3 +4974,21 @@ takes the checkpoints, writes the commit, pins `refs/marley/turns/<thread id>/<n
 row, unchanged. Rejected: a second turn store for Codex, the seat's state changes as boundaries
 (an approval's wait is not a turn's end), rebuilding a turn from `fileChange` items (a shell
 command's edits would be missed), and the thread's preview as the title.
+
+## AD-claude-714-a-turn-is-undone-by-a-three-way-merge-written-through-a-temporary-index-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-509-a-turn-is-a-commit-of-its-end-on-its-start-under-marleys-refs-001, AD-claude-git-write-confined-to-add-restore-commit-001*
+
+Undo This Turn… takes one turn's changes out and keeps everything later: `git merge-tree
+--write-tree --merge-base=<turn>` of a fresh checkpoint and the turn's parent, which writes
+nothing on disk and refuses on a conflict, then a write of that tree through a temporary index in
+the git directory (`read-tree <now>`, `update-index --refresh`, `read-tree -m -u <now> <merged>`),
+which touches only the paths that differ and refuses a file changed since the checkpoint. This
+extends Marley's git writes, on purpose, by objects, a temporary index and the merge's own paths
+in the tree; still no reset, checkout, clean or stash, and the user's index, `HEAD`, branches and
+the turn refs are never written. The spawns are `turn_git.rs`'s over `process.rs`. It refuses while
+an agent works in an overlapping folder (the turn's own included), over unsaved edits, and while
+another undo runs in the repository; marks live on the in-memory row. Rejected: Zed's
+`restore_checkpoint` to the turn's start (drops later work), `git apply -R --3way` (stages into the
+user's index, leaves conflict markers), `git apply -R` alone (refuses clean merges), `git restore
+--source` (cannot remove a file the turn created), Claude Code's `/rewind` (misses shell edits,
+none for Codex), and chaining a second undo behind the first (its checkpoint would be stale).

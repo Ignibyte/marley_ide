@@ -3819,3 +3819,17 @@ The same class as F-claude-771-marley-fleet-built-only-beside-a-crate-that-turne
 Claude Code's frames were their only caller. #652's agent reports call them too, and a report's
 agent comes from the terminal's program, which can be Codex, so a reporting Codex would have pushed
 `Claude needs input`. Fixed in #752: both name the seat's agent (`push::agent_name`).
+
+## F-claude-714-the-undos-lookups-missed-the-window-they-ran-in-001
+*severity: high · found in: pipeline 714's Test phase (shot 714-06) · class: reading a window through its handle while that window is updated · prevented by: PR-claude-596-look-up-across-windows-before-updating-one-001*
+
+Undo This Turn… is a rail menu entry, so its handler runs inside the window's update, and so does
+`run`'s `cx.update(|window, cx| …)`. The unsaved check and the busy-agent check gathered workspaces
+the way `mcp::terminals` does, through `cx.windows()` and each window's handle, which reads as gone
+for the window being updated. The one window that held the dirty buffer and the working agent gave
+no workspaces: the undo went to its question over a file with unsaved edits, and would have run past
+a busy agent in the same window. A debug line inside the per-project lookup never logged, which
+showed the list was empty. A repeat of F-claude-596's class: the rule named `window.update` but not
+the handlers that run inside one. Fixed in #714: `workspaces(window, cx)` reaches the window in hand
+through `window.root::<MultiWorkspace>()`, and `mcp::terminals_of` takes that list. The rule now
+names menu entries, click listeners and `AsyncWindowContext::update`.
