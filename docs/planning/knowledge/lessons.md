@@ -5375,3 +5375,21 @@ panel's crate: `Dock::panel_for_persistent_name` (#773) gives its `PanelHandle`,
 menu code. `Workspace::new` adds the left dock's `PanelButtons` before every other status item, so
 `position_of_item::<PanelButtons>()` is the left dock's and `insert_item_after` it is the bar's left
 end in `observe_new`.
+
+## L-claude-749-a-debug-build-starts-only-from-the-checkout-001
+*category: testing · topic: e2e launches with a working directory of their own · from: pipeline 749*
+
+A debug build finds its assets from the working directory (`util::dev_repo_root`) and panics with
+"dev asset loading requires running from within the checkout" anywhere else; the installed build
+embeds them. A second launch that only hands off never loads an asset, so `marley <verb>` typed in
+a scenario's terminal in a scratch folder works, but a cold launch from that folder panics. A
+scenario that starts Marley with a folder of its own starts from the checkout and names the folder
+(`--folder`), through `launch_marley_with`.
+
+## L-claude-749-a-new-group-row-moves-the-rail-rows-a-scenario-clicks-001
+*category: testing · topic: clicking rail rows in a scenario · from: pipeline 749*
+
+A row that appears in a group above (Default gaining Home and a thread) moves every row below it,
+so a scenario that clicks a project's terminal row by position starts typing into whatever row
+took its place: a thread's message box took a command in #749's first run. Fold the group above
+after its shot, or click by a place no new row can reach.

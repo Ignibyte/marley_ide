@@ -330,8 +330,9 @@ fn last_item_besides_terminals(workspace: &Workspace, cx: &App) -> Option<Box<dy
         .map(|(_, item)| item)
 }
 
-/// A local terminal ignores the directory, as the panel's own does.
-fn open_center_terminal(
+/// A local terminal ignores the directory, as the panel's own does. `marley terminal` opens one
+/// here too (#749).
+pub(crate) fn open_center_terminal(
     workspace: &mut Workspace,
     local: bool,
     directory: Option<PathBuf>,

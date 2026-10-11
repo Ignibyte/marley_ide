@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **`marley <command>`** (#749, 2026-10-11). Commands on the `marley` command line open things in
+  the running Marley, working in the folder you run them from: `agent-thread [--provider=NAME]
+  [--folder=PATH]`, `agent-cli [--provider=NAME]`, `terminal [PATH]`, `talk marley|rusty`,
+  `threads`, `home`, `rusty [SCREEN]`, `panel NAME`, `browser URL` and `help`. Each lands in the
+  group whose project holds the folder, else in Default. `--provider` takes `claude`, `codex`,
+  `zed`, `marley`, `rusty` or an agent server's id, and defaults to the agent you started last.
+  With no Marley running, Marley starts, restores your session, then runs the command. Typed in a
+  terminal of a Marley on a data directory of its own, the command reaches that Marley. A
+  Hyprland key bound to `marley agent-thread` is a quick way to a new thread (#721).
+
 - **Panel tabs come back after a restart** (#773, 2026-10-11). A Files, Git, Outline, Collab,
   Fleet, Knowledge or Containers tab open when Marley quits is back in its pane at the next start,
   next to the editors that come back there. A panel that is turned off at the start (Knowledge

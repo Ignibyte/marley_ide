@@ -9,7 +9,8 @@
 //! interactive terminal names Marley's `marley-agent` program as [`BIN_VARIABLE`], through which
 //! an agent reports its state to Marley (#652), and, while it is wanted, the Claude Code plugin
 //! Marley shares with rustal-harness first in [`PLUGIN_DIRS_VARIABLE`] (#709), then the `rustal-ste`
-//! skill's plugin folder (#725).
+//! skill's plugin folder (#725), and, for a Marley on a data directory of its own, that directory
+//! in [`DATA_DIR_VARIABLE`], so `marley <command>` typed there reaches that Marley (#749).
 
 /// The variable holding a terminal's id.
 pub const TERMINAL_ID_VARIABLE: &str = "MARLEY_TERMINAL_ID";
@@ -58,12 +59,26 @@ pub fn agent_program() -> Option<std::path::PathBuf> {
         .clone()
 }
 
+/// The variable naming the data directory of the Marley a terminal belongs to, while that Marley
+/// runs on one of its own (`--user-data-dir`), so `marley <command>` typed there reaches it (#749).
+pub const DATA_DIR_VARIABLE: &str = "MARLEY_USER_DATA_DIR";
+
+/// The data directory terminals name as [`DATA_DIR_VARIABLE`]: Marley's own, when it was given one.
+static DATA_DIR: std::sync::RwLock<Option<std::path::PathBuf>> = std::sync::RwLock::new(None);
+
+/// Notes the data directory Marley runs on, when its launch named one (#749).
+pub fn set_data_dir(directory: Option<std::path::PathBuf>) {
+    *DATA_DIR
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = directory;
+}
+
 /// The variables a terminal gives its agents (#652).
 ///
 /// [`BIN_VARIABLE`] names `program` in a terminal that `named` itself (a local interactive one,
-/// as [`TERMINAL_ID_VARIABLE`] is set), and is empty in any other. Emptied, not removed: the
-/// program inherits Marley's own environment besides the map, and a Marley started from a Marley
-/// terminal carries its parent's.
+/// as [`TERMINAL_ID_VARIABLE`] is set), and is empty in any other; [`DATA_DIR_VARIABLE`] the same
+/// for Marley's own data directory. Emptied, not removed: the program inherits Marley's own
+/// environment besides the map, and a Marley started from a Marley terminal carries its parent's.
 pub fn agent_environment(
     env: &mut impl Extend<(String, String)>,
     program: Option<&std::path::Path>,
@@ -74,6 +89,14 @@ pub fn agent_environment(
         .map(|program| program.to_string_lossy().into_owned())
         .unwrap_or_default();
     env.extend([(BIN_VARIABLE.to_string(), value)]);
+    let data_dir = DATA_DIR
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+        .filter(|_| named)
+        .map(|directory| directory.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    env.extend([(DATA_DIR_VARIABLE.to_string(), data_dir)]);
     if named {
         let inherited = std::env::var(PLUGIN_DIRS_VARIABLE).unwrap_or_default();
         let plugin_dirs = plugin_dirs(&inherited, &marley_plugins());

@@ -334,6 +334,24 @@ Then start Marley again from the app menu.
   paths, and `README.md` opens in the running window.
 - [ ] The menu launch opens no second window; it brings the running one forward (#545).
 
+### 1.7 `marley <command>` (#749)
+
+In a Marley terminal in the practice project, run these one at a time:
+
+```sh
+marley help
+marley agent-thread --provider=claude
+marley terminal ..
+marley panel git
+marley agent-cli --provider=nope; echo "exit $?"
+```
+
+- [ ] `marley help` lists the commands.
+- [ ] The thread opens as a Claude Code tab in the practice project's group, working in the
+  terminal's folder.
+- [ ] `terminal ..` opens a terminal in the parent folder; `panel git` opens the Git tab.
+- [ ] The wrong provider prints the error and `exit 2`, and nothing opens.
+
 ## Part 2. The rail
 
 ### 2.1 Terminals as rows (#438, #452, #468, #551)

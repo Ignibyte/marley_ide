@@ -92,9 +92,18 @@ pub fn hand_off(paths_or_urls: &[String]) -> Result<String> {
             data_dir.display()
         ))
     })?;
+    let verbs: Vec<&str> = paths_or_urls
+        .iter()
+        .filter_map(|url| crate::commands::verb_in(url))
+        .collect();
     Ok(if paths_or_urls.is_empty() {
         format!(
             "Marley is already running on {}; it was asked to come forward.",
+            data_dir.display()
+        )
+    } else if let [verb] = verbs.as_slice() {
+        format!(
+            "Marley is already running on {}; it was asked to run `marley {verb}`.",
             data_dir.display()
         )
     } else {

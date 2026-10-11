@@ -1,7 +1,7 @@
 ---
 pipeline_id: 476fe8e4-27a8-45f5-9ea5-f8c83fc24914
-ticket: docs/planning/tickets/open/TICKET-749-marley-commands.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-749-marley-commands.md
+status: Phase 4 — Complete PASS
 title: marley <command>
 type: feature
 slice: the Marley layout (docs/marley/workbench-shell.md), tabs everywhere (docs/planning/design-notes/tabs-everywhere-2026-10-11.md)
@@ -9,8 +9,10 @@ references:
   - docs/planning/pipeline/completed/513-one-marley-per-data-dir.spec.md
   - docs/planning/pipeline/completed/545-activation-token-hand-off.spec.md
   - docs/planning/pipeline/completed/734-an-agent-thread-starts-in-a-tab.spec.md
-  - docs/planning/pipeline/queued/747-side-panels-as-tabs.spec.md
-  - docs/planning/pipeline/queued/748-more-side-panels-as-tabs.spec.md
+  - docs/planning/pipeline/completed/747-side-panels-as-tabs.spec.md
+  - docs/planning/pipeline/completed/748-more-side-panels-as-tabs.spec.md
+  - docs/planning/pipeline/completed/773-panel-tabs-after-a-restart.spec.md
+  - docs/planning/pipeline/completed/774-the-debug-button-at-the-left.spec.md
 ---
 
 ## Title
@@ -135,8 +137,9 @@ Shots:
 - `talk`, `threads`, `home`, `rusty`, `panel`, `browser`: `marley talk marley`, `marley threads`,
   `marley home`, `marley rusty brain`, `marley panel git`, `marley browser page.html`: each one's
   tab in the repo group (REQ-011).
-- `cold`: Marley quit; `marley agent-thread --provider=Stand-in` launched from `sub`: Marley starts
-  with the repo group restored and a Stand-in thread tab in it (REQ-012).
+- `cold`: Marley quit; `marley agent-thread --provider=Stand-in --folder=<sub>` launched from the
+  checkout (a debug build reads its assets there): Marley starts with the repo group restored and a
+  Stand-in thread tab in it (REQ-012).
 
 ## Locked-In Decisions
 - **D1 — The verbs ride #513's hand-off as `zed://marley/<verb>?<query>` URLs.** A Marley module
@@ -171,12 +174,18 @@ Shots:
   `opencode` (`marley_agent::AgentKind`). The default is the agent last started in a tab or a
   CLI, kept per kind in Zed's key-value store by `thread_tab::start_thread` and
   `agents::start_in_terminal`; with none kept, the Agent Panel's selected agent, and the first
-  installed CLI. `--provider=NAME` and `--provider NAME` are both read.
+  installed CLI. `--provider=NAME` and `--provider NAME` are both read. (At promotion: kept by
+  `thread_tab::start`, the picker's and the Manager's start, by `Start::run_in`'s CLI arm, and by
+  the verbs themselves; not by `start_thread`, which the Marley and Rusty conversations also use.)
 - **D7 — Direct calls in the app, never a dispatched action**, which reaches whatever the window
   shows: `thread_tab::start` once the workspace's `take_panels_task()` has finished (as the
   `zed://agent` arm waits), `agents` start in the folder (made `pub(crate)` as needed),
   `routing::open_center_terminal`, `assistant::talk_to`, `threads_page::open`,
-  `home_page::open_here`, Rusty's openers, the panel opener, `browser::open_url_tab`.
+  `home_page::open_here`, Rusty's `brain::open_screen` and `rusty::open_home_here`,
+  `browser::open_url_tab`. A panel opens as Zed's `focus_panel` opens one, by its persistent name:
+  its dock activates it, opens and focuses it, and in the Marley layout #747's dock observer turns
+  that into the panel's tab; Debug stays in its dock (#774). (At promotion: no panel opener by name
+  existed.)
 - **D8 — A cold start restores, then runs the verb.** Zed runs a first request in place of the
   session restore (`main.rs` 950-975); a Marley verb restores first, as a plain `marley` does,
   then runs. Rejected: Zed's way, where `marley agent-thread` with no Marley running would open a
@@ -184,8 +193,10 @@ Shots:
 - **D9 — `marley` in a Marley terminal reaches that Marley.** Marley's local terminals carry
   `MARLEY_USER_DATA_DIR` while Marley runs with `--user-data-dir` (empty otherwise, as
   `MARLEY_BIN` is emptied for a nested Marley), and a verb with no `--user-data-dir` takes it
-  (PR-claude-a-program-marley-writes-finds-the-marley-that-wrote-it-001). The launch notes its
-  own `--user-data-dir` at the top of `main`, as it keeps the activation token. Never the default
+  (PR-claude-a-program-marley-writes-finds-the-marley-that-wrote-it-001). Marley keeps no note of
+  its own `--user-data-dir` (checked at promotion): `marley_workbench::init` notes
+  `paths::data_dir()` when the launch's arguments name `--user-data-dir`, and
+  `marley_terminal::identity::agent_environment` writes it beside `MARLEY_BIN`. Never the default
   directory for a custom one: `--user-data-dir` also moves the config directory (`paths.rs`
   104-128).
 - **D10 — Agent CLIs keep their own permission prompts**: `agent-cli` starts through the same

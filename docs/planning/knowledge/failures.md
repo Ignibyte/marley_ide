@@ -3750,3 +3750,11 @@ dock's previous panel, the outline panel, that it is inactive, and the outline p
 on that. #747's `dock_changed` closed the dock again and re-told only the project panel that its
 tab was in front, so the Outline tab beside it went empty. Fixed in #773: `dock_changed` re-tells
 the dock's previous panel as well.
+
+## F-claude-749-a-test-support-only-api-passed-clippy-and-failed-the-build-001
+*severity: medium · found in: pipeline 749's Test phase · class: an API behind a feature only the tests enable · prevented by: PR-claude-749-build-the-binary-before-trusting-clippy-on-a-new-gpui-call-001*
+
+`commands::run` took a window's root entity with `WindowHandle::root`, which gpui compiles only
+under `test-support`. The gate's clippy runs with `--all-targets`, and the dev-dependencies turn
+`test-support` on for the whole build, so clippy and the gate passed; `just build` failed with "no
+method named `root`". Fixed in #749 with `window.update(cx, |_, _, cx| cx.entity())`.

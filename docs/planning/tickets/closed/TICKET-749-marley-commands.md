@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #749 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [749-marley-commands.spec.md](../../pipeline/queued/749-marley-commands.spec.md)
+- **Pipeline doc:** [749-marley-commands.spec.md](../../pipeline/completed/749-marley-commands.spec.md)
 - **Source ticket:** Chad, 2026-10-11: "we should think about commands we can run like marley
   <command> where it can open things inside marley. for example i could cd /whatever/folder and do
   marley agent-thread --provider=claude and it would pop open a new agent thread", and "yes to all
   of these". Folds in #721 (a quick prompt). Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `marley` is the app itself, and a second launch hands its paths to the running Marley as URLs

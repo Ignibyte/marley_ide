@@ -2145,6 +2145,33 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## `marley <command>` (`src/commands.rs`, Zed's `main.rs` and `open_listener.rs`, #749)
+
+- The launch side: `args_if_invoked`, called in `main` after the browser relay's intercept and
+  before `Args::parse`, reads an optional leading `--user-data-dir`, the verb and its arguments
+  (`Command::read`: flags `--name=value` or `--name value`, fixed lists for `talk`, `rusty`,
+  `panel` and `agent-cli`'s provider, folders canonicalized against the working directory,
+  `browser` through `marley_browser::address`). It answers `Invoked::Exit { code, message }`
+  (`help`, wrong arguments; `main` prints it) or `Invoked::Launch` (the binary, the data
+  directory, else `MARLEY_USER_DATA_DIR`, and one `zed://marley/<verb>?folder=…&…` URL of at most
+  1024 bytes), which `main` hands to `Args::parse_from`. The URL then rides #513's hand-off;
+  `single_instance::hand_off` names the verb in its line.
+- The app side: `OpenRequest::parse` makes `OpenRequestKind::MarleyCommand` from the prefix
+  (`commands::command_in`); `handle_open_request` calls `commands::run`; a cold start's first
+  request, when it is a command, restores the session first. `run` finds the group whose project
+  has a visible root holding the folder (the deepest), else Default (`groups::with_group`) or, in
+  Zed's layout, the shown workspace; shows it with `MultiWorkspace::activate`; waits up to 10 s for
+  the Agent Panel or the named panel; then runs the verb through the existing openers
+  (`thread_tab::start`, `assistant::talk_by_name`, `agents::start_cli_in`,
+  `routing::open_center_terminal`, `threads_page::open`, `home_page::open_here`,
+  `rusty::brain::open_screen`, `rusty::open_home_here`, `browser::open_url_tab`) or `open_panel`,
+  which activates, opens and focuses the panel's dock for #747's observer. A refusal is a toast.
+- The agent started last is kept in the key-value store (`marley-commands`): by
+  `thread_tab::start`, `agents::start_cli_in`, `agents::start_cli_with_prompt` and the verbs.
+- `commands::note_data_dir` (in `init`) notes `paths::data_dir()` when the launch named
+  `--user-data-dir`; `marley_terminal::identity::agent_environment` writes it as
+  `MARLEY_USER_DATA_DIR`, empty in any other terminal.
+
 ## The Debug button at the left (`src/status_buttons.rs`, `src/marley_workbench.rs`, #774)
 
 - `apply_defaults` sets `debugger.button` with `terminal.button`: false in the Marley layout,

@@ -2962,3 +2962,11 @@ entity asks while it is being updated.
 `set_open` tells the active one. Code that undoes a dock change for panels drawn elsewhere (#747's
 panel tabs) re-tells every panel the call touched, the previous active panel included, not just the
 one the user asked for.
+
+## PR-claude-749-build-the-binary-before-trusting-clippy-on-a-new-gpui-call-001
+*severity: medium · prevents: F-claude-749-a-test-support-only-api-passed-clippy-and-failed-the-build-001*
+
+A green `just clippy` or gate does not prove the app builds: `--all-targets` unifies the
+dev-dependencies' features, `test-support` among them, so a gpui or workspace API gated on it
+compiles there and nowhere else. When code reaches for a gpui handle method or a test-looking
+helper it has not used before, check its `#[cfg]` or run `just build` before the gate.

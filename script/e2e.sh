@@ -71,6 +71,9 @@ binary() { MARLEY_BIN=$1; }
 # older build saved and the debug build restores (#743).
 use_binary() { marley=$(realpath -m "$1"); }
 
+# The binary the run starts, for a scenario that puts it on a terminal's PATH (#749).
+marley_binary() { printf '%s\n' "$marley"; }
+
 # The scenario's backend, `hyprland` or `sway`, named at its top level; SIZE may follow it.
 compositor() { COMPOSITOR=$1; }
 
@@ -298,13 +301,20 @@ marley_pid() {
 # Starts Marley on the run's profile with the path the scenario named, its output after any
 # earlier launch's in the run's log, and waits up to 90 seconds for its window.
 launch_marley() {
+  launch_marley_with ${OPEN:+"$OPEN"}
+}
+
+# `launch_marley_with <arguments>`: as `launch_marley`, with the scenario's own arguments after
+# the profile (#749: `marley <verb>` with no Marley running). It starts from the checkout, as every
+# launch does, since a debug build reads its assets from there.
+launch_marley_with() {
   if [[ $COMPOSITOR == sway ]]; then
     hold_keyboard
     env -u DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY="$SWAY_DISPLAY" \
-      SWAYSOCK="$SWAY_SOCK" setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} \
+      SWAYSOCK="$SWAY_SOCK" setsid -f "$marley" --user-data-dir "$E2E_PROFILE" "$@" \
       >>"$shots/$name.log" 2>&1 </dev/null
   else
-    setsid -f "$marley" --user-data-dir "$E2E_PROFILE" ${OPEN:+"$OPEN"} >>"$shots/$name.log" 2>&1 </dev/null
+    setsid -f "$marley" --user-data-dir "$E2E_PROFILE" "$@" >>"$shots/$name.log" 2>&1 </dev/null
   fi
   for _ in $(seq 90); do
     if [[ -n $(window) ]]; then

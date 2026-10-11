@@ -981,15 +981,53 @@ fn talk_to(
             return;
         }
     };
-    let (agent, profile) = if on_zed {
+    let (agent, profile) = thread_agent_of(entry, on_zed);
+    crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+}
+
+/// The agent a new thread of `entry` runs, and on Zed's agent the entry's profile.
+fn thread_agent_of(entry: Entry, on_zed: bool) -> (agent_ui::Agent, Option<AgentProfileId>) {
+    if on_zed {
         (
             agent_ui::Agent::NativeAgent,
             Some(AgentProfileId(entry.profile().into())),
         )
     } else {
-        (agent_ui::Agent::from(name), None)
+        (agent_ui::Agent::from(AgentId::new(entry.name())), None)
+    }
+}
+
+/// `marley talk` and `marley agent-thread --provider=marley` (#749): with no `folder`, a talk with
+/// the entry named `name` (`marley` or `rusty`, in any case) as `talk to` has; with one, a new
+/// thread of the entry working in it. Answers false when Marley has no such entry turned on.
+pub(crate) fn talk_by_name(
+    name: &str,
+    folder: Option<PathBuf>,
+    workspace: &mut Workspace,
+    window: &Window,
+    cx: &mut gpui::Context<Workspace>,
+) -> bool {
+    let Some(entry) = Entry::ALL
+        .into_iter()
+        .find(|entry| entry.name().eq_ignore_ascii_case(name))
+    else {
+        return false;
     };
-    crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+    let Some(agent) = cx
+        .try_global::<Assistant>()
+        .and_then(|assistant| assistant.applied.of(entry))
+        .map(|(agent, _)| agent)
+    else {
+        return false;
+    };
+    match folder {
+        None => talk_to(entry, false, workspace, window, cx),
+        Some(folder) => {
+            let (agent, profile) = thread_agent_of(entry, agent == MarleyAssistantAgent::Zed);
+            crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+        }
+    }
+    true
 }
 
 /// Whether the Marley entry is there (#739).

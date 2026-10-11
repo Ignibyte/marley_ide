@@ -80,6 +80,10 @@ pub enum OpenRequestKind {
     GitCommit {
         sha: String,
     },
+    // Marley: a `marley <verb>` launch's command, the URL's path and query (#749).
+    MarleyCommand {
+        command: String,
+    },
 }
 
 impl std::fmt::Debug for OpenRequestKind {
@@ -118,11 +122,20 @@ impl std::fmt::Debug for OpenRequestKind {
                 .field("repo_url", repo_url)
                 .finish(),
             Self::GitCommit { sha } => f.debug_struct("GitCommit").field("sha", sha).finish(),
+            Self::MarleyCommand { command } => f
+                .debug_struct("MarleyCommand")
+                .field("command", command)
+                .finish(),
         }
     }
 }
 
 impl OpenRequest {
+    // Marley: a cold start restores the session before it runs a `marley <verb>` (#749).
+    pub fn is_marley_command(&self) -> bool {
+        matches!(self.kind, Some(OpenRequestKind::MarleyCommand { .. }))
+    }
+
     pub fn is_focus_app_only(&self) -> bool {
         matches!(self.kind, Some(OpenRequestKind::FocusApp))
             && self.open_paths.is_empty()
@@ -174,6 +187,11 @@ impl OpenRequest {
                 });
             } else if url.starts_with(agent_skills::SKILL_SHARE_LINK_PREFIX) {
                 this.parse_skill_install_url(&url)?
+            } else if let Some(command) = marley_workbench::commands::command_in(&url) {
+                // Marley: `marley <verb>` hands its command as a `zed://marley/…` URL (#749).
+                this.kind = Some(OpenRequestKind::MarleyCommand {
+                    command: command.to_string(),
+                });
             } else if let Some(agent_path) = url.strip_prefix("zed://agent") {
                 this.parse_agent_url(agent_path)
             } else if url == "zed://" || url == "zed://open" || url == "zed://open/" {

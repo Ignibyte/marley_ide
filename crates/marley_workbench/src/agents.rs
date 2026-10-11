@@ -291,6 +291,8 @@ pub fn start_cli_with_prompt(
     window: &Window,
     cx: &Context<Workspace>,
 ) -> Task<Option<WeakEntity<Terminal>>> {
+    // `marley agent-cli` without `--provider` starts this CLI next (#749).
+    crate::commands::remember_cli(kind, cx);
     let directory = terminal_view::default_working_directory(workspace, cx);
     let (input, joining) = agent_line(
         workspace,
@@ -1100,21 +1102,33 @@ impl Start {
             Self::Thread(agent) => {
                 crate::thread_tab::start(workspace, Some(agent), Some(folder), window, cx);
             }
-            Self::Cli(kind) => {
-                let (line, joining) = launch_input(workspace, kind, &folder, cx);
-                start_in_terminal(
-                    workspace,
-                    Some(folder),
-                    Some(kind),
-                    Some(line),
-                    joining,
-                    window,
-                    cx,
-                )
-                .detach_and_log_err(cx);
-            }
+            Self::Cli(kind) => start_cli_in(kind, folder, workspace, window, cx),
         }
     }
+}
+
+/// Starts the agent CLI `kind` in a new center terminal in `folder`, with the permission mode its
+/// settings give (#532), as New Agent and `marley agent-cli` start one (#749).
+pub(crate) fn start_cli_in(
+    kind: AgentKind,
+    folder: PathBuf,
+    workspace: &Workspace,
+    window: &Window,
+    cx: &Context<Workspace>,
+) {
+    // `marley agent-cli` without `--provider` starts this CLI next.
+    crate::commands::remember_cli(kind, cx);
+    let (line, joining) = launch_input(workspace, kind, &folder, cx);
+    start_in_terminal(
+        workspace,
+        Some(folder),
+        Some(kind),
+        Some(line),
+        joining,
+        window,
+        cx,
+    )
+    .detach_and_log_err(cx);
 }
 
 struct NewAgentDelegate {

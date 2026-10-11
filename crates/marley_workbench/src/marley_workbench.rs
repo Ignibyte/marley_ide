@@ -48,6 +48,7 @@ pub mod clients;
 pub mod close_guard;
 pub mod codex_server;
 pub mod command_watch;
+pub mod commands;
 pub mod docs_tools;
 pub mod editor_tools;
 pub mod english;
@@ -137,6 +138,7 @@ use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, ProjectGroup, Sidebar as _, Toast, Workspace};
 
 pub use agents::NewAgent;
+pub use commands::{Invoked, args_if_invoked};
 pub use rail::{KeptSidebar, Rail};
 
 actions!(
@@ -865,6 +867,7 @@ pub fn init(cx: &mut App) {
     let layout = state.applied;
     cx.set_global(state);
     apply_defaults(layout, cx);
+    commands::note_data_dir();
     routing::init(cx);
     agents::init(cx);
     remote::init(cx);

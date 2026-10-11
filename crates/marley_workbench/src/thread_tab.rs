@@ -736,6 +736,8 @@ pub(crate) fn start(
         return;
     };
     let agent = agent.map_or_else(|| panel.read(cx).selected_agent(cx), Agent::from);
+    // `marley agent-thread` without `--provider` starts this agent next (#749).
+    crate::commands::remember_thread_agent(agent.id().0.as_ref(), cx);
     let folder = folder.unwrap_or_else(|| default_folder(workspace, cx));
     start_thread(workspace, agent, folder, None, window, cx);
 }

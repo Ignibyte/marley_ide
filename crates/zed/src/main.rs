@@ -220,7 +220,20 @@ fn main() {
         std::process::exit(code);
     }
 
-    let args = Args::parse();
+    // Marley: `marley <verb>` (#749) has flags clap would refuse and verbs it would read as
+    // paths; it answers `help` and argument errors itself, else launches with one URL.
+    let args = match marley_workbench::args_if_invoked() {
+        marley_workbench::Invoked::Exit { code, message } => {
+            if code == 0 {
+                println!("{message}");
+            } else {
+                eprintln!("{message}");
+            }
+            std::process::exit(code)
+        }
+        marley_workbench::Invoked::Launch(arguments) => Args::parse_from(arguments),
+        marley_workbench::Invoked::NotACommand => Args::parse(),
+    };
 
     // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass
     #[cfg(not(target_os = "windows"))]
@@ -960,6 +973,16 @@ fn main() {
                     }
                 }
             }),
+            // Marley: a cold `marley <verb>` restores the session first, then runs (#749).
+            Some(request) if request.is_marley_command() => cx.spawn({
+                let app_state = app_state.clone();
+                async move |cx| {
+                    if let Err(e) = restore_or_create_workspace(app_state.clone(), cx).await {
+                        fail_to_open_window_async(e, cx)
+                    }
+                    cx.update(|cx| handle_open_request(request, app_state, cx));
+                }
+            }),
             Some(request) => {
                 handle_open_request(request, app_state.clone(), cx);
                 Task::ready(())
@@ -1227,6 +1250,10 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
                         }
                     })));
                 });
+            }
+            // Marley: a `marley <verb>` handed over by a launch (#749).
+            OpenRequestKind::MarleyCommand { command } => {
+                marley_workbench::commands::run(&command, app_state, cx);
             }
             OpenRequestKind::GitCommit { sha } => {
                 let base_open_options = zed::open_options_for_request(

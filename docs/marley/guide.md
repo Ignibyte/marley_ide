@@ -106,6 +106,43 @@ on <data dir>; it was handed 1 of this launch's paths".
 - A Marley that hangs keeps its data directory: a new launch hands off to it and exits. Kill
   the hung one (`pgrep -x marley` finds it), and the next launch starts.
 
+### `marley <command>` (#749)
+
+`marley` followed by a command opens something in the running Marley, working in the folder you
+run it from. `marley help` lists them:
+
+| Command | Opens |
+|---|---|
+| `marley agent-thread [--provider=NAME] [--folder=PATH]` | an agent thread in a tab, working in the folder |
+| `marley agent-cli [--provider=NAME]` | an agent CLI in a new terminal in the folder |
+| `marley terminal [PATH]` | a terminal in PATH, else in the folder |
+| `marley talk marley` or `marley talk rusty` | a conversation with the Marley or the Rusty agent |
+| `marley threads` | the Threads page |
+| `marley home` | the Home page |
+| `marley rusty [SCREEN]` | Rusty's home page, or `brain`, `today`, `graph`, `tasks`, `decisions`, `memory`, `skills` or `secrets` |
+| `marley panel NAME` | `project`, `git`, `outline`, `collab`, `fleet`, `knowledge` or `containers` as a tab, or `debug` in the bottom dock |
+| `marley browser URL` | a Browser tab on the URL, or on a file in the folder |
+
+- **Where it opens.** In the group whose project holds the folder (the deepest one when projects
+  nest), else in the window's Default group. The window comes forward and shows that group.
+- **`--provider`.** For a thread: `claude`, `codex`, `zed`, `marley`, `rusty`, or an agent
+  server's id or name as `agent_servers` gives it. For a CLI: `claude`, `codex`, `gemini` or
+  `opencode`. Without it, the agent you started last that way, from New Agent, Home, the rail or a
+  command. An agent CLI starts with the permission mode its settings give, as New Agent starts it.
+- **Errors.** A wrong argument prints the error and exits with code 2. What only Marley can judge,
+  such as an agent no one has, Rusty off or a panel turned off, shows as a message in the window.
+- **No Marley running.** Marley starts, restores your session, then runs the command.
+- **A Marley on its own data directory.** Its terminals carry `MARLEY_USER_DATA_DIR`, so a
+  command typed there reaches that Marley, not the one on the default directory.
+- A folder named like a command opens as a folder with `./`: `marley ./home`.
+
+A key for a new thread, in Hyprland's `bindings.conf` (Hyprland runs it from your home folder, so
+the thread lands in Default unless `--folder` names a project):
+
+```
+bind = SUPER SHIFT, A, exec, marley agent-thread
+```
+
 ### The debug build
 
 `just build` builds the debug `marley` into the shared target directory

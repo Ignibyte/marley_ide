@@ -4872,3 +4872,18 @@ dock button does. It stands down whenever Zed's own button shows (Zed's layout, 
 Rejected: moving Zed's bottom `PanelButtons` to the left, which needs a Zed hunk since the three
 docks' buttons share one type; the Debug panel in the left dock, which Chad did not choose; the
 panel as a tab.
+
+## AD-claude-749-marley-verbs-ride-the-single-instance-hand-off-as-urls-001
+*decided at: 2026-10-11 · status: shipped · builds on: #513's one Marley per data directory*
+
+Chad, 2026-10-11: "we should think about commands we can run like marley <command> where it can
+open things inside marley", and "yes to all of these". The verbs are read by the launch before
+Zed's argument parser and handed to the running Marley as `zed://marley/<verb>?…` URLs over the
+datagram socket a second launch already uses. The launch answers what it can judge (help, wrong
+arguments, exit 2); the app shows the rest as a toast in the target group. A cold verb restores the
+session first, unlike Zed's first request, which replaces it. The verb opens in the group whose
+project holds the folder, else Default, through the openers the UI uses.
+
+Rejected: Zed's `cli` crate and its IPC (Marley ships no CLI binary); a socket with replies, as
+Orca's CLI has (a second channel, when the app already shows its own errors); a dispatched action
+(it reaches whatever the window shows, not the folder's group).
