@@ -1210,6 +1210,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The rail's cleanup** (#713, 2026-10-11). A terminal printing steadily no longer redraws the
+  rail on every chunk of output: the rail redraws when a row would change (a command starting or
+  ending, a bell, a title, an agent turning working or waiting). After a switch to Zed's layout
+  and back, the old rail stops following the window, and Home's page follows the new one. A window
+  saves its groups only once its restore is done, so a Marley killed while starting keeps the
+  groups it had. Marley's own opens and closes of the rail no longer count as the user's toggles.
+
 - **The Outline tab keeps its outline** (#773, 2026-10-11). It used to empty itself whenever
   another tab without an editor took the focus, the Files tab or a terminal beside it, and after a
   restart it started empty. It now keeps listing the symbols of the editor you were in last.

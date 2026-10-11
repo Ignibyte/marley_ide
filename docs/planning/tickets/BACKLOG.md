@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-713](open/TICKET-713-rail-cleanup.md) | chore | the rail: unregister a swapped sidebar, refresh only on row changes, a silent swap, save after restore |
 | [TICKET-771](open/TICKET-771-codex-0162-in-the-tested-range.md) | chore | Codex 0.162 in the tested range, so #750, #752 and #753 reach the box's Codex |
 | [TICKET-750](open/TICKET-750-codex-resumes-and-a-cut-off-turn-continues.md) | feature | Codex sessions resume after a restart, and a cut-off turn offers Continue |
 | [TICKET-751](open/TICKET-751-restored-scrollback.md) | feature | restored scrollback: a terminal's earlier output, dimmed, after a restart |

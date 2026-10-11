@@ -3758,3 +3758,13 @@ the dock's previous panel as well.
 under `test-support`. The gate's clippy runs with `--all-targets`, and the dev-dependencies turn
 `test-support` on for the whole build, so clippy and the gate passed; `just build` failed with "no
 method named `root`". Fixed in #749 with `window.update(cx, |_, _, cx| cx.entity())`.
+
+## F-claude-713-the-window-observer-refreshed-the-rail-on-every-workspace-notify-001
+*severity: medium · found in: pipeline 713's Test phase · class: an observer of a container that notifies for every child*
+
+The queued plan gated the rail's terminal, pane and workspace events, and a six-second print
+still made about thirty refreshes from one path: the rail observes the window's
+`MultiWorkspace`, which notifies whenever a workspace does, and a workspace notifies at each of its
+active pane's title changes. Fixed in #713: the observer compares what the rail reads of the window
+(its open state, project groups, workspaces and the one shown) and refreshes only on a change, and
+the gated paths share one refresh per effect cycle.

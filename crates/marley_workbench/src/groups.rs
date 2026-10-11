@@ -263,6 +263,16 @@ pub(crate) fn reopen(
     }
 }
 
+/// Whether the group of `database_id`, read from the store, still waits for its workspace (#713).
+pub(crate) fn is_pending(database_id: WorkspaceId, cx: &App) -> bool {
+    cx.try_global::<Groups>().is_some_and(|groups| {
+        groups
+            .pending
+            .iter()
+            .any(|saved| saved.database_id == database_id)
+    })
+}
+
 /// Drops the pending group whose workspace `database_id` could not be reopened (#601).
 pub(crate) fn forget_pending(database_id: WorkspaceId, cx: &mut App) {
     cx.default_global::<Groups>()

@@ -1,7 +1,7 @@
 ---
 pipeline_id: b9132431-1950-4c33-b5d4-84a7eaf9e936
-ticket: docs/planning/tickets/open/TICKET-713-rail-cleanup.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-713-rail-cleanup.md
+status: Phase 4 — Complete PASS
 title: Rail cleanup - one sidebar's subscriptions, refreshes on row changes, a silent swap, saves after the restore
 type: chore
 slice: the Marley layout (docs/marley/workbench-shell.md), the rail; the finish-line list's row 8 (docs/planning/design-notes/finish-line-2026-10-11.md)
@@ -10,7 +10,7 @@ references:
   - docs/planning/pipeline/completed/438-marley-layout-and-rail.notes.md
   - docs/planning/pipeline/completed/442-rail-persistence.spec.md
   - docs/planning/pipeline/completed/601-projectless-groups-survive-a-restart.spec.md
-  - docs/planning/pipeline/active/743-the-rails-top.spec.md
+  - docs/planning/pipeline/completed/743-the-rails-top.spec.md
 ---
 
 ## Title
@@ -43,7 +43,7 @@ restore is done. Chad, 2026-10-11: "8.) yes to all".
   reaches, the startup settle (3 s) has passed; and at most 10 s after the rail was built. The hold
   is a flag on `MultiWorkspace` that `serialize` and `flush_serialization` respect (Zed
   touchpoint); the release saves once. Until then a reorder keeps the saved order of the groups
-  still reopening (`rail_order.rs:445-454`).
+  still reopening: `order_changed`'s rows and `drop_header`'s headers (`rail_order.rs`).
 - **Docs:** `docs/marley_architecture/marley_workbench.md` (the status and persistence notes), the
   `multi_workspace.rs` row in `docs/marley/zed-touchpoints.md`, and `rail-internals.md` marked done
   except its last item.

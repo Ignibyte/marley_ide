@@ -376,12 +376,19 @@ impl Rail {
         cx: &mut Context<Self>,
     ) {
         let headers: Vec<String> = self.snapshot.groups.iter().map(group_place).collect();
-        self.saved_order.headers = marley_rail::move_to(
+        let moved = marley_rail::move_to(
             &headers,
             &dragged.place,
             &target.place,
             target.position < dragged.position,
         );
+        // While the window's restore is under way, the groups not back yet keep their places
+        // (#713).
+        self.saved_order.headers = if self.startup.saves_held {
+            keep_unlisted(&self.saved_order.headers, moved)
+        } else {
+            moved
+        };
         // The keyboard's header is kept by index, which now names another project.
         if matches!(self.cursor, Some(Selection::Project(_))) {
             self.cursor = None;
@@ -444,9 +451,12 @@ impl Rail {
     /// over the rail it holds the new order.
     pub(super) fn order_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let listed: HashSet<String> = self.snapshot.groups.iter().map(group_place).collect();
-        self.saved_order
-            .rows
-            .retain(|place, _| listed.contains(place));
+        // While the window's restore is under way, the rows of groups not back yet stay (#713).
+        if !self.startup.saves_held {
+            self.saved_order
+                .rows
+                .retain(|place, _| listed.contains(place));
+        }
         self.multi_workspace
             .update(cx, MultiWorkspace::serialize)
             .log_err();
@@ -471,4 +481,22 @@ impl Rail {
         self.hold = Hold::default();
         self.refresh(window, cx);
     }
+}
+
+/// `moved`, the listed headers in their new order, laid into `saved`'s places for them; the
+/// headers `saved` holds for groups not listed yet keep their places, and new ones go last
+/// (#713).
+fn keep_unlisted(saved: &[String], moved: Vec<String>) -> Vec<String> {
+    let listed: HashSet<String> = moved.iter().cloned().collect();
+    let mut moved = moved.into_iter();
+    let mut merged = Vec::with_capacity(saved.len());
+    for place in saved {
+        if listed.contains(place) {
+            merged.extend(moved.next());
+        } else {
+            merged.push(place.clone());
+        }
+    }
+    merged.extend(moved);
+    merged
 }

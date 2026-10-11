@@ -151,11 +151,6 @@ pub struct Rail {
     /// The switcher, while it is open.
     switcher: Option<OpenSwitcher>,
     foreground_command: ForegroundCommand,
-    /// When each terminal last wrote output, on the executor's clock.
-    terminal_output: HashMap<EntityId, Instant>,
-    /// Per agent terminal: a refresh due once its output has been quiet for `WAITING_AFTER`,
-    /// replaced on each output.
-    quiet_timers: HashMap<EntityId, Task<()>>,
     /// While a Claude Code seat works, a refresh due when a row's `no update in N m` next changes
     /// (#547).
     minute_timer: Option<Task<()>>,
@@ -242,6 +237,7 @@ pub struct Rail {
     _filter_edits: Subscription,
     brain: BrainSide,
     startup: StartupGroups,
+    gate: OutputGate,
     threads: ThreadsSide,
 }
 
@@ -269,10 +265,15 @@ struct StartupGroups {
     _settle: Task<()>,
     /// The Rusty groups being closed, so a refresh during a close does not close one again.
     retiring: Vec<Uuid>,
+    /// Whether the rail holds its window's saves until the restore is done (#713): a rail built
+    /// with its window does, one built by a layout swap does not.
+    saves_held: bool,
+    /// The release of the hold at the latest, `SAVES_HELD_AT_MOST` after the rail was built.
+    _release: Option<Task<()>>,
 }
 
 impl StartupGroups {
-    fn new(window: &Window, cx: &Context<Rail>) -> Self {
+    fn new(hold_saves: bool, window: &Window, cx: &Context<Rail>) -> Self {
         Self {
             restored: false,
             built: cx.background_executor().now(),
@@ -281,6 +282,113 @@ impl StartupGroups {
                 rail.update_in(cx, Rail::refresh).log_err();
             }),
             retiring: Vec::new(),
+            saves_held: hold_saves,
+            _release: hold_saves.then(|| {
+                cx.spawn_in(window, async move |rail, cx| {
+                    cx.background_executor().timer(SAVES_HELD_AT_MOST).await;
+                    rail.update_in(cx, Rail::release_saves).log_err();
+                })
+            }),
+        }
+    }
+}
+
+/// The longest a rail built with its window holds the window's saves: a remote group's reopen can
+/// wait on SSH (#713).
+const SAVES_HELD_AT_MOST: Duration = Duration::from_secs(10);
+
+/// What the rail last built for the rows terminal output can touch, so a wakeup refreshes only
+/// when a row would change (#713).
+#[derive(Default)]
+struct OutputGate {
+    /// When each terminal last wrote output, on the executor's clock.
+    output: HashMap<EntityId, Instant>,
+    /// Per agent terminal: a refresh due once its output has been quiet for `WAITING_AFTER`,
+    /// replaced on each output.
+    quiet_timers: HashMap<EntityId, Task<()>>,
+    /// Each terminal's row as the last refresh built it, before the passes that mark it.
+    rows: HashMap<u64, TerminalSnapshot>,
+    /// Each center pane's tabs, as last seen.
+    panes: HashMap<EntityId, PaneTabs>,
+    /// Each workspace's active pane and its tabs, as last seen.
+    workspaces: HashMap<EntityId, (EntityId, PaneTabs)>,
+    /// What the rail reads of its window, as last seen.
+    window: Option<WindowSeen>,
+    /// Whether a refresh is due at the end of this effect cycle: one change reaches the rail as a
+    /// terminal's, its pane's, its workspace's and its window's events, and redraws once.
+    refresh_due: bool,
+}
+
+/// What the rail reads of its window: whether its sidebar is open, its project groups (a
+/// re-keyed group notifies without an event), its workspaces and the one it shows.
+#[derive(Clone, PartialEq)]
+struct WindowSeen {
+    open: bool,
+    groups: Vec<ProjectGroupKey>,
+    workspaces: Vec<EntityId>,
+    shown: EntityId,
+}
+
+impl OutputGate {
+    /// Whether `pane`'s tabs differ from those last seen; keeps them.
+    fn pane_changed(&mut self, pane: &Entity<Pane>, cx: &App) -> bool {
+        let tabs = PaneTabs::of(pane.read(cx), cx);
+        self.panes.insert(pane.entity_id(), tabs.clone()) != Some(tabs)
+    }
+
+    /// Whether `workspace`'s active pane, or its tabs, differ from those last seen; keeps them.
+    fn workspace_changed(&mut self, workspace: &Entity<Workspace>, cx: &App) -> bool {
+        let pane = workspace.read(cx).active_pane();
+        let seen = (pane.entity_id(), PaneTabs::of(pane.read(cx), cx));
+        self.workspaces.insert(workspace.entity_id(), seen.clone()) != Some(seen)
+    }
+
+    /// Whether what the rail reads of `multi_workspace` differs from what it last saw; keeps it.
+    fn window_changed(&mut self, multi_workspace: &Entity<MultiWorkspace>, cx: &App) -> bool {
+        let multi_workspace = multi_workspace.read(cx);
+        let seen = WindowSeen {
+            open: multi_workspace.sidebar_open(),
+            groups: multi_workspace.project_group_keys(),
+            workspaces: multi_workspace
+                .workspaces()
+                .map(Entity::entity_id)
+                .collect(),
+            shown: multi_workspace.workspace().entity_id(),
+        };
+        self.window.replace(seen.clone()) != Some(seen)
+    }
+
+    /// Forgets the panes and workspaces no longer followed.
+    fn keep_only(&mut self, panes: &[Entity<Pane>], workspaces: &[Entity<Workspace>]) {
+        let panes: HashSet<EntityId> = panes.iter().map(Entity::entity_id).collect();
+        let workspaces: HashSet<EntityId> = workspaces.iter().map(Entity::entity_id).collect();
+        self.panes.retain(|pane, _| panes.contains(pane));
+        self.workspaces
+            .retain(|workspace, _| workspaces.contains(workspace));
+    }
+}
+
+/// What a pane's tabs show: each item's id, title and dirty mark, and the active one.
+#[derive(Clone, PartialEq, Eq)]
+struct PaneTabs {
+    tabs: Vec<(EntityId, SharedString, bool)>,
+    active: Option<EntityId>,
+}
+
+impl PaneTabs {
+    fn of(pane: &Pane, cx: &App) -> Self {
+        Self {
+            tabs: pane
+                .items()
+                .map(|item| {
+                    (
+                        item.item_id(),
+                        item.tab_content_text(0, cx),
+                        item.is_dirty(cx),
+                    )
+                })
+                .collect(),
+            active: pane.active_item().map(|item| item.item_id()),
         }
     }
 }
@@ -895,9 +1003,7 @@ impl Rail {
                 multi_workspace,
                 window,
                 |rail, multi_workspace, window, cx| {
-                    rail.note_open(&multi_workspace, cx);
-                    rail.watch_ports_while_shown(&multi_workspace, cx);
-                    rail.refresh(window, cx);
+                    rail.window_notified(&multi_workspace, window, cx);
                 },
             ),
         ];
@@ -945,8 +1051,7 @@ impl Rail {
             window_row: None,
             switcher: None,
             foreground_command: |terminal, cx| terminal.read(cx).foreground_process_command_name(),
-            terminal_output: HashMap::default(),
-            quiet_timers: HashMap::default(),
+            gate: OutputGate::default(),
             minute_timer: None,
             inbox_seen: HashMap::default(),
             inbox_timer: None,
@@ -962,6 +1067,7 @@ impl Rail {
             github_failed: HashSet::default(),
             pending_review: None,
             snapshot: Snapshot::default(),
+            startup: StartupGroups::new(zed_sidebar.is_none(), window, cx),
             zed_sidebar,
             zed_sidebar_state: None,
             add_project_menu: PopoverMenuHandle::default(),
@@ -988,7 +1094,6 @@ impl Rail {
             _filter_edits: filter_edits,
             brain: BrainSide::new(window, cx),
             threads: ThreadsSide::new(window, cx),
-            startup: StartupGroups::new(window, cx),
         }
     }
 
@@ -1139,6 +1244,32 @@ impl Rail {
 
     /// Notes whether the user has closed the rail. Nothing is noted while the sidebar cannot be
     /// shown at all.
+    /// A refresh at the end of this effect cycle, one for every event that asks in it (#713).
+    fn refresh_soon(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if std::mem::replace(&mut self.gate.refresh_due, true) {
+            return;
+        }
+        cx.defer_in(window, |rail, window, cx| {
+            rail.gate.refresh_due = false;
+            rail.refresh(window, cx);
+        });
+    }
+
+    /// The window notified: it does so for every workspace that does, a terminal's retitled tab
+    /// among them, so the rail redraws only when what it reads of the window changed (#713).
+    fn window_notified(
+        &mut self,
+        multi_workspace: &Entity<MultiWorkspace>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.note_open(multi_workspace, cx);
+        self.watch_ports_while_shown(multi_workspace, cx);
+        if self.gate.window_changed(multi_workspace, cx) {
+            self.refresh_soon(window, cx);
+        }
+    }
+
     fn note_open(&mut self, multi_workspace: &Entity<MultiWorkspace>, cx: &App) {
         let multi_workspace = multi_workspace.read(cx);
         if multi_workspace.multi_workspace_enabled(cx) {
@@ -1201,6 +1332,7 @@ impl Rail {
     /// Follows every workspace, terminal, Agent Panel and live thread, rereads the window, and
     /// redraws only when what the rail shows has changed.
     fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        log::debug!("rail {:?} refresh", cx.entity_id());
         if let Some(multi_workspace) = self.multi_workspace.upgrade() {
             groups::adopt(&multi_workspace, cx);
         }
@@ -1214,7 +1346,7 @@ impl Rail {
                 build_snapshot(
                     &multi_workspace,
                     self.foreground_command,
-                    &self.terminal_output,
+                    &self.gate.output,
                     &filter,
                     &self.saved_order,
                     window,
@@ -1222,6 +1354,13 @@ impl Rail {
                 )
             })
             .unwrap_or_default();
+        self.gate.rows = snapshot
+            .rail
+            .projects
+            .iter()
+            .flat_map(|project| &project.terminals)
+            .map(|terminal| (terminal.id, terminal.clone()))
+            .collect();
         order::arrange(&mut snapshot, &self.saved_order);
         self.note_turns_open(&mut snapshot);
         self.note_files_open(&mut snapshot);
@@ -1248,6 +1387,113 @@ impl Rail {
         self.follow_project_git(window, cx);
         self.take_review(window, cx);
         self.ensure_groups(window, cx);
+        self.release_saves_once_restored(window, cx);
+    }
+
+    /// Lets the window save again once its restore is done (#713): every group its saved state
+    /// lists is back or dropped, or, for a window no restore reaches, the startup has settled.
+    fn release_saves_once_restored(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.startup.saves_held {
+            return;
+        }
+        let done = if self.startup.restored {
+            !self
+                .saved_order
+                .groups
+                .iter()
+                .any(|id| groups::is_pending(*id, cx))
+        } else {
+            cx.background_executor()
+                .now()
+                .saturating_duration_since(self.startup.built)
+                >= SETTLE
+        };
+        if done {
+            self.release_saves(window, cx);
+        }
+    }
+
+    /// Ends the hold on the window's saves, which writes them once if one was asked meanwhile.
+    fn release_saves(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !std::mem::take(&mut self.startup.saves_held) {
+            return;
+        }
+        log::info!(
+            "rail {:?} lets its window save: its restore is done",
+            cx.entity_id()
+        );
+        // A refresh can run inside the `MultiWorkspace`'s update (its restore, F-claude-442-a).
+        let multi_workspace = self.multi_workspace.clone();
+        window.defer(cx, move |_, cx| {
+            multi_workspace
+                .update(cx, |multi_workspace, cx| {
+                    multi_workspace.marley_hold_serialization(false, cx);
+                })
+                .log_err();
+        });
+    }
+
+    /// A workspace's event: a terminal's output in the active pane reaches here as an active item
+    /// change, so only a different item, pane or tab redraws (#713).
+    fn workspace_event(
+        &mut self,
+        workspace: &Entity<Workspace>,
+        event: &workspace::Event,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !matches!(event, workspace::Event::ActiveItemChanged)
+            || self.gate.workspace_changed(workspace, cx)
+        {
+            self.refresh_soon(window, cx);
+        }
+    }
+
+    /// A terminal's item event: each chunk of output also updates its tab, so that redraws only
+    /// when the row would change (#713).
+    fn terminal_item_event(
+        &mut self,
+        view: &Entity<TerminalView>,
+        event: ItemEvent,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !matches!(event, ItemEvent::UpdateTab) || self.row_changed(view.entity_id(), cx) {
+            self.refresh_soon(window, cx);
+        }
+    }
+
+    /// Whether `view`'s row, built now, differs from the one the last refresh built (#713):
+    /// output alone changes nothing a row shows, so the rail refreshes only when the row would.
+    fn row_changed(&self, view: EntityId, cx: &App) -> bool {
+        let id = view.as_u64();
+        let (Some(entry), Some(last)) = (self.snapshot.terminals.get(&id), self.gate.rows.get(&id))
+        else {
+            return true;
+        };
+        let (Some(workspace), Some(terminal_view)) =
+            (entry.workspace.upgrade(), entry.view.upgrade())
+        else {
+            return true;
+        };
+        let root = workspace
+            .read(cx)
+            .project()
+            .read(cx)
+            .visible_worktrees(cx)
+            .find_map(|worktree| worktree.read(cx).root_dir());
+        let mut row = terminal_snapshot(
+            &terminal_view,
+            root.as_deref(),
+            util::paths::home_dir(),
+            self.foreground_command,
+            self.gate.output.get(&view).copied(),
+            cx.background_executor().now(),
+            cx,
+        );
+        row.matched.clone_from(&last.matched);
+        row.worktree.clone_from(&last.worktree);
+        row != *last
     }
 
     /// The window's agents at work, for Home's page (#701): each thread working, waiting or
@@ -2467,17 +2713,20 @@ impl Rail {
 
     /// Notes a terminal's output, and for an agent terminal re-arms the refresh that reads it as
     /// waiting once the output stops.
-    fn note_output(&mut self, view: EntityId, window: &mut Window, cx: &mut Context<Self>) {
-        self.terminal_output
+    fn note_output(&mut self, view: EntityId, window: &Window, cx: &mut Context<Self>) {
+        self.gate
+            .output
             .insert(view, cx.background_executor().now());
-        self.refresh(window, cx);
+        if self.row_changed(view, cx) {
+            self.refresh_soon(window, cx);
+        }
         if self.snapshot.agent_terminals.contains(&view) {
             let quiet = cx.background_executor().timer(WAITING_AFTER);
             let timer = cx.spawn_in(window, async move |rail, cx| {
                 quiet.await;
                 rail.update_in(cx, Self::refresh).log_err();
             });
-            self.quiet_timers.insert(view, timer);
+            self.gate.quiet_timers.insert(view, timer);
         }
     }
 
@@ -2497,21 +2746,16 @@ impl Rail {
             .map(|multi_workspace| Watched::in_window(&multi_workspace, cx))
             .unwrap_or_default();
         let open: HashSet<EntityId> = views.iter().map(Entity::entity_id).collect();
-        self.terminal_output.retain(|view, _| open.contains(view));
-        self.quiet_timers.retain(|view, _| open.contains(view));
+        self.gate.output.retain(|view, _| open.contains(view));
+        self.gate.quiet_timers.retain(|view, _| open.contains(view));
         // Rebuilt from what exists now: a restore replaces panes without reporting removals, and
         // whatever is left in the old maps is dropped, ending those subscriptions.
         self.workspace_subscriptions = resubscribe(
             &mut self.workspace_subscriptions,
             &workspaces,
-            |workspace| {
-                cx.subscribe_in(
-                    workspace,
-                    window,
-                    |rail, _, _: &workspace::Event, window, cx| rail.refresh(window, cx),
-                )
-            },
+            |workspace| cx.subscribe_in(workspace, window, Self::workspace_event),
         );
+        self.gate.keep_only(&center_panes, &workspaces);
         self.follow_panes(&center_panes, window, cx);
         self.project_subscriptions =
             resubscribe(&mut self.project_subscriptions, &projects, |project| {
@@ -2531,8 +2775,8 @@ impl Rail {
                             }
                         },
                     ),
-                    cx.subscribe_in(view, window, |rail, _, _: &ItemEvent, window, cx| {
-                        rail.refresh(window, cx);
+                    cx.subscribe_in(view, window, |rail, view, event, window, cx| {
+                        rail.terminal_item_event(view, *event, window, cx);
                     }),
                 ]
             });
@@ -2683,7 +2927,14 @@ impl Rail {
             cx.subscribe_in(
                 pane,
                 window,
-                |rail, _, _: &workspace::pane::Event, window, cx| rail.refresh(window, cx),
+                |rail, pane, event: &workspace::pane::Event, window, cx| {
+                    // A terminal's output retitles its tab; only a changed tab redraws (#713).
+                    if !matches!(event, workspace::pane::Event::ChangeItemTitle)
+                        || rail.gate.pane_changed(pane, cx)
+                    {
+                        rail.refresh_soon(window, cx);
+                    }
+                },
             )
         });
     }
@@ -9596,9 +9847,10 @@ impl Sidebar for Rail {
             // still run inside the rail's own update.
             let multi_workspace = self.multi_workspace.clone();
             window.defer(cx, move |window, cx| {
+                // Marley's own close, not the user's toggle (#713).
                 let close = |multi_workspace: &mut MultiWorkspace,
                              cx: &mut Context<MultiWorkspace>| {
-                    multi_workspace.close_sidebar(window, cx);
+                    multi_workspace.restore_closed_sidebar(window, cx);
                 };
                 multi_workspace.update(cx, close).log_err();
             });

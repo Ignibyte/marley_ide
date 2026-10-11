@@ -4887,3 +4887,19 @@ project holds the folder, else Default, through the openers the UI uses.
 Rejected: Zed's `cli` crate and its IPC (Marley ships no CLI binary); a socket with replies, as
 Orca's CLI has (a second channel, when the app already shows its own errors); a dispatched action
 (it reaches whatever the window shows, not the folder's group).
+
+## AD-claude-713-the-rail-redraws-on-row-changes-and-holds-saves-until-its-restore-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-442-the-rail-adds-its-fields-to-zeds-sidebar-blob-001*
+
+The rail keeps what it last built for the rows that terminal output touches and refreshes from
+output only when a row, a pane's tabs, a workspace's active pane or the window's groups would
+change; one change makes one refresh at the end of its effect cycle. A rail built with its window
+holds the window's saves through a flag on `MultiWorkspace` until its restore is done, at most
+10 s, so a window killed while starting keeps the groups it had. Marley's own sidebar opens and
+closes are silent, and a sidebar's register replaces the previous one's subscriptions.
+
+Rejected: a throttle (it still refreshes while output runs and delays real changes); dropping the
+item-event subscription (a terminal's title reaches the rail only as `UpdateTab`); answering the
+window's save with the rail's restored blob (Zed writes the groups and the active workspace
+itself); opening the rail only after the restore (a fresh window would show no rail until the
+settle).

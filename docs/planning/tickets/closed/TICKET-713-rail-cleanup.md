@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #713 (chore, the rail)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [713-rail-cleanup.spec.md](../../pipeline/queued/713-rail-cleanup.spec.md)
+- **Pipeline doc:** [713-rail-cleanup.spec.md](../../pipeline/completed/713-rail-cleanup.spec.md)
 - **Source ticket:** the 2026-10-09 intake audit of `rail-internals.md`; the four items left,
   checked against the code. Chad, 2026-10-11, on the finish-line list's row 8 (the rail cleanup
   among the small fixes): "8.) yes to all". Plan: [finish-line shelf](../../design-notes/finish-line-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 - **Unregistering.** `MultiWorkspace::register_sidebar` (`multi_workspace.rs:400-412`) pushes two

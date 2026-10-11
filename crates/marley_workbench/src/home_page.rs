@@ -102,8 +102,9 @@ pub(crate) struct MarleyHome {
     focus_handle: FocusHandle,
     /// Zed's recent local projects; `None` while they are read.
     recent: Option<Vec<Recent>>,
-    /// The rail the page lists the agents at work from, observed once found.
-    rail: Option<(Entity<Rail>, Subscription)>,
+    /// The rail the page lists the agents at work from, held weakly and observed, so a rail a
+    /// layout swap replaced goes (#713).
+    rail: Option<(WeakEntity<Rail>, Subscription)>,
     /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703).
     _activity: [Subscription; 2],
 }
@@ -188,11 +189,9 @@ impl MarleyHome {
             )
     }
 
-    /// The window's rail, observed the first time it is found, so the agents at work follow it.
+    /// The window's rail, observed while it is the window's, so the agents at work follow it; a
+    /// layout swap's new rail is found and observed in its place (#713).
     fn rail(&mut self, window: &Window, cx: &mut Context<Self>) -> Option<Entity<Rail>> {
-        if let Some((rail, _)) = &self.rail {
-            return Some(rail.clone());
-        }
         let multi_workspace = window.root::<MultiWorkspace>().flatten()?;
         let rail = multi_workspace
             .read(cx)
@@ -200,8 +199,14 @@ impl MarleyHome {
             .to_any()
             .downcast::<Rail>()
             .ok()?;
-        let subscription = cx.observe(&rail, |_, _, cx| cx.notify());
-        self.rail = Some((rail.clone(), subscription));
+        let followed = self
+            .rail
+            .as_ref()
+            .is_some_and(|(followed, _)| followed.entity_id() == rail.entity_id());
+        if !followed {
+            let subscription = cx.observe(&rail, |_, _, cx| cx.notify());
+            self.rail = Some((rail.downgrade(), subscription));
+        }
         Some(rail)
     }
 

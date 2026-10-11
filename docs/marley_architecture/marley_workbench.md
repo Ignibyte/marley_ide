@@ -89,6 +89,23 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 
 ## The rail (`src/rail.rs`)
 
+- **#713, the rail's cleanup.** `OutputGate` keeps what the rail last built for the rows terminal
+  output touches: each terminal's row before the passes mark it, each center pane's tabs, each
+  workspace's active pane and tabs, and what the rail reads of its window (`WindowSeen`). A
+  wakeup, a terminal's `UpdateTab`, a pane's `ChangeItemTitle`, a workspace's
+  `ActiveItemChanged` and the window's notify refresh only when theirs changed (`row_changed`,
+  `pane_changed`, `workspace_changed`, `window_changed`), at the end of the effect cycle
+  (`refresh_soon`), so one change makes one refresh; every other event refreshes as before. Each
+  refresh logs `rail <id> refresh` at debug. A rail built with its window (no kept Zed sidebar)
+  holds the window's saves (`MultiWorkspace::marley_hold_serialization`, set by
+  `register_sidebar` before the first open) until no group its saved state lists is still
+  pending, or until the settle for a window no restore reaches, and at most 10 s
+  (`SAVES_HELD_AT_MOST`); the release is logged at info and deferred out of any update. During
+  the hold a reorder keeps the saved places of the groups not back yet (`keep_unlisted`, and
+  every saved row). `register_sidebar` and the restored close use the silent
+  `restore_open_sidebar` and `restore_closed_sidebar`, and the window keeps one sidebar's
+  subscriptions. Home's page holds the rail weakly and follows the window's current one.
+
 > Since #644 the rail has two views under its header, Projects (all that follows) and Brain, Rusty's
 > vault; see [The rail's Brain view](#the-rails-brain-view-srcrustybrainrs-srcrustyrs-srcrailrs-644).
 

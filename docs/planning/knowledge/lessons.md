@@ -5411,3 +5411,26 @@ links a `pub(crate)` item (`[\`hand_verb\`]`) fails as `private_intra_doc_links`
 `<word>` in a doc, even inside a quote, fails as an unclosed HTML tag. Both passed clippy and cost
 a full gate run each this session: name crate-private items in plain code spans, and put a quoted
 `<placeholder>` in one.
+
+## L-claude-713-a-shell-loop-retitles-its-terminal-for-each-command-001
+*category: testing · topic: scenarios that print from a terminal · from: pipeline 713*
+
+Marley's bash integration retitles a terminal for every command the shell runs, so a loop of
+`echo` and `sleep` changes the tab's title many times a second, which the rail rightly redraws. A
+scenario that wants steady output with nothing a row shows changing prints from one process
+(`python3 -c …`), whose title stays put.
+
+## L-claude-713-find-a-hot-paths-callers-with-a-temporary-backtrace-001
+*category: debugging · topic: finding which subscription drives a refresh · from: pipeline 713*
+
+When many subscriptions call one function, log a filtered `std::backtrace::Backtrace` in it for
+one run, keep the frames of the crate and gpui, and tally the first frame under it: #713 found its
+four refresh paths this way in one run. Remove it before the gate: rustfmt splits the line, so
+remove the whole statement, not the line that carries the tag.
+
+## L-claude-713-the-empty-space-menu-selects-no-entry-001
+*category: testing · topic: the rail's context menus in scenarios · from: pipeline 713*
+
+The rail's empty-space menu opens with no entry selected, so Return picks nothing; #601's
+`menu_entry 1` worked when that menu selected its first entry. A scenario clicks New Group… (50 px
+right and 17 px down of the right-click in #713's run) and then types the name.

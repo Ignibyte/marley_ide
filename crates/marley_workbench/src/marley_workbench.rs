@@ -1014,12 +1014,13 @@ pub fn register_sidebar(
             let focus_handle = sidebar.focus_handle(cx);
             multi_workspace.update(cx, |multi_workspace, cx| {
                 multi_workspace.register_sidebar(sidebar, cx);
+                // Marley's own opens and closes, not the user's toggles (#713).
                 if open {
                     // Re-opening points every workspace's sidebar focus handle at the new one.
-                    multi_workspace.open_sidebar(cx);
+                    multi_workspace.restore_open_sidebar(cx);
                 } else if multi_workspace.sidebar_open() {
                     // Zed's sidebar was closed before the rail opened the window's sidebar.
-                    multi_workspace.close_sidebar(window, cx);
+                    multi_workspace.restore_closed_sidebar(window, cx);
                 }
                 // Registering does not redraw; this does.
                 multi_workspace.set_sidebar_overlay(None, cx);
@@ -1030,14 +1031,20 @@ pub fn register_sidebar(
             let kept = current
                 .and_then(|view| view.downcast::<sidebar::Sidebar>().ok())
                 .map(|sidebar| (sidebar, multi_workspace.read(cx).sidebar_open()));
+            // A rail built with its window, not by a swap, holds the window's saves until its
+            // restore is done (#713).
+            let built_with_window = kept.is_none();
             let rail = cx.new(|cx| Rail::new(multi_workspace, kept, window, cx));
             let focus_handle = rail.focus_handle(cx);
             multi_workspace.update(cx, |multi_workspace, cx| {
+                if built_with_window {
+                    multi_workspace.marley_hold_serialization(true, cx);
+                }
                 multi_workspace.register_sidebar(rail, cx);
                 // With AI off no sidebar is drawn, and opening one would pin a workspace that
-                // single-workspace mode then never lets go of.
+                // single-workspace mode then never lets go of. Marley's own open (#713).
                 if multi_workspace.multi_workspace_enabled(cx) {
-                    multi_workspace.open_sidebar(cx);
+                    multi_workspace.restore_open_sidebar(cx);
                 }
                 // Zed's thread switcher is an overlay of Zed's sidebar; it must not outlive it.
                 multi_workspace.set_sidebar_overlay(None, cx);

@@ -333,6 +333,13 @@ pub struct MultiWorkspace {
     _serialize_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
     previous_focus_handle: Option<FocusHandle>,
+    // Marley: the registered sidebar's subscriptions, replaced at each register so a swapped-out
+    // sidebar's end with it (#713).
+    marley_sidebar_subscriptions: Vec<Subscription>,
+    // Marley: while set, the window's state is not written; Marley's rail holds it until its
+    // restore is done (#713).
+    marley_serialization_held: bool,
+    marley_serialization_asked: bool,
 }
 
 impl EventEmitter<MultiWorkspaceEvent> for MultiWorkspace {}
@@ -394,20 +401,24 @@ impl MultiWorkspace {
             _serialize_task: None,
             _subscriptions: vec![release_subscription, settings_subscription],
             previous_focus_handle: None,
+            marley_sidebar_subscriptions: Vec::new(),
+            marley_serialization_held: false,
+            marley_serialization_asked: false,
         }
     }
 
     pub fn register_sidebar<T: Sidebar>(&mut self, sidebar: Entity<T>, cx: &mut Context<Self>) {
-        self._subscriptions
-            .push(cx.observe(&sidebar, |_this, _, cx| {
+        // Marley: set, not pushed, so the sidebar this one replaces stops being followed (#713).
+        self.marley_sidebar_subscriptions = vec![
+            cx.observe(&sidebar, |_this, _, cx| {
                 cx.notify();
-            }));
-        self._subscriptions
-            .push(cx.subscribe(&sidebar, |this, _, event, cx| match event {
+            }),
+            cx.subscribe(&sidebar, |this, _, event, cx| match event {
                 SidebarEvent::SerializeNeeded => {
                     this.serialize(cx);
                 }
-            }));
+            }),
+        ];
         self.sidebar = Some(Box::new(sidebar));
     }
 
@@ -508,7 +519,8 @@ impl MultiWorkspace {
 
     /// Restores the sidebar to open state from persisted session data without
     /// firing a telemetry event, since this is not a user-initiated action.
-    pub(crate) fn restore_open_sidebar(&mut self, cx: &mut Context<Self>) {
+    // Marley: `pub`, for the rail's own opens (#713).
+    pub fn restore_open_sidebar(&mut self, cx: &mut Context<Self>) {
         self.apply_open_sidebar(cx);
     }
 
@@ -531,6 +543,17 @@ impl MultiWorkspace {
             SidebarSide::Right => "right",
         };
         telemetry::event!("Sidebar Toggled", action = "close", side = side);
+        self.apply_close_sidebar(window, cx);
+    }
+
+    // Marley: the close without its event, as `restore_open_sidebar` opens, for the rail's own
+    // closes (#713).
+    pub fn restore_closed_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.apply_close_sidebar(window, cx);
+    }
+
+    // Marley: `close_sidebar`'s body, moved so the silent close shares it (#713).
+    fn apply_close_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.sidebar_open = false;
         for workspace in self.workspaces().cloned().collect::<Vec<_>>() {
             workspace.update(cx, |workspace, _cx| {
@@ -1453,7 +1476,21 @@ impl MultiWorkspace {
         }
     }
 
+    // Marley: holds or releases the window's saves; a release writes once if one was asked
+    // meanwhile (#713).
+    pub fn marley_hold_serialization(&mut self, held: bool, cx: &mut Context<Self>) {
+        self.marley_serialization_held = held;
+        if !held && std::mem::take(&mut self.marley_serialization_asked) {
+            self.serialize(cx);
+        }
+    }
+
     pub fn serialize(&mut self, cx: &mut Context<Self>) {
+        // Marley: no write while held (#713).
+        if self.marley_serialization_held {
+            self.marley_serialization_asked = true;
+            return;
+        }
         self._serialize_task = Some(cx.spawn(async move |this, cx| {
             let Ok(task) = this.update(cx, |this, cx| this.serialize_now(cx)) else {
                 return;
@@ -1488,6 +1525,10 @@ impl MultiWorkspace {
     /// Used by the quit handler to ensure pending DB writes
     /// complete before the process exits.
     pub fn flush_serialization(&mut self, cx: &mut Context<Self>) -> Task<()> {
+        // Marley: a quit while held keeps the window's previous saved state (#713).
+        if self.marley_serialization_held {
+            return Task::ready(());
+        }
         self._serialize_task.take();
         let serialization = self.serialize_now(cx);
         cx.spawn(async move |_, _| serialization.await)

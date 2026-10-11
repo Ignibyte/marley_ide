@@ -1,6 +1,6 @@
 # Rail cleanup - one sidebar's subscriptions, refreshes on row changes, a silent swap, saves after the restore — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-713-rail-cleanup.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-713-rail-cleanup.md
 - **Pipeline spec:** 713-rail-cleanup.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-11)
@@ -142,3 +142,112 @@
   (F-claude-442-a), and the rail's comparison reads only its own fields and the terminal.
 - **Upstream merges:** `multi_workspace.rs` grows from one Marley hunk to four; the moved close body
   is the one change that is not purely added, and the row says so.
+
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/`; the BACKLOG row removed; the ticket in progress.
+- **Seams checked again** at `0593fb97b3` (an Explore pass). `multi_workspace.rs`:
+  `register_sidebar` 400-412 still pushes two subscriptions into `_subscriptions`;
+  `open_sidebar` 500-507 (event at 505), `restore_open_sidebar` 511-513 `pub(crate)`,
+  `apply_open_sidebar` 515-526, `close_sidebar` 528-551 (event at 533); `serialize` 1456-1463,
+  `serialize_now` 1465-1486, `flush_serialization` 1490-1494; no flag holds a save.
+  `workspace.rs`: `apply_restored_multiworkspace_state` at 10445, its order 10491 (groups), 10496
+  (`restore_open_sidebar`), 10504 (the sidebar's state), 10510 (`serialize`). `rail.rs` moved with
+  today's tickets: `SETTLE` 120, `StartupGroups` 263-285, `refresh` 1203-1251 (the comparison
+  gates only `cx.notify()`), `ensure_groups` 1300-1329, `sync_subscriptions` 2484 (the terminal
+  subscriptions 2520-2538, `note_output` 2470-2482, the workspace subscription 2504-2514),
+  `follow_panes` 2681-2689, `terminal_snapshot` 7954, `serialized_state` 9555-9564,
+  `restore_serialized_state` (sets `restored` at 9576, the deferred close at 9601). `groups.rs`:
+  `adopt` 169, `reopen` 223-264, `forget_pending` 267-272, `pending_kind` 427. `rail_order.rs`:
+  `drop_header` 371-389, `order_changed` 445-457. `home_page.rs`: the strong `rail` cache at 106 and
+  `rail()` 192-206. `terminal_view.rs`: `Wakeup` emits `UpdateTab` 1565-1571; `Bell` and
+  `MarleyNotification` re-emit `Wakeup` without it.
+- **What the pass added:**
+  - `drop_header` also rebuilds `saved_order.headers` from the groups listed now, so REQ-007 keeps
+    the headers of groups still reopening as well as `order_changed`'s rows.
+  - `serialized_state` writes `group_ids` from the snapshot (live groups only); the hold is what
+    keeps an early save from writing the window's groups without the ones still reopening.
+  - A rail built with its window is the one with no kept sidebar: at a window's opening no sidebar
+    is registered yet (`marley_workbench::register_sidebar`, Marley's arm), while a swap from Zed's
+    layout passes Zed's sidebar as `kept`. The hold keys on `kept.is_none()`.
+  - #743's `retire_rusty_groups` sits in `refresh` after `groups::adopt`; it is structural, so the
+    output gate never stands in its way, and its saves wait for the hold's release.
+- **Brain:** consultation c1a5a5cc25e74fde9393f1934d04b161.
+
+## Phase 2 — Code
+- **Built:**
+  - `multi_workspace.rs` (Zed, the row extended first): `marley_sidebar_subscriptions`, set by
+    `register_sidebar`; `apply_close_sidebar` (the moved body), `restore_closed_sidebar`,
+    `restore_open_sidebar` made `pub`; `marley_hold_serialization` with two flags, checked first
+    in `serialize` and `flush_serialization`.
+  - `marley_workbench.rs`: `register_sidebar` opens and closes silently in both arms, and holds
+    the window's saves for a rail built with its window (`kept.is_none()`), before its first open.
+  - `rail.rs`: `StartupGroups` holds the saves (`saves_held`, a `SAVES_HELD_AT_MOST` 10 s release
+    task); `release_saves_once_restored` at the end of `refresh` (restored: no saved group still
+    pending, `groups::is_pending`; else the settle) and `release_saves` (logged at info, deferred
+    out of any update); `OutputGate` (the output times and quiet timers moved into it, each
+    terminal's row as built before the passes, each pane's and workspace's tabs, the window's
+    groups and workspaces, a refresh-due flag); `row_changed`, `workspace_event`,
+    `terminal_item_event`, `window_notified`, `refresh_soon`; the silent restored close; the
+    debug line in `refresh`.
+  - `groups.rs`: `is_pending`. `rail_order.rs`: during the hold `drop_header` lays the moved
+    headers into the saved places (`keep_unlisted`) and `order_changed` keeps every row.
+    `home_page.rs`: the rail held weakly and found again when the window's is another.
+- **Deviations:**
+  - The window's own observer is gated too (`window_notified`, `WindowSeen`): a terminal's
+    retitled tab makes its workspace notify, which the `MultiWorkspace` passes on, and the rail
+    refreshed on each. The plan gated only the terminal, pane and workspace events.
+  - Gated paths refresh at the end of the effect cycle (`refresh_soon`): one change reaches the
+    rail as a terminal's, a pane's, a workspace's and the window's event, which made three or four
+    refreshes.
+  - The output times and quiet timers moved into `OutputGate`, to keep `Rail::new` and
+    `sync_subscriptions` under clippy's 100 lines; the gated handlers became methods for the same
+    reason.
+- **Review of the diff:** the hold and the release run outside the `MultiWorkspace`'s update
+  (`window.defer`); the gate's fingerprints read only the panes, workspaces and window the event
+  names; a row compares everything `terminal_snapshot` builds except `matched` and `worktree`,
+  which come from the last row; every event other than the four gated kinds refreshes as before.
+- **Clippy:** `too_many_lines` (twice), `used_underscore_binding`, `trivially_copy_pass_by_ref`,
+  `needless_pass_by_ref_mut`; each fixed at the source.
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/713-rail-cleanup.sh` (`compositor sway`, `ZED_LOG=info,marley_workbench=debug`).
+- **What the runs found:**
+  - The first run counted 103 refreshes over a six-second print. A temporary backtrace on each
+    refresh (removed after) named the callers: a shell loop retitles the tab for every command it
+    runs (bash's per-command hook), which is a change the row shows, so the print became one
+    `python3` process; and the `MultiWorkspace` observer refreshed on every workspace notify. That
+    led to the window gate and `refresh_soon` above. With both: 0 refreshes in two seconds
+    mid-print.
+  - Scenario only: the fake `claude` ran as `/bin/sh …/claude`, not read as an agent (now `exec -a
+    claude` from bash); the empty-space menu selects no entry as it opens, so New Group… is
+    clicked (the queued draft's `menu_entry 1` pressed Return on nothing).
+- **Shots** (the last run):
+  - `713-01-printing` (REQ-003, REQ-004): the row "repo — python3 -c import…", `· running`;
+    `refreshes during the print: 0` between 1.5 s and 3.5 s.
+  - `713-02-finished` (REQ-004): "repo — bash", `· done · 6 s`, the bell's dot on the row and the tab.
+  - `713-03-agent-working`, `713-04-agent-waiting` (REQ-004): the fake agent's row "Claude Code ·
+    working", then "Claude Code · waiting" once quiet (crops read at 3×).
+  - `713-05-home-after-swap` (REQ-001, REQ-002): after Zed's layout and back, a second fake agent:
+    two Claude Code rows, and Home's AGENTS AT WORK lists both; `rails refreshing after the swap:
+    rail EntityId(201v5) refresh`, one rail.
+  - `713-06-restored` (REQ-006): Alpha and Beta made from the empty space; quit; a launch killed
+    as its window mapped; a launch again: Default, repo, Alpha, Beta, in order. The log: the first
+    launch released its saves 4 s after it started; the killed launch (12:54:32) wrote no release
+    before the kill; the last (12:54:35) released at 12:54:36.
+- **REQ-005, REQ-007** by the review: telemetry is off (#514); a reorder timed inside the restore
+  is not reliable in a scenario.
+- **Gate:** `just gate-diff` GREEN, 17 passed, over the code and the scenario.
+
+## Phase 4 — Complete
+- **Docs:** `CHANGELOG.md` (Fixed: the rail's cleanup); `docs/marley_architecture/marley_workbench.md`
+  (a #713 paragraph at the head of the rail's section); `docs/marley/workbench-shell.md` (the
+  slice line); `docs/marley/zed-touchpoints.md` (the `multi_workspace.rs` row, written before the
+  hunks, matches what shipped); `docs/planning/intake/rail-internals.md` (the four items shipped;
+  the restart check remains).
+- **Ledgers:** F-claude-713-the-window-observer-refreshed-the-rail-on-every-workspace-notify-001,
+  L-claude-713-a-shell-loop-retitles-its-terminal-for-each-command-001,
+  L-claude-713-find-a-hot-paths-callers-with-a-temporary-backtrace-001,
+  L-claude-713-the-empty-space-menu-selects-no-entry-001,
+  AD-claude-713-the-rail-redraws-on-row-changes-and-holds-saves-until-its-restore-001.
+- **Brain:** `brain decide` on c1a5a5cc….
+- Ticket closed, pipeline archived, committed.

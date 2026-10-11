@@ -3,7 +3,7 @@ status: intake
 created: 2026-09-23
 ticket: TICKET-713
 pipeline_spec: <unassigned>
-note: audit (2026-10-09): partly shipped (TICKET-577, TICKET-606, TICKET-617); the four items left are TICKET-713
+note: audit (2026-10-09): partly shipped (TICKET-577, TICKET-606, TICKET-617); the four items left shipped as TICKET-713 (2026-10-11); only the restart check remains
 ---
 
 # The rail's internals: rows it could show and costs it could shed
