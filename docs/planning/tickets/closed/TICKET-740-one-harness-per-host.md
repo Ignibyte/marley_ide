@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #740 (feature, the control plane: the harness)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** (set at promotion)
+- **Pipeline doc:** [740-one-harness-per-host.spec.md](../../pipeline/completed/740-one-harness-per-host.spec.md)
 - **Source ticket:** Chad, 2026-10-10: "Bonus points if we can open on a remote via the harness."
   The harness's D164: Marley reaches each box over its own SSH connection. Plan:
   [agents-anywhere shelf](../../design-notes/agents-anywhere-2026-10-10.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley follows a harness on each host the settings list, beside the one it follows today: each with

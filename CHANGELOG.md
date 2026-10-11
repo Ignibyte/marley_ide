@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Several harnesses** (#740, 2026-10-10). `marley.harnesses` names harnesses on other machines,
+  each `{ "name", "ssh", "state", "rh" }`, and Marley follows each over its own SSH connection
+  beside the one `marley.harness` names. Each gets its own section in the rail, HARNESS · its
+  name, with its own connection line; a session's tab and inbox entry carry the name, and its
+  answers and messages go to its own harness. The New Harness Seat form gains a Harness row. A
+  harness that stops answering now keeps saying why in its header while Marley tries again,
+  instead of showing "connecting".
+
 - **Home, Rusty, Threads and Marley at the right of the status bar** (#739, 2026-10-10). Four
   buttons, in both layouts, each open its page in a tab of the group you are looking at, or bring
   that tab forward: Home's page, Rusty's home page (while Rusty is connected), the Threads page,

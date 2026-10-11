@@ -1,7 +1,7 @@
 ---
 pipeline_id: 798db173-afae-496b-988c-9a30c0410b2c
 ticket: docs/planning/tickets/open/TICKET-740-one-harness-per-host.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: One harness per host
 type: feature
 slice: the control plane (docs/marley/three-prong-plan.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -33,6 +33,8 @@ replaces the local one.
 
 ### Out (explicitly deferred)
 - Starting an agent on a host from New Agent: #741.
+- Agents' own seat tools (`seat_add`, `seat_stop`, `seat_remove`, #692, #710) and `marley: open
+  harness session` keep to the unnamed harness.
 - A Manager per harness in the Agent Panel: the entry follows the first harness that has a manager,
   as today; per-harness managers wait for Chad's word on one manager per project (harness ROADMAP
   open choice 2).

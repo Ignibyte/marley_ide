@@ -80,7 +80,7 @@ use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
-use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, StateSource};
+use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, Slot, StateSource};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::rusty::{self};
 use crate::system_one::{self, Asking};
@@ -224,7 +224,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 7],
+    _agent_events: [Subscription; 8],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -808,8 +808,8 @@ enum InboxTarget {
     Terminal(u64),
     /// A Browser tab's paused click, by its page (#571).
     Click(String),
-    /// A harness session, by its id (#534).
-    Harness(String),
+    /// A harness session, by its harness (#740) and its id (#534).
+    Harness(Slot, String),
     /// The manager's records the user has not seen: the Manager thread (#688).
     Manager,
     /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
@@ -824,11 +824,12 @@ enum InboxTarget {
 
 impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
-    /// (#538), a running command's failure (#572), the projectless groups (#600), the harness's
-    /// sessions (#534) and Codex's requests (#651).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 7] {
+    /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
+    /// sessions (#534, #740) and Codex's requests (#651).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 8] {
         [
             cx.observe_global_in::<Harness>(window, Self::refresh),
+            cx.observe_global_in::<crate::harness_hosts::Hosts>(window, Self::refresh),
             cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
             cx.observe_global_in::<AgentEvents>(window, Self::refresh),
             cx.observe_global_in::<Turns>(window, Self::refresh),
@@ -1655,7 +1656,7 @@ impl Rail {
                         focus.thread.as_deref() == Some(thread_key.as_str())
                     }
                     Some(
-                        InboxTarget::Click(_) | InboxTarget::Harness(_) | InboxTarget::Manager,
+                        InboxTarget::Click(_) | InboxTarget::Harness(..) | InboxTarget::Manager,
                     )
                     | None => false,
                 };
@@ -1960,7 +1961,7 @@ impl Rail {
                     browser::show_paused(&target, window, cx);
                 });
             }
-            Some(InboxTarget::Harness(id)) => self.open_harness(&id, window, cx),
+            Some(InboxTarget::Harness(slot, id)) => self.open_harness(&slot, &id, window, cx),
             Some(InboxTarget::Manager) => self.open_manager_thread(window, cx),
             None => {}
         }
@@ -2002,7 +2003,7 @@ impl Rail {
     }
 
     /// Shows the harness session `id`'s tab in the window's Home group (#534, #676).
-    fn open_harness(&self, id: &str, window: &Window, cx: &mut Context<Self>) {
+    fn open_harness(&self, slot: &Slot, id: &str, window: &Window, cx: &mut Context<Self>) {
         let Some(shown) = self
             .multi_workspace
             .upgrade()
@@ -2010,13 +2011,13 @@ impl Rail {
         else {
             return;
         };
-        let id = id.to_string();
+        let (slot, id) = (slot.clone(), id.to_string());
         groups::in_group(
             groups::GroupKind::Home,
             shown,
             window,
             cx,
-            move |workspace, window, cx| crate::harness::open(workspace, &id, window, cx),
+            move |workspace, window, cx| crate::harness::open(workspace, &slot, &id, window, cx),
         );
     }
 
@@ -2285,7 +2286,7 @@ impl Rail {
                     crate::codex_server::answer(*terminal, *generation, request, decision, cx);
                 }
             }
-            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(_) | InboxTarget::Manager)
+            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(..) | InboxTarget::Manager)
             | None => {}
         }
     }
@@ -4484,77 +4485,126 @@ impl Rail {
         rendered
     }
 
-    /// The harness's sessions (#534), under a Harness header after the projects: the
-    /// connection's state, which a click on the header folds the rows under, and a row per
-    /// session, muted while the connection is not up, which opens the session's tab. Outside the
-    /// keys and the filter.
-    fn render_harness(&self, cx: &Context<Self>) -> Option<AnyElement> {
+    /// The harnesses' sessions (#534), each harness under its own header after the projects: the
+    /// one Marley followed before as HARNESS, and each `marley.harnesses` names as HARNESS · its
+    /// name (#740). A header says its connection's state and folds the rows under it on a click;
+    /// a row per session, muted while the connection is not up, opens the session's tab. Outside
+    /// the keys and the filter.
+    fn render_harness(&self, cx: &Context<Self>) -> Vec<AnyElement> {
         if self.snapshot.rail.filtering {
-            return None;
+            return Vec::new();
         }
+        let mut sections = Vec::new();
         let connection = Harness::connection(cx);
         let runtime = Harness::runtime(cx);
-        if connection.is_none() && runtime.is_none() {
-            return None;
+        if connection.is_some() || runtime.is_some() {
+            // The runtime Marley runs itself (#632) speaks first: `rh mcp` answers while it is
+            // down.
+            let (says, says_color) = match (&runtime, &connection) {
+                (Some(Runtime::Missing(reason)), _) => (reason.to_string(), Color::Error),
+                (Some(Runtime::Stopped(reason)), _) => {
+                    (format!("runtime stopped: {reason}"), Color::Error)
+                }
+                (Some(Runtime::Starting), _) => ("starting the runtime".to_string(), Color::Muted),
+                (_, connection) => connection_words(connection.as_ref()),
+            };
+            let stale = connection != Some(Connection::Connected)
+                || runtime.is_some_and(|runtime| runtime != Runtime::Running);
+            sections.push(Self::harness_section(
+                &Slot::Primary,
+                (says, says_color),
+                stale,
+                Harness::folded(cx),
+                cx,
+            ));
         }
-        // The runtime Marley runs itself (#632) speaks first: `rh mcp` answers while it is down.
-        let (says, says_color) = match (&runtime, &connection) {
-            (Some(Runtime::Missing(reason)), _) => (reason.to_string(), Color::Error),
-            (Some(Runtime::Stopped(reason)), _) => {
-                (format!("runtime stopped: {reason}"), Color::Error)
-            }
-            (Some(Runtime::Starting), _) => ("starting the runtime".to_string(), Color::Muted),
-            (_, Some(Connection::Connected)) => ("connected".to_string(), Color::Muted),
-            (_, Some(Connection::Down(reason))) => (format!("not running: {reason}"), Color::Error),
-            (_, Some(Connection::Connecting) | None) => ("connecting".to_string(), Color::Muted),
-        };
-        let stale = connection != Some(Connection::Connected)
-            || runtime.is_some_and(|runtime| runtime != Runtime::Running);
+        for name in crate::harness_hosts::Hosts::names(cx) {
+            let Some(followed) = crate::harness_hosts::Hosts::get(&name, cx) else {
+                continue;
+            };
+            let says = connection_words(Some(&followed.connection));
+            let stale = followed.connection != Connection::Connected;
+            let folded = followed.folded;
+            sections.push(Self::harness_section(
+                &Slot::Host(name),
+                says,
+                stale,
+                folded,
+                cx,
+            ));
+        }
+        sections
+    }
+
+    /// One harness's section: its header, and its sessions' rows unless it is folded.
+    fn harness_section(
+        slot: &Slot,
+        (says, says_color): (String, Color),
+        stale: bool,
+        folded: bool,
+        cx: &Context<Self>,
+    ) -> AnyElement {
         let quiet_after_ms = MarleySettings::get_global(cx)
             .no_update_after_minutes
             .saturating_mul(60_000);
         let now = crate::harness::now_ms();
-        let rows: Vec<AnyElement> = if Harness::folded(cx) {
+        let rows: Vec<AnyElement> = if folded {
             Vec::new()
         } else {
-            Harness::seats(cx)
+            crate::harness::seats_of(slot, cx)
                 .seats()
                 .iter()
-                .map(|seat| harness_row(seat, stale, quiet_after_ms, now, cx))
+                .map(|seat| harness_row(slot, seat, stale, quiet_after_ms, now, cx))
                 .collect()
         };
-        Some(
-            v_flex()
-                .debug_selector(|| "marley-rail-harness".into())
-                .pt_2()
-                .gap_0p5()
-                .child(
-                    h_flex()
-                        .id("marley-rail-harness-header")
-                        .px_3()
-                        .py_1()
-                        .gap_2()
-                        .cursor_pointer()
-                        .child(
-                            Label::new("HARNESS")
-                                .size(LabelSize::XSmall)
-                                .color(Color::Muted),
-                        )
-                        .child(
-                            div().min_w_0().child(
-                                Label::new(says.clone())
-                                    .size(LabelSize::XSmall)
-                                    .color(says_color)
-                                    .truncate(),
-                            ),
-                        )
-                        // A reason is longer than the rail is wide (#632).
-                        .tooltip(Tooltip::text(says))
-                        .on_click(|_, _, cx| Harness::toggle_folded(cx)),
+        let (title, key) = slot.name().map_or_else(
+            || ("HARNESS".to_string(), "marley-rail-harness".to_string()),
+            |name| {
+                (
+                    format!("HARNESS · {name}"),
+                    format!("marley-rail-harness-host-{name}"),
                 )
-                .children(rows)
-                .into_any_element(),
-        )
+            },
+        );
+        let fold_slot = slot.clone();
+        let selector = key.clone();
+        v_flex()
+            .debug_selector(move || selector)
+            .pt_2()
+            .gap_0p5()
+            .child(
+                h_flex()
+                    .id(SharedString::from(format!("{key}-header")))
+                    .px_3()
+                    .py_1()
+                    .gap_2()
+                    .cursor_pointer()
+                    .child(
+                        Label::new(title)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        div().min_w_0().child(
+                            Label::new(says.clone())
+                                .size(LabelSize::XSmall)
+                                .color(says_color)
+                                .truncate(),
+                        ),
+                    )
+                    // A reason is longer than the rail is wide (#632).
+                    .tooltip(Tooltip::text(says))
+                    .on_click(move |_, _, cx| match &fold_slot {
+                        Slot::Primary => Harness::toggle_folded(cx),
+                        Slot::Host(name) => {
+                            if let Some(followed) = crate::harness_hosts::Hosts::get_mut(name, cx) {
+                                followed.folded = !followed.folded;
+                            }
+                        }
+                    }),
+            )
+            .children(rows)
+            .into_any_element()
     }
 
     /// A row under a project's header, draggable when its kind reorders (#602).
@@ -6708,12 +6758,22 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
     }
 }
 
+/// What a harness's header says of its connection, and in which color.
+fn connection_words(connection: Option<&Connection>) -> (String, Color) {
+    match connection {
+        Some(Connection::Connected) => ("connected".to_string(), Color::Muted),
+        Some(Connection::Down(reason)) => (format!("not running: {reason}"), Color::Error),
+        Some(Connection::Connecting) | None => ("connecting".to_string(), Color::Muted),
+    }
+}
+
 /// A harness session's row (#534): its title, then the question it waits on, how long a working
 /// session has been quiet (#547's rule), or its state; muted while the connection is not up. A
 /// state its labels say was not declared is drawn weaker, its source's word at the line's end,
 /// and the labels' progress and most-used quota window get a line each (#640). A click shows its
 /// tab.
 fn harness_row(
+    slot: &Slot,
     seat: &marley_fleet::Session,
     stale: bool,
     quiet_after_ms: u64,
@@ -6791,10 +6851,15 @@ fn harness_row(
         .truncate()
         .into_any_element();
     let id = seat.id.clone();
+    // Two harnesses may each hold a session of the same id (#740).
+    let element = slot
+        .name()
+        .map_or_else(|| seat.id.clone(), |name| format!("{name}-{}", seat.id));
+    let slot = slot.clone();
     let tooltip = (!signals.is_empty()).then(|| signals_tooltip(&signals, &seat.title, now_ms));
     row_card(
-        SharedString::from(format!("marley-rail-harness-{}", seat.id)),
-        format!("marley-rail-harness-icon-{}", seat.id),
+        SharedString::from(format!("marley-rail-harness-{element}")),
+        format!("marley-rail-harness-icon-{element}"),
         false,
         icon,
         title,
@@ -6804,7 +6869,7 @@ fn harness_row(
     .when_some(tooltip, |row, (title, meta)| {
         row.tooltip(move |_, cx| Tooltip::with_meta(title.clone(), None, meta.clone(), cx))
     })
-    .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&id, window, cx)))
+    .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&slot, &id, window, cx)))
     .into_any_element()
 }
 
@@ -6868,7 +6933,22 @@ fn reset_words(resets_at_ms: u64, now_ms: u64) -> String {
 /// Each harness session waiting on a question, as an inbox entry, its options after its prompt
 /// (#534).
 fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
-    for seat in Harness::seats(cx).seats() {
+    let slots = std::iter::once(Slot::Primary).chain(
+        crate::harness_hosts::Hosts::names(cx)
+            .into_iter()
+            .map(Slot::Host),
+    );
+    for slot in slots {
+        harness_slot_entries(snapshot, &slot, cx);
+    }
+}
+
+/// One harness's sessions that wait on a question, as inbox entries (#740).
+fn harness_slot_entries(snapshot: &mut Snapshot, slot: &Slot, cx: &App) {
+    let project = slot
+        .name()
+        .map_or_else(|| "Harness".to_string(), |name| format!("Harness · {name}"));
+    for seat in crate::harness::seats_of(slot, cx).seats() {
         let Some(question) = &seat.question else {
             continue;
         };
@@ -6880,15 +6960,18 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
         if !question.options.is_empty() {
             ask = format!("{ask} ({})", question.options.join(", "));
         }
-        let key = format!("harness:{}:{ask}", seat.id);
+        let key = slot.name().map_or_else(
+            || format!("harness:{}:{ask}", seat.id),
+            |name| format!("harness:{name}:{}:{ask}", seat.id),
+        );
         if let std::collections::hash_map::Entry::Vacant(vacant) = snapshot.inbox.entry(key.clone())
         {
-            vacant.insert(InboxTarget::Harness(seat.id.clone()));
+            vacant.insert(InboxTarget::Harness(slot.clone(), seat.id.clone()));
             snapshot.rail.inbox.push(InboxEntry {
                 key,
                 kind: InboxKind::Harness,
                 agent: seat.title.clone(),
-                project: "Harness".to_string(),
+                project: project.clone(),
                 ask,
                 waited: String::new(),
                 answers: Vec::new(),

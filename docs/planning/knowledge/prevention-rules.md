@@ -2923,3 +2923,11 @@ never reaches that entity through a handle: when it walks a collection that hold
 workspaces), it uses the reference it was given for the matching id; and when it would show a
 modal or close one from a picker's own callback, it defers the call (`window.defer`), since the
 modal layer reads the current modal while it swaps it.
+
+## PR-claude-740-quote-each-word-after-an-ssh-destination-001
+*severity: medium · prevents: F-claude-740-seat-words-split-in-the-hosts-shell-001*
+
+When Marley builds an `ssh` argv, every word after the destination is a shell word on the host, not
+an argument: ssh joins them with spaces and the host's shell splits them again. Pass each through
+`harness_hosts::shell_word` (or build one quoted line), including paths and anything the user
+typed; only the words before the destination, ssh's own, go as plain arguments.

@@ -4751,3 +4751,23 @@ wherever its view is.
 
 **Rejected:** hosting `ThreadsArchiveView` in a tab (its click opens the panel, not a tab, and its
 look follows the sidebar); a third view in the rail's header (Chad asked for a page).
+
+## AD-claude-740-several-harnesses-sit-beside-the-first-001
+*decided at: 2026-10-10 · status: shipped · builds on: #534, #632, #691, #694*
+
+**The decision.** Harnesses on other hosts come from `marley.harnesses` (`name`, `ssh`, `state`,
+`rh`) and live in a global of their own (`harness_hosts::Hosts`), each followed over its own SSH
+connection with the same loop as the first, through `harness::Slot { Primary, Host(name) }`.
+`marley.harness` and the embedded runtime stay the unnamed first harness. The Manager entry,
+`open harness session` and agents' seat tools stay with the first; session tabs, the inbox, the
+rail and the seat form take any slot.
+
+**Why.** The harness settled on one runtime per host, followed over one link each (its D164), so
+Marley needs no multi-host protocol, only more links. Keeping the first harness as it was leaves
+every setting, scenario and saved inbox key that names it unchanged.
+
+**Rejected:**
+- One map of harnesses that the first joins under a name: it would rename `marley.harness`'s
+  sessions in the rail and inbox, and move the Manager's single-root logic onto a choice of root.
+- A raw command per host, as `marley.harness` takes: Marley could not build the seat or (#741)
+  attach commands from it, nor quote the remote words.

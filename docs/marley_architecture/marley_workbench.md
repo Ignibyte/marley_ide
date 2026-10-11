@@ -1997,6 +1997,29 @@ alike.
   the view through `build_view`, which `open_thread` shares, with the record's session id, so the
   agent loads or resumes the session.
 
+## Harnesses on other hosts (`src/harness_hosts.rs`, #740)
+
+- `marley.harnesses` (`MarleyHarnessHostContent { name, ssh, state, rh }` in `settings_content`)
+  becomes `HarnessHost`s through `from_content`: the named, rooted entries, first of each name; an
+  `ssh` that `marley_remote::parse_ssh_target` refuses drops its entry with a log line.
+- `HarnessHost::base` is `rh --state ROOT`, or `ssh -T -o BatchMode=yes <keepalive> [-p] -- HOST`
+  and the remote words through `shell_word`; `mcp_command(writes)` adds `mcp [--grant write]`.
+- The `Hosts` global holds a `Followed` per host (connection, `FleetSnapshot`, server, fold, the
+  follow task). `follow_hosts`, on every settings change, keeps a host whose entry and grant are
+  unchanged, restarts a changed one and drops the rest; it reads the merged settings as
+  `harness_writes` does, so `MarleySettings` has no field for it.
+- `harness::Slot { Primary, Host(name) }` names a harness. `follow`, `connected` and `seed` take
+  it and write through `set_connection`, `change_seats` and `bump_minute`; the Manager's thread
+  is followed for `Primary` only. `seats_of`, `server_of`, `seat_command_of` (with whether the
+  words cross a remote shell, so `Seat::commands` quotes them) and `writes_on_slot` read either.
+- `HarnessView` keeps its slot: its observer (`Harness` or `Hosts`), reads, answers, sends and
+  controls go to that harness, and its tab title adds ` · name`.
+- The rail draws `render_harness` as one `harness_section` per harness; rows carry the slot in
+  their click and element ids, `InboxTarget::Harness(slot, id)` and the inbox key
+  (`harness:NAME:ID:ASK` for a host, the old shape for the primary).
+- After a failure `follow` leaves `Connection::Down(reason)` in place while it waits and tries
+  again, so the header keeps the reason; `Connecting` is the first try only.
+
 ## Buttons at the right of the status bar (`src/status_buttons.rs`, #739)
 
 - `RustalButtons`, a `Render + StatusItemView` with its workspace's weak handle, is added to every

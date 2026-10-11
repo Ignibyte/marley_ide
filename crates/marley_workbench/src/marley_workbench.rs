@@ -59,6 +59,7 @@ pub mod github;
 pub mod groups;
 pub mod guide;
 pub mod harness;
+pub mod harness_hosts;
 pub mod harness_seat;
 pub mod home_page;
 pub mod launch;

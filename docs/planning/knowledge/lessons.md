@@ -5298,3 +5298,12 @@ that picks "the latest conversation" therefore picks the user's own in a run, an
 then tests the wrong thread (or, without PR-claude-687's check first, types into it). A scenario
 whose criterion rests on there being none empties the copy's thread list in `setup`
 (`delete from sidebar_threads_v2`, and `sidebar_threads`), never the user's own database.
+
+## L-claude-740-a-fake-ssh-stands-in-for-a-host-001
+*category: testing · topic: scenarios for remote hosts · from: pipeline 740*
+
+A scenario can reach a "remote host" with a fake `ssh` first on Marley's PATH: it logs its
+arguments (`printf '%q '`), drops everything up to `--` and the destination, refuses when a
+`$E2E_WORK/<host>-down` file exists, and runs the rest with `exec bash -c "$*"`, which is what sshd
+does with the joined words. The log proves the argv; the shell proves the quoting. Kill the
+host's link with `pkill -f -- "--state <root> mcp"` after making the host refuse.

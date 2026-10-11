@@ -30,7 +30,7 @@ use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{ModalView, Workspace};
 
-use crate::harness::{Harness, writes_on};
+use crate::harness::{Harness, Slot, harness_writes, seat_command_of, writes_on};
 
 actions!(
     marley,
@@ -77,22 +77,32 @@ struct Seat {
 
 impl Seat {
     /// `seat add` and `seat start` for the seat, after the harness's own `base` arguments.
-    fn commands(&self, base: Vec<String>) -> (Vec<String>, Vec<String>) {
+    ///
+    /// When `remote`, the words reach `rh` through the host's shell, as ssh joins them, so each is
+    /// quoted for it (#740).
+    fn commands(&self, base: Vec<String>, remote: bool) -> (Vec<String>, Vec<String>) {
+        let word = |word: &str| {
+            if remote {
+                crate::harness_hosts::shell_word(word)
+            } else {
+                word.to_string()
+            }
+        };
         let mut add = base.clone();
         add.extend([
             "seat".to_string(),
             "add".to_string(),
-            self.name.clone(),
+            word(&self.name),
             "--agent".to_string(),
             self.agent.argument().to_string(),
             "--cwd".to_string(),
-            self.cwd.clone(),
+            word(&self.cwd),
         ]);
         if !self.role.is_empty() {
-            add.extend(["--role".to_string(), self.role.clone()]);
+            add.extend(["--role".to_string(), word(&self.role)]);
         }
         let mut start = base;
-        start.extend(["seat".to_string(), "start".to_string(), self.name.clone()]);
+        start.extend(["seat".to_string(), "start".to_string(), word(&self.name)]);
         (add, start)
     }
 }
@@ -147,7 +157,7 @@ pub(crate) fn answer_seat_add(call: AppCall, cx: &App) {
         ),
         file: format!("through {} {}", program.display(), base.join(" ")),
     };
-    let (add, start) = seat.commands(base);
+    let (add, start) = seat.commands(base, false);
     cx.spawn(async move |cx| {
         if let Err(refusal) = crate::settings_change::ask_user(question, cx).await {
             call.answer(Err(refusal));
@@ -325,19 +335,40 @@ pub(crate) fn open_form(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    if !writes_on(cx) {
+    let slots = seat_slots(cx);
+    let Some(slot) = slots.first().cloned() else {
         return;
-    }
+    };
     let folder = terminal_view::default_working_directory(workspace, cx);
     let handle = workspace.weak_handle();
     workspace.toggle_modal(window, cx, |window, cx| {
-        NewSeatModal::new(handle, folder, window, cx)
+        NewSeatModal::new(handle, folder, slots, slot, window, cx)
     });
+}
+
+/// The harnesses a seat can be made on: the primary one while its write verbs are on, then each
+/// `marley.harnesses` names while `marley.harness_writes` is (#740).
+fn seat_slots(cx: &App) -> Vec<Slot> {
+    let mut slots = Vec::new();
+    if writes_on(cx) {
+        slots.push(Slot::Primary);
+    }
+    if harness_writes(cx) {
+        slots.extend(
+            crate::harness_hosts::Hosts::names(cx)
+                .into_iter()
+                .map(Slot::Host),
+        );
+    }
+    slots
 }
 
 /// The form: the seat's name, agent, folder and role, and how the last run went.
 struct NewSeatModal {
     workspace: WeakEntity<Workspace>,
+    /// The harnesses the seat can go on, and the one chosen (#740).
+    slots: Vec<Slot>,
+    slot: Slot,
     name: Entity<Editor>,
     folder: Entity<Editor>,
     role: Entity<Editor>,
@@ -350,6 +381,8 @@ impl NewSeatModal {
     fn new(
         workspace: WeakEntity<Workspace>,
         folder: Option<PathBuf>,
+        slots: Vec<Slot>,
+        slot: Slot,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -373,6 +406,8 @@ impl NewSeatModal {
         let role = field("manager, or any label (optional)", None, window, cx);
         Self {
             workspace,
+            slots,
+            slot,
             name,
             folder,
             role,
@@ -402,7 +437,7 @@ impl NewSeatModal {
             cx.notify();
             return;
         }
-        let Some((program, base)) = Harness::seat_command(cx) else {
+        let Some((program, base, remote)) = seat_command_of(&self.slot, cx) else {
             self.status = Some((
                 SharedString::new_static("Marley follows no harness it can reach"),
                 Color::Error,
@@ -410,7 +445,8 @@ impl NewSeatModal {
             cx.notify();
             return;
         };
-        let (add, start) = seat.commands(base);
+        let (add, start) = seat.commands(base, remote);
+        let slot = self.slot.clone();
         let waiting = if self.agent == SeatAgent::Claude {
             "Starting the seat: Claude Code reports once it is up, within a minute"
         } else {
@@ -437,6 +473,7 @@ impl NewSeatModal {
                             .update_in(cx, |workspace, window, cx| {
                                 crate::harness::open_in_home(
                                     workspace.weak_handle(),
+                                    slot,
                                     id,
                                     window,
                                     cx,
@@ -457,6 +494,36 @@ impl NewSeatModal {
                 }
             }
         }));
+    }
+
+    /// The Harness choice, while more than one harness can take the seat (#740).
+    fn render_slots(&self, cx: &Context<Self>) -> AnyElement {
+        v_flex()
+            .gap_0p5()
+            .child(
+                Label::new("Harness")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .flex_wrap()
+                    .children(self.slots.iter().enumerate().map(|(index, slot)| {
+                        let label = slot
+                            .name()
+                            .map_or_else(|| SharedString::new_static("Default"), Clone::clone);
+                        let chosen = slot.clone();
+                        Button::new(("harness-seat-slot", index), label)
+                            .style(ButtonStyle::Filled)
+                            .toggle_state(self.slot == *slot)
+                            .on_click(cx.listener(move |modal, _, _, cx| {
+                                modal.slot = chosen.clone();
+                                cx.notify();
+                            }))
+                    })),
+            )
+            .into_any_element()
     }
 
     fn render_field(label: &'static str, editor: &Entity<Editor>, cx: &App) -> AnyElement {
@@ -546,6 +613,9 @@ impl Render for NewSeatModal {
                         .color(Color::Muted),
                     ),
             )
+            .when(self.slots.len() > 1, |form| {
+                form.child(self.render_slots(cx))
+            })
             .child(Self::render_field("Name", &self.name, cx))
             .child(
                 v_flex()

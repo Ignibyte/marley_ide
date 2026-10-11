@@ -92,6 +92,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub harness_writes: Option<bool>,
+    /// Harnesses on other hosts the rail follows beside `harness`, each by its name (#740):
+    /// `{"name": "box-2", "ssh": "me@box-2", "state": "/srv/harness"}` is followed as
+    /// `ssh me@box-2 rh --state /srv/harness mcp`. Without `ssh`, the harness is on this machine.
+    ///
+    /// Default: none
+    pub harnesses: Option<Vec<MarleyHarnessHostContent>>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).
     ///
@@ -302,6 +308,22 @@ pub enum FleetProviderContent {
         /// The environment variable that holds the bearer token.
         bearer_env: Option<String>,
     },
+}
+
+/// A harness on another host, as `marley.harnesses` names it (#740).
+#[with_fallible_options]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct MarleyHarnessHostContent {
+    /// The name the rail shows it under.
+    pub name: Option<String>,
+    /// The SSH destination, `[user@]host[:port]`; none for this machine.
+    pub ssh: Option<String>,
+    /// The harness's state root on that host.
+    pub state: Option<String>,
+    /// The `rh` to run there.
+    ///
+    /// Default: "rh"
+    pub rh: Option<String>,
 }
 
 /// The ntfy server and topic agent events are pushed to.

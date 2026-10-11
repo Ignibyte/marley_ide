@@ -150,7 +150,7 @@ pub(crate) struct Harness {
     embed: Option<Task<()>>,
     /// Whether the palette lists `OpenHarnessSession` and `NewHarnessSeat`, once its filter was
     /// set.
-    palette_shown: Option<bool>,
+    palette_shown: Option<(bool, bool)>,
     /// The `rh` the embedded runtime runs, once found (#691).
     rh: Option<PathBuf>,
     /// The command of the Agent Panel's Manager entry, while it is in the defaults (#694).
@@ -182,6 +182,119 @@ impl ManagerRecord {
 }
 
 impl Global for Harness {}
+
+/// Which harness a session, a connection or a call belongs to (#740): the one Marley followed
+/// before (`marley.harness`, or its own runtime), or one `marley.harnesses` names.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Slot {
+    Primary,
+    Host(SharedString),
+}
+
+impl Slot {
+    /// The name the rail and a session's tab show for it: none for the primary harness.
+    pub(crate) const fn name(&self) -> Option<&SharedString> {
+        match self {
+            Self::Primary => None,
+            Self::Host(name) => Some(name),
+        }
+    }
+}
+
+/// The sessions of `slot`'s harness, in the order it first published them.
+pub(crate) fn seats_of<'a>(slot: &Slot, cx: &'a App) -> &'a FleetSnapshot {
+    static NONE: std::sync::LazyLock<FleetSnapshot> =
+        std::sync::LazyLock::new(FleetSnapshot::default);
+    match slot {
+        Slot::Primary => Harness::seats(cx),
+        Slot::Host(name) => {
+            crate::harness_hosts::Hosts::get(name, cx).map_or(&NONE, |followed| &followed.seats)
+        }
+    }
+}
+
+/// `slot`'s harness's MCP server, while Marley is connected to it.
+fn server_of(slot: &Slot, cx: &App) -> Option<Arc<ContextServer>> {
+    match slot {
+        Slot::Primary => Harness::server(cx),
+        Slot::Host(name) => crate::harness_hosts::Hosts::get(name, cx)?.server.clone(),
+    }
+}
+
+/// The program and arguments that run a harness command on `slot`'s harness: the primary's
+/// `seat_command`, or the host's `rh` reached as its entry says (#740); and whether the words
+/// after them pass through a remote shell, a host's over ssh.
+pub(crate) fn seat_command_of(slot: &Slot, cx: &App) -> Option<(PathBuf, Vec<String>, bool)> {
+    match slot {
+        Slot::Primary => {
+            let (program, base) = Harness::seat_command(cx)?;
+            Some((program, base, false))
+        }
+        Slot::Host(name) => {
+            let host = &crate::harness_hosts::Hosts::get(name, cx)?.host;
+            let (program, base) = host.base();
+            Some((program, base, host.ssh.is_some()))
+        }
+    }
+}
+
+/// Whether a session of `slot`'s harness takes writes: the primary's as before; a host's while
+/// `marley.harness_writes` is on, since each is followed with the grant then.
+pub(crate) fn writes_on_slot(slot: &Slot, cx: &App) -> bool {
+    match slot {
+        Slot::Primary => writes_on(cx),
+        Slot::Host(_) => harness_writes(cx),
+    }
+}
+
+/// Records `slot`'s connection, and its server while it is up.
+fn set_connection(
+    slot: &Slot,
+    connection: Connection,
+    server: Option<Arc<ContextServer>>,
+    cx: &mut App,
+) {
+    match slot {
+        Slot::Primary => {
+            let harness = cx.global_mut::<Harness>();
+            harness.connection = Some(connection);
+            harness.server = server;
+        }
+        Slot::Host(name) => {
+            if let Some(followed) = crate::harness_hosts::Hosts::get_mut(name, cx) {
+                followed.connection = connection;
+                followed.server = server;
+            }
+        }
+    }
+}
+
+/// Changes `slot`'s sessions; the primary's Manager entry follows its own (#694).
+fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapshot)) {
+    match slot {
+        Slot::Primary => {
+            change(&mut cx.global_mut::<Harness>().seats);
+            sync_manager_entry(cx);
+        }
+        Slot::Host(name) => {
+            if let Some(followed) = crate::harness_hosts::Hosts::get_mut(name, cx) {
+                change(&mut followed.seats);
+            }
+        }
+    }
+}
+
+/// Bumps `slot`'s minute, so the rail draws a working session's `no update in N m` again.
+fn bump_minute(slot: &Slot, minute: u64, cx: &mut App) {
+    match slot {
+        Slot::Primary => cx.global_mut::<Harness>().minute = minute,
+        Slot::Host(name) => {
+            if let Some(followed) = crate::harness_hosts::Hosts::get_mut(name, cx) {
+                followed.minute = minute;
+            }
+        }
+    }
+}
 
 impl Harness {
     /// The connection, once Marley follows a harness.
@@ -260,6 +373,9 @@ pub fn init(cx: &mut App) {
     cx.set_global(Harness::default());
     follow_setting(cx);
     cx.observe_global::<SettingsStore>(follow_setting).detach();
+    crate::harness_hosts::follow_hosts(cx);
+    cx.observe_global::<SettingsStore>(crate::harness_hosts::follow_hosts)
+        .detach();
     cx.observe_new(|workspace: &mut Workspace, _, cx| {
         workspace.register_action(|workspace, _: &OpenHarnessSession, window, cx| {
             open_session_picker(workspace, window, cx);
@@ -275,7 +391,7 @@ pub fn init(cx: &mut App) {
 }
 
 /// Whether `marley.harness_writes` is on.
-fn harness_writes(cx: &App) -> bool {
+pub(crate) fn harness_writes(cx: &App) -> bool {
     cx.global::<SettingsStore>()
         .merged_settings()
         .marley
@@ -471,25 +587,29 @@ fn sync_manager_entry(cx: &mut App) {
     });
 }
 
-/// Lists `OpenHarnessSession` in the palette while the write verbs are on. Before the palette has
-/// its filter there is nothing to set; the next call sets it.
-fn filter_palette(cx: &mut App) {
-    let on = writes_on(cx);
-    if cx.global::<Harness>().palette_shown == Some(on)
+/// Lists `OpenHarnessSession` in the palette while the write verbs are on, and `NewHarnessSeat`
+/// while a followed harness takes a seat (#740). Before the palette has its filter there is nothing
+/// to set; the next call sets it.
+pub(crate) fn filter_palette(cx: &mut App) {
+    let session = writes_on(cx);
+    // A seat can also be made on a harness `marley.harnesses` names (#740).
+    let seat =
+        session || (harness_writes(cx) && !crate::harness_hosts::Hosts::names(cx).is_empty());
+    if cx.global::<Harness>().palette_shown == Some((session, seat))
         || CommandPaletteFilter::try_global(cx).is_none()
     {
         return;
     }
-    cx.global_mut::<Harness>().palette_shown = Some(on);
-    let command = [
-        TypeId::of::<OpenHarnessSession>(),
-        TypeId::of::<crate::harness_seat::NewHarnessSeat>(),
-    ];
+    cx.global_mut::<Harness>().palette_shown = Some((session, seat));
+    let session_command = [TypeId::of::<OpenHarnessSession>()];
+    let seat_command = [TypeId::of::<crate::harness_seat::NewHarnessSeat>()];
     CommandPaletteFilter::update_global(cx, |filter, _| {
-        if on {
-            filter.show_action_types(&command);
-        } else {
-            filter.hide_action_types(&command);
+        for (on, command) in [(session, &session_command), (seat, &seat_command)] {
+            if on {
+                filter.show_action_types(command);
+            } else {
+                filter.hide_action_types(command);
+            }
         }
     });
 }
@@ -514,7 +634,7 @@ fn follow_setting(cx: &mut App) {
         Source::Off => (None, None),
         Source::Command(command) => {
             let command = command.clone();
-            let run = cx.spawn(async move |cx| follow(command, cx).await);
+            let run = cx.spawn(async move |cx| follow(Slot::Primary, command, cx).await);
             (Some(run), None)
         }
         Source::Embedded { .. } => (None, Some(cx.spawn(async move |cx| embed(cx).await))),
@@ -703,7 +823,7 @@ fn follow_embedded(rh: &Path, root: &Path, cx: &AsyncApp) {
         if cx.global::<Harness>().run.is_some() {
             return;
         }
-        let run = cx.spawn(async move |cx| follow(command, cx).await);
+        let run = cx.spawn(async move |cx| follow(Slot::Primary, command, cx).await);
         let harness = cx.global_mut::<Harness>();
         harness.connection = Some(Connection::Connecting);
         harness.run = Some(run);
@@ -748,12 +868,12 @@ fn clip(reason: &str) -> String {
         .collect()
 }
 
-/// Keeps a connection to the harness's MCP server: connects, follows the fleet until a call
+/// Keeps a connection to `slot`'s harness's MCP server: connects, follows the fleet until a call
 /// fails, and connects again after a growing wait.
-async fn follow(command: ContextServerCommand, cx: &AsyncApp) {
+pub(crate) async fn follow(slot: Slot, command: ContextServerCommand, cx: &AsyncApp) {
     let mut failures = 0_u32;
     loop {
-        let error = match connected(&command, &mut failures, cx).await {
+        let error = match connected(&slot, &command, &mut failures, cx).await {
             Ok(never) => match never {},
             Err(error) => error,
         };
@@ -766,29 +886,25 @@ async fn follow(command: ContextServerCommand, cx: &AsyncApp) {
             .chars()
             .take(REASON_CHARS)
             .collect();
-        log::info!("harness: not running: {error:#}");
-        cx.update(|cx| {
-            let harness = cx.global_mut::<Harness>();
-            harness.server = None;
-            harness.connection = Some(Connection::Down(reason.into()));
-        });
+        log::info!("harness {slot:?}: not running: {error:#}");
+        cx.update(|cx| set_connection(&slot, Connection::Down(reason.into()), None, cx));
         let wait_s = 1_u64
             .checked_shl(failures)
             .unwrap_or(BACKOFF_MAX_S)
             .min(BACKOFF_MAX_S);
         failures = failures.saturating_add(1);
+        // The header keeps the reason while the next try runs: a harness that stays down reads as
+        // down, not as connecting most of the time (#740).
         cx.background_executor()
             .timer(Duration::from_secs(wait_s))
             .await;
-        cx.update(|cx| {
-            cx.global_mut::<Harness>().connection = Some(Connection::Connecting);
-        });
     }
 }
 
 /// One connection: starts the server, takes the fleet, and folds its events each second. Returns
 /// only the failure that ends it.
 async fn connected(
+    slot: &Slot,
     command: &ContextServerCommand,
     failures: &mut u32,
     cx: &AsyncApp,
@@ -804,13 +920,9 @@ async fn connected(
         Either::Left((started, _)) => started.context("the harness's MCP server did not start")?,
         Either::Right(_) => anyhow::bail!("the harness's MCP server did not answer"),
     }
-    let mut cursor = seed(&server, cx).await?;
+    let mut cursor = seed(slot, &server, cx).await?;
     *failures = 0;
-    cx.update(|cx| {
-        let harness = cx.global_mut::<Harness>();
-        harness.server = Some(Arc::clone(&server));
-        harness.connection = Some(Connection::Connected);
-    });
+    cx.update(|cx| set_connection(slot, Connection::Connected, Some(Arc::clone(&server)), cx));
     let mut minute = now_minute();
     loop {
         executor.timer(POLL).await;
@@ -819,7 +931,7 @@ async fn connected(
                 Ok(page) => serde_json::from_value::<EventPage>(page)
                     .context("fleet_events's answer did not parse")?,
                 Err(Failure::Resync) => {
-                    cursor = seed(&server, cx).await?;
+                    cursor = seed(slot, &server, cx).await?;
                     break;
                 }
                 Err(Failure::Failed(error)) => return Err(error),
@@ -829,24 +941,27 @@ async fn connected(
                 break;
             }
             cx.update(|cx| {
-                let harness = cx.global_mut::<Harness>();
-                for entry in &page.events {
-                    apply(&mut harness.seats, &entry.event);
-                }
-                sync_manager_entry(cx);
+                change_seats(slot, cx, |seats| {
+                    for entry in &page.events {
+                        apply(seats, &entry.event);
+                    }
+                });
             });
         }
-        follow_thread(&server, cx).await;
+        // The Manager's thread is the primary harness's alone (#694).
+        if *slot == Slot::Primary {
+            follow_thread(&server, cx).await;
+        }
         let now = now_minute();
         if now != minute {
             minute = now;
             cx.update(|cx| {
                 let now_ms = now_ms();
-                let counting = Harness::seats(cx).seats().iter().any(|seat| {
+                let counting = seats_of(slot, cx).seats().iter().any(|seat| {
                     seat.state == State::Working || Signals::of(&seat.labels).resets_after(now_ms)
                 });
                 if counting {
-                    cx.global_mut::<Harness>().minute = now;
+                    bump_minute(slot, now, cx);
                 }
             });
         }
@@ -854,7 +969,7 @@ async fn connected(
 }
 
 /// Takes the fleet from `fleet_snapshot` and gives the cursor it holds at.
-async fn seed(server: &ContextServer, cx: &AsyncApp) -> anyhow::Result<u64> {
+async fn seed(slot: &Slot, server: &ContextServer, cx: &AsyncApp) -> anyhow::Result<u64> {
     let value = match call(server, "fleet_snapshot", json!({}), cx).await {
         Ok(value) => value,
         Err(Failure::Resync) => anyhow::bail!("fleet_snapshot asked for a resync"),
@@ -866,10 +981,7 @@ async fn seed(server: &ContextServer, cx: &AsyncApp) -> anyhow::Result<u64> {
         .context("fleet_snapshot gave no cursor")?;
     let seats: FleetSnapshot =
         serde_json::from_value(value).context("fleet_snapshot's seats did not parse")?;
-    cx.update(|cx| {
-        cx.global_mut::<Harness>().seats = seats;
-        sync_manager_entry(cx);
-    });
+    cx.update(|cx| change_seats(slot, cx, |current| *current = seats));
     Ok(cursor)
 }
 
@@ -1201,6 +1313,7 @@ pub(crate) fn now_ms() -> u64 {
 /// session belongs to no project.
 pub(crate) fn open_in_home(
     asked_from: WeakEntity<Workspace>,
+    slot: Slot,
     id: String,
     window: &Window,
     cx: &mut App,
@@ -1210,27 +1323,28 @@ pub(crate) fn open_in_home(
         asked_from,
         window,
         cx,
-        move |workspace, window, cx| open(workspace, &id, window, cx),
+        move |workspace, window, cx| open(workspace, &slot, &id, window, cx),
     );
 }
 
 /// Shows the tab of the session `id` in `workspace`, or brings forward the one open there.
 pub(crate) fn open(
     workspace: &mut Workspace,
+    slot: &Slot,
     id: &str,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
     let open = workspace
         .items_of_type::<HarnessView>(cx)
-        .find(|view| view.read(cx).id == id);
+        .find(|view| view.read(cx).id == id && view.read(cx).slot == *slot);
     if let Some(open) = open {
         workspace.activate_item(&open, true, true, window, cx);
         return;
     }
     let id = id.to_string();
     let handle = workspace.weak_handle();
-    let view = cx.new(|cx| HarnessView::new(id, handle, window, cx));
+    let view = cx.new(|cx| HarnessView::new(slot.clone(), id, handle, window, cx));
     workspace.add_item_to_center(Box::new(view), window, cx);
 }
 
@@ -1238,6 +1352,8 @@ pub(crate) fn open(
 /// are on, the question it waits on with a button per option, a line to send it, and the commands
 /// that watch it (#689).
 pub(crate) struct HarnessView {
+    /// The harness the session is in (#740).
+    slot: Slot,
     id: String,
     /// The workspace the tab opened in, where a view's terminal opens (#690).
     workspace: WeakEntity<Workspace>,
@@ -1271,21 +1387,31 @@ impl std::fmt::Debug for HarnessView {
 
 impl HarnessView {
     fn new(
+        slot: Slot,
         id: String,
         workspace: WeakEntity<Workspace>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title = Harness::seats(cx).get(&id).map_or_else(
+        let title = seats_of(&slot, cx).get(&id).map_or_else(
             || SharedString::from(id.clone()),
             |seat| seat.title.clone().into(),
         );
-        let harness = cx.observe_global_in::<Harness>(window, |view, _, cx| view.seat_changed(cx));
+        let harness = match slot {
+            Slot::Primary => {
+                cx.observe_global_in::<Harness>(window, |view, _, cx| view.seat_changed(cx))
+            }
+            Slot::Host(_) => {
+                cx.observe_global_in::<crate::harness_hosts::Hosts>(window, |view, _, cx| {
+                    view.seat_changed(cx);
+                })
+            }
+        };
         let refresh = cx.spawn(async move |view, cx| {
             loop {
                 cx.background_executor().timer(VIEW_REFRESH).await;
                 let Ok(()) = view.update(cx, |view, cx| {
-                    let running = Harness::seats(cx)
+                    let running = seats_of(&view.slot, cx)
                         .get(&view.id)
                         .is_some_and(|seat| seat.state != State::Done);
                     if running {
@@ -1302,6 +1428,7 @@ impl HarnessView {
             editor
         });
         let mut view = Self {
+            slot,
             id,
             workspace,
             title,
@@ -1323,7 +1450,7 @@ impl HarnessView {
 
     /// Reads the lines again when the session's envelope changed.
     fn seat_changed(&mut self, cx: &mut Context<Self>) {
-        let Some(seat) = Harness::seats(cx).get(&self.id) else {
+        let Some(seat) = seats_of(&self.slot, cx).get(&self.id) else {
             return;
         };
         let now = (seat.last_event_ms, seat.state);
@@ -1343,10 +1470,7 @@ impl HarnessView {
         if self.reading.is_some() {
             return;
         }
-        let Some(server) = cx
-            .try_global::<Harness>()
-            .and_then(|harness| harness.server.clone())
-        else {
+        let Some(server) = server_of(&self.slot, cx) else {
             return;
         };
         let arguments = json!({
@@ -1381,7 +1505,7 @@ impl HarnessView {
     /// Answers the question the session waits on with `choice`, naming the question by its full
     /// prompt, so an answer meant for it never lands on a later one.
     fn answer(&mut self, choice: String, window: &Window, cx: &mut Context<Self>) {
-        let Some(question) = Harness::seats(cx)
+        let Some(question) = seats_of(&self.slot, cx)
             .get(&self.id)
             .and_then(|seat| seat.question.clone())
         else {
@@ -1489,7 +1613,7 @@ impl HarnessView {
         if self.writing.is_some() {
             return;
         }
-        let Some(server) = Harness::server(cx) else {
+        let Some(server) = server_of(&self.slot, cx) else {
             self.status = Some((
                 SharedString::new_static("The harness is not running"),
                 Color::Error,
@@ -1516,7 +1640,7 @@ impl HarnessView {
     /// The question, the line to send and the views, while the write verbs are on.
     fn render_controls(&self, cx: &Context<Self>) -> AnyElement {
         let colors = cx.theme().colors();
-        let question = Harness::seats(cx)
+        let question = seats_of(&self.slot, cx)
             .get(&self.id)
             .and_then(|seat| seat.question.clone());
         v_flex()
@@ -1657,7 +1781,7 @@ fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
 impl Render for HarnessView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().colors().editor_background;
-        let controls = if writes_on(cx) {
+        let controls = if writes_on_slot(&self.slot, cx) {
             Some(self.render_controls(cx))
         } else {
             None
@@ -1698,8 +1822,12 @@ impl EventEmitter<()> for HarnessView {}
 impl Item for HarnessView {
     type Event = ();
 
+    /// A session on a harness `marley.harnesses` names says which (#740).
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
-        self.title.clone()
+        self.slot.name().map_or_else(
+            || self.title.clone(),
+            |name| format!("{} · {name}", self.title).into(),
+        )
     }
 }
 
@@ -1830,7 +1958,7 @@ impl PickerDelegate for OpenSessionDelegate {
                 .context("session_open gave no id")?
                 .to_string();
             workspace.update_in(cx, |workspace, window, cx| {
-                open_in_home(workspace.weak_handle(), id, window, cx);
+                open_in_home(workspace.weak_handle(), Slot::Primary, id, window, cx);
             })
         })
         .detach_and_prompt_err("Could not open the session", window, cx, |_, _, _| None);

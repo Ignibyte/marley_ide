@@ -2431,8 +2431,8 @@ in the inbox. A click opens a tab with the session's last 500 lines, which follo
 output while the session runs. A session waiting on a question is also in the rail's "Needs you"
 inbox, with its options; opening it opens the session's tab. Without `harness_writes`, Marley
 only reads (see below). When the harness stops answering, the
-section keeps its rows marked stale and Marley starts the command again after 1 s, then 2, 4 and
-so on up to a minute. The section stays out of the rail's keys and its filter, as the containers
+section keeps its rows marked stale, its header says why until a try connects again (#740), and
+Marley starts the command again after 1 s, then 2, 4 and so on up to a minute. The section stays out of the rail's keys and its filter, as the containers
 do. Without the setting Marley starts nothing.
 
 **Writing to a session** (#689). Turn on `"marley": { "harness_writes": true }` and a session's
@@ -2491,6 +2491,33 @@ When Marley runs the harness itself, it follows it with `--grant write` while th
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses
 each write and the tab shows why. Off, the tab only reads and the palette does not list the
 command.
+
+**Several harnesses** (#740). A harness on another machine gets a name in `marley.harnesses`, and
+Marley follows it beside the one above:
+
+```jsonc
+"marley": {
+  "harnesses": [
+    { "name": "box-2", "ssh": "me@box-2", "state": "/srv/harness" },
+    { "name": "scratch", "state": "/tmp/harness-scratch", "rh": "/opt/rh/bin/rh" }
+  ]
+}
+```
+
+- **Reaching it.** Marley runs `ssh -T -o BatchMode=yes HOST rh --state ROOT mcp` with its own
+  keepalive, so the host must take your key without a password prompt. Without `ssh`, the harness
+  is on this machine. `rh` defaults to `rh` on the host's PATH.
+- **The rail.** Each harness has its own section after the first, HARNESS · its name, with its
+  own connection line, fold and rows. One that stops answering says why under its name, its rows
+  stale, while the others go on.
+- **Sessions.** A session's tab says its harness after its title, `builder · box-2`, and its
+  reads, answers and messages go to that harness. Its question shows in the inbox as
+  `Harness · box-2`.
+- **Seats.** With `harness_writes` on, the New Harness Seat form gains a Harness row: Default
+  (the harness above) and each name. The seat's commands run through the chosen one.
+- **What stays with the first.** The Manager entry, `marley: open harness session` and agents'
+  seat tools (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only. A
+  session's Views run their commands on this machine.
 
 ## The Fleet panel
 

@@ -3649,3 +3649,28 @@ Browse… called `Workspace::prompt_for_open_path` from the picker's `confirm`. 
 a modal; showing it hides the current one, and `ModalLayer::hide_modal` reads the picker's focus
 handle while the picker is being updated. gpui panicked and Marley quit. Fixed in #735: Browse… runs
 from `window.defer`, after the confirm's update.
+
+## F-claude-740-a-host-sessions-tab-read-the-first-harness-001
+*severity: high · found in: pipeline 740's Code phase (the review) · class: a call that reads a global's field directly beside helpers that take the slot*
+
+`HarnessView::ask_lines` took its server from `Harness.server` through `try_global`, not through
+`Harness::server` or the slot. When the view gained its slot, the search for `Harness::server(cx)`
+missed it, so a session tab on a second harness would have asked the first harness for its lines
+(an unknown id, or another session's). Fixed in #740: `server_of(&self.slot)`, and every call in
+the view found by reading it whole.
+
+## F-claude-740-seat-words-split-in-the-hosts-shell-001
+*severity: medium · found in: pipeline 740's Code phase (the review) · class: an argv passed to ssh after the destination · prevented by: PR-claude-740-quote-each-word-after-an-ssh-destination-001*
+
+The seat form's commands append the seat's name, folder and role to the harness's base command.
+Through ssh, the words after the destination are joined into one line for the host's shell, so a
+folder with a space would reach `rh` as two arguments. Fixed in #740: `seat_command_of` says when
+the words cross a remote shell, and `Seat::commands` quotes each with `shell_word` then.
+
+## F-claude-740-a-down-harness-read-as-connecting-001
+*severity: low · found in: pipeline 740's Test phase (shot 03) · class: a retry state that hides the failure*
+
+Since #534, `follow` set `Connection::Connecting` after each backoff wait, and a try against a host
+that refuses takes up to the call timeout, so a harness that stayed down read "connecting" most of
+the time and its reason showed only between tries. #740's shot of a dropped host showed
+"connecting" over stale rows. Fixed in #740: the reason stays until a try connects.
