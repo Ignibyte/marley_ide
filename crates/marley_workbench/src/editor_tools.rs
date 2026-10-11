@@ -1,6 +1,8 @@
 //! Zed's open editors for agents over Marley's MCP server (#704): `editor_list`, `editor_read`
 //! and `editor_open`, through the editors area's mode (`agent_control`) and #703's log and switch.
 //!
+//! The language servers' tools (#712) are routed to `lsp_tools`.
+//!
 //! An editor is a center tab showing one file of an open project. Its id is the editor's entity
 //! id. A read gives the buffer as it is now, unsaved changes included, a page of lines at a time,
 //! masked by the agents' redaction; a file whose name matches `marley.agent_control.secret_globs`
@@ -55,6 +57,10 @@ pub(crate) fn answer(mut call: AppCall, cx: &App) {
         "editor_save" => {
             let what = save_words(&call.arguments, cx);
             after_admit(call, Level::Sensitive, what, save, cx);
+        }
+        // The language servers' answers (#712).
+        "editor_diagnostics" | "editor_definition" | "editor_references" | "editor_hover" => {
+            crate::lsp_tools::answer(call, cx);
         }
         other => call.answer(Err(format!("Marley answers no tool named {other}"))),
     }
@@ -173,7 +179,7 @@ fn list(call: AppCall, cx: &mut App) {
 }
 
 /// The patterns a file's name may not match to be read: the user's, else Marley's defaults.
-fn secret_globs(cx: &App) -> PathMatcher {
+pub(crate) fn secret_globs(cx: &App) -> PathMatcher {
     let globs: Vec<String> = cx
         .global::<SettingsStore>()
         .merged_settings()
@@ -188,7 +194,7 @@ fn secret_globs(cx: &App) -> PathMatcher {
 }
 
 /// Refuses `path` when its name matches the user's secret patterns.
-fn not_secret(path: &Path, cx: &App) -> Result<(), Refusal> {
+pub(crate) fn not_secret(path: &Path, cx: &App) -> Result<(), Refusal> {
     match path.file_name() {
         Some(name) if secret_globs(cx).is_match_std_path(name) => Err(Refusal::new(
             "secret_file",
@@ -562,7 +568,7 @@ fn open(call: AppCall, cx: &mut App) {
 }
 
 /// The window and the workspace whose project's folders hold `path`.
-fn project_holding(
+pub(crate) fn project_holding(
     path: &Path,
     cx: &App,
 ) -> Option<(gpui::WindowHandle<MultiWorkspace>, Entity<Workspace>)> {

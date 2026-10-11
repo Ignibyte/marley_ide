@@ -58,7 +58,7 @@ const MAX_READ_BYTES: usize = 256 * 1024;
 /// The most bytes of output a `terminal_read` page holds (#680). The answer carries the page twice,
 /// as its text and in its structured result, so a whole answer stays near 30 KB on the wire and
 /// about 6,000 tokens, under the 10,000 at which Claude Code warns about a tool's result.
-const PAGE_BYTES: usize = 12_000;
+pub(crate) const PAGE_BYTES: usize = 12_000;
 
 /// The most terminal ids a `no_terminal` refusal lists.
 const MAX_LISTED_TERMINALS: usize = 20;
@@ -805,13 +805,17 @@ impl FindLines {
 /// Every terminal in Marley's windows, the center panes' and the terminal panel's, with the
 /// workspace it belongs to.
 pub(crate) fn terminals(cx: &App) -> Vec<(Entity<Workspace>, Entity<TerminalView>)> {
-    let workspaces: Vec<Entity<Workspace>> = cx
-        .windows()
+    terminals_of(all_workspaces(cx), cx)
+}
+
+/// Every workspace of Marley's windows, read through their handles: not from inside a window's
+/// update, which hides that window (PR-claude-596).
+pub(crate) fn all_workspaces(cx: &App) -> Vec<Entity<Workspace>> {
+    cx.windows()
         .into_iter()
         .filter_map(|window| window.downcast::<MultiWorkspace>()?.read(cx).ok())
         .flat_map(|multi_workspace| multi_workspace.workspaces().cloned().collect::<Vec<_>>())
-        .collect();
-    terminals_of(workspaces, cx)
+        .collect()
 }
 
 /// The terminal views of `workspaces`, each with its workspace.

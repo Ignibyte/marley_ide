@@ -1898,6 +1898,28 @@ alike.
     `start_transaction`/`edit`/`end_transaction_with_source(Agent)`, as Zed's agent does.
   - `editor_save` (`save`) runs `Project::save_buffer` on the editor's workspace's project.
   - `not_secret` guards read and edit alike. `OpenEditor` carries its workspace.
+- **`lsp_tools.rs` (#712).** `editor_tools::answer` routes the four language server tools here;
+  each is logged (#703) and admitted at `Level::Read`, then answered from a spawned task.
+  - `open(path)`: `not_secret`, `editor_tools::project_holding` and `find_project_path` (else
+    `outside_projects`), the file's existence off the main thread (else `no_file`),
+    `Project::open_buffer` (no tab), then `register_buffer_with_language_servers`, its handle held
+    in `Opened` until the answer is built, and a poll every 200 ms, up to 15 s, until
+    `LspStore::language_server_ids_for_opened_buffer` names a server (else
+    `no_language_server`). `was_open` records whether a server had the file before the call.
+  - `at_position`: the 1-based `line`, then `symbol` (its first byte offset on the line, else
+    `no_symbol` with the line's text) or `column` (bytes, clipped to the line), as
+    `editor_list` counts.
+  - `definition`, `references` and `hover` run `Project::definitions`, `references` and `hover`
+    raced against 10 s (`within`, else `lsp_timeout`). `location_json` gives the path, the 1-based
+    start and end and the trimmed line (200 characters) through `mcp::for_agents`, or `[secret
+    file]` for a file the globs match. Hover joins its blocks, masked, cut at `PAGE_BYTES`.
+  - `editor_diagnostics` with a path pulls afresh (`pull_diagnostics_for_buffer`), and a file the
+    call opened waits up to 3 s for its first ones; without a path it reads the files
+    `diagnostic_summaries` counts errors or warnings in, for the project named, else the caller's
+    (`browser_tools::caller_workspace`), else every local one, hiding secret files and counting
+    them. `entries_of` takes each group's primary entry and leaves out Marley's own (source
+    `marley`, #623). `page_of` pages at 200 entries or `PAGE_BYTES` of JSON with `total`,
+    `start` and `next`.
 
 ## The Agent Panel's threads for agents (`src/thread_tools.rs`, #706)
 

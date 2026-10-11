@@ -1667,6 +1667,10 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>editor_open</code></td><td>Opens a file inside an open project at a line and column, its tab in front</td></tr>
 <tr><td><code>editor_edit</code></td><td>Replaces text that appears once in an open editor, or every match with <code>replace_all</code>; one undo takes it back, and the file stays unsaved</td></tr>
 <tr><td><code>editor_save</code></td><td>Saves an open editor's file; it asks you every time unless Editors is Allow</td></tr>
+<tr><td><code>editor_diagnostics</code></td><td>The language servers' errors and warnings for a file, or every file of the agent's project that has some, a page at a time (#712)</td></tr>
+<tr><td><code>editor_definition</code></td><td>Where a symbol is defined: a file, a line, and the symbol's name on that line; the file needn't be open</td></tr>
+<tr><td><code>editor_references</code></td><td>Where a symbol is used, a page at a time</td></tr>
+<tr><td><code>editor_hover</code></td><td>A symbol's hover text from its language server, such as its type and documentation</td></tr>
 </table>
 <h4>Agent Panel threads</h4>
 <table>

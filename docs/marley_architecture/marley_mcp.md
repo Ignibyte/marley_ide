@@ -115,7 +115,10 @@ OR Apache-2.0, with the Marley crates' lint table.
 - Since #704 the `editor` family is served, for agents: `editor_list` (Read, no arguments),
   `editor_read` (Read, `id` or `path`, `start_line`) and `editor_open` (Write, `editor.write`,
   `path`, `line`, `column`), with `editor_schemas`; since #705 `editor_edit` and `editor_save`
-  (Write, `editor.write`; `editor_change_schemas`). No outside client's list names them.
+  (Write, `editor.write`; `editor_change_schemas`); since #712 `editor_diagnostics` (`path` or
+  `project`, `start`), `editor_definition`, `editor_references` (with `start`) and `editor_hover`
+  (`path`, `line`, `symbol` or `column`), all Read with no grant (`editor_lsp_schemas`,
+  `position_properties`, `editor_diagnostics_schemas`). No outside client's list names them.
 - Since #706 the `thread` family is served too: `thread_list` and `thread_read` (Read; `thread`,
   `start_line`), and `thread_post` (`thread`, `message`) and `thread_answer` (`thread`, `allow`),
   both Write with `thread.write` (`thread_schemas`). `dispatch` defers it.

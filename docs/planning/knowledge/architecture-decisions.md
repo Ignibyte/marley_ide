@@ -5034,3 +5034,18 @@ reopened; which session a live terminal runs still comes from the hooks, a repor
 Server. Rejected: Zed's Import Threads over the ACP adapters (one-off, archived rows, reopened in
 the adapter, not the TUI), Codex's `state_5.sqlite` (an internal store), the App Server's
 `thread/list` (a server per scan), and a section of their own (one history).
+
+## AD-claude-712-agents-ask-zeds-language-servers-through-four-editor-reads-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-704-areas-ask-once-per-session-and-reads-stay-free-001*
+
+Four read tools in the editors family, admitted at `Level::Read` and listed in Agent Activity:
+`editor_diagnostics`, `editor_definition`, `editor_references` and `editor_hover`. A position is a
+path inside an open project, a 1-based line, and a symbol's name on that line (what Zed's own agent
+takes, since models count columns badly) or a 1-based byte column, `editor_list`'s unit. A file no
+tab shows is opened with `Project::open_buffer` and registered with its servers for the call only,
+and every wait (15 s for a server, 10 s for its answer, 3 s for a fresh file's first diagnostics)
+stays inside the MCP server's 30-second wait. Answers carry each place's line, masked, `[secret
+file]` for a secret one, and lists page at 200 entries or 12,000 bytes. Marley's own failed-block
+diagnostics are left out. Rejected: a new `lsp_*` family with its own mode, open editors only (the
+agent would need `editor_open`, which takes the user's tab), LSP's 0-based UTF-16 positions, and
+sharing #653's IDE diagnostics (its units are the IDE protocol's).

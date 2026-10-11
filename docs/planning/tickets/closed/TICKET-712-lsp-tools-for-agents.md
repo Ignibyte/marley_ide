@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #712 (feature, Marley's MCP server)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [712-lsp-tools-for-agents.spec.md](../../pipeline/queued/712-lsp-tools-for-agents.spec.md)
+- **Pipeline doc:** [712-lsp-tools-for-agents.spec.md](../../pipeline/completed/712-lsp-tools-for-agents.spec.md)
 - **Source ticket:** the 2026-10-09 intake audit of `mcp-first-class-control-plane.md`: all of it
   shipped but its LSP tools. Chad, 2026-10-11: "6.) yes".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Four read tools over Zed's LSP store, in the editors area (#704):

@@ -68,6 +68,7 @@ pub mod home_page;
 pub mod launch;
 pub mod limits;
 pub mod links;
+pub mod lsp_tools;
 pub mod markdown_commands;
 #[cfg(test)]
 pub mod marley_workbench_tests;

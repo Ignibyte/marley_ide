@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Language server tools for agents** (#712, 2026-10-11). Through Marley's tools an agent asks
+  Zed's language servers for a file's or a project's diagnostics, where a symbol is defined, where
+  it is used, and its hover text, naming a file, a line and the symbol on it. A file no tab shows
+  is opened for the call without a tab. Answers come with 1-based positions and each place's line,
+  masked; secret files are refused, lists are paged, every call shows in Agent Activity, and
+  Editors set to Off refuses them.
+
 - **Your Claude Code and Codex sessions in Threads** (#754, 2026-10-11). The Threads page, the
   rail's Threads view and Reopen Thread… list the sessions you ran in the CLIs' own terminals,
   read from their own files, beside Zed's conversations, with a chip each. The page's search also

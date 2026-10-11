@@ -137,10 +137,7 @@ fn still_allowed(by: Option<&SharedString>, cx: &AsyncApp) -> Result<(), String>
 /// of whose folders holds its `Marley-Project`, else its `Marley-Cwd`, the longest folder winning.
 /// None for a caller in no project of Marley's.
 fn caller_scope(caller: &Caller, cx: &App) -> Option<Scope> {
-    let home = crate::mcp::caller_terminal(caller, cx)
-        .map(|(workspace, _)| workspace)
-        .or_else(|| holding(caller.project.as_deref()?, cx))
-        .or_else(|| holding(caller.cwd.as_deref()?, cx))?;
+    let home = caller_workspace(caller, cx)?;
     let multi_workspace = multi_workspaces(cx).into_iter().find(|multi_workspace| {
         multi_workspace
             .workspaces()
@@ -160,6 +157,15 @@ fn caller_scope(caller: &Caller, cx: &App) -> Option<Scope> {
         home: home.downgrade(),
         name,
     })
+}
+
+/// The workspace `caller` comes from (#574, #712): its terminal's, else the one of whose folders
+/// holds its `Marley-Project`, else its `Marley-Cwd`.
+pub(crate) fn caller_workspace(caller: &Caller, cx: &App) -> Option<Entity<Workspace>> {
+    crate::mcp::caller_terminal(caller, cx)
+        .map(|(workspace, _)| workspace)
+        .or_else(|| holding(caller.project.as_deref()?, cx))
+        .or_else(|| holding(caller.cwd.as_deref()?, cx))
 }
 
 /// The project a page a call opens goes to (#507): the caller's, else the one the active window

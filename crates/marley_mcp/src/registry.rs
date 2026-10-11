@@ -455,6 +455,44 @@ const REGISTRY: &[ToolSpec] = &[
                       allowed agents to act in editors without asking.",
     },
     ToolSpec {
+        family: Family::Editor,
+        verb: "diagnostics",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "The language servers' errors, warnings and notes: for one file by its \
+                      absolute path, or for every file of a project with errors or warnings, \
+                      as the servers last reported them, each with its 1-based line and \
+                      column, severity, message, source and code, a page at a time.",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "definition",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Where a symbol is defined, as its language server answers: give the \
+                      file's absolute path, the 1-based line, and the symbol's name on that line \
+                      (or its 1-based column, counted as editor_list counts it).",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "references",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Where a symbol is used, as its language server answers, a page at a time: \
+                      give the file's absolute path, the 1-based line, and the symbol's name on \
+                      that line (or its 1-based column).",
+    },
+    ToolSpec {
+        family: Family::Editor,
+        verb: "hover",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "A symbol's hover text from its language server, such as its type and \
+                      documentation, and the range it covers: give the file's absolute path, \
+                      the 1-based line, and the symbol's name on that line (or its 1-based \
+                      column).",
+    },
+    ToolSpec {
         family: Family::Thread,
         verb: "list",
         tier: Tier::Read,
@@ -2151,6 +2189,7 @@ fn editor_schemas(verb: &str) -> (Value, Value) {
             }),
         ),
         "edit" | "save" => editor_change_schemas(verb),
+        "diagnostics" | "definition" | "references" | "hover" => editor_lsp_schemas(verb),
         _ => (
             json!({
                 "type": "object",
@@ -2183,6 +2222,145 @@ fn editor_schemas(verb: &str) -> (Value, Value) {
 
 /// `editor_edit` and `editor_save` (#705): an editor and the text to replace in, what changed out;
 /// an editor in, whether it saved out.
+/// The language server tools' schemas (#712): a position, a page start, and their answers.
+fn editor_lsp_schemas(verb: &str) -> (Value, Value) {
+    let mut position = position_properties();
+    let start = page_start();
+    let location = json!({ "type": "object" });
+    match verb {
+        "diagnostics" => editor_diagnostics_schemas(),
+        "references" => {
+            if let Some(properties) = position.as_object_mut() {
+                let _start = properties.insert("start".to_string(), start);
+            }
+            (
+                json!({
+                    "type": "object",
+                    "properties": position,
+                    "required": ["path", "line"],
+                    "additionalProperties": false
+                }),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "references": { "type": "array", "items": location },
+                        "total": { "type": "integer" },
+                        "start": { "type": "integer" },
+                        "next": { "type": ["integer", "null"] },
+                        "redacted": { "type": "integer" }
+                    },
+                    "required": ["references", "total", "start", "next"]
+                }),
+            )
+        }
+        "hover" => (
+            json!({
+                "type": "object",
+                "properties": position,
+                "required": ["path", "line"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string" },
+                    "range": { "type": ["object", "null"] },
+                    "cut": { "type": "boolean" },
+                    "redacted": { "type": "integer" }
+                },
+                "required": ["text"]
+            }),
+        ),
+        _ => (
+            json!({
+                "type": "object",
+                "properties": position,
+                "required": ["path", "line"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "definitions": { "type": "array", "items": location },
+                    "redacted": { "type": "integer" }
+                },
+                "required": ["definitions"]
+            }),
+        ),
+    }
+}
+
+/// A position's properties (#712): the file, the 1-based line, and a symbol on it or a column.
+fn position_properties() -> Value {
+    let path = json!({
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "The file's absolute path, inside an open project's folders."
+    });
+    json!({
+        "path": path,
+        "line": { "type": "integer", "minimum": 1, "description": "The 1-based line." },
+        "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A name on that line; its first occurrence is the position."
+        },
+        "column": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The 1-based column, as editor_list counts it, when no symbol is given."
+        }
+    })
+}
+
+/// A page's `start` property (#712).
+fn page_start() -> Value {
+    json!({
+        "type": "integer",
+        "minimum": 0,
+        "description": "The first entry of the page, from the last answer's next; 0 when left out."
+    })
+}
+
+/// `editor_diagnostics`' schemas (#712).
+fn editor_diagnostics_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096,
+                    "description": "One file's absolute path; left out, a project's files with errors or warnings."
+                },
+                "project": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "description": "The project to list when no path is given: its name or a folder of it; the caller's project when left out."
+                },
+                "start": page_start()
+            },
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "diagnostics": { "type": "array", "items": { "type": "object" } },
+                "total": { "type": "integer" },
+                "start": { "type": "integer" },
+                "next": { "type": ["integer", "null"] },
+                "redacted": { "type": "integer" },
+                "hidden_secret_files": { "type": "integer" }
+            },
+            "required": ["diagnostics", "total", "start", "next"]
+        }),
+    )
+}
+
 fn editor_change_schemas(verb: &str) -> (Value, Value) {
     match verb {
         "edit" => (
@@ -2614,6 +2792,10 @@ mod tests {
                 "editor_open",
                 "editor_edit",
                 "editor_save",
+                "editor_diagnostics",
+                "editor_definition",
+                "editor_references",
+                "editor_hover",
                 "thread_list",
                 "thread_read",
                 "thread_post",
@@ -2632,7 +2814,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 54);
+        assert_eq!(registry().len(), 58);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

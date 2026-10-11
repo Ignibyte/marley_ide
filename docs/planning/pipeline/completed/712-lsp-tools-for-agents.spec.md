@@ -1,7 +1,7 @@
 ---
 pipeline_id: 79043f45-4b80-4517-856e-243849240ae9
 ticket: docs/planning/tickets/open/TICKET-712-lsp-tools-for-agents.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: LSP tools for agents
 type: feature
 slice: Marley's MCP server (docs/planning/intake/zed-control-over-mcp.md), after #704 and #705
@@ -107,8 +107,8 @@ through the plugin's bridge and prints each answer. `src/main.rs` sits on the le
 terminal on the right, so each shot shows the editor and the answer.
 
 Shots:
-- `712-01-diagnostics`: `editor_diagnostics` for main.rs and for the project: the stand-in's
-  error at its line and column, the editor's underline beside it.
+- `712-01-diagnostics` and `712-01b-project-diagnostics`: `editor_diagnostics` for main.rs and
+  for the project: the stand-in's error at its line and column, the editor's underline beside it.
 - `712-02-definition`: `editor_definition` of `answer` on line 3: the line it is defined on.
 - `712-03-references`: `editor_references`: both uses, `total` 2.
 - `712-04-hover`: `editor_hover`: the stand-in's hover text and its range.
@@ -166,7 +166,7 @@ Shots:
 - **P1 Plan** — this spec, and at promotion the design in the notes, every cited seam checked
   again.
 - **P2 Code** — `registry.rs` (four rows, four schema arms, the pinned list), `lsp_tools.rs`
-  (new, Marley crate), `editor_tools.rs` (routing), `claude_ide.rs` (`file_diagnostics` shared),
+  (new, Marley crate), `editor_tools.rs` (routing),
   the guide and the architecture notes; a review of the diff; `script/gates.sh --diff` green.
 - **P3 Test** — the visual check: write and run the scenario, read every shot.
 - **P4 Complete** — CHANGELOG and architecture docs (§21), ledger capture (§19), close the ticket,

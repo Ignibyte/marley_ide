@@ -1928,6 +1928,15 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   so Ctrl+Z takes it back. A secret file is refused here too.
 - `editor_save` saves an open editor. A save asks every time, even in a session you allowed,
   unless Editors is set to Allow.
+- `editor_diagnostics`, `editor_definition`, `editor_references` and `editor_hover` (#712) ask
+  Zed's language servers: a file's errors and warnings (or every file of the agent's project that
+  has some), where a symbol is defined, where it is used, and its hover text. The agent names a
+  file inside an open project, a line, and the symbol's name on that line. The file needn't be
+  open: Marley opens it without a tab for the call and waits a few seconds for its language server
+  to start. Answers carry 1-based lines and columns and each place's line, keys and tokens masked;
+  a secret file is refused, and a place inside one keeps its path but not its text. Lists come a
+  page at a time, and each call is listed in Agent Activity. They are reads, so Editors set to Off
+  refuses them and nothing else asks.
 - `thread_list` lists the threads in your Agent Panels (#706): each one's title, agent, project,
   whether it is running, and the permission it waits on. `thread_read` reads one, keys masked,
   and shows in Agent Activity.
