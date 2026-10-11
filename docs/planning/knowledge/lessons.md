@@ -5363,3 +5363,15 @@ that path's saved workspace with its items, so it is enough to check that a tab 
 #773). L-claude-601 and L-claude-670 still hold for the window's own state (the rail, its groups),
 which only a start with no path restores. Between two launches `profile_setting` changes the copy's
 settings, which is how #773 started once with a panel turned off and once in Zed's layout.
+
+## L-claude-774-a-status-item-borrows-a-panels-own-button-parts-001
+*category: gpui and workspace · topic: status-bar items over a dock panel · from: pipeline 774*
+
+A Marley status item that stands in for one dock panel's button needs no dependency on the
+panel's crate: `Dock::panel_for_persistent_name` (#773) gives its `PanelHandle`, whose
+`toggle_action`, `icon` (which answers `None` while Zed's own button is off) and
+`hide_button_setting` are the panel's own. Answering `hide_button_setting` from the item's
+`StatusItemView::hide_setting` makes the status bar draw Zed's Hide Button on a right-click with no
+menu code. `Workspace::new` adds the left dock's `PanelButtons` before every other status item, so
+`position_of_item::<PanelButtons>()` is the left dock's and `insert_item_after` it is the bar's left
+end in `observe_new`.

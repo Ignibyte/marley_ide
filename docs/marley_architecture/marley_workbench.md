@@ -2145,6 +2145,21 @@ alike.
   with Home, and `Rail::in_home` (the empty-space menu) makes Home through `with_group`, so every
   path shares the guard against two Home groups.
 
+## The Debug button at the left (`src/status_buttons.rs`, `src/marley_workbench.rs`, #774)
+
+- `apply_defaults` sets `debugger.button` with `terminal.button`: false in the Marley layout,
+  Zed's own default (kept in `LayoutState.zed_debug_button`) in Zed's, so the bottom dock's
+  `PanelButtons` drops Debug in the Marley layout only.
+- `status_buttons::init`'s `observe_new` inserts a `DebugButton` after the first
+  `PanelButtons` of the status bar, the left dock's, which `Workspace::new` adds before any other
+  item. The item keeps the workspace's three docks and observes them and the settings.
+- It finds the panel with `Dock::panel_for_persistent_name("DebugPanel")` and draws only in the
+  Marley layout, while the panel's own `icon` is `None` (Zed's button hidden) and the user's own
+  `debugger.button` is not false. Its look and click follow `PanelButtons`: toggled while the
+  dock is open on the panel; a click focuses the dock and dispatches the dock's `toggle_action`
+  then, else the panel's. `hide_setting` answers the panel's `hide_button_setting`, so the status
+  bar draws Zed's Hide Button.
+
 ## Panel tabs after a restart (`src/panel_tabs.rs`, Zed's `dock.rs` and `outline_panel.rs`, #773)
 
 - `PanelTab` is a `SerializableItem` of kind `MarleyPanelTab`, registered in `panel_tabs::init`.

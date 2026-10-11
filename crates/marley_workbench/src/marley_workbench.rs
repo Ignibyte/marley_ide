@@ -2,8 +2,9 @@
 //!
 //! In the Zed layout the fork behaves like upstream Zed. In the Marley layout the window's sidebar
 //! is the [`Rail`] (each project with its terminals under it), the Agent Panel docks on the right,
-//! and the bottom Terminal Panel's button is hidden. Everything the layout changes lives in this
-//! crate and is undone when the setting goes back to `zed` (`docs/marley/workbench-shell.md`).
+//! the bottom Terminal Panel's button is hidden, and the Debug panel's button sits at the status
+//! bar's left (#774). Everything the layout changes lives in this crate and is undone when the
+//! setting goes back to `zed` (`docs/marley/workbench-shell.md`).
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -790,12 +791,14 @@ fn fleet_settings(
     )
 }
 
-/// The layout the windows were last built for, and Zed's own values for the two defaults the
-/// Marley layout replaces, read before anything patched them. The store keeps no copy of the
-/// originals once they are patched.
+/// The layout the windows were last built for, and Zed's own values for the defaults the Marley
+/// layout replaces, read before anything patched them. The store keeps no copy of the originals
+/// once they are patched.
 struct LayoutState {
     applied: MarleyLayout,
     zed_terminal_button: Option<bool>,
+    /// The Debug panel's button, which the Marley layout draws at the status bar's left (#774).
+    zed_debug_button: Option<bool>,
     zed_agent_dock: Option<DockPosition>,
     /// Per workspace, the panel the Agent Panel took over in each dock, in `Workspace::all_docks`
     /// order, when a switch moved it there; the switch that moves it away gives the panel back.
@@ -852,6 +855,10 @@ pub fn init(cx: &mut App) {
             .terminal
             .as_ref()
             .and_then(|terminal| terminal.button),
+        zed_debug_button: defaults
+            .debugger
+            .as_ref()
+            .and_then(|debugger| debugger.button),
         zed_agent_dock: defaults.agent.as_ref().and_then(|agent| agent.dock),
         displaced: HashMap::default(),
     };
@@ -1220,14 +1227,19 @@ fn apply_defaults(layout: MarleyLayout, cx: &mut App) {
         layout == MarleyLayout::Marley,
     ));
     let state = cx.global::<LayoutState>();
-    // Never `None`: both settings' readers unwrap their default.
-    let (terminal_button, agent_dock) = match layout {
-        MarleyLayout::Marley => (Some(false), Some(DockPosition::Right)),
-        MarleyLayout::Zed => (state.zed_terminal_button, state.zed_agent_dock),
+    // Never `None`: the settings' readers unwrap their default.
+    let (terminal_button, debug_button, agent_dock) = match layout {
+        MarleyLayout::Marley => (Some(false), Some(false), Some(DockPosition::Right)),
+        MarleyLayout::Zed => (
+            state.zed_terminal_button,
+            state.zed_debug_button,
+            state.zed_agent_dock,
+        ),
     };
     SettingsStore::update_global(cx, |store, cx| {
         store.update_default_settings(cx, |defaults| {
             defaults.terminal.get_or_insert_default().button = terminal_button;
+            defaults.debugger.get_or_insert_default().button = debug_button;
             defaults.agent.get_or_insert_default().dock = agent_dock;
         });
     });

@@ -459,7 +459,12 @@ Panel, bring the panel's tab forward where it is, or open one. Each sits in the 
 - **Fleet and Knowledge** keep working while their own tab is in front: Fleet keeps reading its
   providers, Knowledge keeps the page it follows. A panel turned off (Knowledge while Rusty is off,
   Containers while hidden) closes its tab.
-- **Zed's layout** keeps its docks: switching to it closes the panel tabs.
+- **Debug** stays in the bottom dock (#774). Its button is the first one at the left end of the
+  status bar: a click opens the bottom dock on the Debug panel, and a second click closes it.
+  Right-click it for Hide Button, which sets `debugger.button` to false. Setting
+  `debugger.button` to true puts Zed's own button back among the dock buttons at the right.
+- **Zed's layout** keeps its docks: switching to it closes the panel tabs, and the Debug button
+  goes back among the bottom dock's buttons.
 
 - **After a restart** each panel tab is back in its pane (#773), unless its panel is turned off by
   then or the window starts in Zed's layout.

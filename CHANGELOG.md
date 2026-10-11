@@ -1002,6 +1002,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Debug button at the left of the status bar** (#774, 2026-10-11). In the Marley layout
+  the Debug panel stays in the bottom dock, and its button leaves the right-hand dock buttons for
+  the left end of the status bar. It opens and closes the panel as before and shows when the panel
+  is open; right-click it for Hide Button. Zed's layout keeps the button where Zed puts it.
+
 - **Collab, Fleet, Knowledge and Containers open as tabs** (#748, 2026-10-11). The rest of the right
   dock's panels follow #747: each opens as a tab in the pane you are in. Fleet keeps reading its
   providers while its tab is in front, Knowledge keeps showing the page it follows while its own

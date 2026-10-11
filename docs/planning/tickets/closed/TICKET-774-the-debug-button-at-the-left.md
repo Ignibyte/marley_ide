@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #774 (feature, the Marley layout: tabs everywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** not started; the design is #748's D6 and D7 ([748's spec](../../pipeline/completed/748-more-side-panels-as-tabs.spec.md))
+- **Pipeline doc:** [774's spec](../../pipeline/completed/774-the-debug-button-at-the-left.spec.md); the design is #748's D6 and D7
 - **Source ticket:** split from #748 at its promotion (2026-10-11). Chad, 2026-10-11: "yes debug
   moves to bottom left and stays the exception". Plan: [tabs-everywhere shelf](../../design-notes/tabs-everywhere-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The Debug panel stays in the bottom dock. In the Marley layout its button leaves the bottom dock's

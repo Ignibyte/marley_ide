@@ -4858,3 +4858,17 @@ takes one Zed accessor, `Dock::panel_for_persistent_name`.
 Rejected: typed lookups per panel, which would add `project_panel`, `outline_panel` and
 `collab_ui` to `marley_workbench` for one search; keeping the panel's state in the row, which would
 duplicate what each panel already saves.
+
+## AD-claude-774-debug-keeps-its-dock-and-its-button-moves-left-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-773-a-panel-tab-is-saved-as-its-panels-name-001*
+
+Chad, 2026-10-11: "yes debug moves to bottom left and stays the exception". Every other side panel
+opens as a tab (#747, #748); the Debug panel keeps the bottom dock, where its sessions, console and
+breakpoints have room. In the Marley layout `debugger.button` defaults to false, so the bottom dock's
+buttons drop it, and a Marley status item at the status bar's left draws it, behaving as Zed's
+dock button does. It stands down whenever Zed's own button shows (Zed's layout, or the user's
+`debugger.button: true`), so there is never a second one.
+
+Rejected: moving Zed's bottom `PanelButtons` to the left, which needs a Zed hunk since the three
+docks' buttons share one type; the Debug panel in the left dock, which Chad did not choose; the
+panel as a tab.
