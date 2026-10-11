@@ -400,6 +400,14 @@ project, only files in its worktrees. A view's watch follows its terminal (`watc
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having
 already exited. The pump logs a shell hook it drops for arriving before `InitShell`.
 
+## Kept output files (`src/history.rs`, #751)
+
+- A terminal's kept output is `<dir>/<terminal id>.log`; `file_in` refuses any name that is not a
+  terminal id. `append_in` makes the folder 0700 and the file 0600 and gives the length after the
+  write; `read_in` reads the last `MAX_BYTES` (8 MiB) and keeps the newest `MAX_LINES` (5,000)
+  lines, cut at a line's start; `compact_in` rewrites the file to that tail through a `.partial`
+  file and a rename; `remove_in` and `retain_in` delete. Every function takes the folder.
+
 ## Key decisions
 - **UI-agnostic** (no gpui) — the render is `app_shell`/a panel (M1.B/M2).
 - The DCS wire format is **clean-room INVENTED** (behavior-derived per the spec's `spec_source:

@@ -196,6 +196,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#block-buttons">A block&#x27;s buttons: copy, rerun and more</a></li>
 <li><a href="#block-menu">A block&#x27;s right-click menu</a></li>
 <li><a href="#sticky-header">The sticky command header</a></li>
+<li><a href="#restored-scrollback">Earlier output after a restart</a></li>
 <li><a href="#block-filter">Filter a block&#x27;s output</a></li>
 <li><a href="#bookmarks">Bookmarks and find within a block</a></li>
 <li><a href="#workflows">Save a command as a workflow</a></li>
@@ -1020,6 +1021,17 @@ th { background: var(--panel); font-weight: 650; }
 <li>The command shows over the terminal's top row; click it to jump to the block's start.</li>
 <li>It never covers the live screen. Turn it off with Sticky Command Header on the Marley page (Terminal).</li>
 </ol>
+</article>
+
+<article id="restored-scrollback">
+<h3>Earlier output after a restart <span class="ticket">#751</span></h3>
+<p class="what"><strong>What it is.</strong> A terminal that comes back after Marley restarts shows the output it held before, dimmed, above its new prompt.</p>
+<h4>How to use it</h4>
+<ul class="points">
+<li>Nothing to do: each local terminal keeps its newest 5,000 lines in a file only you can read, and the restored terminal draws them.</li>
+<li>The old lines are text and colour only. They have no blocks, and nothing in them answers into the new shell; a full-screen program open at the quit, such as <code>less</code>, leaves no screen behind.</li>
+<li>Closing a terminal deletes its file. Restore Scrollback on the Marley page (Terminal), <code>marley.restore_scrollback</code>, turns it off and deletes every file.</li>
+</ul>
 </article>
 
 <article id="block-filter">
@@ -2224,6 +2236,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>no_update_after_minutes</code></td><td><code>30</code></td><td>When a silent working agent reads <code>no update in N m</code></td></tr>
 <tr><td><code>terminal_links</code></td><td><code>"local_in_browser_tab"</code></td><td>Where clicked URLs open: also <code>"all_in_browser_tab"</code> or <code>"system_browser"</code></td></tr>
 <tr><td><code>sticky_command_header</code></td><td><code>true</code></td><td>Pin a long block's command while scrolled into it</td></tr>
+<tr><td><code>restore_scrollback</code></td><td><code>true</code></td><td>Keep each local terminal's newest 5,000 lines and show them, dimmed, after a restart</td></tr>
 <tr><td><code>long_command_seconds</code></td><td><code>30</code></td><td>When a finished command posts a notification (0 turns it off)</td></tr>
 <tr><td><code>browser_click_pause_agents</code></td><td><code>"agents_without_prompts"</code></td><td>Whose consequential clicks wait, or <code>"all_agents"</code></td></tr>
 <tr><td><code>stall_check_after_seconds</code></td><td><code>60</code></td><td>The first quiet check for a stuck agent</td></tr>

@@ -87,6 +87,7 @@ pub mod routing;
 pub mod running_errors;
 pub mod rustal_skill;
 pub mod rusty;
+pub mod scrollback;
 pub mod send_block;
 pub mod send_selection;
 pub mod settings_change;
@@ -397,6 +398,8 @@ pub struct MarleySettings {
     pub terminal_links: MarleyTerminalLinks,
     /// Whether a scrolled-back block's command is pinned over the terminal's top row (#529).
     pub sticky_command_header: bool,
+    /// Whether local terminals keep their output and draw it again after a restart (#751).
+    pub restore_scrollback: RestoreScrollback,
     /// How a block's prompt rows are drawn (#628).
     pub block_headers: BlockHeaders,
     /// How blocks are spaced in a terminal (#631).
@@ -485,6 +488,16 @@ pub enum EnglishHint {
     Shown,
     /// Neither shows; Ctrl+Shift+Enter still asks.
     Hidden,
+}
+
+impl EnglishHint {
+    /// The setting's value: shown unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.english_hint) {
+            Some(false) => Self::Hidden,
+            _ => Self::Shown,
+        }
+    }
 }
 
 /// Where the shell's prompt editor opens, from `marley.prompt_editor` (#627).
@@ -590,8 +603,8 @@ impl Dictation {
     }
 }
 
-/// Whether a terminal's Claude Code session comes back after a restart, from
-/// `marley.resume_agents` (#540).
+/// Whether a terminal's agent session comes back after a restart, from `marley.resume_agents`
+/// (#540, #750).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResumeAgents {
     /// Resumed at the next launch.
@@ -606,6 +619,26 @@ impl ResumeAgents {
         match marley.and_then(|marley| marley.resume_agents) {
             Some(false) => Self::Off,
             _ => Self::Resumed,
+        }
+    }
+}
+
+/// Whether local terminals keep their output and draw it again, dimmed, after a restart, from
+/// `marley.restore_scrollback` (#751).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RestoreScrollback {
+    /// Kept, and drawn again in a restored terminal.
+    Kept,
+    /// Not kept; turning it off deletes what was.
+    Off,
+}
+
+impl RestoreScrollback {
+    /// The setting's value: kept unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        match marley.and_then(|marley| marley.restore_scrollback) {
+            Some(false) => Self::Off,
+            _ => Self::Kept,
         }
     }
 }
@@ -671,6 +704,7 @@ impl Settings for MarleySettings {
             sticky_command_header: marley
                 .and_then(|marley| marley.sticky_command_header)
                 .unwrap_or(true),
+            restore_scrollback: RestoreScrollback::from_content(marley),
             harness: marley.and_then(|marley| marley.harness.clone()),
             embedded_harness: EmbeddedHarness::from_setting(
                 marley.and_then(|marley| marley.embedded_harness),
@@ -710,14 +744,7 @@ impl Settings for MarleySettings {
             prompt_editor: PromptEditor::from_setting(
                 marley.and_then(|marley| marley.prompt_editor),
             ),
-            english_hint: if marley
-                .and_then(|marley| marley.english_hint)
-                .unwrap_or(true)
-            {
-                EnglishHint::Shown
-            } else {
-                EnglishHint::Hidden
-            },
+            english_hint: EnglishHint::from_content(marley),
             agent_command_history: if marley
                 .and_then(|marley| marley.agent_commands_in_history)
                 .unwrap_or(true)
@@ -899,6 +926,7 @@ pub fn init(cx: &mut App) {
     close_guard::init(cx);
     terminal_ids::init(cx);
     resume::init(cx);
+    scrollback::init(cx);
     terminal_size::init(cx);
     groups::init(cx);
     voice::init(cx);

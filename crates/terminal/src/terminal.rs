@@ -1108,6 +1108,20 @@ impl gpui::Global for MarleyTaskSummaryHidden {}
 
 impl gpui::Global for MarleyAgentHistory {}
 
+// Marley: a local terminal's output kept across a restart and drawn again, dimmed, when Zed
+// restores the terminal (#751). The workbench sets it; the builder reads it before its future, and
+// both closures run off the main thread.
+/// Where a local interactive terminal's output is kept, and how it comes back.
+#[derive(Clone)]
+pub struct MarleyTerminalHistory {
+    /// The bytes that draw the terminal `id`'s kept output, ready for the parser, or `None`.
+    pub restored: Arc<dyn Fn(&str) -> Option<Vec<u8>> + Send + Sync>,
+    /// A sink fed every byte the terminal `id`'s parser sees, Marley's hook frames taken out.
+    pub recorder: Arc<dyn Fn(&str) -> Box<dyn FnMut(&[u8]) + Send> + Send + Sync>,
+}
+
+impl gpui::Global for MarleyTerminalHistory {}
+
 pub struct TerminalBuilder {
     terminal: Terminal,
     events_rx: UnboundedReceiver<PtyEvent>,
@@ -1268,6 +1282,8 @@ impl TerminalBuilder {
         // Marley: the program an agent in a local interactive terminal reports its state through
         // (#652).
         let marley_agent_program = marley_terminal::identity::agent_program();
+        // Marley: where a local interactive terminal's output is kept for its restore (#751).
+        let marley_history = cx.try_global::<MarleyTerminalHistory>().cloned();
         // Headless hosts (e.g. the eval CLI) have no controlling TTY, so PTY
         // allocation / acquiring a controlling terminal fails with `ENOTTY`.
         // When set, run the command as a plain subprocess instead.
@@ -1338,6 +1354,8 @@ impl TerminalBuilder {
                     String::new(),
                 )
                 .filter(|id| marley_terminal::identity::is_terminal_id(id));
+            // Marley: only a restored terminal draws its kept output again (#751).
+            let marley_restored = marley_restored_id.is_some();
             let marley_terminal_id = (task.is_none() && !is_remote_terminal).then(|| {
                 marley_restored_id.unwrap_or_else(marley_terminal::identity::new_terminal_id)
             });
@@ -1463,6 +1481,19 @@ impl TerminalBuilder {
                 alternate_scroll,
                 0,
             );
+            // Marley: a restored local terminal draws its kept output, dimmed, before its shell
+            // starts, so the shell's first prompt comes below it. The kept bytes hold only what
+            // draws, so nothing in them answers into the new shell. The recorder keeps what the
+            // terminal prints from here for its next restore (#751).
+            let marley_recorder = match (&marley_history, &marley_terminal_id) {
+                (Some(history), Some(id)) if !no_pty => {
+                    if marley_restored && let Some(replay) = (history.restored)(id) {
+                        Processor::<StdSyncHandler>::new().advance(&mut *term.lock(), &replay);
+                    }
+                    Some((history.recorder)(id))
+                }
+                _ => None,
+            };
 
             // When `no_pty` is set (headless hosts), run the task as a plain
             // subprocess and pump its piped output into the same emulator the
@@ -1535,8 +1566,13 @@ impl TerminalBuilder {
                 let pty_info = PtyProcessInfo::new(ProcessIdGetter::from(&pty));
 
                 //And connect them together
-                let pty_tx =
-                    spawn_event_loop(term.clone(), events_tx, pty, pty_options.drain_on_exit)?;
+                let pty_tx = spawn_event_loop(
+                    term.clone(),
+                    events_tx,
+                    pty,
+                    pty_options.drain_on_exit,
+                    marley_recorder,
+                )?;
 
                 (
                     TerminalType::Pty {

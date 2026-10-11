@@ -1,7 +1,7 @@
 ---
 pipeline_id: 07c3a6ff-8706-42ef-97e2-6e2ff2a16ff6
 ticket: docs/planning/tickets/open/TICKET-751-restored-scrollback.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Restored scrollback
 type: feature
 slice: the finish line (docs/planning/design-notes/finish-line-2026-10-11.md), item 1, restarts that lose nothing, second half (first slice)
@@ -119,10 +119,12 @@ prompt. Blocks from saved records are the second slice. The byte rules are T3 Co
 `script/e2e/751-restored-scrollback.sh`, `compositor sway`, a scratch repository, a HOME whose
 `.bashrc` sets a plain prompt and puts the scenario's `bin` first. The runner's `--user-data-dir`
 keeps the logs under the run's profile.
-- In the terminal: `printf` of red and green lines; `seq 1 20000`; `echo before`; then `bin/ask`, a
-  script that prints a cursor-position query (`ESC[6n`), a DA query (`ESC[c`) and a background
-  colour query (`ESC]11;?BEL`) and reads its own answers away, so the live shell stays clean.
-- A second terminal running `less README.md` at the quit.
+- In the terminal: `seq 1 20000`; `printf` of a red and a green line; `echo before`; then
+  `bin/ask`, a script that prints a cursor-position query (`ESC[6n`), a DA query (`ESC[c`) and a
+  background colour query (`ESC]11;?BEL`) and reads its own answers away, so the live shell stays
+  clean. The numbers come first so the lines after them are inside the 5,000-line cap.
+- A second terminal: `echo second`, its `MARLEY_TERMINAL_ID` written to a file, and `less
+  README.md` at the quit.
 
 Shots:
 - `751-01-before`: the first terminal before the quit.

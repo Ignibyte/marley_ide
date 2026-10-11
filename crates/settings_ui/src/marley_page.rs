@@ -587,7 +587,7 @@ fn agents_section() -> [SettingsPageItem; 19] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 6] {
+fn terminal_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -699,6 +699,29 @@ fn terminal_section() -> [SettingsPageItem; 6] {
                         .marley
                         .get_or_insert_default()
                         .long_command_seconds = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: a terminal's earlier output drawn again, dimmed, after a restart (#751).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Restore Scrollback",
+            description: "Whether each local terminal keeps its recent output, the newest 5,000 lines, in a file only you can read, and shows it dimmed above the new prompt when Marley starts again. Turning it off deletes every kept file.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.restore_scrollback"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.restore_scrollback.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .restore_scrollback = value;
                 },
             }),
             metadata: None,

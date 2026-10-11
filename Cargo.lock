@@ -10793,6 +10793,7 @@ dependencies = [
  "markdown_preview",
  "marley_agent",
  "marley_browser",
+ "marley_dcs",
  "marley_fleet",
  "marley_mcp",
  "marley_rail",

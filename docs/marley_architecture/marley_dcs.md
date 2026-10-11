@@ -34,6 +34,17 @@ stay there without a cycle. Pure, with no dependencies, MIT OR Apache-2.0.
   one longer than `MAX_NOTIFICATION` (4 KiB) is dropped. Control characters are stripped from
   the text.
 
+## Kept output (#751)
+
+- `history::Allowlist` (`src/history.rs`) reads a terminal's bytes read by read and keeps only what
+  draws: text, CR, LF, BS and HT; SGR; cursor motion; erase, insert and delete; scrolling, the
+  scroll region, and saving and restoring the cursor. Every other control is dropped: queries and
+  reports, mode changes, OSC, DCS, SOS, PM, APC, BEL, and a sequence whose parameters pass
+  `MAX_PARAMETERS`. While `?47`, `?1047` or `?1049` has the alternate screen on, nothing is kept.
+- `Allowlist::dimming` puts SGR 2 after each SGR it keeps; `history::replay` filters kept bytes
+  again with it, starts dim and ends with `SESSION_END` (the scroll region and the attributes
+  reset around a saved cursor, then CR LF).
+
 ## Consumers
 
 - The vendored `alacritty_terminal`'s event loop, through `marley_hooks::advance_with_hooks`:
@@ -41,6 +52,8 @@ stay there without a cycle. Pure, with no dependencies, MIT OR Apache-2.0.
   position where it fell (#462); the same runs go through a `NotificationScanner`, and each
   notification is reported as `Event::Notification` (#478).
 - `marley_terminal`'s `TerminalSession::ingest`, the gpui era's own PTY engine.
+- `marley_workbench::scrollback`: each terminal's recorder keeps its output through an
+  `Allowlist`, and a restored terminal's builder feeds `history::replay`'s bytes to its term (#751).
 
 ## Tests
 

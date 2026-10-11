@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Earlier output after a restart** (#751, 2026-10-11). A local terminal that Marley restores
+  after a restart shows the output it held before, dimmed, above its new prompt. Each local
+  terminal keeps its newest 5,000 lines (8 MiB at most) in a file only you can read. The file
+  keeps text and colour only, so no old terminal query answers into the new shell and the old
+  lines have no blocks; a full-screen program open at the quit, such as `less`, leaves no screen
+  behind. Closing a terminal deletes its file. Restore Scrollback on the Marley page
+  (`marley.restore_scrollback`, on by default) turns it off and deletes every file.
+
 - **Codex resumes after a restart, and a cut-off turn offers Continue** (#750, 2026-10-11). A
   Codex that ran on Marley's App Server comes back when Marley starts again, as Claude Code does:
   its terminal types `codex resume` with the same thread, in the folder it ran in, on a new App

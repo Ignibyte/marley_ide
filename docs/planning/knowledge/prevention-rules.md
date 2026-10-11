@@ -2970,3 +2970,12 @@ A green `just clippy` or gate does not prove the app builds: `--all-targets` uni
 dev-dependencies' features, `test-support` among them, so a gpui or workspace API gated on it
 compiles there and nowhere else. When code reaches for a gpui handle method or a test-looking
 helper it has not used before, check its `#[cfg]` or run `just build` before the gate.
+
+## PR-claude-a-release-is-a-close-only-while-its-window-is-open-001
+*severity: high · prevents: F-claude-751-a-windows-close-read-as-every-terminal-closed-001*
+
+An entity's release does not say the user closed it: a window's close, a quit and a project's close
+release the same views, and on Linux the last window's close quits only after its views are
+released. Code that deletes something kept for a restore, on a release, needs both Marley not
+quitting (`on_app_quit`) and the view's window still in `cx.windows()`; gpui takes a closing window
+out of that list before its views go.

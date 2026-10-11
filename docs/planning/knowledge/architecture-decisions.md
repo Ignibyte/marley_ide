@@ -4917,3 +4917,19 @@ click types "Continue where you left off.", and only while the agent is idle. Re
 files matched by folder and time (two Codex in one folder), Codex's hooks (its daemon's
 environment), a snapshot at `on_app_quit` (a crash skips it), continuing by itself (T3's open
 question 3, Chad's default), and the prompt on the resume line (it acts without a click).
+
+## AD-claude-751-a-terminals-output-is-kept-as-filtered-bytes-and-replayed-dim-before-its-shell-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-575-a-restored-terminal-keeps-its-id-through-marleys-table-001, AD-claude-474-a-blocks-command-is-trusted-only-with-the-terminals-nonce-001 · plan: docs/planning/design-notes/finish-line-2026-10-11.md item 1*
+
+Each local interactive terminal's output is kept as bytes, through an allowlist of what only draws
+(text, SGR, cursor motion, erase, insert, delete, scrolling), in `<data dir>/terminal_history/<id>.log`
+(0600 in a 0700 folder), capped at the newest 5,000 lines and 8 MiB, and keyed by
+`MARLEY_TERMINAL_ID`. A restored terminal's builder feeds it, filtered again and dimmed with SGR 2,
+to the term before the PTY opens, so the shell's first prompt comes below it and nothing in it
+answers into the new shell. The recorder is a sink the vendored event loop feeds, the allowlist and
+the writer are Marley's. A file goes when the user closes its terminal, when no saved terminal holds
+its id at the start, and every file when `marley.restore_scrollback` turns off. Rejected: a grid
+snapshot (alacritty has no serializer), T3's blocklist alone (it keeps titles, notifications and
+the clipboard), a replay from the view (the prompt can come first), a flag around the replay
+(answers reach the PTY later through a channel), an overlay over the old rows (it must follow
+rewraps and clears), and blocks from replayed bytes (#764 redraws them from records).

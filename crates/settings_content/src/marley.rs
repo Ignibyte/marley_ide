@@ -62,6 +62,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub sticky_command_header: Option<bool>,
+    /// Whether each local terminal keeps its recent output, the newest 5,000 lines and 8 MiB, in
+    /// a file only the user can read, and a terminal restored after a restart shows it dimmed
+    /// above its new prompt (#751). Turning it off deletes every kept file.
+    ///
+    /// Default: true
+    pub restore_scrollback: Option<bool>,
     /// Whether a block's prompt rows are drawn as Marley's header, the command and its pill in
     /// place of the shell's prompt; the prompt waiting for a command stays the shell's (#628). The
     /// header shows the folder the command ran in and its git branch (#630).

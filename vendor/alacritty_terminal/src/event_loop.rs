@@ -52,6 +52,8 @@ pub struct EventLoop<T: tty::EventedPty, U: EventListener> {
     event_proxy: U,
     drain_on_exit: bool,
     ref_test: bool,
+    /// Marley: fed every byte the parser sees, to keep a terminal's output for its restore (#751).
+    history: Option<Box<dyn FnMut(&[u8]) + Send>>,
 }
 
 impl<T, U> EventLoop<T, U>
@@ -78,7 +80,13 @@ where
             event_proxy,
             drain_on_exit,
             ref_test,
+            history: None,
         })
+    }
+
+    /// Marley: feeds `sink` every byte the parser sees, Marley's hook frames taken out (#751).
+    pub fn set_history(&mut self, sink: Box<dyn FnMut(&[u8]) + Send>) {
+        self.history = Some(sink);
     }
 
     pub fn channel(&self) -> EventLoopSender {
@@ -159,6 +167,7 @@ where
                 &mut **terminal,
                 &buf[..unprocessed],
                 &self.event_proxy,
+                self.history.as_deref_mut(),
             );
 
             processed += unprocessed;

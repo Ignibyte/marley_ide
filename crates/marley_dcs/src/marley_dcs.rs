@@ -12,7 +12,8 @@
 //! it. Decoding a frame's payload is `marley_terminal`'s.
 //!
 //! [`NotificationScanner`] finds the desktop-notification escapes, OSC 9 and OSC 777, in the same
-//! stream (#478).
+//! stream (#478). [`history`] keeps what of a terminal's output draws, to draw it again after a
+//! restart (#751).
 //!
 //! The crate has no dependencies, so the terminal emulator Marley carries,
 //! `vendor/alacritty_terminal`, can use it without a dependency cycle.
@@ -32,6 +33,7 @@
     )
 )]
 
+pub mod history;
 mod notification;
 
 pub use notification::{MAX_NOTIFICATION, Notification, NotificationScanner};

@@ -607,6 +607,26 @@ temporary folder the integration is written to is removed as soon as the shell h
   `RemoteCommand` or `Tag marley-plain`, and as `command ssh`. A host whose shell is neither bash nor
   zsh gets its login shell as usual.
 
+### Earlier output after a restart (#751)
+
+A local terminal that Marley restores after a restart shows the output it held before, dimmed,
+above the new shell's first prompt. Each local terminal keeps its newest 5,000 lines (at most
+8 MiB) in `<data dir>/terminal_history/<terminal id>.log`, a file only you can read (mode 0600, in
+a folder of mode 0700), written within a second of the output and at the quit.
+
+- **Text and colour only.** The file keeps what draws: text, colours and styles, cursor motion,
+  erasing and scrolling. Every terminal query, mode change, title, notification, clipboard
+  escape and Marley's own reports are left out, so nothing in the old output answers into the new
+  shell, and the old lines carry no blocks. The first command you run makes a block as usual.
+- **Full-screen programs.** What a program draws on the alternate screen (`less`, `vim`, `htop`)
+  is not kept, so a program open at the quit leaves the lines before it and none of its screen.
+- **Going away.** Closing a terminal deletes its file. Closing a window or quitting keeps the
+  files of the terminals Zed brings back. Restore Scrollback on the Marley page's Terminal
+  section (`marley.restore_scrollback`, on by default) turns it off and deletes every file.
+- **What it holds.** The file keeps what was printed, a token you echoed included, until it
+  scrolls past the 5,000 lines or the terminal closes. Tasks, remote terminals and the Agent
+  Panel's terminals keep nothing.
+
 ### Remote terminals (#543, #641)
 
 `marley: open remote terminal` lists the SSH hosts saved in your settings (`ssh_connections`) and

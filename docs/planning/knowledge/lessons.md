@@ -5467,3 +5467,11 @@ words land in the old terminal. After a `cd` into a subfolder, the scenario pres
 a file (`just e2e … > run.log 2>&1`), that open truncates it, and the log comes back as the last
 line and a run of zero bytes. A check prints what it compares with `echo` and matches a variable
 (`grep -q … <<<"$lines"`).
+
+## L-claude-751-a-cap-scenario-prints-its-markers-after-the-bulk-001
+*category: testing · topic: scenarios that check a cap · from: pipeline 751*
+
+A scenario that checks a line cap and also looks for marker lines prints the bulk (`seq 1 20000`)
+first and the markers after it. The spec's first order, the coloured lines before the numbers,
+would have put them past the newest 5,000 lines, and the restore would rightly have shown none of
+them.

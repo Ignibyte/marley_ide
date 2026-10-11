@@ -7,7 +7,8 @@
 //! are parsed before its position is taken, so a command's output and the hooks around it keep
 //! their order even when one read carries them all. The bytes the parser sees also go through a
 //! [`NotificationScanner`], which reports each desktop-notification escape as an
-//! [`Event::Notification`] (#478).
+//! [`Event::Notification`] (#478), and to the event loop's history sink, which keeps a terminal's
+//! output for its restore (#751).
 //!
 //! This file is Marley's (MIT OR Apache-2.0), carried in the vendored crate; `vendor/README.md`
 //! lists every Marley hunk.
@@ -70,7 +71,7 @@ impl HookPosition {
 
 /// Parses `bytes` into `term`, taking Marley's hook frames out and reporting each one to
 /// `listener` as an [`Event::ShellHook`] at the position where it fell, and each notification
-/// escape as an [`Event::Notification`].
+/// escape as an [`Event::Notification`]. `history` is fed what the parser sees (#751).
 pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
     parser: &mut ansi::Processor,
     scanner: &mut DcsScanner,
@@ -78,6 +79,7 @@ pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
     term: &mut Term<T>,
     bytes: &[u8],
     listener: &L,
+    mut history: Option<&mut (dyn FnMut(&[u8]) + Send + 'static)>,
 ) {
     for event in scanner.feed(bytes) {
         match event {
@@ -85,6 +87,9 @@ pub(crate) fn advance_with_hooks<T: EventListener, L: EventListener>(
                 parser.advance(term, &bytes);
                 for notification in notifications.feed(&bytes) {
                     listener.send_event(Event::Notification(notification));
+                }
+                if let Some(history) = history.as_mut() {
+                    history(&bytes);
                 }
             },
             DcsEvent::Hook(frame) => listener.send_event(Event::ShellHook(ShellHook {
@@ -160,6 +165,7 @@ mod tests {
                 &mut self.term,
                 bytes,
                 &self.hooks,
+                None,
             );
         }
 

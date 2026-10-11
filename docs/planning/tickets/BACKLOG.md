@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-751](open/TICKET-751-restored-scrollback.md) | feature | restored scrollback: a terminal's earlier output, dimmed, after a restart |
 | [TICKET-764](open/TICKET-764-restored-blocks.md) | feature | restored blocks over #751's scrollback |
 | [TICKET-752](open/TICKET-752-codex-push-and-answers.md) | feature | push for Codex and Zed's threads, and Codex's questions answered from Needs you |
 | [TICKET-753](open/TICKET-753-codex-turn-checkpoints.md) | feature | per-turn checkpoints for Codex |

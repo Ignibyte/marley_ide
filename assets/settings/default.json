@@ -1729,6 +1729,10 @@
     // Whether a block's command is pinned over the terminal's top row while you scroll back
     // through the block's output; a click on it scrolls to the block's start (#529).
     "sticky_command_header": true,
+    // Whether each local terminal keeps its recent output, the newest 5,000 lines, in a file only
+    // you can read, and shows it dimmed above the new prompt when Marley starts again. Turning it
+    // off deletes every kept file (#751).
+    "restore_scrollback": true,
     // Whether a block's prompt rows are drawn as Marley's header, the command and its pill in
     // place of the shell's prompt, with the folder it ran in and its git branch; the prompt
     // waiting for a command stays the shell's (#628, #630).

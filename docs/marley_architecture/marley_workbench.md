@@ -3680,6 +3680,26 @@ below describe what #743 retired.
   `Idle`, and otherwise returns the state for a toast; the offer goes after Continue, a turn the
   agent starts once idle, the session's end or the view's release.
 
+## Terminal output across a restart (`src/scrollback.rs`, #751)
+
+- `init`, after `terminal_ids::init` and `resume::init`, sets `terminal::MarleyTerminalHistory`
+  over `<data dir>/terminal_history` and an `Arc<AtomicBool>` read from
+  `MarleySettings::restore_scrollback`, starts the writer task, and sends it the start's `Retain`:
+  the files of `terminal_ids::known_ids`, or none with the setting off.
+- `recorder(id)`, called in each local interactive terminal's builder: a closure run on the
+  terminal's IO thread, fed by the event loop with what the parser sees, that keeps what draws
+  (`marley_dcs::history::Allowlist`) and sends it to the writer while the setting is on.
+  `restored(id)`, called in a restored terminal's builder before its recorder: the kept tail
+  (`marley_terminal::history::read_in`) as `marley_dcs::history::replay`, and `SESSION_END` sent to
+  the writer, so the file holds the break the replay draws.
+- The writer (`write`, `Pending`) appends a terminal's output at most `WRITE_AFTER` (a second)
+  after it came, or at once past `MAX_BYTES`; compacts a file past twice `MAX_BYTES` or past
+  `MAX_LINES` new lines; acts on `Retain`, `Remove` and `Flush` in order; and drops the output of
+  a removed terminal.
+- `on_app_quit` sets `quitting` and awaits a `Flush`. A `TerminalView` released while Marley is
+  not quitting and its window is still open (`cx.windows()`, which gpui leaves a closing window out
+  of) sends `Remove`: a terminal the user closed. The setting turning off sends `Retain(None)`.
+
 ## The browser's agent tools (`src/browser_tools.rs`, #492, #493, #574)
 
 - `mcp.rs` hands each `browser_*` call to `browser_tools::answer`, which starts the caller's

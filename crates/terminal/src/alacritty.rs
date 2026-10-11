@@ -216,8 +216,9 @@ pub(super) fn spawn_event_loop(
     events_tx: UnboundedSender<PtyEvent>,
     pty: AlacrittyPty,
     drain_on_exit: bool,
+    marley_history: Option<Box<dyn FnMut(&[u8]) + Send>>,
 ) -> Result<PtySender> {
-    let event_loop = EventLoop::new(
+    let mut event_loop = EventLoop::new(
         term,
         ZedListener {
             sender: events_tx,
@@ -228,6 +229,10 @@ pub(super) fn spawn_event_loop(
         false,
     )
     .context("failed to create event loop")?;
+    // Marley: the terminal's output, kept for its restore after a restart (#751).
+    if let Some(history) = marley_history {
+        event_loop.set_history(history);
+    }
     let pty_tx = event_loop.channel();
     let _io_thread = event_loop.spawn();
 

@@ -3784,3 +3784,30 @@ Interrupted · Continue went in at the row's end, beside the marks, as `permissi
 `flex_none` label that long left the title column about 70 pixels on a 260-pixel rail, so the title
 read "cp…" (shot 750-06 of the first full run). Fixed in #750: `row_card` takes a `CardLine`, text
 or an element, and the chip is a line of its own under the row's state.
+
+## F-claude-751-a-restored-files-two-sessions-ran-together-001
+*severity: medium · found in: pipeline 751's Code phase (review) · class: a log appended across a restore*
+
+A restored terminal's recorder appended the new session's output right after the old session's
+last bytes, an unfinished prompt with its attributes still set. The replay ends the old output with
+a reset and a new line, but the file did not, so the next restore would have drawn the old prompt
+and the new one on one line in the old colours. Fixed in #751: `restored` sends the same
+`SESSION_END` to the writer before the terminal's recorder exists.
+
+## F-claude-751-a-windows-close-read-as-every-terminal-closed-001
+*severity: high · found in: pipeline 751's Code phase (review) · class: telling a user's close from a release*
+
+The first design deleted a terminal's file when its `Terminal` was released while Marley was not
+quitting. On Linux the last window's close quits only after the window is gone: gpui removes the
+window, runs the window-closed observers (which call `cx.quit()`), then drops the window's views, so
+every terminal is released with `quitting` false or set too late to tell. Every file would have gone
+at each window close. Fixed in #751: a `TerminalView` released while its window is still in
+`cx.windows()` is a terminal the user closed; a closing window's views go after it leaves the list.
+
+## F-claude-751-marley-terminal-built-only-beside-crates-that-turned-on-rand-and-uuid-features-001
+*severity: low · found in: pipeline 751's Code phase · class: a manifest that leans on feature unification*
+
+`marley_terminal` calls `rand::random` and `Uuid::new_v4` but asked for neither `rand`'s
+`thread_rng` nor `uuid`'s `v4`; `just clippy marley_terminal` alone failed in untouched code, while
+every build with another crate that turned them on passed. Fixed in #751: the manifest asks for both.
+The same class as F-claude-771-marley-fleet-built-only-beside-a-crate-that-turned-on-serde-derive-001.
