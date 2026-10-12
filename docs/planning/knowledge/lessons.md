@@ -5670,3 +5670,17 @@ Chromium with the link. A scenario that runs the real `xdg-open` sets `BROWSER` 
 and a `timeout`, and checks the fake's log stayed empty. Its desktop is its own:
 `XDG_DATA_HOME` and `XDG_CONFIG_HOME` in the run's folder with an `update-desktop-database`'d
 entry, `XDG_DATA_DIRS=/usr/share`, and `XDG_CURRENT_DESKTOP` unset for the generic mode.
+
+## L-claude-717-an-acp-threads-title-is-its-first-messages-first-line-001
+*category: agents · topic: titling a thread Marley starts · from: pipeline 717*
+
+Zed titles an external agent's thread from the first line of its first message; a `title` passed
+to `ConversationView::new` for a new thread does not show. A thread Marley starts with prefilled
+text gets its title from that text, so its first line is written to be a title.
+
+## L-claude-717-zeds-tab-menu-puts-marleys-items-last-001
+*category: e2e · topic: a thread tab's right-click menu · from: pipeline 717*
+
+A tab's right-click menu holds Zed's Close, Close Others, Close Left and Right, Close Clean, Close
+All, Make Tab Read-Only and Pin Tab before an item's extra actions, so Marley's items come last and
+Home picks Close. A scenario clicks the item at its point.

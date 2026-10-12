@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **New Thread with Context** (#717, 2026-10-11). From an open thread's tab menu or the palette,
+  start a thread on another agent (or the same) in a split beside it, with the old thread's history
+  in its message box, unsent: your requests, the answers and the tool calls, the newest first
+  within 16,000 bytes, labelled as history, secrets redacted. The whole conversation goes to a file
+  the history names.
+
 - **Check for Updates explains itself** (#763, the last slice of Marley's release identity,
   2026-10-11). It used to do nothing at all; now it says Marley updates through its install script
   and what to run. Marley never asks zed.dev for an update.

@@ -1968,6 +1968,28 @@ store in a tab.
   turns, as the panel loads a thread from its history (#736). A thread you deleted in the meantime
   leaves no tab, and a tab on a folder its project did not hold reaches that folder again.
 
+### New Thread with Context (#717)
+
+From an open thread, **New Thread with Context…** (the thread tab's right-click menu, or
+`marley: new thread with context`) starts a new thread on an agent you pick, the old thread's own
+agent first, in a split to the right of it. Its message box holds the old thread's history,
+unsent: add your ask and send.
+
+- **What it carries.** Your requests, the agent's answers without its thinking, and each tool call
+  as its title, status and the paths it changed; tool output stays out. Within 16,000 bytes it
+  keeps the latest request, the latest answer and the first request, then earlier items from the
+  newest back, each whole.
+- **How it reads.** It opens with `Continuing "<title>" from <agent>.` and says the rest is
+  history, not a new request; each item has a label such as `[Earlier answer from Claude Agent]`.
+  The new thread takes its title from that first line.
+- **The whole conversation** goes to `~/.local/share/marley/handoffs/` (mode 0600), and the last
+  line names the file and says how many items were left out. An agent that can read files outside
+  its project can read it; Zed's own agent may not.
+- **Secrets.** With Redact Secrets for Agents on, the history and the file are redacted, as
+  everything Marley's tools hand agents is (#516).
+- The old thread stays as it was. Harness seats and managers are not offered: each is a window onto
+  an agent that already runs.
+
 ### The Threads page
 
 `marley: open threads` opens a page of every agent conversation Zed keeps, from every project,

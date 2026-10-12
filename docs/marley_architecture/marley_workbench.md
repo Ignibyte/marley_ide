@@ -2143,6 +2143,22 @@ alike.
   acts only for the shown one. Groups made at start (#700) and reopened after a relaunch (#601)
   leave the window's focus alone.
 
+## New Thread with Context (`src/handoff.rs`, `src/thread_tab.rs`, #717)
+
+- `NewThreadWithContext` (registered by `handoff::init`, which `thread_tab::init` calls) acts on
+  the active thread tab, else the Agent Panel's thread, and needs one of the person's messages. The
+  thread tab's menu offers it in both layouts.
+- `AgentPickerDelegate` lists `agents::thread_agents` without Manager entries (seat entries are
+  already out), the old thread's agent first.
+- `items_of` turns the live `AcpThread`'s entries into `marley_agent::handoff::Item`s: user
+  messages' markdown, assistant `Message` chunks (not `Thought`), tool calls as
+  `label.read(cx).source()` and `status()` with paths from `diffs()` and `locations`. Each item and
+  `to_markdown` pass through `mcp::agent_redactor`.
+- `start` writes the whole conversation with `write_handoff_in(<data dir>/handoffs, …)`, mode 0600,
+  on the background executor, then builds the block (`handoff::block`, `BUDGET`) and calls
+  `thread_tab::open_beside`: a `ThreadSpec` with `initial: Some(ContentBlock { auto_submit: false })`,
+  added to the pane right of the active one, split off it when there is none.
+
 ## A thread that starts in a tab (`src/thread_tab.rs`, `src/rail.rs`, Zed's `agent_ui`, #734)
 
 - `NewAgentThread { agent, folder }` (a data action read through `NewAgentThreadFields`, as

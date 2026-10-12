@@ -62,6 +62,7 @@ pub mod fleet_providers;
 pub mod github;
 pub mod groups;
 pub mod guide;
+pub mod handoff;
 pub mod harness;
 pub mod harness_hosts;
 pub mod harness_seat;

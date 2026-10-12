@@ -5228,3 +5228,13 @@ Marley updates from its checkout through `script/install-marley`; it has no upda
 `dev` channel never polls. Check for Updates on `dev` says so in an Info prompt of Marley's own,
 ahead of Zed's packager explanation. Rejected: setting `ZED_UPDATE_EXPLANATION` at build time
 (Zed's prompt title names Zed and a package manager).
+
+## AD-claude-717-a-new-thread-carries-a-selection-of-the-old-ones-history-001
+*decided at: 2026-10-11 · status: shipped*
+
+New Thread with Context carries a selection of the old thread's items, not a summary: requests,
+answers without thinking, and tool calls as title, status and paths, picked in T3 Code's order
+within 16,000 bytes, each whole, under a preamble that calls them history, prefilled unsent in a
+new thread tab in a split beside the old one. The whole conversation goes to a 0600 file the block
+names; both pass the agents' redaction. Rejected: Zed's from-summary (its own agent only, a model
+call), asking the new agent to summarise, auto-submit, and a pointer to `thread_read`.

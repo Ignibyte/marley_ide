@@ -12,8 +12,8 @@
 //! the rail's inbox would do (#568), and [`route`] who should answer it (#570). [`versions`] holds
 //! the agent versions Marley's integrations were tested on (#648). [`codex_events`] reads Codex's
 //! own App Server and folds its thread into a fleet seat (#650). [`report`] is the agent report
-//! contract Marley shares with rustal-harness (#652). The launching and the watching live in
-//! `marley_workbench`.
+//! contract Marley shares with rustal-harness (#652). [`handoff`] picks and renders the history a
+//! new thread starts from (#717). The launching and the watching live in `marley_workbench`.
 
 // gate:21 runs Zed's dylint lints (`tooling/lints`) with these as errors in the Marley crates;
 // Zed's crates keep them at warn (CONSTITUTION §0).
@@ -37,6 +37,7 @@ use marley_fleet::State;
 pub mod claude_events;
 pub mod cli_sessions;
 pub mod codex_events;
+pub mod handoff;
 pub mod report;
 pub mod risk;
 pub mod route;

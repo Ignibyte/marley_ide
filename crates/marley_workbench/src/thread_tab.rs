@@ -41,8 +41,8 @@ use agent_client_protocol::schema::v1 as acp;
 use agent_settings::AgentProfileId;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::{
-    Agent, AgentConnectionStore, AgentPanel, AgentPanelEvent, AgentThreadSource, ConversationView,
-    MarleyThreadHost,
+    Agent, AgentConnectionStore, AgentInitialContent, AgentPanel, AgentPanelEvent,
+    AgentThreadSource, ConversationView, MarleyThreadHost,
 };
 use anyhow::Context as _;
 use collections::HashMap;
@@ -139,6 +139,8 @@ pub(crate) fn init(cx: &mut App) {
         attention: crate::push::on_thread,
     });
     cx.observe_global::<SettingsStore>(filter_palette).detach();
+    // New Thread with Context, the tab menu's other item (#717).
+    crate::handoff::init(cx);
     load_saved_tabs(cx);
     workspace::register_serializable_item::<ThreadTab>(cx);
     cx.observe_new(|workspace: &mut Workspace, _, cx| {
@@ -245,19 +247,27 @@ impl Item for ThreadTab {
         )
     }
 
-    // In the Marley layout a thread never shows in the Agent Panel (#772).
+    // In the Marley layout a thread never shows in the Agent Panel (#772); New Thread with
+    // Context shows in either (#717).
     fn tab_extra_context_menu_actions(
         &self,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<(SharedString, Box<dyn Action>)> {
+        let with_context: (SharedString, Box<dyn Action>) = (
+            SharedString::new_static("New Thread with Context…"),
+            Box::new(crate::handoff::NewThreadWithContext),
+        );
         if crate::marley_layout(cx) {
-            return Vec::new();
+            return vec![with_context];
         }
-        vec![(
-            SharedString::new_static("Move Thread to Panel"),
-            Box::new(MoveThreadToPanel),
-        )]
+        vec![
+            (
+                SharedString::new_static("Move Thread to Panel"),
+                Box::new(MoveThreadToPanel),
+            ),
+            with_context,
+        ]
     }
 }
 
@@ -347,6 +357,7 @@ impl SerializableItem for ThreadTab {
                     own_folders: saved.own_folders,
                     profile: None,
                     session: None,
+                    initial: None,
                 };
                 let view = build_view(project, workspace, &panel, thread, fs, window, cx);
                 Ok(cx.new(|cx| Self::new(view, &panel, hidden, cx)))
@@ -652,6 +663,61 @@ pub(crate) fn show_here(
     true
 }
 
+/// The thread the active center tab shows, when it is a thread tab (#717).
+pub(crate) fn active_conversation(
+    workspace: &Workspace,
+    cx: &App,
+) -> Option<Entity<ConversationView>> {
+    workspace
+        .active_item_as::<ThreadTab>(cx)
+        .map(|tab| tab.read(cx).conversation_view.clone())
+}
+
+/// Opens a new thread of `agent`, working in `folders`, with `content` in its message box, in the
+/// pane right of the active one, split off it when there is none (#717).
+pub(crate) fn open_beside(
+    workspace: &mut Workspace,
+    agent: Agent,
+    folders: PathList,
+    content: AgentInitialContent,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let Some(panel) = workspace.panel::<AgentPanel>(cx) else {
+        refuse(workspace, "This window has no Agent Panel.", cx);
+        return;
+    };
+    let fs = Arc::clone(&workspace.app_state().fs);
+    let thread = ThreadSpec {
+        agent,
+        thread_id: ThreadId::new(),
+        folders,
+        title: None,
+        own_folders: true,
+        profile: None,
+        session: None,
+        initial: Some(content),
+    };
+    let view = build_view(
+        workspace.project().clone(),
+        workspace.weak_handle(),
+        &panel,
+        thread,
+        fs,
+        window,
+        cx,
+    );
+    let tab = cx.new(|cx| ThreadTab::new(view, &panel, None, cx));
+    let pane = workspace
+        .find_pane_in_direction(workspace::SplitDirection::Right, cx)
+        .unwrap_or_else(|| {
+            let active = workspace.active_pane().clone();
+            workspace.split_pane(active, workspace::SplitDirection::Right, window, cx)
+        });
+    workspace.add_item(pane, Box::new(tab.clone()), None, true, true, window, cx);
+    window.focus(&tab.read(cx).focus_handle(cx), cx);
+}
+
 /// Whether `workspace`'s active item is a thread tab on `agent` (#772: the Manager read in a tab).
 pub(crate) fn shows_agent(workspace: &Workspace, agent: &AgentId, cx: &App) -> bool {
     workspace
@@ -716,6 +782,7 @@ pub(crate) fn start_on_seat(
                     own_folders: true,
                     profile: None,
                     session: None,
+                    initial: None,
                 };
                 open_thread(workspace, thread, None, fs, window, cx);
             })
@@ -820,6 +887,7 @@ pub(crate) fn start_thread(
                     own_folders: true,
                     profile,
                     session: None,
+                    initial: None,
                 };
                 open_thread(workspace, thread, hidden, fs, window, cx);
             })
@@ -900,6 +968,7 @@ pub(crate) fn open_saved(
         own_folders: true,
         profile: None,
         session: None,
+        initial: None,
     };
     cx.spawn_in(window, async move |workspace, cx| {
         let hidden = match joining {
@@ -964,6 +1033,8 @@ struct ThreadSpec {
     /// The agent's session to load when the thread has no record yet (#758: a manager's retained
     /// thread).
     session: Option<acp::SessionId>,
+    /// What the new thread's message box starts with (#717: an earlier thread's history).
+    initial: Option<AgentInitialContent>,
 }
 
 /// Makes `agent`'s entry again when it is a harness seat's (#742) or a harness's Manager (#758),
@@ -1073,6 +1144,7 @@ pub(crate) fn open_manager_thread(
                     own_folders: true,
                     profile: None,
                     session,
+                    initial: None,
                 };
                 open_thread(workspace, thread, None, fs, window, cx);
             })
@@ -1163,7 +1235,7 @@ fn build_view(
             Some(thread.thread_id),
             Some(thread.folders),
             thread.title,
-            None,
+            thread.initial,
             workspace,
             project,
             thread_store,
@@ -1249,7 +1321,7 @@ fn shows_view(workspace: &Workspace, view_id: EntityId, cx: &App) -> bool {
         .is_some_and(|tab| tab.read(cx).conversation_view.entity_id() == view_id)
 }
 
-fn refuse(
+pub(crate) fn refuse(
     workspace: &mut Workspace,
     message: impl Into<Cow<'static, str>>,
     cx: &mut Context<Workspace>,

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #717 (feature; size medium; agents together, after the finish)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [717-second-opinion-and-handoff.spec.md](../../pipeline/queued/717-second-opinion-and-handoff.spec.md)
+- **Pipeline doc:** [717-second-opinion-and-handoff.spec.md](../../pipeline/completed/717-second-opinion-and-handoff.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 4; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; Chad, 2026-10-11: "12.) yes, with a star new thread with context would be cool"
-- **Status:** open (deliberate: the agents-together batch, after the finish)
+- **Status:** closed
 
 ## Summary
 "Ask another agent" on a finished turn, a turn's diff or a worktree branch: a second agent opens in

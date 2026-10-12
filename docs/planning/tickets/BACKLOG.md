@@ -15,7 +15,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-717](open/TICKET-717-second-opinion-and-handoff.md) | feature | after the finish (Chad, 2026-10-11): New Thread with Context, then a second opinion and hand-off between agents |
 | [TICKET-716](open/TICKET-716-delegation-tools.md) | feature | after the finish: agents that start agents, tracked and never lost; waits on a harness request (seat labels, an ended state) |
 | [TICKET-769](open/TICKET-769-a-drafted-message-for-review.md) | feature | after the finish: a drafted message for the user to review (from #716) |
 | [TICKET-770](open/TICKET-770-one-prompt-to-several-agents.md) | feature | after the finish: one prompt to several agents (from #716) |

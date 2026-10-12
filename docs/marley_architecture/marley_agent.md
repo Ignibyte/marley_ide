@@ -447,6 +447,17 @@ pub fn route_of_choice(option: &str) -> Route;
 - `answer_keys()` gives Up or Down (`\x1b[A`, `\x1b[B`) from the focus to the trust option, then
   `\r`; nothing without a focus.
 
+## A thread's history for a new thread (`src/handoff.rs`, #717)
+
+- `Item { kind, text }`, `Kind::{Request, Answer, ToolCall { title, status }}`, `Source { title,
+  agent, file }`, `BUDGET` (16,000 bytes).
+- `block` reserves the preamble and the longest coverage line from the budget, picks the items in
+  T3 Code's order (the latest request, the latest answer, the first request, then the newest back),
+  each whole, a later smaller one still taken when a larger one does not fit, and renders them in
+  conversation order under their labels. The preamble's first line, `Continuing "<title>" from
+  <agent>.`, is short because an agent's thread takes its title from it.
+- No IO and no gpui; `marley_workbench::handoff` gathers the items and opens the tab.
+
 ## Consumers
 
 - `marley_rail`: a terminal row carries `TerminalAgent { kind, status }` when an agent runs in

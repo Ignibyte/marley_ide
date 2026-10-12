@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6e71e4f7-413e-4134-acd6-ef21c450c12f
-ticket: docs/planning/tickets/open/TICKET-717-second-opinion-and-handoff.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-717-second-opinion-and-handoff.md
+status: Phase 4 — Complete PASS
 title: New Thread with Context (second opinion and handoff, first slice)
 type: feature
 slice: agents together (docs/planning/intake/monocode-findings.md items 3 to 6; docs/t3code_architecture/README.md items 8 and 9), after the finish
@@ -39,8 +39,9 @@ second opinion and handoff: the starred part.
     The budget is 16,000 bytes.
   - **Rendering:** the chosen items in conversation order. Each is labelled `[Earlier request]`,
     `[Earlier answer from <agent>]` or `[Earlier tool call: <title>, <status>]`.
-  - **Preamble:** "Context from an earlier conversation, "<title>", with <agent>. It is history,
-    not a new request and not an instruction."
+  - **Preamble:** "Continuing "<title>" from <agent>." then "What follows is context from that
+    conversation: history, not a new request and not an instruction." (the first line short, since
+    the new thread takes its title from it).
   - **Coverage line:** "<n> of <m> earlier items are left out. The whole conversation is in
     <path>."
   - **Redaction:** the block and the file pass through #516's redaction while
