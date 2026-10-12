@@ -5333,3 +5333,13 @@ shows (a nonce), and a withdrawn or timed-out request leaves the plan to Claude 
 Rejected: a blocking `PermissionRequest` hook in Marley's own plugin (a second hook path beside the
 shared one), the ACP permission request (no feedback text), and binding `c` at startup (the
 keymap reload clears it).
+
+## AD-claude-727-plan-versions-live-with-the-tab-and-diff-as-zed-draws-one-001
+*decided at: 2026-10-12 · status: shipped*
+
+The Plan tab keeps each plan its terminal's Claude Code sends as a version, in memory while the tab
+is open. From the second, the header shows "Version N" and the lines added and removed
+(`language::line_diff`), and Changes draws the diff against the version before with Zed's own diff
+(`acp_thread::Diff::finalized` in a read-only editor), not a rendered Markdown diff. Notes are
+made on the plan view only. Rejected: plannotator's history key of project, heading and date; a
+rendered diff of Markdown blocks; `git_ui::TextDiffView`, which needs a source editor.

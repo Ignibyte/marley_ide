@@ -2851,6 +2851,13 @@ below describe what #743 retired.
   call `answer`, which sends once to the request with the tab's nonce, unless it was withdrawn.
 - The rail: `InboxKind::Plan` entries from `plan_review::entry_of`, ahead of the seat's own wait;
   `InboxTarget::Plan` opens the tab through `show_tab`, deferred out of the rail's update.
+- Versions (#727): `PlanReview.versions` keeps each plan's text. From the second, `show` runs
+  `changes_from`: `language::line_diff` counts the lines, and `acp_thread::Diff::finalized`
+  ("plan.md", the version before as its base) feeds a read-only full-mode `Editor` (no gutter, all
+  hunks expanded, soft wrap). The language registry comes from `open_tab`, which holds the
+  workspace: `show` runs inside the workspace's update and cannot read it. The column's header
+  draws "Version N", a `DiffStat` and the Changes / Plan toggle; while Changes is on, the left area
+  is the diff editor in a container of its own, outside the plan's key context.
 
 ## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
 

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0c6a656b-861b-465f-b852-d1cab92210e3
 ticket: docs/planning/tickets/open/TICKET-727-plan-versions-and-diff.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Plan versions and a diff between them
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 2; docs/planning/design-notes/finish-line-2026-10-11.md row 10); after #726 slice 1

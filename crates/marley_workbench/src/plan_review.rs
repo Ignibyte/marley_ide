@@ -8,19 +8,22 @@
 //! Approve or Send Feedback, which goes back to the waiting call once. The plan waits in Needs you
 //! meanwhile. A request whose caller stops waiting, or whose wait runs out, leaves the tab saying the
 //! plan went back to the terminal's own dialog. A later plan from the same terminal replaces the
-//! tab's plan and notes.
+//! tab's plan and notes. Since #727 the tab keeps each plan as a version: from the second, its
+//! header says which, with the lines added and removed since the one before, and Changes shows that
+//! diff, drawn by Zed's own diff editor.
 
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use editor::Editor;
+use editor::{Editor, EditorMode};
 use gpui::{
     Anchor, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, Global, MouseButton, MouseDownEvent, Pixels, Point, SharedString,
     Subscription, WeakEntity, Window, actions, anchored, deferred,
 };
+use language::LanguageRegistry;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
 use marley_agent::PlanNote;
 use marley_agent::report::{self, Refusal};
@@ -29,7 +32,7 @@ use marley_rail::{InboxEntry, InboxKind};
 use serde_json::Value;
 use settings::SettingsStore;
 use terminal_view::TerminalView;
-use ui::{ContextMenu, prelude::*};
+use ui::{ContextMenu, DiffStat, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
@@ -208,8 +211,7 @@ fn open_tab(
             workspace.activate_item(&tab, false, terminal_focused, window, cx);
             tab
         } else {
-            let handle = workspace.weak_handle();
-            let tab = cx.new(|cx| PlanReview::new(view_id, project, handle, window, cx));
+            let tab = cx.new(|cx| PlanReview::new(view_id, project, window, cx));
             // Beside the terminal when it sits in a center pane, else in the active one.
             let pane = workspace
                 .panes()
@@ -228,7 +230,9 @@ fn open_tab(
             );
             tab
         };
-        tab.update(cx, |tab, cx| tab.show(plan, nonce, window, cx));
+        // The registry from the workspace in hand: `show` runs inside its update.
+        let languages = Arc::clone(workspace.project().read(cx).languages());
+        tab.update(cx, |tab, cx| tab.show(plan, nonce, languages, window, cx));
         tab.downgrade()
     })
 }
@@ -400,14 +404,27 @@ pub(crate) struct PlanReview {
     menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The plan's area, which the tab's focus is: `c` works there and not in the note editors.
     plan_focus: FocusHandle,
-    _workspace: WeakEntity<Workspace>,
+    /// Each plan the tab showed, version 1 first (#727).
+    versions: Vec<String>,
+    /// The diff of the shown version against the one before, and its counts (#727).
+    changes: Option<Changes>,
+    /// Whether the left area shows the changes rather than the plan.
+    showing_changes: bool,
+}
+
+/// A version's changes from the one before (#727).
+struct Changes {
+    added: usize,
+    removed: usize,
+    /// Keeps the diff's buffers alive for the editor.
+    _diff: Entity<acp_thread::Diff>,
+    editor: Entity<Editor>,
 }
 
 impl PlanReview {
     fn new(
         view: EntityId,
         project: SharedString,
-        workspace: WeakEntity<Workspace>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -428,14 +445,29 @@ impl PlanReview {
             state: State::Withdrawn,
             menu: None,
             plan_focus: cx.focus_handle(),
-            _workspace: workspace,
+            versions: Vec::new(),
+            changes: None,
+            showing_changes: false,
         }
     }
 
     /// Shows a new plan waiting under `nonce`, its notes cleared.
-    fn show(&mut self, plan: String, nonce: u64, window: &mut Window, cx: &mut Context<Self>) {
+    fn show(
+        &mut self,
+        plan: String,
+        nonce: u64,
+        languages: Arc<LanguageRegistry>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.markdown
             .update(cx, |markdown, cx| markdown.reset(plan.clone().into(), cx));
+        self.changes = self
+            .versions
+            .last()
+            .map(|before| changes_from(before.clone(), plan.clone(), languages, window, cx));
+        self.showing_changes = false;
+        self.versions.push(plan.clone());
         self.plan = plan;
         self.notes.clear();
         self.composing = None;
@@ -695,6 +727,33 @@ impl PlanReview {
             .p_3()
             .gap_3()
             .child(Label::new(format!("Plan · {}", self.project)).size(LabelSize::Large))
+            .when_some(self.changes.as_ref(), |column, changes| {
+                let showing_changes = self.showing_changes;
+                column.child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Label::new(format!("Version {}", self.versions.len()))
+                                .size(LabelSize::Small),
+                        )
+                        .child(DiffStat::new(
+                            "plan-review-version-stat",
+                            changes.added,
+                            changes.removed,
+                        ))
+                        .child(
+                            Button::new(
+                                "plan-review-changes",
+                                if showing_changes { "Plan" } else { "Changes" },
+                            )
+                            .label_size(LabelSize::Small)
+                            .on_click(cx.listener(|tab, _, _, cx| {
+                                tab.showing_changes = !tab.showing_changes;
+                                cx.notify();
+                            })),
+                        ),
+                )
+            })
             .child(Label::new(status).size(LabelSize::Small).color(if waiting {
                 Color::Accent
             } else {
@@ -744,6 +803,41 @@ impl PlanReview {
     }
 }
 
+/// The lines added and removed from `before` to `after`, and their diff in a read-only editor as
+/// Zed draws a diff (#727).
+fn changes_from(
+    before: String,
+    after: String,
+    languages: Arc<LanguageRegistry>,
+    window: &mut Window,
+    cx: &mut Context<PlanReview>,
+) -> Changes {
+    let (added, removed) = language::line_diff(&before, &after)
+        .iter()
+        .fold((0, 0), |(added, removed), (old, new)| {
+            (added + new.len(), removed + old.len())
+        });
+    let diff = cx.new(|cx| {
+        acp_thread::Diff::finalized("plan.md".to_string(), Some(before), after, languages, cx)
+    });
+    let multibuffer = diff.read(cx).multibuffer().clone();
+    let editor = cx.new(|cx| {
+        let mut editor = Editor::new(EditorMode::full(), multibuffer, None, window, cx);
+        editor.set_show_gutter(false, cx);
+        editor.set_read_only(true);
+        editor.set_show_git_diff_gutter(false, cx);
+        editor.set_expand_all_diff_hunks(cx);
+        editor.set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx);
+        editor
+    });
+    Changes {
+        added,
+        removed,
+        _diff: diff,
+        editor,
+    }
+}
+
 impl Focusable for PlanReview {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.plan_focus.clone()
@@ -762,26 +856,45 @@ impl Render for PlanReview {
             .size_full()
             .bg(background)
             .child(
-                v_flex()
-                    .id("plan-review-plan")
-                    .key_context("PlanReviewPlan")
-                    .track_focus(&self.plan_focus)
-                    .on_action(cx.listener(Self::comment))
-                    // Before the Markdown's own handling, which may stop the event.
-                    .capture_any_mouse_down(cx.listener(|tab, _: &MouseDownEvent, window, cx| {
-                        window.focus(&tab.plan_focus, cx);
-                    }))
-                    .on_mouse_down(
-                        MouseButton::Right,
-                        cx.listener(|tab, event: &MouseDownEvent, window, cx| {
-                            tab.open_menu(event.position, window, cx);
-                        }),
-                    )
-                    .flex_1()
-                    .h_full()
-                    .overflow_y_scroll()
-                    .p_4()
-                    .child(MarkdownElement::new(self.markdown.clone(), style)),
+                if let Some(editor) = self
+                    .changes
+                    .as_ref()
+                    .filter(|_| self.showing_changes)
+                    .map(|changes| changes.editor.clone())
+                {
+                    // The diff takes no notes: its own area, out of the plan's key context.
+                    div()
+                        .id("plan-review-changes")
+                        .flex_1()
+                        .h_full()
+                        .p_2()
+                        .child(editor)
+                        .into_any_element()
+                } else {
+                    v_flex()
+                        .id("plan-review-plan")
+                        .key_context("PlanReviewPlan")
+                        .track_focus(&self.plan_focus)
+                        .on_action(cx.listener(Self::comment))
+                        // Before the Markdown's own handling, which may stop the event.
+                        .capture_any_mouse_down(cx.listener(
+                            |tab, _: &MouseDownEvent, window, cx| {
+                                window.focus(&tab.plan_focus, cx);
+                            },
+                        ))
+                        .on_mouse_down(
+                            MouseButton::Right,
+                            cx.listener(|tab, event: &MouseDownEvent, window, cx| {
+                                tab.open_menu(event.position, window, cx);
+                            }),
+                        )
+                        .flex_1()
+                        .h_full()
+                        .overflow_y_scroll()
+                        .p_4()
+                        .child(MarkdownElement::new(self.markdown.clone(), style))
+                        .into_any_element()
+                },
             )
             .child(self.render_column(border, cx))
             .children(self.menu.as_ref().map(|(menu, position, _)| {

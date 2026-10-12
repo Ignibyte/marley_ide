@@ -1269,6 +1269,10 @@ before.
 - **Approve** lets Claude Code go on. **Send Feedback** (once there is a note) sends the notes back
   as the reason: each note's passage and comment, then the overall note, asking Claude Code to
   address every note and plan again. Its revised plan replaces the old one in the same tab.
+- A revised plan shows **Version N** in the column's header, with the lines added and removed since
+  the version before (#727). **Changes** shows that diff as Zed draws one, removed lines and added
+  lines in their colors, read-only; **Plan** goes back to the plan, where notes are made. The tab
+  keeps the versions while it is open.
 - A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes
   back to the terminal's own dialog; the tab says so and its buttons go off.
 - Marley's terminals carry `MARLEY_APPROVE_TOOLS=ExitPlanMode` while the setting is on; the plugin

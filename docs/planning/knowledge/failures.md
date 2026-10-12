@@ -3988,3 +3988,13 @@ Markdown element handles it. Second, the binding itself was registered with `cx.
 module's `init`, and Zed's keymap reload clears bindings and loads the keymap files again, so
 the binding was gone by the time a key came. Fixed: `c` is in `crates/marley_workbench/keymap.json`
 under `PlanReviewPlan`, where Marley's other bindings are.
+
+## F-claude-727-the-plans-diff-read-the-workspace-inside-its-update-001
+*severity: high · found in: pipeline 727's Test, the first run · class: an entity read inside its own update, through a helper*
+
+`PlanReview::show` runs inside the workspace's update (`open_tab` adds or finds the tab there).
+#727's `changes_from`, called from `show`, upgraded the tab's weak workspace handle and read it
+for the project's language registry, and gpui panicked: "cannot read workspace::Workspace while
+it is already being updated". Marley ended when version 2 arrived. Fixed in #727: `open_tab`
+takes the registry from the `&mut Workspace` it already holds and passes it to `show`; the tab no
+longer keeps a workspace handle at all.

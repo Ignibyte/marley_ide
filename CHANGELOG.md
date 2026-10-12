@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Plan versions and their diff** (#727, 2026-10-12). A revised plan in the Plan tab shows which
+  version it is and how many lines were added and removed since the one before, and Changes shows
+  the diff, so a second reading covers only what changed.
+
 - **Plan review** (#726, 2026-10-12). With `marley.plan_review` on, Claude Code's plan opens in a
   tab beside its terminal when it asks to leave plan mode: select a passage and press `c` to
   comment, add an overall note, then Approve or Send Feedback, which sends your notes back for a
