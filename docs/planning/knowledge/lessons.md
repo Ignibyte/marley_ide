@@ -5751,3 +5751,21 @@ range.
 Zed's keymap maps Enter to `editor::Newline` only for `Editor && mode == full`; elsewhere the
 global block maps it to `menu::Confirm`. A single-line editor that submits on Enter registers a
 `menu::Confirm` handler (and `editor::Cancel` for Escape), not `editor::Newline`.
+
+## L-claude-728-a-markdown-styles-size-is-the-containers-001
+*category: gpui · topic: sizing a Markdown element's text · from: pipeline 728*
+
+`MarkdownStyle.base_text_style` gives the runs their color, weight and family, but the text's size
+comes from the element's container: `MarkdownStyle::themed` sizes Preview through
+`container_style.text.font_size`, and setting only `base_text_style.font_size` changed the color
+and left the size as it was. Set `container_style.text.font_size` (and `paragraph_line_height`)
+for a smaller Markdown, as #728's card context does.
+
+## L-claude-728-a-letter-bound-on-an-area-yields-to-a-field-inside-it-001
+*category: gpui · topic: a single-letter binding over an area that holds editors · from: pipeline 728*
+
+A binding such as the Plan tab's `c` matches in every focused descendant of its key context,
+editors included. Its handler checks `focus_handle.is_focused(window)` (the area itself, not a
+descendant) and calls `cx.propagate()` otherwise; the key then reaches the editor as text.
+#728's scenario typed `search_cache` into a card's field inside `PlanReviewPlan` and both `c`s
+arrived.

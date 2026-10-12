@@ -1225,7 +1225,9 @@ th { background: var(--panel); font-weight: 650; }
 <li>Select a passage and press <kbd>c</kbd>, or right-click and choose Comment…; type your comment and press Enter. Add an overall note below the notes.</li>
 <li>Press <strong>Approve</strong> to let Claude Code go on, or <strong>Send Feedback</strong> to send your notes back; Claude Code revises the plan, and the new one replaces it in the same tab.</li>
 <li>A revised plan shows <strong>Version N</strong> and the lines added and removed since the one before <span class="ticket">#727</span>; <strong>Changes</strong> shows that diff, and <strong>Plan</strong> goes back to the plan.</li>
+<li>A plan's open questions show as cards in their place <span class="ticket">#728</span>. Tick a choice, press <strong>Accept recommended</strong>, type your own answer in Other…, or press <strong>Skip</strong>. While an answer waits to go, <strong>Send Answers</strong> takes Approve's place and sends the answers first, then your notes.</li>
 </ol>
+<p class="note">A question is a block in the plan: a line <code>:::question</code> (one choice), <code>:::question-multi</code> (several) or <code>:::question-text</code> (free text), the question on the next line, choices as <code>- [ ] label — why</code>, an optional <code>Recommended: label</code>, and a closing line <code>:::</code>. A choice written <code>- [x]</code> is already settled. A block inside a code block stays text.</p>
 <p class="note">A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes back to the terminal's own dialog, and the tab says so.</p>
 </article>
 

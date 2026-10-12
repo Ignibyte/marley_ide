@@ -10,29 +10,32 @@
 //! plan went back to the terminal's own dialog. A later plan from the same terminal replaces the
 //! tab's plan and notes. Since #727 the tab keeps each plan as a version: from the second, its
 //! header says which, with the lines added and removed since the one before, and Changes shows that
-//! diff, drawn by Zed's own diff editor.
+//! diff, drawn by Zed's own diff editor. Since #728 a plan's `:::question` blocks are cards in
+//! their place, with choices, Accept recommended and Skip; the answers lead the feedback, and Send
+//! Answers takes Approve's place while any is unsent.
 
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use editor::{Editor, EditorMode};
+use editor::{Editor, EditorEvent, EditorMode};
 use gpui::{
     Anchor, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Global, MouseButton, MouseDownEvent, Pixels, Point, SharedString,
-    Subscription, WeakEntity, Window, actions, anchored, deferred,
+    FocusHandle, Focusable, FontWeight, Global, MouseButton, MouseDownEvent, Pixels, Point,
+    SharedString, Subscription, WeakEntity, Window, actions, anchored, deferred,
 };
 use language::LanguageRegistry;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
 use marley_agent::PlanNote;
+use marley_agent::plan_questions::{self, Answer, PlanPart, Question, QuestionKind};
 use marley_agent::report::{self, Refusal};
 use marley_mcp::agent_socket::AgentRequest;
 use marley_rail::{InboxEntry, InboxKind};
 use serde_json::Value;
 use settings::SettingsStore;
 use terminal_view::TerminalView;
-use ui::{ContextMenu, DiffStat, prelude::*};
+use ui::{Checkbox, ContextMenu, DiffStat, ToggleState, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
@@ -394,7 +397,9 @@ pub(crate) struct PlanReview {
     view: EntityId,
     project: SharedString,
     plan: String,
-    markdown: Entity<Markdown>,
+    /// The plan's runs of Markdown and its question cards, in order (#728).
+    parts: Vec<Part>,
+    cards: Vec<Card>,
     notes: Vec<Note>,
     composing: Option<Composing>,
     overall: Entity<Editor>,
@@ -410,6 +415,43 @@ pub(crate) struct PlanReview {
     changes: Option<Changes>,
     /// Whether the left area shows the changes rather than the plan.
     showing_changes: bool,
+}
+
+/// A run of the plan as the tab draws it (#728).
+enum Part {
+    /// Markdown from byte `start` of the plan, `len` bytes long.
+    Text {
+        start: usize,
+        len: usize,
+        markdown: Entity<Markdown>,
+    },
+    /// A question card, by its place in `cards`.
+    Card(usize),
+}
+
+/// A question of the plan and the user's answer so far (#728).
+struct Card {
+    question: Question,
+    context: Option<Entity<Markdown>>,
+    /// Which choices are picked, in the question's order.
+    picked: Vec<bool>,
+    /// The user's own answer: Other… for a question with choices, the answer for free text.
+    words: Entity<Editor>,
+    skipped: bool,
+    /// Whether the pick is the recommendation, accepted.
+    accepted: bool,
+    /// Redraws the tab as the words change: the card's state and the count read them.
+    _edited: Subscription,
+}
+
+/// Where a card stands.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CardState {
+    Open,
+    Answered,
+    Skipped,
+    /// The plan marked a choice already.
+    Settled,
 }
 
 /// A version's changes from the one before (#727).
@@ -438,7 +480,8 @@ impl PlanReview {
             view,
             project,
             plan: String::new(),
-            markdown: cx.new(|cx| Markdown::new(SharedString::default(), None, None, cx)),
+            parts: Vec::new(),
+            cards: Vec::new(),
             notes: Vec::new(),
             composing: None,
             overall,
@@ -460,8 +503,9 @@ impl PlanReview {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.markdown
-            .update(cx, |markdown, cx| markdown.reset(plan.clone().into(), cx));
+        let (parts, cards) = parts_of(&plan, window, cx);
+        self.parts = parts;
+        self.cards = cards;
         self.changes = self
             .versions
             .last()
@@ -486,14 +530,42 @@ impl PlanReview {
         }
     }
 
-    /// Paints the noted passages.
+    /// Paints the noted passages, each run of the plan its own part of them.
     fn highlight(&self, cx: &mut Context<Self>) {
-        let mut ranges: Vec<Range<usize>> =
-            self.notes.iter().map(|note| note.range.clone()).collect();
-        ranges.sort_by_key(|range| (range.start, range.end));
-        self.markdown.update(cx, |markdown, cx| {
-            markdown.set_search_highlights(ranges, None, cx);
-        });
+        for part in &self.parts {
+            let Part::Text {
+                start,
+                len,
+                markdown,
+            } = part
+            else {
+                continue;
+            };
+            let end = start + len;
+            let mut ranges: Vec<Range<usize>> = self
+                .notes
+                .iter()
+                .filter(|note| note.range.start < end && note.range.end > *start)
+                .map(|note| note.range.start.max(*start) - start..note.range.end.min(end) - start)
+                .collect();
+            ranges.sort_by_key(|range| (range.start, range.end));
+            markdown.update(cx, |markdown, cx| {
+                markdown.set_search_highlights(ranges, None, cx);
+            });
+        }
+    }
+
+    /// The passage selected in any run, in the plan's bytes.
+    fn selection(&self, cx: &App) -> Option<Range<usize>> {
+        self.parts.iter().find_map(|part| match part {
+            Part::Text {
+                start, markdown, ..
+            } => markdown
+                .read(cx)
+                .selected_range()
+                .map(|range| range.start + start..range.end + start),
+            Part::Card(_) => None,
+        })
     }
 
     const fn waiting(&self) -> Option<u64> {
@@ -505,14 +577,19 @@ impl PlanReview {
 
     /// `c`: a note on the passage selected now.
     fn comment(&mut self, _: &Comment, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(range) = self.markdown.read(cx).selected_range() {
+        // A card's answer field sits in the plan's area: the letter is its own there.
+        if !self.plan_focus.is_focused(window) {
+            cx.propagate();
+            return;
+        }
+        if let Some(range) = self.selection(cx) {
             self.start_note(range, window, cx);
         }
     }
 
     /// Opens the right-click menu, keeping the passage selected now for its Comment….
     fn open_menu(&mut self, position: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
-        let range = self.markdown.read(cx).selected_range();
+        let range = self.selection(cx);
         let tab = cx.entity().downgrade();
         let menu = ContextMenu::build(window, cx, move |menu, _, _| {
             let Some(range) = range.clone() else {
@@ -641,6 +718,239 @@ impl PlanReview {
         cx.notify();
     }
 
+    fn card_state(card: &Card, cx: &App) -> CardState {
+        if card.question.choices.iter().any(|choice| choice.settled) {
+            CardState::Settled
+        } else if card.skipped {
+            CardState::Skipped
+        } else if card.picked.iter().any(|picked| *picked)
+            || !card.words.read(cx).text(cx).trim().is_empty()
+        {
+            CardState::Answered
+        } else {
+            CardState::Open
+        }
+    }
+
+    /// A card's answer for the agent; none while it is open or settled.
+    fn card_answer(card: &Card, cx: &App) -> Option<Answer> {
+        let words = card.words.read(cx).text(cx).trim().to_string();
+        match Self::card_state(card, cx) {
+            CardState::Open | CardState::Settled => None,
+            CardState::Skipped => Some(Answer::Skipped),
+            CardState::Answered => {
+                let picked: Vec<String> = card
+                    .question
+                    .choices
+                    .iter()
+                    .zip(&card.picked)
+                    .filter(|(_, picked)| **picked)
+                    .map(|(choice, _)| choice.label.clone())
+                    .collect();
+                Some(if !picked.is_empty() {
+                    Answer::Choices {
+                        picked,
+                        recommended: card.accepted,
+                    }
+                } else if card.question.kind == QuestionKind::Text {
+                    Answer::Text(words)
+                } else {
+                    Answer::Other(words)
+                })
+            }
+        }
+    }
+
+    /// The questions that take an answer, settled ones left out, and how many have one.
+    fn answered(&self, cx: &App) -> (usize, usize) {
+        let open: Vec<&Card> = self
+            .cards
+            .iter()
+            .filter(|card| Self::card_state(card, cx) != CardState::Settled)
+            .collect();
+        let answered = open
+            .iter()
+            .filter(|card| Self::card_state(card, cx) == CardState::Answered)
+            .count();
+        (answered, open.len())
+    }
+
+    /// Whether an answer or a skip waits to be sent.
+    fn answers_pending(&self, cx: &App) -> bool {
+        self.cards.iter().any(|card| {
+            matches!(
+                Self::card_state(card, cx),
+                CardState::Answered | CardState::Skipped
+            )
+        })
+    }
+
+    fn pick(&mut self, card: usize, choice: usize, picked: bool, cx: &mut Context<Self>) {
+        let Some(card) = self.cards.get_mut(card) else {
+            return;
+        };
+        if card.question.kind == QuestionKind::One {
+            card.picked.iter_mut().for_each(|picked| *picked = false);
+        }
+        if let Some(slot) = card.picked.get_mut(choice) {
+            *slot = picked;
+        }
+        card.skipped = false;
+        card.accepted = false;
+        cx.notify();
+    }
+
+    fn accept_recommended(&mut self, card: usize, cx: &mut Context<Self>) {
+        let Some(at) = self.cards.get(card).and_then(|card| {
+            let pick = card.question.recommended.as_deref()?;
+            card.question
+                .choices
+                .iter()
+                .position(|choice| choice.label == pick)
+        }) else {
+            return;
+        };
+        self.pick(card, at, true, cx);
+        if let Some(card) = self.cards.get_mut(card) {
+            card.accepted = true;
+        }
+    }
+
+    fn skip(&mut self, card: usize, cx: &mut Context<Self>) {
+        if let Some(card) = self.cards.get_mut(card) {
+            card.skipped = !card.skipped;
+            card.picked.iter_mut().for_each(|picked| *picked = false);
+            card.accepted = false;
+            cx.notify();
+        }
+    }
+
+    /// Sends the answers, then any notes, as the deny's reason (#728).
+    fn send_answers(&mut self, cx: &mut Context<Self>) {
+        let Some(nonce) = self.waiting() else {
+            return;
+        };
+        let questions: Vec<(String, Option<Answer>)> = self
+            .cards
+            .iter()
+            .filter(|card| Self::card_state(card, cx) != CardState::Settled)
+            .map(|card| (card.question.prompt.clone(), Self::card_answer(card, cx)))
+            .collect();
+        let answers = plan_questions::plan_answers(&questions);
+        let notes: Vec<PlanNote> = self
+            .notes
+            .iter()
+            .map(|note| PlanNote {
+                quote: note.quote.clone(),
+                comment: note.comment.clone(),
+            })
+            .collect();
+        let reason = plan_questions::questions_feedback(&answers, &notes, &self.overall_note(cx));
+        self.state = if answer(self.view, nonce, Decision::Deny(reason), cx) {
+            State::FeedbackSent
+        } else {
+            State::Withdrawn
+        };
+        self.composing = None;
+        cx.notify();
+    }
+
+    /// A question as a card in the plan (#728).
+    fn render_card(
+        &self,
+        index: usize,
+        style: &MarkdownStyle,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let border = cx.theme().colors().border;
+        let surface = cx.theme().colors().surface_background;
+        let total = self.cards.len();
+        let waiting = self.waiting().is_some();
+        let Some(card) = self.cards.get(index) else {
+            return div().into_any_element();
+        };
+        let state = Self::card_state(card, cx);
+        let (state_words, state_color) = match state {
+            CardState::Open => ("Open", Color::Accent),
+            CardState::Answered => ("Answered", Color::Success),
+            CardState::Skipped => ("Skipped", Color::Muted),
+            CardState::Settled => ("Settled", Color::Muted),
+        };
+        let settled = state == CardState::Settled;
+        let recommended = card.question.recommended.clone();
+        v_flex()
+            .my_2()
+            .p_3()
+            .gap_2()
+            .rounded_md()
+            .border_1()
+            .border_color(border)
+            .bg(surface)
+            .child(
+                h_flex()
+                    .justify_between()
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Label::new(format!("Question {} of {total}", index + 1))
+                                    .size(LabelSize::Small)
+                                    .color(Color::Muted),
+                            )
+                            .child(
+                                Label::new(state_words)
+                                    .size(LabelSize::Small)
+                                    .color(state_color),
+                            ),
+                    )
+                    .when(waiting && !settled, |header| {
+                        header.child(Self::card_buttons(
+                            index,
+                            recommended.is_some() && state == CardState::Open,
+                            card.skipped,
+                            cx,
+                        ))
+                    }),
+            )
+            .child(Label::new(card.question.prompt.clone()).weight(FontWeight::SEMIBOLD))
+            .when_some(card.context.clone(), |card_view, context| {
+                card_view.child(MarkdownElement::new(context, style.clone()))
+            })
+            .children(
+                card.question
+                    .choices
+                    .iter()
+                    .enumerate()
+                    .map(|(choice, item)| {
+                        let label = choice_label(item, recommended.as_deref());
+                        Checkbox::new(
+                            ("plan-review-choice", index * 1000 + choice),
+                            ToggleState::from(card.picked.get(choice).copied().unwrap_or(false)),
+                        )
+                        .label(label)
+                        .label_size(LabelSize::Small)
+                        .disabled(settled || !waiting)
+                        .on_click(cx.listener(
+                            move |tab, state: &ToggleState, _, cx| {
+                                tab.pick(index, choice, state.selected(), cx);
+                            },
+                        ))
+                    }),
+            )
+            .when(!settled, |card_view| {
+                card_view.child(
+                    div()
+                        .px_2()
+                        .py_1()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(border)
+                        .child(card.words.clone()),
+                )
+            })
+            .into_any_element()
+    }
+
     fn render_notes(&self, cx: &Context<Self>) -> impl IntoElement {
         let surface = cx.theme().colors().surface_background;
         let focused_border = cx.theme().colors().border_focused;
@@ -711,6 +1021,8 @@ impl PlanReview {
     fn render_column(&self, border: gpui::Hsla, cx: &Context<Self>) -> impl IntoElement {
         let waiting = self.waiting().is_some();
         let has_feedback = !self.notes.is_empty() || !self.overall_note(cx).is_empty();
+        let answers_pending = self.answers_pending(cx);
+        let (answered, questions) = self.answered(cx);
         let status = match self.state {
             State::Waiting(_) => "Claude Code waits for your answer.",
             State::Approved => "Approved.",
@@ -754,6 +1066,12 @@ impl PlanReview {
                         ),
                 )
             })
+            .when(questions > 0, |column| {
+                column.child(
+                    Label::new(format!("{answered} of {questions} answered"))
+                        .size(LabelSize::Small),
+                )
+            })
             .child(Label::new(status).size(LabelSize::Small).color(if waiting {
                 Color::Accent
             } else {
@@ -785,21 +1103,73 @@ impl PlanReview {
                             .child(self.overall.clone()),
                     ),
             )
+            .child(Self::answer_buttons(
+                waiting,
+                answers_pending,
+                has_feedback,
+                cx,
+            ))
+    }
+
+    /// A card's Accept recommended and Skip (#728).
+    fn card_buttons(
+        index: usize,
+        offer_recommended: bool,
+        skipped: bool,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .gap_2()
+            .when(offer_recommended, |row| {
+                row.child(
+                    Button::new(("plan-review-accept", index), "Accept recommended")
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(move |tab, _, _, cx| {
+                            tab.accept_recommended(index, cx);
+                        })),
+                )
+            })
             .child(
-                h_flex()
-                    .gap_2()
-                    .child(
-                        Button::new("plan-review-approve", "Approve")
-                            .style(ButtonStyle::Filled)
-                            .disabled(!waiting)
-                            .on_click(cx.listener(|tab, _, _, cx| tab.approve(cx))),
-                    )
-                    .child(
-                        Button::new("plan-review-feedback", "Send Feedback")
-                            .disabled(!waiting || !has_feedback)
-                            .on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx))),
-                    ),
+                Button::new(
+                    ("plan-review-skip", index),
+                    if skipped { "Unskip" } else { "Skip" },
+                )
+                .label_size(LabelSize::Small)
+                .on_click(cx.listener(move |tab, _, _, cx| tab.skip(index, cx))),
             )
+    }
+
+    /// Approve and Send Feedback, or Send Answers while answers wait to go.
+    fn answer_buttons(
+        waiting: bool,
+        answers_pending: bool,
+        has_feedback: bool,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .gap_2()
+            // An approval carries no text, so unsent answers take Approve's place (#728).
+            .when(answers_pending, |row| {
+                row.child(
+                    Button::new("plan-review-answers", "Send Answers")
+                        .style(ButtonStyle::Filled)
+                        .disabled(!waiting)
+                        .on_click(cx.listener(|tab, _, _, cx| tab.send_answers(cx))),
+                )
+            })
+            .when(!answers_pending, |row| {
+                row.child(
+                    Button::new("plan-review-approve", "Approve")
+                        .style(ButtonStyle::Filled)
+                        .disabled(!waiting)
+                        .on_click(cx.listener(|tab, _, _, cx| tab.approve(cx))),
+                )
+                .child(
+                    Button::new("plan-review-feedback", "Send Feedback")
+                        .disabled(!waiting || !has_feedback)
+                        .on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx))),
+                )
+            })
     }
 }
 
@@ -838,6 +1208,79 @@ fn changes_from(
     }
 }
 
+/// A choice as its card shows it: its label, its reason, and whether the agent recommends it.
+fn choice_label(choice: &plan_questions::Choice, recommended: Option<&str>) -> String {
+    let label = choice.reason.as_ref().map_or_else(
+        || choice.label.clone(),
+        |reason| format!("{} — {reason}", choice.label),
+    );
+    if recommended == Some(choice.label.as_str()) {
+        format!("{label} (recommended)")
+    } else {
+        label
+    }
+}
+
+/// The plan's runs of Markdown, each its own entity, and its question cards (#728).
+fn parts_of(
+    plan: &str,
+    window: &mut Window,
+    cx: &mut Context<PlanReview>,
+) -> (Vec<Part>, Vec<Card>) {
+    let mut parts = Vec::new();
+    let mut cards = Vec::new();
+    for part in plan_questions::plan_parts(plan) {
+        match part {
+            PlanPart::Text { start, text } => {
+                let len = text.len();
+                let markdown = cx.new(|cx| Markdown::new(text.into(), None, None, cx));
+                parts.push(Part::Text {
+                    start,
+                    len,
+                    markdown,
+                });
+            }
+            PlanPart::Question(question) => {
+                let context = (!question.context.is_empty()).then(|| {
+                    let context = question.context.clone();
+                    cx.new(|cx| Markdown::new(context.into(), None, None, cx))
+                });
+                let placeholder = if question.kind == QuestionKind::Text {
+                    "Your answer"
+                } else {
+                    "Other…"
+                };
+                let words = cx.new(|cx| {
+                    let mut editor = Editor::single_line(window, cx);
+                    editor.set_placeholder_text(placeholder, window, cx);
+                    editor
+                });
+                let edited = cx.subscribe(&words, |_, _, event: &EditorEvent, cx| {
+                    if matches!(event, EditorEvent::BufferEdited) {
+                        cx.notify();
+                    }
+                });
+                let picked = question
+                    .choices
+                    .iter()
+                    .map(|choice| choice.settled)
+                    .collect();
+                parts.push(Part::Card(cards.len()));
+                cards.push(Card {
+                    question,
+                    context,
+                    picked,
+                    words,
+                    skipped: false,
+                    accepted: false,
+                    _edited: edited,
+                });
+            }
+        }
+    }
+    (parts, cards)
+}
+
 impl Focusable for PlanReview {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.plan_focus.clone()
@@ -851,6 +1294,14 @@ impl Render for PlanReview {
         let background = cx.theme().colors().editor_background;
         let border = cx.theme().colors().border;
         let style = MarkdownStyle::themed(MarkdownFont::Preview, window, cx);
+        // A card's context sits under its question, in the card's smaller, muted type.
+        let mut context_style = MarkdownStyle::themed(MarkdownFont::Editor, window, cx);
+        let small = TextSize::Small.rems(cx);
+        // The runs take their color from the base style and their size from the container's.
+        context_style.base_text_style.font_size = small.into();
+        context_style.container_style.text.font_size = Some(small.into());
+        context_style.paragraph_line_height = relative(1.5);
+        context_style.base_text_style.color = cx.theme().colors().text_muted;
         h_flex()
             .key_context("PlanReview")
             .size_full()
@@ -892,7 +1343,17 @@ impl Render for PlanReview {
                         .h_full()
                         .overflow_y_scroll()
                         .p_4()
-                        .child(MarkdownElement::new(self.markdown.clone(), style))
+                        .children(self.parts.iter().map(|part| {
+                            match part {
+                                Part::Text { markdown, .. } => {
+                                    MarkdownElement::new(markdown.clone(), style.clone())
+                                        .into_any_element()
+                                }
+                                Part::Card(index) => self
+                                    .render_card(*index, &context_style, cx)
+                                    .into_any_element(),
+                            }
+                        }))
                         .into_any_element()
                 },
             )

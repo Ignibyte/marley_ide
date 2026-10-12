@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Question cards in plans** (#728, 2026-10-12). A plan's open questions, written as
+  `:::question` blocks, show as cards in the Plan tab, in their place: tick a choice, accept the
+  agent's recommendation, write your own answer, or skip. Send Answers sends them back first in
+  the feedback, so the revised plan is built on them.
+
 - **Plan versions and their diff** (#727, 2026-10-12). A revised plan in the Plan tab shows which
   version it is and how many lines were added and removed since the one before, and Changes shows
   the diff, so a second reading covers only what changed.

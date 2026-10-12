@@ -442,6 +442,16 @@ pub fn route_of_choice(option: &str) -> Route;
   (`agent_approve_tool`) refuses a tool Marley does not decide. `PlanNote` and `plan_feedback`
   (in `marley_agent.rs`) write a plan's deny reason: a lead line, each note's quote and comment,
   then the overall note, escaped as a review note's words are.
+- `plan_questions` (#728) reads plannotator's `:::question`, `:::question-multi` and
+  `:::question-text` blocks. `plan_parts(source)` splits a plan into `PlanPart::Text` runs (with
+  their byte start) and `PlanPart::Question`s; a block counts only when a line `:::` closes it and
+  it is not inside a ```` ``` ```` or `~~~` fence. `question_of` takes the first line as the
+  prompt, `- [ ]` and `- [x]` lines as choices (a reason after ` — ` or ` - `), `Recommended:` as
+  the pick, the rest as context; a block with no choices is `QuestionKind::Text`. `plan_answers`
+  writes "Answers to your questions", the count, a `### Question N:` section per answered or
+  skipped question and an `Unanswered:` list; `questions_feedback` puts those answers ahead of
+  `plan_feedback`'s notes, or under a lead line of its own when there are none. User text loses
+  its control characters.
 - `stat_fields(stat)` reads a `/proc/PID/stat` line's parent and start time from the fields after
   its last `)`, since a process's name may hold spaces and parentheses. `MAX_ANCESTRY` (32) bounds
   the walk to a terminal.

@@ -3998,3 +3998,21 @@ for the project's language registry, and gpui panicked: "cannot read workspace::
 it is already being updated". Marley ended when version 2 arrived. Fixed in #727: `open_tab`
 takes the registry from the `&mut Workspace` it already holds and passes it to `show`; the tab no
 longer keeps a workspace handle at all.
+
+## F-claude-728-a-cards-answer-field-did-not-redraw-its-tab-001
+*severity: medium · found in: pipeline 728's Code, the review before the first run · class: a view drawing a child editor's text without following it*
+
+A question card's state (Open or Answered), the column's "K of M answered" and the choice between
+Approve and Send Answers all read the card's answer field. The field is its own `Editor`, so
+typing in it notified the editor and not the Plan tab: the card would have stayed Open and the
+tab would have kept offering Approve, which would have dropped the typed answer. Fixed: each card
+subscribes to its field's `EditorEvent::BufferEdited` and notifies the tab, as #660's form does.
+
+## F-claude-728-a-question-inside-a-code-fence-would-have-been-a-card-001
+*severity: low · found in: pipeline 728's Code, checking the design's risks against the parser · class: a risk's mitigation written in the design and not in the code*
+
+The design's risks said the plan's splitter skips fenced code, so a plan that shows the syntax as
+an example keeps it as code. The first `plan_parts` looked for `:::question` on every line. A plan
+about this very feature would have turned its example into a live card. Fixed: `plan_parts` keeps
+the fence a code block opened with and ignores openers until the same fence closes it; the
+scenario's revised plan carries such an example.

@@ -1273,6 +1273,18 @@ before.
   the version before (#727). **Changes** shows that diff as Zed draws one, removed lines and added
   lines in their colors, read-only; **Plan** goes back to the plan, where notes are made. The tab
   keeps the versions while it is open.
+- A plan's open questions are cards in their place (#728), each with "Question N of M" and its
+  state: Open, Answered, Skipped, or Settled when the plan marked a choice already. Tick one choice
+  (or several, for a question that takes several), press **Accept recommended** for the agent's
+  pick, type your own answer in **Other…** (or the answer field of a free-text question), or press
+  **Skip**. The column counts "K of M answered". While an answer or a skip waits to go, **Send
+  Answers** takes Approve's place, since an approval carries no text; it sends the answers first,
+  under "Answers to your questions", then any notes, and Claude Code revises the plan with them.
+- A question is a block in the plan, plannotator's syntax: a line `:::question` (one choice),
+  `:::question-multi` (several) or `:::question-text` (free text), then the question, any context,
+  the choices as `- [ ] label — why`, an optional `Recommended: label`, and a closing line `:::`.
+  `- [x]` marks a choice already settled. A block with no closing line, or one inside a code
+  block, stays text.
 - A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes
   back to the terminal's own dialog; the tab says so and its buttons go off.
 - Marley's terminals carry `MARLEY_APPROVE_TOOLS=ExitPlanMode` while the setting is on; the plugin

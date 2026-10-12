@@ -5343,3 +5343,16 @@ is open. From the second, the header shows "Version N" and the lines added and r
 (`acp_thread::Diff::finalized` in a read-only editor), not a rendered Markdown diff. Notes are
 made on the plan view only. Rejected: plannotator's history key of project, heading and date; a
 rendered diff of Markdown blocks; `git_ui::TextDiffView`, which needs a source editor.
+
+## AD-claude-728-question-cards-split-the-plan-before-zeds-markdown-001
+*decided at: 2026-10-12 · status: shipped*
+
+A plan's open questions use plannotator's published `:::question` syntax as it stands, so plans
+written for plannotator need no change. `marley_agent::plan_questions` splits the plan's source
+into Markdown runs and closed blocks outside code fences; the Plan tab draws each run with its own
+`Markdown` entity and each block as a card in its place, and a note stays within one run. The
+answers go back as the deny's reason, ahead of any notes, and Send Answers takes Approve's place
+while one is unsent, since an approval carries no text. Agents learn the syntax from the shared
+plugin's skills (a rustal-harness request, held while the harness is paused). Rejected: a custom
+block in Zed's `markdown` crate (a parser option and a render hook in a Zed crate for one Marley
+use), a fenced ```` ```question ```` block (a second syntax), and the cards in a separate panel.

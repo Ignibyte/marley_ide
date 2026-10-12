@@ -38,6 +38,7 @@ pub mod claude_events;
 pub mod cli_sessions;
 pub mod codex_events;
 pub mod handoff;
+pub mod plan_questions;
 pub mod report;
 pub mod risk;
 pub mod route;

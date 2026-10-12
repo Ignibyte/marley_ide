@@ -1,7 +1,7 @@
 ---
 pipeline_id: dd11a0a0-c7b7-4409-b15e-2e92827f02af
 ticket: docs/planning/tickets/open/TICKET-728-question-cards-in-plans.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Question cards in plans
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 3; docs/planning/design-notes/finish-line-2026-10-11.md row 10); after #726 slice 1; the syntax reaches agents through a rustal-harness skill (D5)

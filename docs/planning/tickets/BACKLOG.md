@@ -16,7 +16,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | Ticket | Type | Why it waits |
 |---|---|---|
 | [TICKET-716](open/TICKET-716-delegation-tools.md) | feature | after the finish: agents that start agents, tracked and never lost; waits on a harness request (seat labels, an ended state) |
-| [TICKET-728](open/TICKET-728-question-cards-in-plans.md) | feature | the review batch: question cards in plans |
 | [TICKET-729](open/TICKET-729-notes-on-markdown-and-last-reply.md) | feature | the review batch: notes on any Markdown file or the agent's last reply |
 | [TICKET-757](open/TICKET-757-claude-code-remote-control-switch.md) | feature | shelved (Chad: "yes and shelve"): a switch for Claude Code's Remote Control |
 | [TICKET-719](open/TICKET-719-scheduled-runs.md) | feature | moved to rustal-harness (Chad: "harness yes"); Marley shows the runs once the harness has a scheduler |

@@ -2830,7 +2830,7 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
-## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, #726)
+## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, #726, #727, #728)
 
 - `plan_review::init` (from `agent_reports::start`) follows `marley.plan_review`: on, it hands
   `identity::set_approve_tools(Some("ExitPlanMode"))` to the terminals started from then on.
@@ -2858,6 +2858,17 @@ below describe what #743 retired.
   workspace: `show` runs inside the workspace's update and cannot read it. The column's header
   draws "Version N", a `DiffStat` and the Changes / Plan toggle; while Changes is on, the left area
   is the diff editor in a container of its own, outside the plan's key context.
+- Question cards (#728): `parts_of` turns `plan_questions::plan_parts` into `Part::Text` (a
+  `Markdown` per run, with its start and length in the plan) and `Part::Card` (an index into
+  `cards`). Zed's Markdown has no container block, so the plan is split before parsing, and a
+  selection or a note stays inside one run: `selection` and `highlight` map a run's range to the
+  plan's by its start. A `Card` holds its `Question`, its context as `Markdown` (drawn in the UI's
+  small type, muted: the container style sets the size, the base style the color), a `picked` flag
+  per choice, a single-line editor for Other… or the free-text answer (subscribed so that typing
+  redraws the count), and `skipped` and `accepted`. `card_state` reads Settled (a `- [x]` choice),
+  Skipped, Answered or Open. While `answers_pending`, the column's `answer_buttons` draw Send
+  Answers alone; `send_answers` denies with `plan_questions::questions_feedback`. `c` propagates
+  unless the plan's area itself holds the focus, so a card's field takes the letter.
 
 ## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
 
