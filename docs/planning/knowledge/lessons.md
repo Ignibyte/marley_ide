@@ -5809,3 +5809,18 @@ opens then fails: "launch process proof was not confirmed", and a scheduled run 
 Start `rh serve` first and switch the bus for Marley after it. Record the runtime's pid in setup and
 stop it in teardown after `rh shutdown`: a runtime that does not take the shutdown outlives its
 deleted root.
+
+## L-claude-776-a-real-claude-code-runs-in-a-marley-terminal-against-the-harnesss-scripted-api-001
+*category: e2e · topic: scenarios that need a real Claude Code without a model · from: pipeline 776*
+
+A scenario can run the real Claude Code in a Marley terminal with no model and no key, as
+rustal-harness's suite does: its pinned binary (path in `dependencies/claude-code.json`) under
+`unshare --user --map-root-user --net` and its `scripts/fixtures/claude_api.py`, which serves
+scripted replies on loopback, picked by a marker typed at the prompt. Clear the environment with
+`env -i` but keep `MARLEY_*`, `CLAUDE_CODE_PLUGIN_DIRS` and `XDG_RUNTIME_DIR`, so the plugin loads
+and `"$MARLEY_BIN"` reaches Marley's agent socket (a path, which the network namespace does not
+hide; the mapped user is Marley's own outside). Give it a scratch `CLAUDE_CONFIG_DIR` whose
+`.claude.json` has finished onboarding, approves the placeholder key and trusts the project, build
+the placeholder at run time, and set `MARLEY_CLAUDE` to the binary so Marley's version check
+passes. In plan mode, Claude Code 2.1.287 takes a plan only from the file its plan-mode reminder
+names: a rule captures that path for the model's `Write`.

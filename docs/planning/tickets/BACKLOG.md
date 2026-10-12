@@ -15,4 +15,3 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-776](open/TICKET-776-the-shared-plugin-with-plan-approval.md) | chore | waits on rustal-harness MREQ-012 and MREQ-013: carry the shared plugin with plan approval and the question skill |

@@ -1222,14 +1222,14 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> When Claude Code finishes a plan and asks to leave plan mode, the plan opens in a tab beside its terminal for you to read and answer: notes on passages, an overall note, then Approve or Send Feedback.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Turn on <strong>Plan Review</strong> in Settings → Marley → Agents (<code>marley.plan_review</code>, off by default), and the <strong>Shared Claude Code Plugin</strong>. It needs the plugin at a revision that hands the plan to Marley; until then Claude Code's own dialog decides.</li>
+<li>Turn on <strong>Plan Review</strong> in Settings → Marley → Agents (<code>marley.plan_review</code>, off by default), and the <strong>Shared Claude Code Plugin</strong>. It needs the plugin, 0.4.0 or later (#776); with the plugin off, Claude Code's own dialog decides.</li>
 <li>In a new local terminal, start <code>claude</code> in plan mode. When its plan is ready, a <strong>Plan</strong> tab opens beside the terminal, and Needs you lists it.</li>
 <li>Select a passage and press <kbd>c</kbd>, or right-click and choose Comment…; type your comment and press Enter. Add an overall note below the notes.</li>
 <li>Press <strong>Approve</strong> to let Claude Code go on, or <strong>Send Feedback</strong> to send your notes back; Claude Code revises the plan, and the new one replaces it in the same tab.</li>
 <li>A revised plan shows <strong>Version N</strong> and the lines added and removed since the one before <span class="ticket">#727</span>; <strong>Changes</strong> shows that diff, and <strong>Plan</strong> goes back to the plan.</li>
 <li>A plan's open questions show as cards in their place <span class="ticket">#728</span>. Tick a choice, press <strong>Accept recommended</strong>, type your own answer in Other…, or press <strong>Skip</strong>. While an answer waits to go, <strong>Send Answers</strong> takes Approve's place and sends the answers first, then your notes.</li>
 </ol>
-<p class="note">A question is a block in the plan: a line <code>:::question</code> (one choice), <code>:::question-multi</code> (several) or <code>:::question-text</code> (free text), the question on the next line, choices as <code>- [ ] label — why</code>, an optional <code>Recommended: label</code>, and a closing line <code>:::</code>. A choice written <code>- [x]</code> is already settled. A block inside a code block stays text.</p>
+<p class="note">A question is a block in the plan: a line <code>:::question</code> (one choice), <code>:::question-multi</code> (several) or <code>:::question-text</code> (free text), the question on the next line, choices as <code>- [ ] label — why</code>, an optional <code>Recommended: label</code>, and a closing line <code>:::</code>. A choice written <code>- [x]</code> is already settled. A block inside a code block stays text. The shared plugin's <code>plan-questions</code> skill teaches Claude Code to write its open questions this way (#776).</p>
 <p class="note">A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes back to the terminal's own dialog, and the tab says so.</p>
 </article>
 
@@ -1252,7 +1252,7 @@ th { background: var(--panel); font-weight: 650; }
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Turn on <strong>Shared Claude Code Plugin</strong> in Settings → Marley → Agents (<code>marley.claude_code_shared_plugin</code>, off by default).</li>
-<li>Open a new local terminal and start <code>claude</code>, 2.1.287 or later. Marley loads the plugin (<code>rustal-harness</code> 0.3.0, with the <code>rustal-ste</code> skill) through <code>CLAUDE_CODE_PLUGIN_DIRS</code>; terminals opened before the change do not get it.</li>
+<li>Open a new local terminal and start <code>claude</code>, 2.1.287 or later. Marley loads the plugin (<code>rustal-harness</code> 0.4.0, with the <code>rustal-ste</code> and <code>plan-questions</code> skills, #776) through <code>CLAUDE_CODE_PLUGIN_DIRS</code>; terminals opened before the change do not get it.</li>
 <li>Read the row: the state Claude Code reports, with the prompt and the tool in flight still read from Marley's own plugin. A Claude Code waiting on a permission is in Needs you.</li>
 </ol>
 <h4>Reports from your own wrapper</h4>

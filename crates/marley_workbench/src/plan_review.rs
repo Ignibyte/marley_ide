@@ -1,7 +1,7 @@
 //! Plan review in a tab (#726).
 //!
 //! While `marley.plan_review` is on, Marley's new local terminals name `ExitPlanMode` in
-//! `MARLEY_APPROVE_TOOLS`, and the shared Claude Code plugin (at a revision that reads it) hands that
+//! `MARLEY_APPROVE_TOOLS`, and the shared Claude Code plugin (0.4.0 since #776) hands that
 //! call to `"$MARLEY_BIN" approve`, which waits on Marley's agent socket for the user. The plan opens
 //! as Markdown (HTML not parsed) in a tab beside its terminal; the user selects a passage and
 //! comments on it (the right-click menu's Comment…, or `c`), adds an overall note, and answers

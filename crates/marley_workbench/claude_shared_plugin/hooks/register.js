@@ -15,8 +15,9 @@
 // harness's sends and interrupts from `rh listen`, confirming each with `rh delivered`
 // (TICKET-102); they find the seat by the terminal they run in. To Marley it runs
 // `MARLEY_BIN report` and `MARLEY_BIN release`, with the arguments `rh` takes after
-// `--state ROOT`; Claude Code's own dialog decides the calls, and the session reads
-// waiting while the dialog stands.
+// `--state ROOT`, and puts a call to `MARLEY_BIN approve` when MARLEY_APPROVE_TOOLS names
+// its tool (TICKET-119); Claude Code's own dialog decides the other calls, and any call
+// Marley gives no answer, and the session reads waiting while a call waits.
 //
 // A mod's MCP calls would wait for the harness's server to connect and for Claude Code's
 // permission check, and Claude Code refuses them once the session is ending. Every mods
@@ -29,18 +30,20 @@ const REPORT = { timeoutMs: 5000 }
 const RELEASE = { timeoutMs: 1000 }
 const DRAIN = 400
 // `$.process.run`'s longest wait, ten minutes; `rh approve` withdraws its request at 590
-// seconds and answers deny.
+// seconds and answers deny, and `MARLEY_BIN approve` exits 1 at 570.
 const DECISION = 600000
 // The longest activity the contract takes, in characters.
 const ACTIVITY = 120
 // Wall-clock milliseconds keep the sequence rising across restarts and resumes.
 let seq = Date.now()
-// The host chosen at session.start: its program, the arguments before the verb, and
-// whether it is the harness. None until then, and none in a session no person is at.
+// The host chosen at session.start: its program, the arguments before the verb, whether
+// it is the harness, and under Marley the tools whose calls Marley answers. None until
+// then, and none in a session no person is at.
 let host = null
 // The running main turn's id, which `$.turn.abort` takes.
 let turn = null
-// Under Marley's host, the calls Claude Code's own dialog stands on, by their ids.
+// Under Marley's host, the calls that stand on an answer, Marley's or Claude Code's own
+// dialog's, by their ids.
 const asking = new Set()
 // The reports waiting for the loop session.start begins, which runs them one at a time
 // in the order the hooks raised them, so a host takes them in the order of their seq.
@@ -141,7 +144,13 @@ export function register(on) {
         } else {
           const marley = await $.env.get('MARLEY_BIN')
           const terminal = await $.env.get('MARLEY_TERMINAL_ID')
-          if (marley && terminal) host = { program: marley, before: [], harness: false }
+          if (marley && terminal) {
+            // Tool names with commas between them; white space around a name and an
+            // empty name count for nothing.
+            const named = (await $.env.get('MARLEY_APPROVE_TOOLS')) || ''
+            const approves = new Set(named.split(',').map((name) => name.trim()).filter(Boolean))
+            host = { program: marley, before: [], harness: false, approves }
+          }
         }
       }
     } catch {}
@@ -250,18 +259,42 @@ export function register(on) {
   // A call Claude Code would put to a person goes to the harness, as an M12 session's
   // requests do (D156): approve runs it, deny refuses it, and cancel refuses it and ends
   // the turn. The hook catches nothing from `rh approve`, so any failure reaches the
-  // `.catch`, which denies the call. Under Marley's host Claude Code's own dialog decides,
-  // and the session reads waiting, with the call as its activity, until the call resolves;
-  // the hook doesn't wait for that report, so a slow host can't run it into the `.catch`.
+  // `.catch`, which denies the call. Under Marley's host the session reads waiting, with
+  // the call as its activity, until the call resolves. A call whose tool Marley answers
+  // goes to `MARLEY_BIN approve` once that report has run, or after 5 seconds, and its
+  // answer counts as `rh approve`'s; any failure there keeps Claude Code's verdict, so
+  // its own dialog decides, as it decides every other call. The hook doesn't wait for the
+  // report of a call the dialog decides, so a slow host can't run it into the `.catch`.
   on('tool.check', async ($, e, next) => {
     const verdict = await next(e)
     if (verdict.decision !== 'ask' || !e.tool_use_id || !host) return verdict
     if (!host.harness) {
+      let reported = null
       if (!asking.has(e.tool_use_id)) {
         asking.add(e.tool_use_id)
-        void send('waiting', { activity: acting(e.tool, e.input) })
+        reported = send('waiting', { activity: acting(e.tool, e.input) })
       }
-      return verdict
+      if (!host.approves.has(e.tool)) return verdict
+      if (reported) await awhile(reported)
+      let answer = null
+      try {
+        const asked = [host.program, 'approve', '--source', SOURCE, '--call', e.tool_use_id, '--tool', e.tool]
+        const input = JSON.stringify(e.input === undefined ? null : e.input)
+        const run = await $.process.run(asked, { stdin: input, timeoutMs: DECISION })
+        if (run.exitCode === 0) answer = JSON.parse(run.stdout)
+      } catch {}
+      const decision = answer && typeof answer === 'object' ? answer.decision : null
+      if (decision === 'approve') return { decision: 'allow', reason: 'approved through Marley' }
+      if (decision !== 'deny' && decision !== 'cancel') return verdict
+      if (decision === 'cancel' && turn) {
+        // The turn's end reports idle, and a working before it would be stale.
+        asking.delete(e.tool_use_id)
+        try {
+          await $.turn.abort({ turnId: turn })
+        } catch {}
+      }
+      const reason = typeof answer.reason === 'string' && answer.reason ? answer.reason : 'denied through Marley'
+      return { decision: 'deny', reason }
     }
     const asked = [host.program, ...host.before, 'approve', '--source', SOURCE, '--call', e.tool_use_id,
       '--tool', e.tool]

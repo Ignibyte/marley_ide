@@ -1,7 +1,7 @@
 {
   "name": "rustal-harness",
-  "version": "0.3.0",
-  "description": "Reports a Claude Code session's state to the program that started it, the Rustal Harness or Marley, through their agent report contract, and carries the skill rustal-ste for messages between agents.",
+  "version": "0.4.0",
+  "description": "Reports a Claude Code session's state to the program that started it, the Rustal Harness or Marley, through their agent report contract, and carries the skills rustal-ste, for messages between agents, and plan-questions, for the open questions in a plan.",
   "author": {
     "name": "Rustal Harness"
   },

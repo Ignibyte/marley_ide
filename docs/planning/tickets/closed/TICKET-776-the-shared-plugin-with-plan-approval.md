@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #776 (chore; #709's carry, as #724 was)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** none yet; minted when the harness ships.
+- **Pipeline doc:** [776-the-shared-plugin-with-plan-approval.spec.md](../../pipeline/completed/776-the-shared-plugin-with-plan-approval.spec.md)
 - **Source ticket:** #726 (its harness request, D1) and #728 (D5); Chad, 2026-10-12: "send anything
   to harness also to work on", after which both went to rustal-harness as MREQ-012 and MREQ-013.
-- **Status:** open (waits on rustal-harness MREQ-012 and MREQ-013)
+- **Status:** closed (built 2026-10-12 on harness TICKET-119, commit `5333d15`)
 
 ## Summary
 rustal-harness's shared Claude Code plugin learns two things Marley asked for: under Marley's host,

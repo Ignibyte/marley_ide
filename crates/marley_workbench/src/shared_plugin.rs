@@ -1,11 +1,14 @@
 //! The Claude Code plugin Marley shares with rustal-harness (#709), loaded in Marley's terminals.
 //!
-//! Its sixteen files are rustal-harness's, carried unchanged at its TICKET-115 (`cda7c24`, MIT OR
-//! Apache-2.0): the hooks of its TICKET-108 and the `rustal-ste` skill (#724). Their digest names a read-only folder under Marley's data
-//! directory, and while `marley.claude_code_shared_plugin` is on and the installed Claude Code is
-//! one the plugin was tested on (#648), each new local terminal puts that folder first in
-//! `CLAUDE_CODE_PLUGIN_DIRS`. The plugin's mod then reports the session's state through
-//! `MARLEY_BIN` (#652).
+//! Its seventeen files are rustal-harness's, carried unchanged at its TICKET-119 (`5333d15`, MIT OR
+//! Apache-2.0): the hooks of its TICKET-108, which since TICKET-119 hand a call that
+//! `MARLEY_APPROVE_TOOLS` names to `MARLEY_BIN approve` (#726, #776); the `rustal-ste` skill
+//! (#724); and the `plan-questions` skill, which writes a plan's open questions as #728's cards
+//! (#776).
+//! Their digest names a read-only folder under Marley's data directory, and while
+//! `marley.claude_code_shared_plugin` is on and the installed Claude Code is one the plugin was
+//! tested on (#648), each new local terminal puts that folder first in `CLAUDE_CODE_PLUGIN_DIRS`.
+//! The plugin's mod then reports the session's state through `MARLEY_BIN` (#652).
 
 use std::fs;
 use std::io::{self, Write as _};
@@ -20,7 +23,7 @@ use util::ResultExt as _;
 
 /// The plugin's files, by their path in the plugin, in rustal-harness's order, which the digest
 /// follows.
-const FILES: [(&str, &str); 16] = [
+const FILES: [(&str, &str); 17] = [
     (
         ".claude-plugin/plugin.json",
         include_str!("../claude_shared_plugin/.claude-plugin/plugin.json"),
@@ -84,6 +87,10 @@ const FILES: [(&str, &str); 16] = [
     (
         "skills/rustal-ste/scripts/rustal-terms.json",
         include_str!("../claude_shared_plugin/skills/rustal-ste/scripts/rustal-terms.json"),
+    ),
+    (
+        "skills/plan-questions/SKILL.md",
+        include_str!("../claude_shared_plugin/skills/plan-questions/SKILL.md"),
     ),
 ];
 

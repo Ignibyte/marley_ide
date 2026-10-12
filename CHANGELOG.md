@@ -1250,6 +1250,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Plan Review works with a real Claude Code** (#776, 2026-10-12). Marley carries the shared
+  Claude Code plugin at rustal-harness's 0.4.0 (its TICKET-119): with Plan Review on, Claude Code's
+  request to leave plan mode now opens its plan in the Plan tab, and the plugin's `plan-questions`
+  skill has it write each open question as a block the tab shows as a card.
+
 - **Codex 0.162 runs with its App Server** (#771, 2026-10-11). `marley.codex_app_server` now
   covers Codex 0.155.1 to 0.162.0: the App Server's protocol at 0.162.0 was compared with 0.158.0
   and changed only by adding what Marley does not read. On 0.162 the setting no longer stays off

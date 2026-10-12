@@ -1258,17 +1258,19 @@ Marley → Agents (`marley.claude_code_shared_plugin`).
   folder, and won't load a copy that was changed.
 - A Claude Code under a managed `disableSideloadFlags` refuses to start with the plugin loaded;
   leave the setting off there.
-- Since #724 the plugin is rustal-harness's 0.3.0 (its TICKET-115), which carries the `rustal-ste`
-  skill. While it is on, a terminal gets the skill from it, and Marley's own skill folder (#725)
-  steps aside, so Claude Code lists the skill once.
+- Since #724 the plugin carries rustal-harness's `rustal-ste` skill. While it is on, a terminal
+  gets the skill from it, and Marley's own skill folder (#725) steps aside, so Claude Code lists the
+  skill once.
+- Since #776 the plugin is rustal-harness's 0.4.0 (its TICKET-119). It hands Claude Code's
+  `ExitPlanMode` to Marley's Plan Review (below), and carries the `plan-questions` skill, which
+  tells Claude Code to write each open question of a plan as a `:::question` block.
 
 ### Plan review (#726)
 
 With **Plan Review** on in Settings → Marley → Agents (`marley.plan_review`, off by default), a
 Claude Code in a new local terminal that finishes a plan and asks to leave plan mode hands the
-plan to Marley instead of its own dialog. It needs the shared plugin (above) at a revision that
-does this, which rustal-harness has yet to ship; until then Claude Code's dialog decides as
-before.
+plan to Marley instead of its own dialog. It needs the shared plugin (above), 0.4.0 or later
+(#776); with the plugin off, Claude Code's dialog decides as before.
 
 - The plan opens as Markdown in a **Plan** tab beside the terminal, taking the focus only when the
   terminal had it, and Needs you lists "Plan to review" until you answer.
@@ -1289,7 +1291,8 @@ before.
   **Skip**. The column counts "K of M answered". While an answer or a skip waits to go, **Send
   Answers** takes Approve's place, since an approval carries no text; it sends the answers first,
   under "Answers to your questions", then any notes, and Claude Code revises the plan with them.
-- A question is a block in the plan, plannotator's syntax: a line `:::question` (one choice),
+- A question is a block in the plan, plannotator's syntax, which the shared plugin's
+  `plan-questions` skill teaches Claude Code (#776): a line `:::question` (one choice),
   `:::question-multi` (several) or `:::question-text` (free text), then the question, any context,
   the choices as `- [ ] label — why`, an optional `Recommended: label`, and a closing line `:::`.
   `- [x]` marks a choice already settled. A block with no closing line, or one inside a code

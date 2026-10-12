@@ -2798,10 +2798,13 @@ below describe what #743 retired.
 
 - `claude_shared_plugin/` carries rustal-harness's plugin files unchanged:
   - at first, its TICKET-108's six (version 0.2.0, MIT OR Apache-2.0);
-  - since #724, its TICKET-115's sixteen at `cda7c24` (version 0.3.0, with `skills/rustal-ste/`).
+  - since #724, its TICKET-115's sixteen at `cda7c24` (version 0.3.0, with `skills/rustal-ste/`);
+  - since #776, its TICKET-119's seventeen at `5333d15` (version 0.4.0): `register.js` hands a call
+    that `MARLEY_APPROVE_TOOLS` names to `MARLEY_BIN approve` (#726's Plan tab), and
+    `skills/plan-questions/` teaches #728's `:::question` blocks.
 
   `FILES` embeds them with `include_str!` in `rh`'s order. `digest()` hashes each path and text
-  after its length as a little-endian u64; the folder is `eebd8a51…b1d0`, the harness's own.
+  after its length as a little-endian u64; the folder is `b3b5ee99…e26a`, the harness's own.
 - `identity::marley_plugins` gives terminals the shared plugin when it is set, else #725's skill
   folder, so the skill loads once (#724).
 - `install_in(<data>/claude-code/shared)` gives the digest's folder. One already there is checked
