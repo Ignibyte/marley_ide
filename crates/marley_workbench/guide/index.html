@@ -1231,6 +1231,19 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes back to the terminal's own dialog, and the tab says so.</p>
 </article>
 
+<article id="review-markdown-and-replies">
+<h3>Notes on a Markdown file or an agent's last reply <span class="ticket">#729</span></h3>
+<p class="what"><strong>What it is.</strong> The plan review tab, opened on any Markdown file or on an agent's last reply: select a passage, press <kbd>c</kbd>, write your note, then Send Notes. A file's notes go to an agent working on it; a reply's go back to the agent that wrote it.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>With a Markdown file or its preview active, run <strong>marley: review markdown</strong> from the command palette. A <strong>Review · file</strong> tab opens beside it.</li>
+<li>For a reply, run <strong>marley: review last reply</strong> with a thread or Claude Code's terminal active, or right-click the terminal's or the thread's row in the rail and choose <strong>Review Last Reply</strong>.</li>
+<li>Select a passage and press <kbd>c</kbd> (or right-click, Comment…), type the note and press Enter. Add an overall note below if you like.</li>
+<li>Press <strong>Send Notes</strong>. For a file, pick the agent (or Copy notes); each note goes with its file, its lines and the passage you quoted. For a reply, the notes go straight back: into Claude Code's terminal while it is ready, or into the thread as your message. Sent notes stay, marked Sent.</li>
+</ol>
+<p class="note">A terminal's reply is read from the transcript Claude Code names to Marley's plugin, so it needs the plugin. An agent still at work, or a thread with your own message typed in it, gets nothing, and a toast says why.</p>
+</article>
+
 <article id="shared-claude-plugin">
 <h3>The shared Claude Code plugin, and agents' own reports <span class="ticket">#652 · #709</span></h3>
 <p class="what"><strong>What it is.</strong> A second plugin for Claude Code, the one Marley shares with rustal-harness. Loaded in Marley's terminals, it makes Claude Code report its own state to the rail: working, waiting on you and for which tool, or idle. Any agent or wrapper can send the same reports through <code>MARLEY_BIN</code>.</p>

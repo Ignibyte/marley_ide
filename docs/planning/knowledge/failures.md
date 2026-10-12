@@ -4016,3 +4016,15 @@ an example keeps it as code. The first `plan_parts` looked for `:::question` on 
 about this very feature would have turned its example into a live card. Fixed: `plan_parts` keeps
 the fence a code block opened with and ignores openers until the same fence closes it; the
 scenario's revised plan carries such an example.
+
+## F-claude-729-the-plans-c-key-made-no-note-after-728-001
+*severity: high · found in: pipeline 729's Test, the first runs · class: a focus check that asks whether the area holds the focus rather than which child does · prevented by: L-claude-729-a-markdown-element-takes-the-focus-on-a-mouse-down-001*
+
+#728 made the Plan tab's `c` yield to a card's answer field by propagating unless the plan area's
+own handle `is_focused`. A drag over the text leaves the focus on the Markdown element's own
+handle, inside the area, so after #728 `c` never made a note, in a plan or anywhere else the tab
+draws Markdown. #728's scenario typed in a card's field and never pressed `c` over the text, and
+its notes claimed the key still made notes. #729's first run dragged over README.md, pressed `c`,
+and no note editor came up (`729-01a-dragged-c`). Fixed in #729: `c` propagates only while a
+card's field contains the focus. The fix is not pushed with #728's commit, which is not pushed
+either; the two go out together.

@@ -5765,7 +5765,26 @@ for a smaller Markdown, as #728's card context does.
 *category: gpui · topic: a single-letter binding over an area that holds editors · from: pipeline 728*
 
 A binding such as the Plan tab's `c` matches in every focused descendant of its key context,
-editors included. Its handler checks `focus_handle.is_focused(window)` (the area itself, not a
-descendant) and calls `cx.propagate()` otherwise; the key then reaches the editor as text.
-#728's scenario typed `search_cache` into a card's field inside `PlanReviewPlan` and both `c`s
-arrived.
+editors included. Its handler calls `cx.propagate()` when one of those editors holds the focus
+(`editor.focus_handle(cx).contains_focused(window, cx)`), and the key then reaches the editor as
+text. #728's scenario typed `search_cache` into a card's field inside `PlanReviewPlan` and both
+`c`s arrived. Corrected in #729: #728 first checked `area.is_focused(window)` instead, which is
+false after any drag, since the Markdown element focuses its own handle on a mouse-down; `c`
+then made no note (F-claude-729-the-plans-c-key-made-no-note-after-728-001). Ask which field has
+the focus, not whether the area alone has it.
+
+## L-claude-729-a-markdown-element-takes-the-focus-on-a-mouse-down-001
+*category: gpui · topic: focus inside an area that draws Markdown · from: pipeline 729*
+
+Zed's `MarkdownElement` focuses the `Markdown` entity's own handle on a mouse-down (for its copy
+binding), after any capture-phase handler of the area around it. A click or a drag over the text
+leaves the area's handle containing the focus but not holding it: `contains_focused` is true and
+`is_focused` is false. A check meant to tell "the area" from "a field in the area" asks about the
+field.
+
+## L-claude-729-a-columns-button-moves-as-its-notes-list-grows-001
+*category: e2e · topic: placing a click after the view changed · from: pipeline 729*
+
+The review tab's Send Notes sits under the notes list, so it is 61 px lower once one note is
+listed than in the first shot, which has none. #729's first runs clicked where the button stood in
+the empty tab and hit the note. Place a click from a shot taken in the state the click happens in.

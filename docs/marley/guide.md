@@ -1290,6 +1290,29 @@ before.
 - Marley's terminals carry `MARLEY_APPROVE_TOOLS=ExitPlanMode` while the setting is on; the plugin
   reads it, and `"$MARLEY_BIN" approve` waits for your answer.
 
+### Notes on a Markdown file or a reply (#729)
+
+The plan review tab also opens on any Markdown file and on an agent's last reply, for notes that
+go to an agent.
+
+- **A Markdown file:** with its editor or its preview active, run `marley: review markdown`. A
+  **Review · file** tab opens in the same pane with the file drawn as Markdown.
+- **A reply:** run `marley: review last reply` with an agent thread or Claude Code's terminal
+  active, or choose **Review Last Reply** in the rail's menu for the terminal or the thread. A
+  thread's reply is its last turn's text, its thoughts left out. Claude Code's is read from the
+  transcript its hook events name, which needs Marley's plugin.
+- Select a passage and press `c` (or right-click, **Comment…**), write the note and press Enter;
+  an **Overall** note sits below. **Send Notes** sends the notes not sent yet, and the count on the
+  button says how many.
+- A file's notes open the agent picker of the diff's review notes, listing the agents whose folder
+  holds the file and Copy notes. Each note goes as `File:`, `Line:` or `Lines:`, `Quote:` (the
+  passage) and `User comment:`, inside the review notes template.
+- A reply's notes go back only to the agent that wrote it, under "Notes on your last reply:": into
+  Claude Code's terminal with Enter while it is ready, or into the thread as your message. An agent
+  at work, one waiting on a question, or a thread with a message of yours typed in it gets nothing,
+  and a toast says why.
+- Sent notes stay in the tab, marked **Sent**; an overall note that went is kept as a note.
+
 ### Per-turn diffs
 
 With the plugin connected, Marley keeps each turn of a terminal's Claude Code that changed the

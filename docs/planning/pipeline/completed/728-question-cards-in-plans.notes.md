@@ -137,7 +137,7 @@ Marley then carries the plugin at that revision (#724's way).
 - **728-04-revised** (REQ-006, REQ-007): Version 2 with its counts; the revised plan's question
   Settled with In memory ticked and no buttons or field; the fenced example drawn as code; the
   block with no closing line drawn as a paragraph.
-- **Focus report:** the plan's area keeps `c` for notes; a card's field takes the letter.
+- **Focus report:** a card's field takes the letter. (Corrected by #729: the claim that the plan's area kept `c` for notes was not checked here, and it did not hold; see F-claude-729-the-plans-c-key-made-no-note-after-728-001.)
 - Pre-existing failures: none seen.
 
 ## Phase 4 — Complete

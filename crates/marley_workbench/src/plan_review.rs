@@ -13,23 +13,32 @@
 //! diff, drawn by Zed's own diff editor. Since #728 a plan's `:::question` blocks are cards in
 //! their place, with choices, Accept recommended and Skip; the answers lead the feedback, and Send
 //! Answers takes Approve's place while any is unsent.
+//!
+//! Since #729 the same tab reviews a Markdown file (`marley: review markdown`) or an agent's last
+//! reply (`marley: review last reply`, or Review Last Reply in the rail's menus). Send Notes sends
+//! the notes not sent yet: a file's through #522's picker, a reply's back to the agent that wrote
+//! it, in its terminal while it is ready or in its thread. Sent notes stay, marked Sent.
 
 use std::ops::Range;
+use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use agent_ui::{AgentPanel, ConversationView};
 use editor::{Editor, EditorEvent, EditorMode};
 use gpui::{
-    Anchor, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, FontWeight, Global, MouseButton, MouseDownEvent, Pixels, Point,
-    SharedString, Subscription, WeakEntity, Window, actions, anchored, deferred,
+    Anchor, AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId,
+    EventEmitter, FocusHandle, Focusable, FontWeight, Global, MouseButton, MouseDownEvent, Pixels,
+    Point, SharedString, Subscription, WeakEntity, Window, actions, anchored, deferred,
 };
 use language::LanguageRegistry;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
-use marley_agent::PlanNote;
+use markdown_preview::markdown_preview_view::MarkdownPreviewView;
 use marley_agent::plan_questions::{self, Answer, PlanPart, Question, QuestionKind};
 use marley_agent::report::{self, Refusal};
+use marley_agent::{PlanNote, ReviewLine};
 use marley_mcp::agent_socket::AgentRequest;
 use marley_rail::{InboxEntry, InboxKind};
 use serde_json::Value;
@@ -37,8 +46,9 @@ use settings::SettingsStore;
 use terminal_view::TerminalView;
 use ui::{Checkbox, ContextMenu, DiffStat, ToggleState, prelude::*};
 use util::ResultExt as _;
-use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
+use workspace::notifications::NotificationId;
+use workspace::{Toast, Workspace};
 
 actions!(
     plan_review,
@@ -46,6 +56,20 @@ actions!(
         /// Comments on the plan's selected passage.
         #[derive(Eq)]
         Comment
+    ]
+);
+
+actions!(
+    marley,
+    [
+        /// Opens the active Markdown file, or the file of the active Markdown preview, in a review
+        /// tab: notes on its passages go to an agent working on it.
+        #[derive(Eq)]
+        ReviewMarkdown,
+        /// Opens the last reply of the active agent thread, or of Claude Code in the active
+        /// terminal, in a review tab: notes on it go back to that agent.
+        #[derive(Eq)]
+        ReviewLastReply
     ]
 );
 
@@ -89,6 +113,19 @@ pub fn init(cx: &mut App) {
     cx.set_global(PendingPlans::default());
     reconcile(cx);
     cx.observe_global::<SettingsStore>(reconcile).detach();
+    cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
+        workspace.register_action(|workspace, _: &ReviewMarkdown, window, cx| {
+            if let Err(message) = review_markdown(workspace, window, cx) {
+                show_toast(workspace, message, cx);
+            }
+        });
+        workspace.register_action(|workspace, _: &ReviewLastReply, window, cx| {
+            if let Err(message) = review_last_reply(workspace, window, cx) {
+                show_toast(workspace, message, cx);
+            }
+        });
+    })
+    .detach();
 }
 
 /// Whether `marley.plan_review` is on.
@@ -204,17 +241,18 @@ fn open_tab(
     cx: &mut App,
 ) -> WeakEntity<PlanReview> {
     let view_id = view.entity_id();
-    let project = SharedString::from(project_name(workspace, cx));
+    let title = SharedString::from(format!("Plan · {}", project_name(workspace.read(cx), cx)));
     let terminal_focused = view.focus_handle(cx).contains_focused(window, cx);
     workspace.update(cx, |workspace, cx| {
         let open = workspace
             .items_of_type::<PlanReview>(cx)
-            .find(|tab| tab.read(cx).view == view_id);
+            .find(|tab| tab.read(cx).plan_view() == Some(view_id));
         let tab = if let Some(tab) = open {
             workspace.activate_item(&tab, false, terminal_focused, window, cx);
             tab
         } else {
-            let tab = cx.new(|cx| PlanReview::new(view_id, project, window, cx));
+            let subject = Subject::Plan { view: view_id };
+            let tab = cx.new(|cx| PlanReview::new(subject, title, window, cx));
             // Beside the terminal when it sits in a center pane, else in the active one.
             let pane = workspace
                 .panes()
@@ -241,9 +279,8 @@ fn open_tab(
 }
 
 /// The workspace's project name, as the rail shows it.
-fn project_name(workspace: &Entity<Workspace>, cx: &App) -> String {
+fn project_name(workspace: &Workspace, cx: &App) -> String {
     workspace
-        .read(cx)
         .project()
         .read(cx)
         .visible_worktrees(cx)
@@ -367,11 +404,288 @@ pub(crate) fn show_tab(view: EntityId, window: &Window, cx: &mut App) {
     });
 }
 
-/// A note on a passage of the plan.
+/// The review tab's toasts' id.
+struct ReviewToasts;
+
+pub(crate) fn show_toast(
+    workspace: &mut Workspace,
+    message: impl Into<String>,
+    cx: &mut Context<Workspace>,
+) {
+    workspace.show_toast(
+        Toast::new(NotificationId::unique::<ReviewToasts>(), message.into()),
+        cx,
+    );
+}
+
+/// `marley: review markdown` (#729): the active Markdown file, or the file the active preview
+/// shows, in a review tab; the message says why it did not open.
+fn review_markdown(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
+    // A preview hands out its source editor as an `Editor`.
+    let editor = workspace
+        .active_item(cx)
+        .and_then(|item| item.act_as::<Editor>(cx))
+        .filter(|editor| MarkdownPreviewView::is_markdown_file(editor, cx))
+        .ok_or("Review Markdown reviews the active Markdown file or its preview.")?;
+    let buffer = editor
+        .read(cx)
+        .buffer()
+        .read(cx)
+        .as_singleton()
+        .ok_or("Review Markdown reviews one file at a time.")?;
+    let buffer = buffer.read(cx);
+    let path = buffer
+        .file()
+        .and_then(|file| file.as_local())
+        .map(|file| file.abs_path(cx))
+        .ok_or("Review Markdown needs a file saved on this machine.")?;
+    let text = buffer.text();
+    let name = path.file_name().map_or_else(
+        || path.to_string_lossy().into_owned(),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    let subject = Subject::File {
+        path,
+        workspace: cx.entity().downgrade(),
+    };
+    open_document(
+        workspace,
+        subject,
+        format!("Review · {name}"),
+        text,
+        window,
+        cx,
+    );
+    Ok(())
+}
+
+/// `marley: review last reply` (#729): the Agent Panel's thread while the panel has the focus,
+/// else the active thread tab, the active terminal's Claude Code, or the panel's thread.
+fn review_last_reply(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
+    let panel = workspace.panel::<AgentPanel>(cx);
+    let panel_thread = panel
+        .as_ref()
+        .and_then(|panel| panel.read(cx).active_conversation_view().cloned());
+    let panel_focused = panel
+        .as_ref()
+        .is_some_and(|panel| panel.focus_handle(cx).contains_focused(window, cx));
+    if panel_focused && let Some(conversation) = panel_thread.as_ref() {
+        return review_thread_reply(workspace, conversation, window, cx);
+    }
+    if let Some(conversation) = crate::thread_tab::active_conversation(workspace, cx) {
+        return review_thread_reply(workspace, &conversation, window, cx);
+    }
+    if let Some(view) = workspace.active_item_as::<TerminalView>(cx) {
+        return review_terminal_reply(workspace, &view, window, cx);
+    }
+    let conversation = panel_thread.ok_or(
+        "Review Last Reply reviews the active agent thread, or Claude Code in the active terminal.",
+    )?;
+    review_thread_reply(workspace, &conversation, window, cx)
+}
+
+fn review_thread_reply(
+    workspace: &mut Workspace,
+    conversation: &Entity<ConversationView>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
+    let text = crate::last_reply::of_thread(conversation, cx)
+        .ok_or("This thread has no reply to review yet.")?;
+    let title = conversation
+        .read(cx)
+        .root_thread_view()
+        .and_then(|view| view.read(cx).thread.read(cx).title())
+        .map_or_else(
+            || "Reply · Thread".to_string(),
+            |title| format!("Reply · {title}"),
+        );
+    let subject = Subject::Reply(ReplyOrigin::Thread {
+        conversation: conversation.downgrade(),
+        workspace: cx.entity().downgrade(),
+    });
+    open_document(workspace, subject, title, text, window, cx);
+    Ok(())
+}
+
+/// The last reply of Claude Code in `view`, read from its transcript off the main thread, in a
+/// review tab (#729); the rail's terminal menu calls it too. A failure to read it is a toast.
+pub(crate) fn review_terminal_reply(
+    workspace: &Workspace,
+    view: &Entity<TerminalView>,
+    window: &Window,
+    cx: &Context<Workspace>,
+) -> Result<(), &'static str> {
+    let path = crate::last_reply::transcript_of(view.entity_id(), cx).ok_or(
+        "Marley knows no transcript for this terminal: Claude Code names it to Marley's plugin.",
+    )?;
+    let project = project_name(workspace, cx);
+    let title = format!("Reply · Claude Code · {project}");
+    let origin = ReplyOrigin::Terminal {
+        view: view.downgrade(),
+        project,
+        workspace: cx.entity().downgrade(),
+    };
+    let read = cx.background_spawn(futures::future::lazy(move |_| {
+        crate::last_reply::read_reply(&path)
+    }));
+    cx.spawn_in(window, async move |workspace, cx| {
+        let reply = read.await;
+        workspace.update_in(cx, |workspace, window, cx| match reply {
+            Ok(text) => open_document(workspace, Subject::Reply(origin), title, text, window, cx),
+            Err(message) => show_toast(workspace, message, cx),
+        })
+    })
+    .detach_and_log_err(cx);
+    Ok(())
+}
+
+/// Shows `text` in a review tab of `subject` in the active pane, or brings back the tab already
+/// showing the same text of it.
+fn open_document(
+    workspace: &mut Workspace,
+    subject: Subject,
+    title: String,
+    text: String,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let open = workspace.items_of_type::<PlanReview>(cx).find(|tab| {
+        let tab = tab.read(cx);
+        tab.subject.same_as(&subject) && tab.plan == text
+    });
+    if let Some(tab) = open {
+        workspace.activate_item(&tab, true, true, window, cx);
+        return;
+    }
+    let tab = cx.new(|cx| {
+        let mut tab = PlanReview::new(subject, SharedString::from(title), window, cx);
+        tab.show_document(text, window, cx);
+        tab
+    });
+    workspace.add_item_to_active_pane(Box::new(tab), None, true, window, cx);
+}
+
+/// Into the terminal's agent, only while it is ready: an agent at work would take the notes as its
+/// next prompt.
+fn send_to_reply_terminal(
+    view: &WeakEntity<TerminalView>,
+    project: &str,
+    text: String,
+    here: AnyWindowHandle,
+    cx: &mut App,
+) -> Result<(), SharedString> {
+    let target = view
+        .upgrade()
+        .and_then(|view| crate::send_selection::target_of(project.to_string(), view, cx))
+        .ok_or_else(|| {
+            SharedString::new_static("No agent CLI runs in that terminal now; nothing was sent.")
+        })?;
+    if !target.ready {
+        return Err(SharedString::from(format!(
+            "{} in {} is {}; the notes were not sent.",
+            target.kind.display_name(),
+            target.project,
+            crate::review_notes::readiness(&target)
+        )));
+    }
+    crate::drafts::send_to_terminal(view, project, text, here, cx)
+}
+
+/// The lines, from 1, that `range` of `text` covers; a passage that ends with its line break ends
+/// on that line.
+fn lines_of(text: &str, range: &Range<usize>) -> (u32, u32) {
+    let line_at = |offset: usize| {
+        text.get(..offset)
+            .map_or(0, |before| before.matches('\n').count())
+            + 1
+    };
+    let ends_with_break = text
+        .get(range.clone())
+        .is_some_and(|passage| passage.len() > 1 && passage.ends_with('\n'));
+    let first = line_at(range.start);
+    let last = line_at(range.end) - usize::from(ends_with_break);
+    (
+        u32::try_from(first).unwrap_or(u32::MAX),
+        u32::try_from(last.max(first)).unwrap_or(u32::MAX),
+    )
+}
+
+/// A note on a passage of the plan; an empty quote is a sent overall note (#729).
 struct Note {
     range: Range<usize>,
     quote: String,
     comment: String,
+    /// Whether it went to the agent (#729); a plan's notes go with the plan's answer instead.
+    sent: bool,
+}
+
+/// What a review tab reviews.
+enum Subject {
+    /// Claude Code's plan, from the agent in this terminal view (#726).
+    Plan { view: EntityId },
+    /// A Markdown file, by its absolute path, from this workspace (#729).
+    File {
+        path: PathBuf,
+        workspace: WeakEntity<Workspace>,
+    },
+    /// An agent's last reply (#729).
+    Reply(ReplyOrigin),
+}
+
+/// Where a reply came from, which is where its notes go.
+enum ReplyOrigin {
+    /// Claude Code in a terminal of `project`.
+    Terminal {
+        view: WeakEntity<TerminalView>,
+        project: String,
+        workspace: WeakEntity<Workspace>,
+    },
+    /// A Zed agent thread.
+    Thread {
+        conversation: WeakEntity<ConversationView>,
+        workspace: WeakEntity<Workspace>,
+    },
+}
+
+impl Subject {
+    /// Whether `other` reviews the same thing.
+    fn same_as(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Plan { view }, Self::Plan { view: other }) => view == other,
+            (Self::File { path, .. }, Self::File { path: other, .. }) => path == other,
+            (
+                Self::Reply(ReplyOrigin::Terminal { view, .. }),
+                Self::Reply(ReplyOrigin::Terminal { view: other, .. }),
+            ) => view.entity_id() == other.entity_id(),
+            (
+                Self::Reply(ReplyOrigin::Thread { conversation, .. }),
+                Self::Reply(ReplyOrigin::Thread {
+                    conversation: other,
+                    ..
+                }),
+            ) => conversation.entity_id() == other.entity_id(),
+            _ => false,
+        }
+    }
+
+    const fn workspace(&self) -> Option<&WeakEntity<Workspace>> {
+        match self {
+            Self::Plan { .. } => None,
+            Self::File { workspace, .. }
+            | Self::Reply(
+                ReplyOrigin::Terminal { workspace, .. } | ReplyOrigin::Thread { workspace, .. },
+            ) => Some(workspace),
+        }
+    }
 }
 
 /// A note being written.
@@ -386,16 +700,20 @@ struct Composing {
 enum State {
     /// Waiting for the user, under the request's nonce.
     Waiting(u64),
+    /// A file or a reply, taking notes with no request waiting (#729).
+    Open,
     Approved,
     FeedbackSent,
     /// The caller stopped waiting, or its wait ran out.
     Withdrawn,
 }
 
-/// The Plan tab.
+/// The Plan tab, and since #729 the review tab of a file or a reply.
 pub(crate) struct PlanReview {
-    view: EntityId,
-    project: SharedString,
+    subject: Subject,
+    /// The tab's title: "Plan · project", "Review · file", "Reply · agent".
+    title: SharedString,
+    /// The text under review: the plan, the file or the reply.
     plan: String,
     /// The plan's runs of Markdown and its question cards, in order (#728).
     parts: Vec<Part>,
@@ -415,6 +733,7 @@ pub(crate) struct PlanReview {
     changes: Option<Changes>,
     /// Whether the left area shows the changes rather than the plan.
     showing_changes: bool,
+    _overall_edited: Subscription,
 }
 
 /// A run of the plan as the tab draws it (#728).
@@ -465,20 +784,31 @@ struct Changes {
 
 impl PlanReview {
     fn new(
-        view: EntityId,
-        project: SharedString,
+        subject: Subject,
+        title: SharedString,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let placeholder = match subject {
+            Subject::Plan { .. } => "A note on the whole plan",
+            Subject::File { .. } => "A note on the whole file",
+            Subject::Reply(_) => "A note on the whole reply",
+        };
         let overall = cx.new(|cx| {
             let mut editor = Editor::auto_height(1, 4, window, cx);
             editor.set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx);
-            editor.set_placeholder_text("A note on the whole plan", window, cx);
+            editor.set_placeholder_text(placeholder, window, cx);
             editor
         });
+        // Send Notes counts the overall note, and Send Feedback waits for one.
+        let overall_edited = cx.subscribe(&overall, |_, _, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::BufferEdited) {
+                cx.notify();
+            }
+        });
         Self {
-            view,
-            project,
+            subject,
+            title,
             plan: String::new(),
             parts: Vec::new(),
             cards: Vec::new(),
@@ -491,6 +821,7 @@ impl PlanReview {
             versions: Vec::new(),
             changes: None,
             showing_changes: false,
+            _overall_edited: overall_edited,
         }
     }
 
@@ -520,6 +851,38 @@ impl PlanReview {
         self.state = State::Waiting(nonce);
         self.highlight(cx);
         cx.notify();
+    }
+
+    /// Shows a file's or a reply's text, taking notes (#729). Question blocks stay text there.
+    fn show_document(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
+        let markdown = cx.new(|cx| Markdown::new(text.clone().into(), None, None, cx));
+        self.parts = vec![Part::Text {
+            start: 0,
+            len: text.len(),
+            markdown,
+        }];
+        self.cards.clear();
+        self.plan = text;
+        self.notes.clear();
+        self.composing = None;
+        self.overall
+            .update(cx, |editor, cx| editor.set_text("", window, cx));
+        self.state = State::Open;
+        self.highlight(cx);
+        cx.notify();
+    }
+
+    /// The terminal view whose plan the tab shows, for a plan.
+    const fn plan_view(&self) -> Option<EntityId> {
+        match self.subject {
+            Subject::Plan { view } => Some(view),
+            Subject::File { .. } | Subject::Reply(_) => None,
+        }
+    }
+
+    /// Whether the tab takes notes now: a plan while it waits, a file or a reply always.
+    const fn taking_notes(&self) -> bool {
+        matches!(self.state, State::Waiting(_) | State::Open)
     }
 
     fn withdraw(&mut self, nonce: u64, cx: &mut Context<Self>) {
@@ -577,8 +940,13 @@ impl PlanReview {
 
     /// `c`: a note on the passage selected now.
     fn comment(&mut self, _: &Comment, window: &mut Window, cx: &mut Context<Self>) {
-        // A card's answer field sits in the plan's area: the letter is its own there.
-        if !self.plan_focus.is_focused(window) {
+        // A card's answer field sits in the plan's area: the letter is its own there. The focus
+        // is not the area's own after a drag, since the Markdown element takes it for its copy.
+        if self
+            .cards
+            .iter()
+            .any(|card| card.words.focus_handle(cx).contains_focused(window, cx))
+        {
             cx.propagate();
             return;
         }
@@ -613,7 +981,7 @@ impl PlanReview {
 
     /// Starts a note on `range`: an editor for its words, focused.
     fn start_note(&mut self, range: Range<usize>, window: &mut Window, cx: &mut Context<Self>) {
-        if self.waiting().is_none() {
+        if !self.taking_notes() {
             return;
         }
         let Some(quote) = self.plan.get(range.clone()).map(str::to_string) else {
@@ -664,6 +1032,7 @@ impl PlanReview {
                 range: composing.range,
                 quote: composing.quote,
                 comment,
+                sent: false,
             });
             self.highlight(cx);
         }
@@ -672,7 +1041,7 @@ impl PlanReview {
     }
 
     fn remove_note(&mut self, index: usize, cx: &mut Context<Self>) {
-        if index < self.notes.len() {
+        if self.notes.get(index).is_some_and(|note| !note.sent) {
             self.notes.remove(index);
             self.highlight(cx);
             cx.notify();
@@ -684,10 +1053,10 @@ impl PlanReview {
     }
 
     fn approve(&mut self, cx: &mut Context<Self>) {
-        let Some(nonce) = self.waiting() else {
+        let (Some(nonce), Some(view)) = (self.waiting(), self.plan_view()) else {
             return;
         };
-        self.state = if answer(self.view, nonce, Decision::Approve, cx) {
+        self.state = if answer(view, nonce, Decision::Approve, cx) {
             State::Approved
         } else {
             State::Withdrawn
@@ -697,7 +1066,7 @@ impl PlanReview {
     }
 
     fn send_feedback(&mut self, cx: &mut Context<Self>) {
-        let Some(nonce) = self.waiting() else {
+        let (Some(nonce), Some(view)) = (self.waiting(), self.plan_view()) else {
             return;
         };
         let notes: Vec<PlanNote> = self
@@ -709,13 +1078,162 @@ impl PlanReview {
             })
             .collect();
         let reason = marley_agent::plan_feedback(&notes, &self.overall_note(cx));
-        self.state = if answer(self.view, nonce, Decision::Deny(reason), cx) {
+        self.state = if answer(view, nonce, Decision::Deny(reason), cx) {
             State::FeedbackSent
         } else {
             State::Withdrawn
         };
         self.composing = None;
         cx.notify();
+    }
+
+    /// The notes not sent yet, by their place, and the overall note (#729).
+    fn unsent(&self, cx: &App) -> (Vec<usize>, String) {
+        let indices = self
+            .notes
+            .iter()
+            .enumerate()
+            .filter(|(_, note)| !note.sent)
+            .map(|(index, _)| index)
+            .collect();
+        (indices, self.overall_note(cx))
+    }
+
+    /// Sends the notes not sent yet and the overall note where the subject's notes go (#729): a
+    /// file's through #522's picker, a reply's back to its agent. A refusal says why in a toast.
+    fn send_notes(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let (indices, overall) = self.unsent(cx);
+        if indices.is_empty() && overall.is_empty() {
+            return;
+        }
+        let notes: Vec<&Note> = indices
+            .iter()
+            .filter_map(|index| self.notes.get(*index))
+            .collect();
+        let refusal = match &self.subject {
+            Subject::Plan { .. } => None,
+            Subject::File { path, workspace } => {
+                let file = path.to_string_lossy().into_owned();
+                let mut lines: Vec<ReviewLine> = notes
+                    .iter()
+                    .map(|note| {
+                        let (first, last) = lines_of(&self.plan, &note.range);
+                        ReviewLine {
+                            path: file.clone(),
+                            first,
+                            last,
+                            comment: note.comment.clone(),
+                            source: None,
+                            quote: Some(note.quote.clone()),
+                        }
+                    })
+                    .collect();
+                if !overall.is_empty() {
+                    lines.push(ReviewLine {
+                        path: file,
+                        first: 0,
+                        last: 0,
+                        comment: overall.clone(),
+                        source: None,
+                        quote: None,
+                    });
+                }
+                let tab = cx.entity().downgrade();
+                let on_sent: Rc<dyn Fn(&mut App)> = Rc::new(move |cx| {
+                    tab.update(cx, |tab, cx| tab.mark_sent(&indices, &overall, cx))
+                        .log_err();
+                });
+                let (path, workspace) = (path.clone(), workspace.clone());
+                // Out of the tab's update: the picker opens in the workspace.
+                window.defer(cx, move |window, cx| {
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            crate::review_notes::send_file_notes(
+                                workspace, &path, lines, on_sent, window, cx,
+                            );
+                        })
+                        .log_err();
+                });
+                return;
+            }
+            Subject::Reply(origin) => {
+                let notes: Vec<PlanNote> = notes
+                    .iter()
+                    .map(|note| PlanNote {
+                        quote: note.quote.clone(),
+                        comment: note.comment.clone(),
+                    })
+                    .collect();
+                let text = crate::review_notes::reply_message(
+                    &marley_agent::reply_notes(&notes, &overall),
+                    cx,
+                );
+                let here = window.window_handle();
+                match origin {
+                    ReplyOrigin::Terminal { view, project, .. } => {
+                        send_to_reply_terminal(view, project, text, here, cx)
+                    }
+                    ReplyOrigin::Thread {
+                        conversation,
+                        workspace,
+                    } => crate::drafts::send_to_thread(conversation, workspace, &text, here, cx),
+                }
+                .err()
+            }
+        };
+        if let Some(message) = refusal {
+            self.toast(message, cx);
+        } else {
+            self.mark_sent(&indices, &overall, cx);
+        }
+    }
+
+    /// Marks the notes at `indices` sent, and keeps a sent overall note as a note of its own.
+    fn mark_sent(&mut self, indices: &[usize], overall: &str, cx: &mut Context<Self>) {
+        for index in indices {
+            if let Some(note) = self.notes.get_mut(*index) {
+                note.sent = true;
+            }
+        }
+        if !overall.is_empty() {
+            self.notes.push(Note {
+                range: 0..0,
+                quote: String::new(),
+                comment: overall.to_string(),
+                sent: true,
+            });
+            if let Some(buffer) = self.overall.read(cx).buffer().read(cx).as_singleton() {
+                buffer.update(cx, |buffer, cx| {
+                    buffer.set_text("", cx);
+                });
+            }
+        }
+        cx.notify();
+    }
+
+    fn toast(&self, message: impl Into<String>, cx: &mut App) {
+        if let Some(workspace) = self.subject.workspace().and_then(WeakEntity::upgrade) {
+            workspace.update(cx, |workspace, cx| show_toast(workspace, message, cx));
+        }
+    }
+
+    /// The column's line on where the review stands.
+    const fn status(&self) -> &'static str {
+        match (&self.subject, self.state) {
+            (Subject::Plan { .. }, State::Waiting(_) | State::Open) => {
+                "Claude Code waits for your answer."
+            }
+            (Subject::Plan { .. }, State::Approved) => "Approved.",
+            (Subject::Plan { .. }, State::FeedbackSent) => "Feedback sent.",
+            (Subject::Plan { .. }, State::Withdrawn) => {
+                "This plan went back to the terminal's own dialog."
+            }
+            (Subject::File { .. }, _) => "Notes go to an agent working on this file.",
+            (Subject::Reply(ReplyOrigin::Terminal { .. }), _) => {
+                "Notes go back to Claude Code in its terminal, once it is ready."
+            }
+            (Subject::Reply(ReplyOrigin::Thread { .. }), _) => "Notes go back to the thread.",
+        }
     }
 
     fn card_state(card: &Card, cx: &App) -> CardState {
@@ -827,7 +1345,7 @@ impl PlanReview {
 
     /// Sends the answers, then any notes, as the deny's reason (#728).
     fn send_answers(&mut self, cx: &mut Context<Self>) {
-        let Some(nonce) = self.waiting() else {
+        let (Some(nonce), Some(view)) = (self.waiting(), self.plan_view()) else {
             return;
         };
         let questions: Vec<(String, Option<Answer>)> = self
@@ -846,7 +1364,7 @@ impl PlanReview {
             })
             .collect();
         let reason = plan_questions::questions_feedback(&answers, &notes, &self.overall_note(cx));
-        self.state = if answer(self.view, nonce, Decision::Deny(reason), cx) {
+        self.state = if answer(view, nonce, Decision::Deny(reason), cx) {
             State::FeedbackSent
         } else {
             State::Withdrawn
@@ -954,10 +1472,15 @@ impl PlanReview {
     fn render_notes(&self, cx: &Context<Self>) -> impl IntoElement {
         let surface = cx.theme().colors().surface_background;
         let focused_border = cx.theme().colors().border_focused;
-        let waiting = self.waiting().is_some();
+        let taking_notes = self.taking_notes();
         v_flex()
             .gap_2()
             .children(self.notes.iter().enumerate().map(|(index, note)| {
+                let quote = if note.quote.is_empty() {
+                    "Overall".to_string()
+                } else {
+                    format!("“{}”", note.quote.trim())
+                };
                 v_flex()
                     .gap_1()
                     .p_2()
@@ -968,13 +1491,20 @@ impl PlanReview {
                             .justify_between()
                             .gap_1()
                             .child(
-                                Label::new(format!("“{}”", note.quote.trim()))
+                                Label::new(quote)
                                     .size(LabelSize::Small)
                                     .color(Color::Muted)
                                     .italic()
                                     .line_clamp(2),
                             )
-                            .when(waiting, |row| {
+                            .when(note.sent, |row| {
+                                row.child(
+                                    Label::new("Sent")
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Success),
+                                )
+                            })
+                            .when(taking_notes && !note.sent, |row| {
                                 row.child(
                                     IconButton::new(
                                         ("plan-review-remove-note", index),
@@ -1023,12 +1553,10 @@ impl PlanReview {
         let has_feedback = !self.notes.is_empty() || !self.overall_note(cx).is_empty();
         let answers_pending = self.answers_pending(cx);
         let (answered, questions) = self.answered(cx);
-        let status = match self.state {
-            State::Waiting(_) => "Claude Code waits for your answer.",
-            State::Approved => "Approved.",
-            State::FeedbackSent => "Feedback sent.",
-            State::Withdrawn => "This plan went back to the terminal's own dialog.",
-        };
+        let taking_notes = self.taking_notes();
+        let is_plan = self.plan_view().is_some();
+        let (unsent, overall) = self.unsent(cx);
+        let unsent = unsent.len() + usize::from(!overall.is_empty());
         v_flex()
             .id("plan-review-notes")
             .w(rems(24.))
@@ -1038,7 +1566,7 @@ impl PlanReview {
             .border_color(border)
             .p_3()
             .gap_3()
-            .child(Label::new(format!("Plan · {}", self.project)).size(LabelSize::Large))
+            .child(Label::new(self.title.clone()).size(LabelSize::Large))
             .when_some(self.changes.as_ref(), |column, changes| {
                 let showing_changes = self.showing_changes;
                 column.child(
@@ -1072,12 +1600,16 @@ impl PlanReview {
                         .size(LabelSize::Small),
                 )
             })
-            .child(Label::new(status).size(LabelSize::Small).color(if waiting {
-                Color::Accent
-            } else {
-                Color::Muted
-            }))
-            .when(waiting, |column| {
+            .child(
+                Label::new(self.status())
+                    .size(LabelSize::Small)
+                    .color(if taking_notes {
+                        Color::Accent
+                    } else {
+                        Color::Muted
+                    }),
+            )
+            .when(taking_notes, |column| {
                 column.child(
                     Label::new("Select a passage, then right-click Comment… or press c.")
                         .size(LabelSize::Small)
@@ -1103,12 +1635,34 @@ impl PlanReview {
                             .child(self.overall.clone()),
                     ),
             )
-            .child(Self::answer_buttons(
-                waiting,
-                answers_pending,
-                has_feedback,
-                cx,
-            ))
+            .when(is_plan, |column| {
+                column.child(Self::answer_buttons(
+                    waiting,
+                    answers_pending,
+                    has_feedback,
+                    cx,
+                ))
+            })
+            .when(!is_plan, |column| {
+                column.child(Self::send_notes_button(unsent, cx))
+            })
+    }
+
+    /// A file's or a reply's Send Notes, with how many notes it sends (#729).
+    fn send_notes_button(unsent: usize, cx: &Context<Self>) -> impl IntoElement {
+        h_flex().child(
+            Button::new(
+                "plan-review-send-notes",
+                if unsent > 0 {
+                    format!("Send Notes ({unsent})")
+                } else {
+                    "Send Notes".to_string()
+                },
+            )
+            .style(ButtonStyle::Filled)
+            .disabled(unsent == 0)
+            .on_click(cx.listener(|tab, _, window, cx| tab.send_notes(window, cx))),
+        )
     }
 
     /// A card's Accept recommended and Skip (#728).
@@ -1374,17 +1928,23 @@ impl Item for PlanReview {
     type Event = ItemEvent;
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
-        SharedString::from(format!("Plan · {}", self.project))
+        self.title.clone()
     }
 
     fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
-        Some(Icon::new(IconName::FileDoc))
+        Some(Icon::new(match self.subject {
+            Subject::Plan { .. } => IconName::FileDoc,
+            Subject::File { .. } => IconName::FileMarkdown,
+            Subject::Reply(_) => IconName::Chat,
+        }))
     }
 
     fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {
-        Some(SharedString::new_static(
-            "Claude Code's plan, for your review",
-        ))
+        Some(match &self.subject {
+            Subject::Plan { .. } => SharedString::new_static("Claude Code's plan, for your review"),
+            Subject::File { path, .. } => SharedString::from(path.to_string_lossy().into_owned()),
+            Subject::Reply(_) => SharedString::new_static("An agent's last reply, for your notes"),
+        })
     }
 
     fn to_item_events(event: &ItemEvent, f: &mut dyn FnMut(ItemEvent)) {

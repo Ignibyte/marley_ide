@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Notes on a Markdown file or an agent's last reply** (#729, 2026-10-12). `marley: review
+  markdown` opens a Markdown file, and `marley: review last reply` (or Review Last Reply in the
+  rail's menus) an agent's last reply, in the plan review tab: select a passage, press `c`, write a
+  note, Send Notes. A file's notes go to an agent working on it with the file, the lines and the
+  passage; a reply's go back to the agent that wrote it, in its terminal or its thread.
+
 - **Question cards in plans** (#728, 2026-10-12). A plan's open questions, written as
   `:::question` blocks, show as cards in the Plan tab, in their place: tick a choice, accept the
   agent's recommendation, write your own answer, or skip. Send Answers sends them back first in
@@ -1429,6 +1435,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **`c` makes a note in the Plan tab again** (#729). Since #728 the key did nothing after a drag
+  over the plan's text; it now makes the note, and still types into a question card's field.
 
 - **An agent's click that opens a dialog answers at once** (#756). Chromium held the answer to the
   click until the dialog closed, so the tool waited 15 seconds and failed; it now answers when

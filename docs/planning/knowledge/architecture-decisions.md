@@ -5356,3 +5356,18 @@ while one is unsent, since an approval carries no text. Agents learn the syntax 
 plugin's skills (a rustal-harness request, held while the harness is paused). Rejected: a custom
 block in Zed's `markdown` crate (a parser option and a render hook in a Zed crate for one Marley
 use), a fenced ```` ```question ```` block (a second syntax), and the cards in a separate panel.
+
+## AD-claude-729-one-review-tab-for-plans-files-and-replies-001
+*decided at: 2026-10-12 · status: shipped*
+
+The Plan tab (#726) is Marley's one review tab: it reviews a plan, a Markdown file
+(`marley: review markdown`, from the file's editor or Zed's preview, whose `act_as::<Editor>` hands
+out its source editor) or an agent's last reply (`marley: review last reply`, or Review Last Reply
+in the rail's terminal and thread menus). A file's notes go through #522's picker as `File:`, the
+lines, `Quote:` and `User comment:`; a reply's go only to the agent that wrote it, into Claude
+Code's terminal while its seat reads ready or into the thread through its own send, refused while
+the user has a draft there. Claude Code's reply is read from the transcript its hook events name,
+its last 16 MiB off the main thread, taking only the assistant `text` blocks after the last prompt.
+Sent notes stay, marked. Rejected: notes inside Zed's Markdown preview (a Zed view drawing
+Marley's notes, and no preview for a reply), gutter notes on the raw file, the Stop frame's
+300-character message, and scraping the terminal's screen.

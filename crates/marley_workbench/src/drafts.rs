@@ -243,7 +243,7 @@ fn window_holding(
 }
 
 /// Into the agent CLI's prompt with Enter, unless it is gone or waits on a question.
-fn send_to_terminal(
+pub(crate) fn send_to_terminal(
     view: &WeakEntity<TerminalView>,
     project: &str,
     text: String,
@@ -270,7 +270,7 @@ fn send_to_terminal(
 }
 
 /// Into the thread's message box and sent, unless the user has text of their own there.
-fn send_to_thread(
+pub(crate) fn send_to_thread(
     conversation: &WeakEntity<ConversationView>,
     workspace: &WeakEntity<Workspace>,
     text: &str,

@@ -390,7 +390,7 @@ pub fn quote_argument(argument: &str) -> String {
 pub struct ReviewLine {
     /// The file, relative to the agent's folder when it lies under it.
     pub path: String,
-    /// The first line the note covers, from 1.
+    /// The first line the note covers, from 1; 0 for a note on the whole file (#729).
     pub first: u32,
     /// The last line it covers.
     pub last: u32,
@@ -398,6 +398,8 @@ pub struct ReviewLine {
     pub comment: String,
     /// The tool a kept finding came from (#730); none for the user's own note.
     pub source: Option<String>,
+    /// The passage the note is on, as the reviewer read it (#729); none for a diff's note.
+    pub quote: Option<String>,
 }
 
 /// The prompt that hands review notes to an agent (#522).
@@ -405,28 +407,34 @@ pub struct ReviewLine {
 /// It takes the form Orca's report describes for its diff notes
 /// (`src/shared/diff-comments-format.ts`): per note `File: <path>`, `Line: N` or `Lines: A-B`, and
 /// `User comment: "<words>"`, the notes in file and line order, a blank line between them; a tool's
-/// finding adds `Source: "<name>"` (#730). In the words and the source a backslash, a quote, a CR
-/// and a LF are escaped, and any other control character is dropped, so the prompt holds no escape
-/// sequence.
+/// finding adds `Source: "<name>"` (#730), and a note on a Markdown file's passage `Quote:
+/// "<passage>"` before its comment (#729), with no line for a note on the whole file. In the words,
+/// the passage and the source a backslash, a quote, a CR and a LF are escaped, and any other
+/// control character is dropped, so the prompt holds no escape sequence.
 #[must_use]
 pub fn review_prompt(mut notes: Vec<ReviewLine>) -> String {
     notes.sort_by(|a, b| (&a.path, a.first, a.last).cmp(&(&b.path, b.first, b.last)));
     notes
         .iter()
         .map(|note| {
-            let lines = if note.first == note.last {
-                format!("Line: {}", note.first)
-            } else {
-                format!("Lines: {}-{}", note.first, note.last)
-            };
             let path: String = note.path.chars().filter(|c| !c.is_control()).collect();
-            let source = note.source.as_deref().map_or_else(String::new, |source| {
-                format!("\nSource: \"{}\"", escape_comment(source))
-            });
-            format!(
-                "File: {path}\n{lines}\nUser comment: \"{}\"{source}",
+            let mut parts = vec![format!("File: {path}")];
+            if note.first == note.last && note.first > 0 {
+                parts.push(format!("Line: {}", note.first));
+            } else if note.first > 0 {
+                parts.push(format!("Lines: {}-{}", note.first, note.last));
+            }
+            if let Some(quote) = note.quote.as_deref() {
+                parts.push(format!("Quote: \"{}\"", escape_comment(quote.trim())));
+            }
+            parts.push(format!(
+                "User comment: \"{}\"",
                 escape_comment(&note.comment)
-            )
+            ));
+            if let Some(source) = note.source.as_deref() {
+                parts.push(format!("Source: \"{}\"", escape_comment(source)));
+            }
+            parts.join("\n")
         })
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -462,6 +470,25 @@ pub fn plan_feedback(notes: &[PlanNote], overall: &str) -> String {
         parts.push(format!(
             "Note {}\nQuote: \"{}\"\nComment: \"{}\"",
             index + 1,
+            escape_comment(note.quote.trim()),
+            escape_comment(note.comment.trim())
+        ));
+    }
+    let overall = overall.trim();
+    if !overall.is_empty() {
+        parts.push(format!("Overall: \"{}\"", escape_comment(overall)));
+    }
+    parts.join("\n\n")
+}
+
+/// What notes on an agent's last reply tell it (#729): a lead line, each note's quote and comment,
+/// then the overall note, escaped as a review note's words are.
+#[must_use]
+pub fn reply_notes(notes: &[PlanNote], overall: &str) -> String {
+    let mut parts = vec!["Notes on your last reply:".to_string()];
+    for note in notes {
+        parts.push(format!(
+            "Quote: \"{}\"\nUser comment: \"{}\"",
             escape_comment(note.quote.trim()),
             escape_comment(note.comment.trim())
         ));

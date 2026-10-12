@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #729 (feature; size medium to large, after #726 slice 1 and #732; the review batch after the finish)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [729-notes-on-markdown-and-last-reply.spec.md](../../pipeline/queued/729-notes-on-markdown-and-last-reply.spec.md)
+- **Pipeline doc:** [729-notes-on-markdown-and-last-reply.spec.md](../../pipeline/completed/729-notes-on-markdown-and-last-reply.spec.md)
 - **Source ticket:** [plannotator-findings.md](../../intake/plannotator-findings.md), item 4; Chad, 2026-10-09: "take a look at https://github.com/backnotprop/plannotator and see what may be to add to the list"; Chad, 2026-10-11, on the [finish-line list](../../design-notes/finish-line-2026-10-11.md): "11.) yes"
-- **Status:** open (deliberate: the review batch, after the finish)
+- **Status:** closed
 
 ## Summary
 #726's review tab opens on any Markdown file (`marley: review markdown`) and on an agent's last

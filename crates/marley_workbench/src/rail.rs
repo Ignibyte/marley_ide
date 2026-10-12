@@ -5912,6 +5912,7 @@ impl Rail {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let key = row.key.clone();
+        let menu_key = row.key.clone();
         let thread_id = thread.thread_id;
         let rail = cx.entity().downgrade();
         let title = thread
@@ -5984,11 +5985,22 @@ impl Rail {
                 .child(card)
         })
         .menu(move |window, cx| {
-            let (rail, title) = (rail.clone(), title.clone());
+            let (rail, title, key) = (rail.clone(), title.clone(), menu_key.clone());
             ContextMenu::build(window, cx, move |menu, _, _| {
-                let (rail, title) = (rail.clone(), title.clone());
+                let (rail, title, key) = (rail.clone(), title.clone(), key.clone());
+                let review_rail = rail.clone();
                 // A thread opens in a tab already (#772), so Open in Center is gone.
-                menu.entry("Archive Thread", None, move |_, cx| {
+                menu.entry("Review Last Reply", None, move |window, cx| {
+                    // The thread's tab comes to the front, then the command reads it (#729).
+                    review_rail
+                        .update(cx, |rail, cx| rail.open_thread(&key, window, cx))
+                        .flatten()
+                        .log_err();
+                    window.defer(cx, |window, cx| {
+                        window.dispatch_action(Box::new(crate::plan_review::ReviewLastReply), cx);
+                    });
+                })
+                .entry("Archive Thread", None, move |_, cx| {
                     Self::archive_thread(thread_id, cx);
                 })
                 .entry("Delete Thread…", None, move |window, cx| {
@@ -6205,6 +6217,7 @@ impl Rail {
         let (close_workspace, close_view) = (workspace.clone(), view.clone());
         let (here_rail, here_workspace, here_view) =
             (rail.clone(), workspace.clone(), view.clone());
+        let (reply_workspace, reply_view) = (workspace.clone(), view.clone());
         let (terminal, targets) = (moves.0, moves.1.to_vec());
         let move_rail = rail.clone();
         ContextMenu::build(window, cx, move |menu, _, _| {
@@ -6228,6 +6241,21 @@ impl Rail {
                         })
                         .flatten()
                         .log_err();
+                })
+                // Claude Code's last reply, from its transcript (#729).
+                .entry("Review Last Reply", None, move |window, cx| {
+                    let (Some(workspace), Some(view)) =
+                        (reply_workspace.upgrade(), reply_view.upgrade())
+                    else {
+                        return;
+                    };
+                    workspace.update(cx, |workspace, cx| {
+                        if let Err(message) =
+                            crate::plan_review::review_terminal_reply(workspace, &view, window, cx)
+                        {
+                            crate::plan_review::show_toast(workspace, message, cx);
+                        }
+                    });
                 });
             let targets = targets.clone();
             let move_rail = move_rail.clone();

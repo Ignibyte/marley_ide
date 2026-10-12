@@ -1,7 +1,7 @@
 ---
 pipeline_id: 2846b77e-40ff-4d5b-99f7-c5eb111782a3
 ticket: docs/planning/tickets/open/TICKET-729-notes-on-markdown-and-last-reply.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Notes on any Markdown file or the agent's last reply
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 4; docs/planning/design-notes/finish-line-2026-10-11.md row 11); after #726 slice 1 and #732

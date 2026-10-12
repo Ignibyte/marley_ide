@@ -5,9 +5,11 @@
 //! agents whose folder holds every noted file, each with whether it can take the notes now, and
 //! Copy notes. A pick of an idle Claude Code pastes the notes as one prompt, in the form Orca's
 //! report describes, and presses Enter; the notes stay in the diff, marked Sent. An agent at work,
-//! one that waits on a permission or a question, and one Marley cannot read are refused.
+//! one that waits on a permission or a question, and one Marley cannot read are refused. Notes on a
+//! Markdown file in the review tab go through the same picker (#729).
 
 use std::path::Path;
+use std::rc::Rc;
 
 use editor::actions::SendReviewToAgent;
 use editor::{Editor, ReviewNote};
@@ -54,15 +56,7 @@ fn open_picker(
     let mut rows: Vec<Row> = send_selection::agent_targets(workspace, cx)
         .into_iter()
         .filter(|target| holds_every_file(target, &notes))
-        .map(|target| Row {
-            label: format!(
-                "{} · {} · {}",
-                target.kind.display_name(),
-                target.project,
-                readiness(&target)
-            ),
-            pick: Pick::Agent(target),
-        })
+        .map(row_of)
         .collect();
     let placeholder = if rows.is_empty() {
         "No agent works on these files: Copy notes…"
@@ -81,6 +75,71 @@ fn open_picker(
         TargetPicker::new(rows, placeholder, on_pick, window_handle, window, cx)
     });
     Ok(())
+}
+
+/// Opens the picker for notes on the Markdown file at `path` (#729): the agents whose folder holds
+/// it, each with its readiness, and Copy notes. `lines` name the file by its absolute path;
+/// `on_sent` runs once an agent took them.
+pub(crate) fn send_file_notes(
+    workspace: &mut Workspace,
+    path: &Path,
+    lines: Vec<ReviewLine>,
+    on_sent: Rc<dyn Fn(&mut App)>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let mut rows: Vec<Row> = send_selection::agent_targets(workspace, cx)
+        .into_iter()
+        .filter(|target| {
+            target
+                .cwd
+                .as_deref()
+                .is_some_and(|cwd| path.starts_with(cwd))
+        })
+        .map(row_of)
+        .collect();
+    let placeholder = if rows.is_empty() {
+        "No agent works on this file: Copy notes…"
+    } else {
+        "Send the notes on this file to…"
+    };
+    rows.push(Row {
+        label: "Copy notes".to_string(),
+        pick: Pick::Copy,
+    });
+    let window_handle = window.window_handle();
+    let on_pick: OnPick = Box::new(move |pick, window, cx| {
+        let target = match pick {
+            Pick::Copy => {
+                let text = message_of(lines.clone(), None, cx);
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                return;
+            }
+            Pick::Agent(target) => target,
+        };
+        if refused(&target, cx) {
+            return;
+        }
+        let text = message_of(lines.clone(), target.cwd.as_deref(), cx);
+        let on_sent = Rc::clone(&on_sent);
+        paste_and_submit(target, text, window, move |cx| on_sent(cx), cx);
+    });
+    workspace.toggle_modal(window, cx, |window, cx| {
+        TargetPicker::new(rows, placeholder, on_pick, window_handle, window, cx)
+    });
+}
+
+/// A picker's row for `target`: its agent, its project and whether it can take notes now.
+fn row_of(target: Target) -> Row {
+    Row {
+        label: format!(
+            "{} · {} · {}",
+            target.kind.display_name(),
+            target.project,
+            readiness(&target)
+        ),
+        pick: Pick::Agent(target),
+    }
 }
 
 /// Whether `target`'s agent works in a folder that holds every noted file, so the notes' paths
@@ -122,22 +181,51 @@ fn deliver(
         }
         Pick::Agent(target) => target,
     };
-    if !target.ready {
-        let message = format!(
-            "{} in {} is {}; the notes were not sent.",
-            target.kind.display_name(),
-            target.project,
-            readiness(&target)
-        );
-        if let Some(workspace) = target.view.read(cx).marley_workspace().upgrade() {
-            workspace.update(cx, |workspace, cx| show_toast(workspace, message, cx));
-        }
+    if refused(&target, cx) {
         return;
     }
     let text = prompt(notes, target.cwd.as_deref(), cx);
     let ids: Vec<usize> = notes.iter().map(|note| note.id).collect();
     let editor = editor.clone();
-    // After the picker's update, as a selection's send runs.
+    paste_and_submit(
+        target,
+        text,
+        window,
+        move |cx| {
+            editor
+                .update(cx, |editor, cx| editor.mark_review_notes_sent(&ids, cx))
+                .log_err();
+        },
+        cx,
+    );
+}
+
+/// Whether `target` cannot take notes now; a toast then says why.
+fn refused(target: &Target, cx: &mut App) -> bool {
+    if target.ready {
+        return false;
+    }
+    let message = format!(
+        "{} in {} is {}; the notes were not sent.",
+        target.kind.display_name(),
+        target.project,
+        readiness(target)
+    );
+    if let Some(workspace) = target.view.read(cx).marley_workspace().upgrade() {
+        workspace.update(cx, |workspace, cx| show_toast(workspace, message, cx));
+    }
+    true
+}
+
+/// Pastes `text` into `target`'s terminal and presses Enter, its window activated and its tab shown
+/// and focused, after the picker's update as a selection's send runs; `after` runs then.
+fn paste_and_submit(
+    target: Target,
+    text: String,
+    window: AnyWindowHandle,
+    after: impl FnOnce(&mut App) + 'static,
+    cx: &mut App,
+) {
     cx.defer(move |cx| {
         window
             .update(cx, |_, window, cx| {
@@ -152,9 +240,7 @@ fn deliver(
                     cx,
                 )
                 .detach();
-                editor
-                    .update(cx, |editor, cx| editor.mark_review_notes_sent(&ids, cx))
-                    .log_err();
+                after(cx);
             })
             .log_err();
     });
@@ -163,20 +249,35 @@ fn deliver(
 /// The prompt for `notes`, each file relative to `cwd`, the agent's folder, when it lies under
 /// it, else absolute.
 fn prompt(notes: &[ReviewNote], cwd: Option<&Path>, cx: &App) -> String {
+    let lines = notes
+        .iter()
+        .map(|note| ReviewLine {
+            path: note.path.to_string_lossy().into_owned(),
+            first: note.first_line,
+            last: note.last_line,
+            comment: note.comment.clone(),
+            source: note.source.clone(),
+            quote: None,
+        })
+        .collect();
+    message_of(lines, cwd, cx)
+}
+
+/// The message for `lines`, whose paths are absolute, each made relative to `cwd` when it lies
+/// under it.
+fn message_of(lines: Vec<ReviewLine>, cwd: Option<&Path>, cx: &App) -> String {
     let lines = marley_agent::review_prompt(
-        notes
-            .iter()
-            .map(|note| ReviewLine {
+        lines
+            .into_iter()
+            .map(|line| ReviewLine {
                 path: cwd
-                    .and_then(|cwd| note.path.strip_prefix(cwd).ok())
+                    .and_then(|cwd| Path::new(&line.path).strip_prefix(cwd).ok())
                     .filter(|relative| !relative.as_os_str().is_empty())
-                    .unwrap_or(&note.path)
-                    .to_string_lossy()
-                    .into_owned(),
-                first: note.first_line,
-                last: note.last_line,
-                comment: note.comment.clone(),
-                source: note.source.clone(),
+                    .map_or_else(
+                        || line.path.clone(),
+                        |relative| relative.to_string_lossy().into_owned(),
+                    ),
+                ..line
             })
             .collect(),
     );
@@ -185,6 +286,14 @@ fn prompt(notes: &[ReviewNote], cwd: Option<&Path>, cx: &App) -> String {
         .review_notes_template
         .clone();
     marley_agent::review_message(template.as_deref(), &lines)
+}
+
+/// The message for notes on an agent's last reply (#729), in the same template.
+pub(crate) fn reply_message(notes: &str, cx: &App) -> String {
+    let template = crate::MarleySettings::get_global(cx)
+        .review_notes_template
+        .clone();
+    marley_agent::review_message(template.as_deref(), notes)
 }
 
 fn show_toast(workspace: &mut Workspace, message: impl Into<String>, cx: &mut Context<Workspace>) {

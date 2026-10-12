@@ -1364,7 +1364,7 @@ alike.
   `start_in_terminal(workspace, directory, input)`, which opens a center terminal and types the
   input after the shell's handshake; `launch_mode` and `launch_input` give an agent's line.
 
-## Review notes to the agent (`src/review_notes.rs`, #522)
+## Review notes to the agent (`src/review_notes.rs`, #522, #729)
 
 - `init` registers Zed's `editor::actions::SendReviewToAgent` on every workspace; the diffs'
   toolbar button focuses the diff and dispatches it. `open_picker` takes the active item as an
@@ -1377,10 +1377,16 @@ alike.
   and focused, `paste_then` of `prompt(notes, cwd)` with `\r` after the pause (#594), and the
   diff's editor
   `mark_review_notes_sent(ids)`.
-- `prompt` makes each file relative to the agent's folder when it lies under it, hands the
-  notes to `marley_agent::review_prompt`, and wraps them with `review_message` in
+- `prompt` turns the notes into `ReviewLine`s with absolute paths for `message_of`, which makes
+  each file relative to the agent's folder when it lies under it, hands the notes to
+  `marley_agent::review_prompt`, and wraps them with `review_message` in
   `MarleySettings.review_notes_template` (#732, `marley.review_notes_template`, blank taken as
   unset), so the paste and Copy carry the same message.
+- Since #729 `refused` (the toast for an agent not ready) and `paste_and_submit` (the deferred
+  paste with Enter, then an `after` callback) serve the diff's notes and `send_file_notes`, which
+  opens the same picker for one Markdown file's notes from the review tab (rows whose folder holds
+  the file) and runs the tab's `on_sent` once an agent took them. `reply_message` wraps a reply's
+  notes in the same template.
 - The Zed side: `DiffReviewFeatureFlag::enabled_for_all`; `StoredReviewComment::sent`; the count
   of unsent notes behind `ReviewCommentsChanged` and the button; `ReviewNote`,
   `Editor::unsent_review_notes` (anchors to points, `point_to_buffer_point`, the buffer file's
@@ -2830,7 +2836,7 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
-## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, #726, #727, #728)
+## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, `src/last_reply.rs`, #726 to #729)
 
 - `plan_review::init` (from `agent_reports::start`) follows `marley.plan_review`: on, it hands
   `identity::set_approve_tools(Some("ExitPlanMode"))` to the terminals started from then on.
@@ -2868,7 +2874,31 @@ below describe what #743 retired.
   redraws the count), and `skipped` and `accepted`. `card_state` reads Settled (a `- [x]` choice),
   Skipped, Answered or Open. While `answers_pending`, the column's `answer_buttons` draw Send
   Answers alone; `send_answers` denies with `plan_questions::questions_feedback`. `c` propagates
-  unless the plan's area itself holds the focus, so a card's field takes the letter.
+  while a card's field contains the focus, so the field takes the letter; the area's own handle
+  does not hold the focus after a drag, since the Markdown element takes it (#729's fix).
+- Files and replies (#729): the tab's `Subject` is `Plan { view }`, `File { path, workspace }` or
+  `Reply(ReplyOrigin::Terminal { view, project, workspace } | Thread { conversation, workspace })`;
+  a file or a reply is `State::Open` (taking notes, no request) and one `Part::Text`, with no
+  cards or versions. `marley::ReviewMarkdown` takes the active item's `act_as::<Editor>` (a
+  Markdown editor, or a preview's source editor) when `MarkdownPreviewView::is_markdown_file`, its
+  local path and its buffer's text. `marley::ReviewLastReply` takes the Agent Panel's thread while
+  the panel has the focus, else the active thread tab, the active terminal, or the panel's thread.
+  `review_terminal_reply` (also the rail's terminal menu) reads the transcript in
+  `futures::future::lazy` on the background executor. `open_document` reuses a tab of the same
+  subject and text. Send Notes: a file's notes become `ReviewLine`s (lines from the note's range,
+  `quote`, the overall note with `first == 0`) for `review_notes::send_file_notes`, opened in a
+  `window.defer` out of the tab's update; a reply's become `marley_agent::reply_notes` in the
+  template, to `drafts::send_to_terminal` after `target_of` reads the seat ready, or to
+  `drafts::send_to_thread`. A sent note is marked, the overall note kept as a sent note with an
+  empty quote and its editor's buffer cleared. The overall editor's edits redraw the column.
+- `last_reply.rs` (#729): `of_thread` gathers the `Message` chunks of the non-subagent assistant
+  entries from the user message before the last one with text through it; `transcript_of` reads
+  the seat's `transcript_path` label; `read_reply` seeks to the file's last 16 MiB and drops the
+  partial first line; `reply_in` keeps entries that are neither `isSidechain` nor `isMeta`, finds
+  the last assistant entry with text and the last prompt (a user entry with text and no
+  `tool_result`) before it, and joins the assistant `text` blocks between.
+- The rail (#729): Review Last Reply in `terminal_context_menu` calls `review_terminal_reply`; in
+  the thread row's menu it opens the thread, then dispatches `ReviewLastReply` deferred.
 
 ## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
 

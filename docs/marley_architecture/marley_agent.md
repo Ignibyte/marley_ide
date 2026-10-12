@@ -452,6 +452,10 @@ pub fn route_of_choice(option: &str) -> Route;
   skipped question and an `Unanswered:` list; `questions_feedback` puts those answers ahead of
   `plan_feedback`'s notes, or under a lead line of its own when there are none. User text loses
   its control characters.
+- Since #729 `ReviewLine.quote` adds a `Quote: "…"` line before the comment, and `first == 0` marks
+  a note on the whole file, written with no line. `reply_notes(notes, overall)` writes notes on an
+  agent's last reply: "Notes on your last reply:", each `Quote:` and `User comment:`, then
+  `Overall:`, escaped as a review note's words are.
 - `stat_fields(stat)` reads a `/proc/PID/stat` line's parent and start time from the fields after
   its last `)`, since a process's name may hold spaces and parentheses. `MAX_ANCESTRY` (32) bounds
   the walk to a terminal.
