@@ -1,7 +1,7 @@
 ---
 pipeline_id: a954a9e2-7924-49f7-901e-fc76e110e308
 ticket: docs/planning/tickets/open/TICKET-716-delegation-tools.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Agents that start agents, tracked through the harness
 type: feature
 slice: agents together (docs/planning/intake/monocode-findings.md items 3 to 6; docs/t3code_architecture/README.md item 9), after the finish

@@ -5788,3 +5788,13 @@ field.
 The review tab's Send Notes sits under the notes list, so it is 61 px lower once one note is
 listed than in the first shot, which has none. #729's first runs clicked where the button stood in
 the empty tab and hit the note. Place a click from a shot taken in the state the click happens in.
+
+## L-claude-716-an-mcp-answer-waits-30-seconds-so-a-long-start-answers-starting-001
+*category: mcp · topic: tools whose work outlasts the server's wait · from: pipeline 716*
+
+Marley's MCP server waits 30 seconds for the app's answer to a deferred tool, and the user's
+question alone may take 25. A tool whose work takes longer (a harness seat starts in up to a
+minute, a worktree in seconds more) answers `starting` once the user allows it, as `seat_add` does,
+and goes on in the background, a failure shown as a notification. A seat also refuses a send until
+it is idle, so the first prompt is sent again with the same delivery id until it is taken, which
+the harness's retry rule makes safe.

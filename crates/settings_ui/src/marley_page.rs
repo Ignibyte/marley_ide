@@ -1055,7 +1055,7 @@ fn voice_section() -> [SettingsPageItem; 2] {
 }
 
 // Marley: the kill switch of agents' write tools (#703).
-fn agent_control_section() -> [SettingsPageItem; 6] {
+fn agent_control_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Agent Control"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -1156,6 +1156,32 @@ fn agent_control_section() -> [SettingsPageItem; 6] {
                         .agent_control
                         .get_or_insert_default()
                         .actions = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: whether an agent may start another agent as a harness seat (#716).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agents",
+            description: "Whether an agent in a Marley terminal may start another agent as a harness seat (agent_start): Off refuses it; otherwise each start asks, with the agent, the place and the prompt, unless this is Allow.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.agent_control.agents"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.agent_control.as_ref())
+                        .and_then(|agent_control| agent_control.agents.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .agent_control
+                        .get_or_insert_default()
+                        .agents = value;
                 },
             }),
             metadata: None,

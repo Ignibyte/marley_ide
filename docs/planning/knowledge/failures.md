@@ -4028,3 +4028,12 @@ its notes claimed the key still made notes. #729's first run dragged over README
 and no note editor came up (`729-01a-dragged-c`). Fixed in #729: `c` propagates only while a
 card's field contains the focus. The fix is not pushed with #728's commit, which is not pushed
 either; the two go out together.
+
+## F-claude-716-the-delegated-seats-caller-line-found-no-terminal-001
+*severity: low · found in: pipeline 716's Test, the third run · class: a window's own terminals read from inside its update · prevented by: PR-claude-596*
+
+The Harness section's line "for <caller>" under a delegated seat never showed. `caller_title`
+looked the caller up with `mcp::terminals`, which reads every window through `cx.windows()`, and
+the rail draws inside its window's update, which takes that window out of the list: the rail's
+own terminals were never found. Fixed: the harness pass, which runs outside any window's update,
+works out each delegated seat's caller title into `Delegations.callers`, and the rail reads that.

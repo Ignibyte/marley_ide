@@ -2313,6 +2313,38 @@ alike.
   for those agents in every caller; `open_saved` and the restore skip the worktree for them
   (`ensure_harness_entry`).
 
+## Agents that start agents (`src/delegation.rs`, #716)
+
+- `mcp::answer` routes `agent_start` to `delegation::answer_start` and `agent_status` to
+  `answer_status`; `agents.write` is granted at start. `checked` takes the request (`Request::of`:
+  agent, prompt up to 8192 bytes, place, view, request id as a UUID), the caller from
+  `mcp::caller_terminal` (the terminal's token checked, #755), `harness::writes_on`, the first
+  harness's `seat_command_of` and the caller's folder. `agent_control::admit` asks with
+  `Area::Agents` at `Level::Sensitive` (the setting `marley.agent_control.agents`).
+- After Allow it answers `starting` at once, since the server waits 30 seconds and a seat takes up to
+  a minute, and `run` goes on: the worktree through `worktree_agents::make_for_seat` for
+  `worktree` (the creation half of `create`, split for it), `harness_seat::add_and_start` with the
+  labels `started_by = marley:<terminal id>` and `delegation = <request id>` (`Seat::commands`
+  writes a `--label` each), the view (`open_view`: `open_seat_thread`, or `attach_line` in a terminal
+  that `beside_caller` moves into a split right of the caller's pane), then `send_prompt`:
+  `session_send` with the request id as its delivery, sent again every 2 seconds for up to 120 while
+  the seat refuses it. A failure is a notification.
+- `harness::change_seats` ends with `delegation::follow`, which on the first harness runs `pass`:
+  the callers' titles for the rail (`Delegations.callers`, worked out here because the rail draws
+  inside its window's update, which hides that window's terminals); each seat whose `started_by`
+  names a Marley terminal, whose `delivery.state` is `ended` and whose `delegation.told` is unset
+  (or set by Marley and not yet published) gets `point`: the line pasted into the caller with
+  `terminal_drive::paste_then` and Enter, without moving the focus, once `send_selection::target_of`
+  reads it ready, then `mark_told` (`session_label`). A caller no open terminal holds for 10
+  seconds is an `Orphan`. While anything waits, `watch` runs `pass` every 2 seconds.
+- `answer_status` finds the seat by its `delegation` label, reads its last 40 lines with
+  `session_read` (redacted with `mcp::agent_redactor`) and answers the state, the delivery's state
+  and outcome, and `told`, marking an ended one told.
+- The rail: `harness_row` adds "for <caller>" under a delegated seat; `harness_entries` lists each
+  orphan as an `InboxTarget::Delegation`, which opens the seat and marks it told; the rail observes
+  `Delegations`. `harness::write_tool` and `read_tool` are the crate's calls to a harness tool from
+  outside a session's tab.
+
 ## A new agent on a harness (`src/harness_seat.rs`, `src/agents.rs`, #741)
 
 - The New Agent picker's `Place::Harness { slot, name }` follows Browse…, one per

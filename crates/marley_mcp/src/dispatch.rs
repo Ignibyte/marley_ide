@@ -141,6 +141,10 @@ for one of the user's settings, keymap_change a key binding, seat_add a seat on 
 Marley follows (such as a manager working in a folder), and seat_stop and seat_remove an end to \
 one: Marley asks the user and acts only when they accept.
 
+agent_start starts another agent as a harness seat, beside you or in a new worktree; end your \
+turn after it, since Marley types a line naming the delegation into your terminal when its turn \
+ends, and agent_status reads its result.
+
 A refused call carries a `code` and `next_steps`: follow them rather than repeating the call.";
 
 /// The `initialize` result — protocol version + the capabilities (tools + subscribable resources).
@@ -254,7 +258,8 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Keymap
         | Family::Seat
         | Family::Draft
-        | Family::Review => Handled {
+        | Family::Review
+        | Family::Agent => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

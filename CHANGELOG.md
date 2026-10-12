@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents that start agents** (#716, 2026-10-12). An agent in a Marley terminal can start another
+  agent with `agent_start`, after you allow it: a harness seat with its first prompt, beside the
+  caller or in a new worktree. The harness keeps the record, and when the new agent's turn ends
+  Marley types one line into the caller naming the result, even after a restart; `agent_status`
+  reads it. Needs the harness's seat labels and `ended` state (rustal-harness TICKET-117).
+
 - **Claude Code on your phone** (#757, 2026-10-12). Claude Code Remote Control, a switch on the
   Marley page that starts off, starts every Claude Code Marley opens with `--remote-control`, so
   its session shows in the Claude app. Its row shows a `remote` chip, and Marley's own phone push

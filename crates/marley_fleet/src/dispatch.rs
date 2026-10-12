@@ -1,8 +1,8 @@
 //! The dispatch delivery-state machine — the mailbox contract that "never failed"
 //! (fleet-control-plane §2/§5), as monotone-join types.
 //!
-//! `Deposited < Claimed < Started`; an observation only ever advances, so a duplicate and a missed
-//! intermediate are both safe (Layer-2-ready).
+//! `Deposited < Claimed < Started < Ended`; an observation only ever advances, so a duplicate
+//! and a missed intermediate are both safe (Layer-2-ready).
 
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +17,9 @@ pub enum DeliveryState {
     Claimed,
     /// The seat has started acting on it.
     Started,
+    /// The turn it started has ended (#716, rustal-harness MREQ-010); the harness gives how, as
+    /// `finished`, `failed` or `stopped`, beside it.
+    Ended,
 }
 
 /// The outcome of observing a delivery-state: the resulting state and whether it advanced.

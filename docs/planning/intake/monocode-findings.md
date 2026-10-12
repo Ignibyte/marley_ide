@@ -56,6 +56,7 @@ against Marley's guide and changelog. Nothing of its code is carried over: it is
    - draft a message for the user to review;
    - report back to the caller when the work ends.
    They go through #704's agent-control modes and #703's log.
+   Built as #716 (2026-10-12), except the draft message.
 4. **Second opinion and handoff** (medium). "Ask another agent" on a turn, a turn's diff or a
    worktree branch, opened in a split with a recap; #696's Auto choice picks the provider.
 5. **Failed checks to an agent** (medium), then **a GitHub inbox** (large). #531 already polls

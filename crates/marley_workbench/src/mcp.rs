@@ -115,6 +115,7 @@ pub fn start(cx: &mut App) {
                 "action.write",
                 "draft.write",
                 "review.write",
+                "agents.write",
             ]),
             ..transport::ServerData::default()
         }),
@@ -599,6 +600,14 @@ fn answer(mut call: AppCall, cx: &mut App) {
     }
     if call.tool == "seat_stop" || call.tool == "seat_remove" {
         crate::harness_seat::answer_seat_end(call, cx);
+        return;
+    }
+    if call.tool == "agent_start" {
+        crate::delegation::answer_start(call, cx);
+        return;
+    }
+    if call.tool == "agent_status" {
+        crate::delegation::answer_status(call, cx);
         return;
     }
     if call.tool.starts_with("settings_") || call.tool.starts_with("actions_") {

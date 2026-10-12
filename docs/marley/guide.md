@@ -2318,6 +2318,8 @@ One write tool sits with them (#682):
 | `seat_add` | Proposes a seat on the harness Marley follows: `name`, `agent` (`claude` or `codex`), `cwd` and an optional `role`. The same notification as a settings change shows the seat and the command it runs through. Apply runs the harness's `seat add` and answers `starting`, then starts the seat, which then shows in the rail. A start that fails comes up as a notification. Refused with the harness's own code (`seat_exists`, `seat_role_reserved`, `claude_signin_undeclared` …), or `tool_off` while `marley.harness_writes` is off (#692) |
 | `seat_stop` | Proposes to stop a seat on the harness by its `name` (#710): the harness ends its sessions and their supervision, and the profile stays, so the seat can start again. Marley asks you, and runs the harness's `seat stop` only on Apply; the answer lists the stopped sessions. A refusal carries the harness's code (`seat_unknown`, `seat_runtime`, `seat_stop_failed`) |
 | `seat_remove` | The same, then the harness deletes the seat's profile, so the name is free again (#710): `seat remove` on Apply, and the answer adds the removed profile's path; `seat_profile` when the file can't be deleted |
+| `agent_start` | Starts another agent from the caller's Marley terminal as a seat on the first harness (#716): `agent` (`claude` or `codex`), a first `prompt`, `place` (`here` or `worktree`), `view` (`terminal`, or `thread` for Claude Code) and a `request_id` UUID the caller keeps. Marley asks every time unless `marley.agent_control.agents` is `allow`, answers `starting`, then adds the seat labelled with its caller and the delegation, opens the view beside the caller (or in the worktree's window) and sends the prompt once with the request id as its delivery, again while the seat is still starting; a start that fails comes up as a notification. Refused `caller_unknown` from outside a Marley terminal, `tool_off` while `marley.harness_writes` is off, `agent_control_declined`, or with the harness's own code |
+| `agent_status` | A delegation's seat, its state, its delivery's state and outcome, its last 40 lines with secrets redacted, and whether its caller was told; reading an ended one marks it told (#716). `no_delegation` for an id no seat carries |
 | `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
 
 The browser family, reading:
@@ -2925,6 +2927,27 @@ Decisions tab took the name; a key bound to `marley::OpenDecisions` still opens 
 Every call, refused and failed ones included, is a line in `system_one/calls-<day>.jsonl` under
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,
 the time, the tokens and the cost.
+
+### Agents that start agents (#716)
+
+An agent in a Marley terminal can start another agent with `agent_start`. The new agent is a
+seat on the harness Marley follows first, so the harness hosts it, supervises it and keeps its
+record: the seat carries the labels `started_by` (`marley:` and the caller's terminal id) and
+`delegation` (the caller's request id). Marley asks you each time, with the agent, the place and
+the prompt's first line (Agent Control's Agents setting, `marley.agent_control.agents`: `off`
+refuses it, `allow` stops the asking). On Allow it starts the seat, sends the prompt once, and
+opens the seat beside the caller, or in the new worktree's window. The seat's row in the Harness
+section says which terminal started it.
+
+When the seat's turn ends (its delivery reads `ended`), Marley types one line into the caller
+once the caller is at its prompt, and presses Enter: `Agent <seat> ended: <outcome>. Read the
+result: agent_status {"delegation": "<id>"}.` The line carries ids only, never the child's words.
+Marley then sets the seat's `delegation.told` label, so the line comes once, after a restart too:
+a caller restored with its terminal gets the line once it is ready. If no open terminal is the
+caller, Needs you lists "<seat> ended; its caller is closed"; opening it shows the seat and
+counts as told. The new agent runs with its own permission prompts, never a bypass. It needs
+harness writes on and a harness that publishes the labels and the `ended` state
+(rustal-harness MREQ-010).
 
 ## The harness's sessions
 

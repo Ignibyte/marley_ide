@@ -5384,3 +5384,17 @@ row's `remote` chip and the push skip both read the running process's arguments,
 started by hand with the flag counts too. Rejected: a per-project value (not asked for), a name per
 session (`--remote-control=<name>`), and keeping Marley's push for such a session, which would
 ring the phone twice.
+
+## AD-claude-716-a-delegation-is-a-labelled-harness-seat-and-a-pointer-001
+*decided at: 2026-10-12 · status: shipped*
+
+An agent in a Marley terminal starts another agent with `agent_start`; the started agent is a seat
+on the first harness, which hosts, supervises and records it (Chad's 2026-10-02 rule). The only
+record is the seat's labels (rustal-harness MREQ-010, its TICKET-117): `started_by =
+marley:<terminal id>`, `delegation = <request id>` and, once the caller is told, `delegation.told`,
+with the harness's `delivery.state` and `delivery.outcome` for the end. Marley keeps nothing on
+disk: each pass over the harness's sessions types the pointer (ids only) into a caller at its
+prompt, after a restart too, and lists a delegation whose caller is closed in Needs you. Every
+start asks the user (Sensitive), and the seat keeps its CLI's own prompts. Rejected: a plain CLI in
+a terminal with Marley's own store (lost with Marley, and hosting in Marley), the harness's
+delegated work (operator offers only) and agent mail (harness sessions only).

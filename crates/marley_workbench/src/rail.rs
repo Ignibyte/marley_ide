@@ -218,7 +218,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 11],
+    _agent_events: [Subscription; 12],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -960,6 +960,9 @@ enum InboxTarget {
     Harness(Slot, String),
     /// A manager's records the user has not seen: its harness's Manager thread (#688, #758).
     Manager(Slot),
+    /// A delegated seat that ended after its caller closed (#716): its session, and its
+    /// delegation, marked told once the entry opens it.
+    Delegation { seat: String, delegation: String },
     /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
     /// terminal, the connection's generation, and the request as its entry showed it.
     Codex {
@@ -983,10 +986,12 @@ impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
     /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
-    /// while the Threads view shows, the CLI sessions it lists (#754).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 11] {
+    /// while the Threads view shows, the CLI sessions it lists (#754), and the delegations that
+    /// ended after their caller closed (#716).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 12] {
         [
             cx.observe_global_in::<crate::plan_review::PendingPlans>(window, Self::refresh),
+            cx.observe_global_in::<crate::delegation::Delegations>(window, Self::refresh),
             cx.observe_global_in::<Harness>(window, Self::refresh),
             cx.observe_global_in::<crate::harness_hosts::Hosts>(window, Self::refresh),
             cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
@@ -2008,7 +2013,10 @@ impl Rail {
                         focus.thread.as_deref() == Some(thread_key.as_str())
                     }
                     Some(
-                        InboxTarget::Click(_) | InboxTarget::Harness(..) | InboxTarget::Manager(_),
+                        InboxTarget::Click(_)
+                        | InboxTarget::Harness(..)
+                        | InboxTarget::Manager(_)
+                        | InboxTarget::Delegation { .. },
                     )
                     | None => false,
                 };
@@ -2322,6 +2330,10 @@ impl Rail {
             }
             Some(InboxTarget::Harness(slot, id)) => self.open_harness(&slot, &id, window, cx),
             Some(InboxTarget::Manager(slot)) => self.open_manager_thread(&slot, window, cx),
+            Some(InboxTarget::Delegation { seat, delegation }) => {
+                self.open_harness(&Slot::Primary, &seat, window, cx);
+                crate::delegation::mark_told(&seat, &delegation, cx);
+            }
             None => {}
         }
     }
@@ -2658,7 +2670,8 @@ impl Rail {
                 InboxTarget::Terminal(_)
                 | InboxTarget::Plan(_)
                 | InboxTarget::Harness(..)
-                | InboxTarget::Manager(_),
+                | InboxTarget::Manager(_)
+                | InboxTarget::Delegation { .. },
             )
             | None => {}
         }
@@ -7547,6 +7560,10 @@ fn harness_row(
     if let Some(window) = signals.quota.first() {
         lines.push(quota_line(window, now_ms));
     }
+    // A seat an agent started names the terminal that started it (#716).
+    if let Some(caller) = crate::delegation::caller_title(seat, cx) {
+        lines.push(RowLine::muted(format!("for {caller}")));
+    }
     let icon = Indicator::dot()
         .color(if stale || weaker { Color::Muted } else { color })
         .into_any_element();
@@ -7787,6 +7804,29 @@ fn harness_entries(snapshot: &mut Snapshot, cx: &App) {
     );
     for slot in slots {
         harness_slot_entries(snapshot, &slot, cx);
+    }
+    // A delegated agent that ended after its caller's terminal closed (#716).
+    for orphan in crate::delegation::orphans(cx) {
+        let key = format!("delegation:{}", orphan.delegation);
+        snapshot.inbox.insert(
+            key.clone(),
+            InboxTarget::Delegation {
+                seat: orphan.seat.clone(),
+                delegation: orphan.delegation.clone(),
+            },
+        );
+        snapshot.rail.inbox.push(InboxEntry {
+            key,
+            kind: InboxKind::Harness,
+            agent: orphan.title.clone(),
+            project: "Harness".to_string(),
+            ask: format!("{} ended; its caller is closed", orphan.title),
+            waited: String::new(),
+            answers: Vec::new(),
+            chips: Vec::new(),
+            level: 0,
+            route: None,
+        });
     }
 }
 

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #716 (feature; size large; agents together, after the finish)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [716-delegation-tools.spec.md](../../pipeline/queued/716-delegation-tools.spec.md)
+- **Pipeline doc:** [716-delegation-tools.spec.md](../../pipeline/completed/716-delegation-tools.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 3; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; Chad, 2026-10-11: "13.) yes as long as its tracking and not lost"
-- **Status:** open (deliberate: the agents-together batch, after the finish; waits on a rustal-harness request)
+- **Status:** closed (built 2026-10-12 on harness TICKET-117, commit `dec2014`)
 
 ## Summary
 An agent in a Marley terminal starts another agent: Claude Code or Codex, as a terminal or a

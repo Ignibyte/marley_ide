@@ -232,6 +232,7 @@ Each has the default Marley follows until Chad says otherwise.
 3. **A cut-off turn after a restart.** Continue it by itself, or offer a chip? *Default: a chip.*
 4. **Agents that start agents** (item 9): Marley's tool over #510's path, or the harness's job?
    *Default: Marley's, never broader than the caller; nothing built until Chad agrees.*
+   *Built as #716 (2026-10-12): a harness seat that Marley starts, labels and follows.*
 5. **Claude Code's Remote Control.** Acceptable as the phone path for Claude Code, given that the
    session goes through Anthropic's API? *Default: Marley changes nothing.*
 6. **Omarchy's theme.** Follow it whenever Omarchy is present, or only when a setting says so?

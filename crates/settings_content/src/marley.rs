@@ -496,6 +496,12 @@ pub struct MarleyAgentControlContent {
     ///
     /// Default: "ask_first"
     pub actions: Option<MarleyAgentControlMode>,
+    /// Whether an agent in a Marley terminal may start another agent as a harness seat through
+    /// Marley's tools (#716): `off` refuses it; otherwise each start asks, with the agent, the
+    /// place and the prompt, unless this is `allow`.
+    ///
+    /// Default: "ask_first"
+    pub agents: Option<MarleyAgentControlMode>,
     /// Palette actions an agent may run besides the ones Marley lists as safe, by name, such as
     /// `"editor::SelectAll"` (#707). An action that could quit, run code, answer a consent or
     /// delete is refused even when named here.

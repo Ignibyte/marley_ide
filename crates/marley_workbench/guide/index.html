@@ -1775,6 +1775,8 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>seat_add</code></td><td>Proposes a seat on the harness Marley follows: a name, Claude Code or Codex, a folder and a role. Marley asks you; Apply adds the seat and starts it, and it shows in the rail. Refused while <code>marley.harness_writes</code> is off</td></tr>
 <tr><td><code>seat_stop</code></td><td>Proposes to stop a seat by its name: the harness ends its sessions and their supervision, and the profile stays. Marley asks you, and runs the harness's <code>seat stop</code> only on Apply</td></tr>
 <tr><td><code>seat_remove</code></td><td>The same, then the harness deletes the seat's profile, so the name is free again</td></tr>
+<tr><td><code>agent_start</code></td><td>Starts another agent from the caller's Marley terminal as a harness seat: Claude Code or Codex, a first prompt, here or in a new worktree, as a terminal or a thread. Marley asks you every time; when the new agent's turn ends, the caller gets a line naming the delegation <span class="ticket">#716</span></td></tr>
+<tr><td><code>agent_status</code></td><td>A started agent's state, its turn's outcome and its last 40 lines, secrets hidden</td></tr>
 </table>
 <h4>The browser</h4>
 <table>
@@ -2150,6 +2152,19 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <li>Or ask an agent, the Marley agent among them: "Set up a manager working in ~/work/api". It proposes the seat with <code>seat_add</code>, and a notification names it. Nothing happens until you click Apply; the seat then starts and shows in the rail.</li>
 </ol>
 <p class="note">An agent gets the harness's refusal code as the harness gives it. A seat whose start fails after Apply shows as a notification. With writes off, the palette does not list the command and <code>seat_add</code> answers <code>tool_off</code>.</p>
+</article>
+
+<article id="agents-start-agents">
+<h3>Agents that start agents <span class="ticket">#716</span></h3>
+<p class="what"><strong>What it is.</strong> An agent in a Marley terminal can hand work to another agent. The new agent runs as a seat on the harness, which keeps the record, so the caller is told when the work ends even if Marley restarted meanwhile.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn on harness writes (<code>marley.harness_writes</code>), with Marley following a harness.</li>
+<li>Ask the agent in your terminal to delegate, for example "start a Codex agent in a worktree to write the tests". It calls <code>agent_start</code>, and Marley asks you with the agent, the place and the prompt's first line. Allow starts the seat with the prompt and opens it beside your terminal, or in the new worktree's window.</li>
+<li>The seat's row in the rail's Harness section says which terminal started it.</li>
+<li>When the new agent's turn ends, Marley types one line into the caller once it is at its prompt: the seat, how it ended, and the <code>agent_status</code> call that reads the result.</li>
+</ol>
+<p class="note">Marley asks every time unless Agent Control's Agents setting (<code>marley.agent_control.agents</code>) is Allow; Off refuses it. The new agent keeps its own permission prompts. If the caller's terminal is closed when the work ends, Needs you lists "&lt;seat&gt; ended; its caller is closed", and opening it shows the seat.</p>
 </article>
 
 <article id="harness-manager">

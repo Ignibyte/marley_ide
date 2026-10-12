@@ -291,7 +291,8 @@ fn set_connection(
     }
 }
 
-/// Changes `slot`'s sessions; each harness's Manager entry follows its own (#694, #758).
+/// Changes `slot`'s sessions; each harness's Manager entry follows its own (#694, #758), and the
+/// delegations its seats carry are followed (#716).
 fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapshot)) {
     match slot {
         Slot::Primary => change(&mut cx.global_mut::<Harness>().seats),
@@ -302,6 +303,7 @@ fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapsho
         }
     }
     sync_manager_entries(cx);
+    crate::delegation::follow(slot, cx);
 }
 
 /// The first harness, then each `marley.harnesses` names, in order.
@@ -1172,6 +1174,38 @@ async fn call(
     answer(tool, response)
 }
 
+/// Calls one of `slot`'s harness's write verbs from outside a session's tab (#716): the accepted
+/// value, or why not.
+pub(crate) async fn write_tool(
+    slot: &Slot,
+    tool: &str,
+    arguments: Value,
+    cx: &AsyncApp,
+) -> Result<Value, SharedString> {
+    let server = cx
+        .update(|cx| server_of(slot, cx))
+        .ok_or_else(|| SharedString::new_static("Marley is not connected to the harness"))?;
+    call_write(&server, tool, arguments, cx).await
+}
+
+/// Calls one of `slot`'s harness's read tools from outside a session's tab (#716).
+pub(crate) async fn read_tool(
+    slot: &Slot,
+    tool: &str,
+    arguments: Value,
+    cx: &AsyncApp,
+) -> Result<Value, SharedString> {
+    let server = cx
+        .update(|cx| server_of(slot, cx))
+        .ok_or_else(|| SharedString::new_static("Marley is not connected to the harness"))?;
+    call(&server, tool, arguments, cx)
+        .await
+        .map_err(|failure| match failure {
+            Failure::Resync => SharedString::from(format!("{tool} asked for a resync")),
+            Failure::Failed(error) => SharedString::from(format!("{error:#}")),
+        })
+}
+
 /// Calls one of the harness's write verbs and reads its receipt: the accepted `value`, or the
 /// refusal's reason. A refused receipt comes with `isError` set, a missing grant's included.
 async fn call_write(
@@ -1928,7 +1962,7 @@ pub(crate) fn view_command(slot: &Slot, argv: &[String], cx: &App) -> SharedStri
 }
 
 /// The lines of a `session_read` receipt, or what it refused.
-fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
+pub(crate) fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
     let result = value
         .get("result")
         .and_then(Value::as_str)

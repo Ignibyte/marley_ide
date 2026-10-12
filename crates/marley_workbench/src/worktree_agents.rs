@@ -613,8 +613,7 @@ fn start(
         .detach();
 }
 
-/// The create itself, of the worktree `name` at `path`. Zed's service shows why its own steps fail;
-/// Marley shows why its own do.
+/// The worktree `name` at `path` made, then `kind` started in it with `launch`'s prompt.
 async fn create(
     workspace: &WeakEntity<Workspace>,
     kind: AgentKind,
@@ -625,6 +624,109 @@ async fn create(
     cx: &mut AsyncWindowContext,
 ) {
     let Launch { prompt, setup } = launch;
+    let Some((worktree, command)) =
+        make(workspace, plan, (&name, &path), setup.as_ref(), fs, cx).await
+    else {
+        return;
+    };
+    let wait = if command.is_some() {
+        agent_trust::WATCH_AFTER_SETUP
+    } else {
+        agent_trust::WATCH_FOR
+    };
+    let Some(launch) = worktree
+        .update_in(cx, |workspace, window, cx| {
+            crate::agents::start_cli_with_prompt(
+                workspace,
+                kind,
+                &prompt,
+                command.as_deref(),
+                window,
+                cx,
+            )
+        })
+        .log_err()
+    else {
+        return;
+    };
+    let Some(terminal) = launch.await else {
+        return;
+    };
+    // Claude Code asks whether to trust a repository it has not trusted yet (#587).
+    if kind == AgentKind::Claude {
+        let worktree = worktree.downgrade();
+        let source = workspace.clone();
+        cx.update(|_, cx| agent_trust::watch(&terminal, worktree, source, name, wait, cx))
+            .log_err();
+    }
+}
+
+/// Makes a worktree of `workspace`'s project for an agent that a harness seat runs (#716), as
+/// New Agent in Worktree makes one for a single agent, and starts no agent in it: its folder and
+/// its workspace.
+pub(crate) async fn make_for_seat(
+    workspace: WeakEntity<Workspace>,
+    cx: &mut AsyncWindowContext,
+) -> Result<(PathBuf, Entity<Workspace>), SharedString> {
+    let plan = workspace
+        .update(cx, |workspace, cx| plan(workspace, cx))
+        .map_err(|error| SharedString::from(format!("{error:#}")))?
+        .map_err(|error| SharedString::from(format!("{error:#}")))?;
+    let (fs, setting) = cx
+        .update(|_, cx| {
+            let setting = ProjectSettings::get_global(cx)
+                .git
+                .worktree_directory
+                .clone();
+            (<dyn Fs>::global(cx), setting)
+        })
+        .map_err(|error| SharedString::from(format!("{error:#}")))?;
+    let started = cx
+        .update(|_, cx| {
+            cx.default_global::<WorktreeAgents>()
+                .creating
+                .insert(plan.main.clone())
+        })
+        .unwrap_or(false);
+    if !started {
+        return Err(SharedString::new_static(
+            "a worktree of this project is being made; try again once it is",
+        ));
+    }
+    let made = match free_folders(&plan, &suffixes(&[]), &fs, &setting, cx).await {
+        Some(folders) => match folders.into_iter().next() {
+            Some((name, path)) => make(&workspace, &plan, (&name, &path), None, &fs, cx)
+                .await
+                .map(|(worktree, _)| (path, worktree))
+                .ok_or_else(|| SharedString::new_static("the worktree was not made")),
+            None => Err(SharedString::new_static("no folder for the worktree")),
+        },
+        None => Err(SharedString::new_static(
+            "a folder already sits where the worktree would go",
+        )),
+    };
+    cx.update(|_, cx| {
+        cx.default_global::<WorktreeAgents>()
+            .creating
+            .remove(&plan.main);
+    })
+    .log_err();
+    made
+}
+
+/// The worktree `name` at `path` made, its gitignored files copied and its base recorded: its
+/// workspace and the setup command to run first, if one was checked. Zed's service shows why its
+/// own steps fail; Marley shows why its own do.
+async fn make(
+    workspace: &WeakEntity<Workspace>,
+    plan: &Plan,
+    (name, path): (&str, &Path),
+    setup: Option<&SetupOffer>,
+    fs: &Arc<dyn Fs>,
+    cx: &mut AsyncWindowContext,
+) -> Option<(Entity<Workspace>, Option<String>)> {
+    let path = path.to_path_buf();
+    let name = name.to_string();
     let branch = format!("{BRANCH_PREFIX}{name}");
     let action = CreateWorktree {
         worktree_name: Some(name.clone()),
@@ -665,43 +767,13 @@ async fn create(
         Err(error) => {
             // Zed's service has shown why.
             log::warn!("no worktree agent: {error:#}");
-            return;
+            return None;
         }
     };
     copy_included(workspace, plan, &name, &path, fs, cx).await;
     record(workspace, &path, &branch, &plan.base, cx).await;
-    let command = remember_setup(workspace, plan, setup.as_ref(), cx).await;
-    let wait = if command.is_some() {
-        agent_trust::WATCH_AFTER_SETUP
-    } else {
-        agent_trust::WATCH_FOR
-    };
-    let Some(launch) = created
-        .workspace
-        .update_in(cx, |workspace, window, cx| {
-            crate::agents::start_cli_with_prompt(
-                workspace,
-                kind,
-                &prompt,
-                command.as_deref(),
-                window,
-                cx,
-            )
-        })
-        .log_err()
-    else {
-        return;
-    };
-    let Some(terminal) = launch.await else {
-        return;
-    };
-    // Claude Code asks whether to trust a repository it has not trusted yet (#587).
-    if kind == AgentKind::Claude {
-        let worktree = created.workspace.downgrade();
-        let source = workspace.clone();
-        cx.update(|_, cx| agent_trust::watch(&terminal, worktree, source, name, wait, cx))
-            .log_err();
-    }
+    let command = remember_setup(workspace, plan, setup, cx).await;
+    Some((created.workspace, command))
 }
 
 /// Copies into the new worktree at `path` the main checkout's gitignored files its

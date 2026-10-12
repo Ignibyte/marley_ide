@@ -46,6 +46,8 @@ pub enum Family {
     Draft,
     /// Findings a tool puts into the project diff as review notes the user keeps or drops (#730).
     Review,
+    /// Agents an agent in a Marley terminal starts as harness seats, and their state (#716).
+    Agent,
 }
 
 impl Family {
@@ -69,6 +71,7 @@ impl Family {
             Self::Seat => "seat",
             Self::Draft => "draft",
             Self::Review => "review",
+            Self::Agent => "agent",
         }
     }
 
@@ -91,6 +94,7 @@ impl Family {
                 | Self::Seat
                 | Self::Draft
                 | Self::Review
+                | Self::Agent
         )
     }
 }
@@ -709,6 +713,35 @@ const REGISTRY: &[ToolSpec] = &[
                       `no_answer`.",
     },
     ToolSpec {
+        family: Family::Agent,
+        verb: "start",
+        tier: Tier::Write,
+        grant_class: "agents.write",
+        description: "Start another agent from your Marley terminal, as a seat on the harness \
+                      Marley follows: `agent` (`claude` or `codex`), its first `prompt`, `place` \
+                      (`here`, your folder, or `worktree`, a new worktree of your repository), \
+                      `view` (`terminal`, or `thread` for Claude Code) and a `request_id` UUID \
+                      you keep. Marley asks the user first, answers `starting`, then starts the \
+                      seat, sends the prompt once and opens its view beside you; a start that \
+                      fails is shown to the user. End your turn after it: when its turn \
+                      ends, Marley types a line into your terminal that names the delegation, and \
+                      `agent_status` reads the result. Refused `caller_unknown` from outside a \
+                      Marley terminal, `tool_off` while `marley.harness_writes` is off, \
+                      `declined`, `no_answer`, or with the harness's own code.",
+    },
+    ToolSpec {
+        family: Family::Agent,
+        verb: "status",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "The state of an agent you started with `agent_start`, by its \
+                      `delegation` id: the seat, its state, its delivery's state and outcome \
+                      (`ended` with `finished`, `failed` or `stopped` once its turn ends), and the \
+                      last 40 lines of its output, secrets redacted. Reading an ended delegation \
+                      marks you told, so its line is not typed again. Refused `no_delegation` for \
+                      an id no seat carries.",
+    },
+    ToolSpec {
         family: Family::Draft,
         verb: "message",
         tier: Tier::Write,
@@ -936,6 +969,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Seat => seat_schemas(spec.verb),
         Family::Draft => draft_schemas(),
         Family::Review => review_schemas(spec.verb),
+        Family::Agent => agent_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -2261,6 +2295,58 @@ fn seat_schemas(verb: &str) -> (Value, Value) {
     )
 }
 
+/// The agent family (#716): `agent_start`'s request and the delegation it made; `agent_status`'s
+/// delegation and the seat's state.
+fn agent_schemas(verb: &str) -> (Value, Value) {
+    if verb == "status" {
+        return (
+            json!({
+                "type": "object",
+                "properties": {
+                    "delegation": { "type": "string", "description": "The `request_id` `agent_start` took." }
+                },
+                "required": ["delegation"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "delegation": { "type": "string" },
+                    "seat": { "type": "string" },
+                    "state": { "type": "string" },
+                    "delivery": { "type": "string", "description": "`deposited`, `claimed`, `started` or `ended`." },
+                    "outcome": { "type": "string", "description": "`finished`, `failed` or `stopped`, once ended." },
+                    "output": { "type": "array", "items": { "type": "string" } },
+                    "told": { "type": "boolean" }
+                },
+                "required": ["delegation", "seat", "state"]
+            }),
+        );
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "agent": { "type": "string", "enum": ["claude", "codex"], "description": "Claude Code or Codex." },
+                "prompt": { "type": "string", "minLength": 1, "maxLength": 8192, "description": "The agent's first prompt." },
+                "place": { "type": "string", "enum": ["here", "worktree"], "description": "Your folder, or a new worktree of your repository." },
+                "view": { "type": "string", "enum": ["terminal", "thread"], "description": "A terminal, or a thread tab for Claude Code." },
+                "request_id": { "type": "string", "description": "A UUID you keep: the delegation's id." }
+            },
+            "required": ["agent", "prompt", "place", "view", "request_id"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "delegation": { "type": "string" },
+                "result": { "type": "string", "enum": ["starting"] }
+            },
+            "required": ["delegation", "result"]
+        }),
+    )
+}
+
 /// `seat_add` (#692): a seat's name, agent, folder and role; the seat added and starting.
 fn seat_add_schemas() -> (Value, Value) {
     (
@@ -3245,13 +3331,15 @@ mod tests {
                 "seat_add",
                 "seat_stop",
                 "seat_remove",
+                "agent_start",
+                "agent_status",
                 "draft_message",
                 "review_notes_add",
                 "review_guide_open",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 69);
+        assert_eq!(registry().len(), 71);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

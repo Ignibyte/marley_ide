@@ -51,6 +51,7 @@ pub mod close_guard;
 pub mod codex_server;
 pub mod command_watch;
 pub mod commands;
+pub mod delegation;
 pub mod docs_tools;
 pub mod drafts;
 pub mod editor_tools;

@@ -13,7 +13,8 @@ transport, no product vocabulary. The same types are the rail's model, Marley's 
   optional standing `Question`.
 - `reducer`: `SessionEvent` and the replay-safe fold `apply` / `reduce` into a `FleetSnapshot`.
 - `attention`: read-time staleness (`is_stale`) and the attention order, with `now_ms` passed in.
-- `dispatch`: `DeliveryState` (`deposited`, `claimed`, `started`, a monotone join) and
+- `dispatch`: `DeliveryState` (`deposited`, `claimed`, `started`, and since #716 `ended`,
+  rustal-harness's state after a send's turn, a monotone join) and
   `DeliveryAdvance`.
 - `verbs`: the session verbs' requests and receipts, each named by its MCP tool name
   (`session_send`, `session_read`, `session_open`, `session_surface_to_human`, `session_answer`):

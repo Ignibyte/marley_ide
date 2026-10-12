@@ -69,7 +69,7 @@ impl SeatAgent {
     }
 
     /// The agent as `seat add --agent` takes it.
-    const fn argument(self) -> &'static str {
+    pub(crate) const fn argument(self) -> &'static str {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
@@ -77,7 +77,7 @@ impl SeatAgent {
     }
 
     /// The agent as the user reads it.
-    const fn shown(self) -> &'static str {
+    pub(crate) const fn shown(self) -> &'static str {
         match self {
             Self::Claude => "Claude Code",
             Self::Codex => "Codex",
@@ -91,6 +91,8 @@ struct Seat {
     agent: SeatAgent,
     cwd: String,
     role: String,
+    /// The labels the harness keeps on its profile and publishes on its sessions (#716).
+    labels: Vec<(String, String)>,
 }
 
 impl Seat {
@@ -118,6 +120,9 @@ impl Seat {
         ]);
         if !self.role.is_empty() {
             add.extend(["--role".to_string(), word(&self.role)]);
+        }
+        for (key, value) in &self.labels {
+            add.extend(["--label".to_string(), word(&format!("{key}={value}"))]);
         }
         let mut start = base;
         start.extend(["seat".to_string(), "start".to_string(), word(&self.name)]);
@@ -323,6 +328,7 @@ fn seat_of(arguments: &Value) -> Result<Seat, Refusal> {
         agent,
         cwd: text("cwd"),
         role: text("role"),
+        labels: Vec::new(),
     };
     if seat.name.is_empty() || seat.cwd.is_empty() {
         return Err(Refusal::new(
@@ -336,7 +342,7 @@ fn seat_of(arguments: &Value) -> Result<Seat, Refusal> {
 /// The harness's `CODE: reason` as a refusal by that code, as its message of 2026-10-07 asks: the
 /// token before the first `:` is the code when it is lowercase letters and `_`, and the rest is
 /// shown as given. A plain `text` is `refused` with all of it (#693).
-fn refusal_of(said: &str) -> Refusal {
+pub(crate) fn refusal_of(said: &str) -> Refusal {
     match said.split_once(": ") {
         Some((code, reason))
             if !code.is_empty() && code.chars().all(|c| c.is_ascii_lowercase() || c == '_') =>
@@ -565,9 +571,18 @@ pub(crate) fn start_agent_on(
         cx,
     );
     cx.spawn_in(window, async move |workspace, cx| {
-        let started = add_and_start(&program, &base, remote, agent, &folder, &stem, &taken).await;
+        let started = add_and_start(
+            &program,
+            &base,
+            remote,
+            agent,
+            &folder,
+            (&stem, &taken),
+            &[],
+        )
+        .await;
         let started = match started {
-            Ok(started) => started,
+            Ok((started, _)) => started,
             Err(reason) => {
                 workspace
                     .update(cx, |workspace, cx| {
@@ -616,29 +631,30 @@ pub(crate) fn start_agent_on(
 }
 
 /// Adds the seat under the first name the root takes, `stem`, then `stem-2` … `stem-9`, skipping
-/// the names in `taken`, and starts it: `seat start`'s answer.
-async fn add_and_start(
+/// the names in `taken`, with `labels` (#716), and starts it: `seat start`'s answer, and the name.
+pub(crate) async fn add_and_start(
     program: &Path,
     base: &[String],
     remote: bool,
     agent: SeatAgent,
     folder: &str,
-    stem: &str,
-    taken: &[String],
-) -> Result<Value, SharedString> {
+    (stem, taken): (&str, &[String]),
+    labels: &[(String, String)],
+) -> Result<(Value, String), SharedString> {
     let names = std::iter::once(stem.to_string())
         .chain((2..=9).map(|number| format!("{stem}-{number}")))
         .filter(|name| !taken.contains(name));
     for name in names {
         let seat = Seat {
-            name,
+            name: name.clone(),
             agent,
             cwd: folder.to_string(),
             role: String::new(),
+            labels: labels.to_vec(),
         };
         let (add, start) = seat.commands(base.to_vec(), remote);
         match run_seat(program, &add).await {
-            Ok(_) => return run_seat(program, &start).await,
+            Ok(_) => return Ok((run_seat(program, &start).await?, name)),
             // A seat of that name the rail does not show, such as a stopped one.
             Err(said) if said.starts_with("seat_exists") => {}
             Err(said) => return Err(said),
@@ -649,7 +665,7 @@ async fn add_and_start(
 
 /// A seat's name from the agent and the folder's last part, as `claude-other` for `/srv/other`:
 /// lowercase letters, digits and dashes.
-fn seat_stem(agent: SeatAgent, folder: &str) -> String {
+pub(crate) fn seat_stem(agent: SeatAgent, folder: &str) -> String {
     let last = folder
         .trim_end_matches('/')
         .rsplit('/')
@@ -675,7 +691,7 @@ fn seat_stem(agent: SeatAgent, folder: &str) -> String {
 
 /// The line that attaches a terminal to a started seat: its `tmux` view (`rh attach`), else its
 /// `native` one (`rh view`), from `seat start`'s answer.
-fn attach_line(slot: &Slot, started: &Value, cx: &App) -> Option<SharedString> {
+pub(crate) fn attach_line(slot: &Slot, started: &Value, cx: &App) -> Option<SharedString> {
     let views: Vec<(SharedString, Vec<String>)> = started
         .get("views")?
         .as_array()?
@@ -764,6 +780,7 @@ impl NewSeatModal {
             agent: self.agent,
             cwd: self.folder.read(cx).text(cx).trim().to_string(),
             role: self.role.read(cx).text(cx).trim().to_string(),
+            labels: Vec::new(),
         };
         if seat.name.is_empty() || seat.cwd.is_empty() {
             self.status = Some((
