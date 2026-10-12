@@ -2965,8 +2965,10 @@ below describe what #743 retired.
   Zed's dev-channel credentials file; a newer load wins over an older read that finishes late. So
   a user who leaves the layer off never meets the keyring's unlock prompt. `store_key` and
   `forget_key` write and remove the keyring's item and load the key again. On Linux gpui's
-  keychain is the Secret Service through `oo7`, and a scenario would reach the user's own, so no
-  scenario touches it.
+  keychain is the Secret Service through `oo7`: items labelled `Marley` with `application =
+  marley`, an item under the old `zed-github-account` label read and copied once, and a delete
+  removing both (#761, `gpui_linux/src/linux/platform.rs`). #761's scenario runs a keyring of its
+  own on a private bus; the others touch none.
 - **`ask(spec, asking, cx)`** is the one way a use asks. With the layer or the use off it answers
   `Reading::Off` and does nothing else. Then `policy::may_send` decides the detail, and the state is
   built with `mcp::model_redactor`, the rules and patterns whatever agents' redaction says, plus the

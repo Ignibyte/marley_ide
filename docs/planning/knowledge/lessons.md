@@ -5648,3 +5648,15 @@ with a record the manager posts instead.
 A harness row whose session declares signals carries a tooltip ("State reported by the agent")
 that opens under the pointer about half a second after the right-click and covers the menu. Shoot
 the menu 0.3 seconds after the click, before the tooltip; the menu is already drawn then.
+
+## L-claude-761-a-private-secret-service-for-a-scenario-001
+*category: e2e · topic: a scenario that reads or writes the keyring · from: pipeline 761*
+
+A run gets a Secret Service of its own: a session `dbus-daemon` exported as
+`DBUS_SESSION_BUS_ADDRESS`, then `printf PASS | gnome-keyring-daemon --login &` and
+`gnome-keyring-daemon --start --components=secrets`, both with `XDG_DATA_HOME` in the run's folder
+and `XDG_RUNTIME_DIR` a `mktemp -d` under `/run/user/<uid>` (the control socket must fit 108
+bytes). `--unlock` alone creates no login keyring, and `secret-tool store` then waits on a
+prompter that never comes: give every keyring call a `timeout`. Stop the daemon by the pid whose
+environment names that runtime folder, never by `pkill -f`, whose pattern is in the stopping
+shell's own command line.

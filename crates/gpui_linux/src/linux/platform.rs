@@ -54,7 +54,14 @@ pub(crate) const SCROLL_LINES: f32 = 3.0;
 pub(crate) const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(400);
 #[cfg(any(feature = "wayland", feature = "x11"))]
 pub(crate) const DOUBLE_CLICK_DISTANCE: Pixels = px(5.0);
-pub(crate) const KEYRING_LABEL: &str = "zed-github-account";
+// Marley: Marley's Secret Service items carry its own label (#761).
+pub(crate) const KEYRING_LABEL: &str = "Marley";
+/// Marley: the label Marley's items had before #761, stock Zed's, read and copied once.
+const LEGACY_KEYRING_LABEL: &str = "zed-github-account";
+/// Marley: an attribute only Marley's items carry. The Secret Service replaces an item by its
+/// attributes, whatever its label, so without it a write would replace stock Zed's item for the
+/// same URL (#761).
+const KEYRING_APPLICATION: (&str, &str) = ("application", "marley");
 
 #[cfg(any(feature = "wayland", feature = "x11"))]
 const FILE_PICKER_PORTAL_MISSING: &str =
@@ -1035,7 +1042,12 @@ impl Platform for LinuxPlatform {
             keyring
                 .create_item(
                     KEYRING_LABEL,
-                    &vec![("url", &url), ("username", &username)],
+                    // Marley: its own attribute, so the replace finds only Marley's item (#761).
+                    &vec![
+                        ("url", url.as_str()),
+                        ("username", username.as_str()),
+                        KEYRING_APPLICATION,
+                    ],
                     password,
                     true,
                 )
@@ -1052,8 +1064,16 @@ impl Platform for LinuxPlatform {
 
             let items = keyring.search_items(&vec![("url", &url)]).await?;
 
+            // Marley: the item under Marley's label, else one it wrote under the old label, which
+            // is copied under the new one and left for a stock Zed that may own it (#761).
+            let mut legacy = None;
             for item in items.into_iter() {
-                if item.label().await.is_ok_and(|label| label == KEYRING_LABEL) {
+                let label = item.label().await.unwrap_or_default();
+                if label == LEGACY_KEYRING_LABEL {
+                    legacy.get_or_insert(item);
+                    continue;
+                }
+                if label == KEYRING_LABEL {
                     let attributes = item.attributes().await?;
                     let username = attributes
                         .get("username")
@@ -1068,7 +1088,32 @@ impl Platform for LinuxPlatform {
                     continue;
                 }
             }
-            Ok(None)
+            let Some(item) = legacy else {
+                return Ok(None);
+            };
+            let attributes = item.attributes().await?;
+            let username = attributes
+                .get("username")
+                .context("Cannot find username in stored credentials")?
+                .to_string();
+            item.unlock().await?;
+            let secret = item.secret().await?.to_vec();
+            if let Err(error) = keyring
+                .create_item(
+                    KEYRING_LABEL,
+                    &vec![
+                        ("url", url.as_str()),
+                        ("username", username.as_str()),
+                        KEYRING_APPLICATION,
+                    ],
+                    secret.clone(),
+                    true,
+                )
+                .await
+            {
+                log::warn!("could not copy a credential under Marley's keyring label: {error:#}");
+            }
+            Ok(Some((username, secret)))
         })
     }
 
@@ -1080,10 +1125,14 @@ impl Platform for LinuxPlatform {
 
             let items = keyring.search_items(&vec![("url", &url)]).await?;
 
+            // Marley: both labels' items go, or the old one would answer the next read (#761).
             for item in items.into_iter() {
-                if item.label().await.is_ok_and(|label| label == KEYRING_LABEL) {
+                if item
+                    .label()
+                    .await
+                    .is_ok_and(|label| label == KEYRING_LABEL || label == LEGACY_KEYRING_LABEL)
+                {
                     item.delete().await?;
-                    return Ok(());
                 }
             }
 

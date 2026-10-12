@@ -3927,3 +3927,13 @@ harness's fleet is read. That write fires the `SettingsStore` observers, and `fo
 have removed the entry at once: the restored tab would connect to an agent that is no longer
 there. Fixed before it ran: the sync keeps an entry whose harness is followed with writes while
 its connection is not yet `Connected`, which `connected` sets only after `seed`.
+
+## F-claude-761-a-copy-under-a-new-label-replaced-the-old-item-001
+*severity: medium · found in: pipeline 761's Test, the first run · class: a Secret Service replace matches attributes, not labels*
+
+The first `read_credentials` copied an old-label item with `create_item(new label, {url,
+username}, secret, replace: true)`. The Secret Service's replace finds an item with the same
+attributes whatever its label, so the copy replaced the old item instead of sitting beside it:
+the run's keyring held only the `Marley` item. A write would have done the same to a stock Zed
+item for the same URL. Fixed in #761: Marley's items carry `application = marley`, so a replace
+matches only Marley's.

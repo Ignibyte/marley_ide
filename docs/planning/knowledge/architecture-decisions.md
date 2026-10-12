@@ -5199,3 +5199,13 @@ the name, so the database, the `"dev"` settings block and the credentials file d
 shim for the old socket: an installed Marley from before restarts once. Rejected: a Marley
 channel (four migrations), `marley` as the id (no namespace), a check for the old socket in
 `main.rs`.
+
+## AD-claude-761-marleys-keyring-items-are-labelled-marley-and-carry-their-own-attribute-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-760-marleys-app-id-name-and-socket-are-its-own-on-the-dev-channel-001*
+
+Marley's Secret Service items are labelled `Marley` and carry `application = marley` beside `url`
+and `username`. A read takes Marley's item, else an item under stock Zed's old label, which it
+copies under the new one and leaves for a stock Zed that may own it; a delete removes both, so a
+forgotten key does not come back. Rejected: a one-time migration of every old-label item (it
+would take stock Zed's too), moving the old item, and the label alone (the Secret Service
+replaces by attributes, so a write would replace stock Zed's item for the same URL).

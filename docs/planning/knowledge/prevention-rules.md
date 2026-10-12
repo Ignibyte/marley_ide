@@ -3003,3 +3003,10 @@ showing a dialog; never await such a call bare in a tool's answer path.
 (`follow_setting`, `follow_hosts`) run there. Code that writes a default another reconcile also
 owns gives that reconcile a reason to keep it, in the state the reconcile reads, before the write:
 otherwise the write's own notification undoes it.
+
+## PR-claude-761-a-keyring-items-label-does-not-tell-replace-apart-001
+*severity: medium · prevents: F-claude-761-a-copy-under-a-new-label-replaced-the-old-item-001*
+
+The Secret Service's `CreateItem` with `replace` replaces an item whose attributes match, and
+ignores the label. Items that must stay apart from another program's, or from an older form of
+one's own, differ in an attribute, not only in their label.

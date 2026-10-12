@@ -2483,8 +2483,11 @@ request, reads no key and writes no file.
 
 1. Give Marley the key: set `MARLEY_SYSTEM_ONE_KEY` in the environment Marley starts from, or open
    System One calls (`marley: open system one calls`), choose Set Key, paste the key and press
-   Enter, which writes it to the system keyring at the provider's URL. The variable comes before
-   the keyring. System One calls shows where the key came from and never shows the key.
+   Enter, which writes it to the system keyring at the provider's URL, labelled Marley (#761). The
+   variable comes before the keyring. System One calls shows where the key came from and never
+   shows the key. A key written before #761 sits under stock Zed's label, `zed-github-account`:
+   Marley reads it and copies it under its own label, leaving the old item, and Forget Key removes
+   both.
 2. List the folders whose projects may send their state, in `settings.json`:
 
    ```jsonc
@@ -3337,8 +3340,8 @@ approvals inbox, per-turn diffs, permission modes, worktree agents with review a
 the terminal items from Warp (an agent typing into a running program, blocks over ssh, filtering
 a block, a sticky command header, runbook commands).
 
-Waiting on purpose: Marley's own release identity, with its keyring label, updater, app id and
-URL scheme (TICKET-445).
+Waiting on purpose: the rest of Marley's own release identity, its URL scheme and its updater
+(#762, #763); its remote server, app id and keyring label shipped (#445, #760, #761).
 
 `docs/marley/three-prong-plan.md` names the longer road: block-scoped path links and a jump to the
 first failure (T2), a prompt editor (T3), tasks and runnables as blocks (T4), native block headers

@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's keyring label** (#761, slice 3 of Marley's release identity, 2026-10-11). Marley's
+  Secret Service items, System One's keys among them, are labelled Marley with an attribute of
+  their own, no longer stock Zed's `zed-github-account`. A key Marley wrote before is read under
+  the old label and copied under the new one, so nothing asks for it again; Forget Key removes it
+  under both.
+
 - **Marley calls itself Marley** (#760, slice 2 of Marley's release identity, 2026-10-11). Its
   windows tell the desktop they are `com.ignibyte.Marley` (they said `dev.zed.Zed-Dev`), the About
   window and a window title's `${appName}` say Marley, and the single-instance socket is
