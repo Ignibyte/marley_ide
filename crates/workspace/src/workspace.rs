@@ -5303,6 +5303,14 @@ impl Workspace {
             match url.scheme() {
                 "http" | "https" => cx.open_url(url_or_path),
                 "file" => open_abs_path(self, PathBuf::from(url.path()), cx),
+                // Marley: the app's own links open in the app, not through the system's opener
+                // (#762).
+                "zed" | "marley" => window.dispatch_action(
+                    Box::new(zed_actions::OpenZedUrl {
+                        url: url_or_path.into(),
+                    }),
+                    cx,
+                ),
                 _ => cx.open_url(url_or_path),
             }
             return;

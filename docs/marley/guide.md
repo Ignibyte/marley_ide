@@ -132,6 +132,17 @@ on <data dir>; it was handed 1 of this launch's paths".
 - A Marley that hangs keeps its data directory: a new launch hands off to it and exits. Kill
   the hung one (`pgrep -x marley` finds it), and the next launch starts.
 
+### `marley://` links (#762)
+
+`marley://` is Marley's own scheme: a `marley://` link means what the `zed://` link of the same path
+means (`marley://settings` opens the Settings window, `marley://open` brings Marley forward). The
+install's desktop entry claims `x-scheme-handler/marley`, and only that, so `xdg-open marley://…`
+starts Marley, which hands the link to the Marley that runs.
+
+A `zed://` or `marley://` link clicked inside Marley opens in Marley: Ctrl-click or Open URL in a
+buffer, a link in the markdown preview, an agent's message, a hover or a notification, and a
+Ctrl-click in a terminal. Outside Marley, the desktop still sends `zed://` to stock Zed.
+
 ### `marley <command>` (#749)
 
 `marley` followed by a command opens something in the running Marley, working in the folder you

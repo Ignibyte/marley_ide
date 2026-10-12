@@ -28,6 +28,12 @@ pub struct OpenZedUrl {
     pub url: Arc<str>,
 }
 
+/// Marley: whether `url` is the app's own link, `zed://` or `marley://`, which a click inside the
+/// app opens through [`OpenZedUrl`] rather than the system's opener (#762).
+pub fn opens_in_app(url: &str) -> bool {
+    url.starts_with("zed://") || url.starts_with("marley://")
+}
+
 /// Opens the keymap to either add a keybinding or change an existing one
 #[derive(PartialEq, Clone, Default, Action, JsonSchema, Serialize, Deserialize)]
 #[action(namespace = zed, no_json, no_register)]

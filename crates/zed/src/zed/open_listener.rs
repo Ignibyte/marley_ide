@@ -168,6 +168,8 @@ impl OpenRequest {
         }
 
         for url in request.urls {
+            // Marley: `marley://<rest>` means `zed://<rest>` (#762).
+            let url = marley_workbench::single_instance::zed_url(url);
             if let Some(server_name) = url.strip_prefix("zed-cli://") {
                 this.kind = Some(OpenRequestKind::CliConnection(connect_to_cli(server_name)?));
             } else if let Some(action_index) = url.strip_prefix("zed-dock-action://") {

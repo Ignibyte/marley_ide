@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **`marley://` links** (#762, slice 4 of Marley's release identity, 2026-10-11). Marley's desktop
+  entry claims the `marley://` scheme, and a `marley://` link means what the `zed://` link of the
+  same path means, so `xdg-open marley://settings` opens Marley's settings. A `zed://` or
+  `marley://` link clicked inside Marley (a buffer, the markdown preview, an agent's message, a
+  terminal) now opens in Marley instead of going to stock Zed. The entry's `Exec` is no longer
+  quoted, which `xdg-open` on Hyprland could not run.
+
 - **Marley's keyring label** (#761, slice 3 of Marley's release identity, 2026-10-11). Marley's
   Secret Service items, System One's keys among them, are labelled Marley with an attribute of
   their own, no longer stock Zed's `zed-github-account`. A key Marley wrote before is read under

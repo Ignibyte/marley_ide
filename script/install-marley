@@ -171,7 +171,13 @@ EOF
 chmod 755 "$launcher"
 mv -f "$launcher" "$bin/marley"
 install -Dm644 crates/zed/resources/app-icon-dev.png "$prefix/share/icons/hicolor/512x512/apps/marley.png"
-# No MimeType: Marley must not become the handler for text files or folders.
+# Only Marley's own scheme (#762): Marley must not become the handler for text files, folders or
+# stock Zed's zed:// links. xdg-open's generic mode, Hyprland's, takes Exec's first word as it
+# stands, quotes and all, so the program is quoted only when its path holds a space.
+exec_program=$bin/marley
+if [[ $exec_program == *' '* ]]; then
+  exec_program="\"$exec_program\""
+fi
 cat >"$entry" <<EOF
 [Desktop Entry]
 Version=1.0
@@ -180,11 +186,12 @@ Name=Marley
 GenericName=Text Editor
 Comment=Ignibyte's editor: Zed with the block terminal, agents and the browser
 TryExec=$bin/marley
-Exec="$bin/marley" %U
+Exec=$exec_program %U
 Icon=marley
 Terminal=false
 StartupNotify=true
 StartupWMClass=com.ignibyte.Marley
+MimeType=x-scheme-handler/marley;
 Categories=Development;IDE;
 Keywords=zed;editor;terminal;agent;browser;
 EOF

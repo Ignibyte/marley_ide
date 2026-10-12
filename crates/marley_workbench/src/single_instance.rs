@@ -21,8 +21,9 @@ use release_channel::RELEASE_CHANNEL_NAME;
 /// The buffer Zed's listener reads a datagram into: a longer URL would arrive cut.
 const MAX_URL_BYTES: usize = 1024;
 
-/// The schemes the running app takes as they are, as its own command line does.
-const URL_SCHEMES: [&str; 4] = ["file://", "zed://", "zed-cli://", "ssh://"];
+/// The schemes the running app takes as they are, as its own command line does; `marley://` is
+/// Marley's twin of `zed://` (#762).
+const URL_SCHEMES: [&str; 5] = ["file://", "zed://", "marley://", "zed-cli://", "ssh://"];
 
 /// A Unix socket's address holds a path shorter than this (`sun_path`, with its NUL).
 const SOCKET_PATH_BYTES: usize = if cfg!(target_os = "freebsd") {
@@ -54,6 +55,16 @@ pub fn activation_token_in(url: &str) -> Option<String> {
     url.strip_prefix(ACTIVATION_TOKEN_URL)
         .filter(|token| !token.is_empty())
         .map(str::to_string)
+}
+
+/// `url` with Marley's scheme read as Zed's: `marley://<rest>` is `zed://<rest>` (#762), so every
+/// link Zed's open listener reads has a `marley://` twin.
+#[must_use]
+pub fn zed_url(url: String) -> String {
+    if let Some(rest) = url.strip_prefix("marley://") {
+        return format!("zed://{rest}");
+    }
+    url
 }
 
 /// The socket Zed's check binds in the data directory, and Marley's hand-off sends to.

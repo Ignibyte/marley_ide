@@ -5660,3 +5660,13 @@ bytes). `--unlock` alone creates no login keyring, and `secret-tool store` then 
 prompter that never comes: give every keyring call a `timeout`. Stop the daemon by the pid whose
 environment names that runtime folder, never by `pkill -f`, whose pattern is in the stopping
 shell's own command line.
+
+## L-claude-762-xdg-opens-fallback-starts-a-real-browser-001
+*category: e2e · topic: a scenario that runs the real `xdg-open` · from: pipeline 762*
+
+When `xdg-open` finds no handler it can run, it falls back to `$BROWSER`, else the first browser on
+the PATH, which starts it on whatever display the scenario's shell names: #762's first run started
+Chromium with the link. A scenario that runs the real `xdg-open` sets `BROWSER` to a logging fake
+and a `timeout`, and checks the fake's log stayed empty. Its desktop is its own:
+`XDG_DATA_HOME` and `XDG_CONFIG_HOME` in the run's folder with an `update-desktop-database`'d
+entry, `XDG_DATA_DIRS=/usr/share`, and `XDG_CURRENT_DESKTOP` unset for the generic mode.

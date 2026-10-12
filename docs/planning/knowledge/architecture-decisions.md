@@ -5209,3 +5209,14 @@ copies under the new one and leaves for a stock Zed that may own it; a delete re
 forgotten key does not come back. Rejected: a one-time migration of every old-label item (it
 would take stock Zed's too), moving the old item, and the label alone (the Secret Service
 replaces by attributes, so a write would replace stock Zed's item for the same URL).
+
+## AD-claude-762-marley-reads-marley-as-zed-and-keeps-app-links-clicked-inside-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-760-marleys-app-id-name-and-socket-are-its-own-on-the-dev-channel-001*
+
+`marley://<rest>` is read as `zed://<rest>` in one place, the top of the open listener's parse
+loop, and a launch or a hand-off keeps it a link; the desktop entry claims
+`x-scheme-handler/marley` and nothing else. A `zed://` or `marley://` link clicked inside Marley
+dispatches `OpenZedUrl` (the editor's two link tests, `Workspace::open_url_or_file`, Marley's
+terminal hook), as Zed's URL modal already did. Rejected: a gpui hook in `open_url`, claiming
+`x-scheme-handler/zed` (stock Zed's), and an `xdg-mime default` call in the install (it writes the
+user's `mimeapps.list`).

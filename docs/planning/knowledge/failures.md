@@ -3937,3 +3937,12 @@ attributes whatever its label, so the copy replaced the old item instead of sitt
 the run's keyring held only the `Marley` item. A write would have done the same to a stock Zed
 item for the same URL. Fixed in #761: Marley's items carry `application = marley`, so a replace
 matches only Marley's.
+
+## F-claude-762-a-quoted-exec-defeated-xdg-opens-generic-mode-001
+*severity: medium · found in: pipeline 762's Test, the first run · class: a desktop entry one launcher reads and another cannot*
+
+`script/install-marley` wrote `Exec="$bin/marley" %U`, quoted as the desktop entry spec allows.
+xdg-utils' generic mode, which `xdg-open` takes under Hyprland, reads the first word of `Exec` as
+it stands, quotes included, so `command -v '"…/marley"'` failed, and it fell back to a web browser:
+the run's `xdg-open marley://settings` started Chromium with the link instead of Marley. Fixed in
+#762: the program is quoted only when its path holds a space.

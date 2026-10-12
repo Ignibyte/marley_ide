@@ -101,13 +101,23 @@ pub fn init(cx: &mut App) {
 }
 
 /// The hook Zed's terminal view asks: opens `url` where it goes and says so, or leaves a URL
-/// that is not http or https to Zed.
+/// that is not http or https, nor the app's own, to Zed.
 fn open_clicked(
     context: &MarleyFooterContext,
     url: &str,
     window: &mut Window,
     cx: &mut App,
 ) -> bool {
+    // The app's own links open in the app, wherever the terminal runs (#762).
+    if zed_actions::opens_in_app(url) {
+        window.dispatch_action(
+            Box::new(zed_actions::OpenZedUrl {
+                url: url.to_string().into(),
+            }),
+            cx,
+        );
+        return true;
+    }
     let over_ssh = over_ssh(context.project.upgrade(), context.terminal, cx);
     let Some(destination) = destination(url, over_ssh, window.modifiers().shift, cx) else {
         return false;

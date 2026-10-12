@@ -1859,8 +1859,10 @@ fn parse_url_arg(arg: &str, cx: &App) -> String {
     match std::fs::canonicalize(Path::new(&arg)) {
         Ok(path) => format!("file://{}", path.display()),
         Err(_) => {
+            // Marley: a `marley://` link stays a link (#762).
             if arg.starts_with("file://")
                 || arg.starts_with("zed://")
+                || arg.starts_with("marley://")
                 || arg.starts_with("zed-cli://")
                 || arg.starts_with("ssh://")
                 || parse_zed_link(arg, cx).is_some()
