@@ -16,7 +16,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | Ticket | Type | Why it waits |
 |---|---|---|
 | [TICKET-716](open/TICKET-716-delegation-tools.md) | feature | after the finish: agents that start agents, tracked and never lost; waits on a harness request (seat labels, an ended state) |
-| [TICKET-770](open/TICKET-770-one-prompt-to-several-agents.md) | feature | after the finish: one prompt to several agents (from #716) |
 | [TICKET-718](open/TICKET-718-failed-checks-to-an-agent.md) | feature | after the finish: a PR's failed checks sent to an agent; the GitHub inbox later |
 | [TICKET-726](open/TICKET-726-plan-review-in-a-tab.md) | feature | after the finish, the review batch: plan review in a center tab (in slices) |
 | [TICKET-727](open/TICKET-727-plan-versions-and-diff.md) | feature | the review batch: plan versions and a diff between them |

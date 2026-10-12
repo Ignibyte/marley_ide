@@ -5251,3 +5251,14 @@ a family of its own (`draft`, grant `draft.write`) so a client's grants can leav
 nothing asks before it, since the tab is the review. Rejected: `terminal_type` into an agent CLI
 (refused on purpose), a tool that waits for the person's answer, and a notification card in place
 of a tab (no room to edit).
+
+## AD-claude-770-a-set-of-worktree-agents-shares-one-name-001
+*decided at: 2026-10-12 · status: shipped*
+
+One New Agent in Worktree prompt starts the chosen agent CLI and any others ticked under "Also
+start:" (all clear by default), each in its own worktree and branch from the same base, made one
+after another under the project's one-at-a-time guard. A set's worktrees share one name with each
+agent's program after it (`agent/<name>-claude`, `agent/<name>-codex`), the first of three names
+whose folders are all free; a single agent keeps `agent/<name>`. Rejected: creating them at once
+(Zed's worktree service and the seed's mark are per create, and a refused create rolls back with
+force), and a fresh name per agent (the set would not read as one).

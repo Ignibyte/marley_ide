@@ -667,6 +667,15 @@ alike.
   sit deeper. `open_worktree` shows an open worktree's workspace, else runs Zed's
   `handle_switch_worktree` on the project's workspace.
 
+- **Several agents from one prompt** (#770). `open_prompt` takes the installed CLIs other than
+  the one chosen (the rail's submenu passes them), and `WorktreePrompt` draws a `Checkbox` for each
+  under "Also start:", all clear. `kinds()` is the chosen agent, then the ticked ones in the
+  submenu's order; `Plan::branches` names `agent/<name>` for one and `agent/<name>-<program>` for
+  each of several (`suffixes`). `start` holds `creating` for the whole set, finds the set's names
+  with `free_folders` (the first of three base names whose folders are all empty), and awaits
+  `create` for each agent in turn, so a failed create's toast does not stop the next. `free_name`
+  counts a set's base name as taken, stripping an agent program's suffix.
+
 ## A worktree's drift (`src/worktree_git.rs`, `src/rail.rs`, #560)
 
 - `worktree_git` is the git adapter of the worktree rows, which #511 extends: every call goes

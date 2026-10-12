@@ -998,7 +998,12 @@ a local project whose folder is a git repository.
    `agent/<name> from main`, the name one Zed makes, the base the main checkout's branch (its
    commit when it is detached).
 2. Type the agent's first prompt, or nothing (Shift-Enter adds a line, Escape closes it), and
-   press Enter.
+   press Enter. To give the same task to more than one agent, tick the others under **Also
+   start:** (#770): one box for each other installed agent CLI, all clear when the prompt opens.
+   Each agent ticked gets its own worktree and branch from the same base, and the branches share a
+   name with each agent's program after it, `agent/<name>-claude` and `agent/<name>-codex`, as the
+   line under the prompt shows. The worktrees are made one after another, the chosen agent's
+   first, each as step 3 says, and each gets its own row.
 3. Marley makes the worktree through Zed's worktree service, where Zed puts its own
    (`git.worktree_directory`, `<parent>/worktrees/<project>/<name>/<project>` by default), on the
    new branch, which tracks nothing. Zed carries the folder's trust over and runs the repository's

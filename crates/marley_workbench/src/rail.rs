@@ -5755,12 +5755,25 @@ impl Rail {
         menu.submenu("New Agent in Worktree", move |menu, _, _| {
             agents.iter().fold(menu, |menu, kind| {
                 let (workspace, kind) = (workspace.clone(), *kind);
+                // The prompt offers the others too (#770).
+                let others: Vec<AgentKind> = agents
+                    .iter()
+                    .copied()
+                    .filter(|other| *other != kind)
+                    .collect();
                 menu.item(
                     ContextMenuEntry::new(kind.display_name())
                         .icon(agents::cli_icon(kind))
                         .icon_color(Color::Muted)
                         .handler(move |window, cx| {
-                            worktree_agents::open_prompt(&workspace, kind, window, cx).log_err();
+                            worktree_agents::open_prompt(
+                                &workspace,
+                                kind,
+                                others.clone(),
+                                window,
+                                cx,
+                            )
+                            .log_err();
                         }),
                 )
             })

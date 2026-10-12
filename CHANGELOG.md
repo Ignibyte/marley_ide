@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **One prompt to several agents** (#770, 2026-10-12). New Agent in Worktree's prompt has a box for
+  each other installed agent CLI. Tick Codex in Claude Code's prompt and one Enter makes two
+  worktrees from the same base, `agent/<name>-claude` and `agent/<name>-codex`, and starts each
+  agent in its own with the same first prompt, each with a row of its own, ready to compare.
+
 - **Drafted messages between agents** (#769, 2026-10-11). An agent that wants to tell another agent
   something calls `draft_message` instead of typing into it. A Draft tab opens in the target's window,
   naming who wrote it and who it is for, with the text in an editor. Send delivers what the editor

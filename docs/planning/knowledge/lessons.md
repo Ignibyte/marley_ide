@@ -5692,3 +5692,12 @@ Home picks Close. A scenario clicks the item at its point.
 box for a message (the Draft tab) calls `set_show_gutter(false, cx)` and
 `set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx)` after making it, as `rich_input` and
 `block_filter` do.
+
+## L-claude-770-the-worktree-submenu-lists-the-boxs-real-agent-clis-001
+*category: validate · topic: e2e scenarios · from: pipeline 770*
+
+New Agent in Worktree lists every agent CLI found on Marley's PATH, which is the user's (see
+L-claude-633-scenarios-copy-the-users-settings-so-defaults-reach-real-services-001): on the dev box
+the submenu and #770's "Also start:" show Gemini CLI and OpenCode beside the scenario's fake
+`claude` and `codex`. A scenario ticks or picks only the agents it has fakes for, by their place in
+the first run's shot, and never walks the list by keys past them.

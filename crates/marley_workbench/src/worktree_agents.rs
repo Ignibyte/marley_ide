@@ -8,7 +8,9 @@
 //! (#532). The routing's first-terminal seed passes over that workspace. Since #585 the worktree
 //! first gets the main checkout's gitignored files its `.worktreeinclude` names, and the prompt
 //! offers the install command of the repository's one JavaScript package manager, run before the
-//! agent when its box is checked.
+//! agent when its box is checked. Since #770 the prompt has a box for each other installed agent
+//! CLI: the agents ticked get worktrees of their own, made one after another with the same prompt,
+//! named as a set (`agent/<name>-claude`, `agent/<name>-codex`).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -124,9 +126,26 @@ struct Plan {
 }
 
 impl Plan {
-    fn branch(&self) -> String {
-        format!("{BRANCH_PREFIX}{}", self.name)
+    /// The branches the worktrees of `kinds` take: `agent/<name>` for one agent, and for several
+    /// the name with each agent's program after it, so the set reads as one.
+    fn branches(&self, kinds: &[AgentKind]) -> Vec<String> {
+        suffixes(kinds)
+            .iter()
+            .map(|suffix| format!("{BRANCH_PREFIX}{}{suffix}", self.name))
+            .collect()
     }
+}
+
+/// What each worktree of a set adds to the set's name: nothing for one agent, `-<program>` for
+/// each of several.
+fn suffixes(kinds: &[AgentKind]) -> Vec<String> {
+    if kinds.len() < 2 {
+        return vec![String::new()];
+    }
+    kinds
+        .iter()
+        .map(|kind| format!("-{}", kind.program()))
+        .collect()
 }
 
 /// Whether `workspace`'s project can make a worktree agent: a local project whose first folder is
@@ -221,15 +240,28 @@ fn free_name(snapshot: &RepositorySnapshot, also: &[String]) -> Option<String> {
             .filter_map(|branch| branch.name().strip_prefix(BRANCH_PREFIX))
             .map(str::to_string),
     );
+    // A set's worktrees are `<name>-<program>` (#770): their `<name>` is taken too.
+    let set_names: Vec<String> = taken
+        .iter()
+        .filter_map(|name| {
+            AgentKind::ALL.into_iter().find_map(|kind| {
+                name.strip_suffix(kind.program())
+                    .and_then(|name| name.strip_suffix('-'))
+            })
+        })
+        .map(str::to_string)
+        .collect();
+    taken.extend(set_names);
     let taken: Vec<&str> = taken.iter().map(String::as_str).collect();
     worktree_names::generate_worktree_name(&taken, &mut rand::rng())
 }
 
-/// Opens the prompt for a worktree agent running `kind` in `workspace`'s project, or says why it
-/// cannot.
+/// Opens the prompt for a worktree agent running `kind` in `workspace`'s project, with a box for
+/// each of `others`, or says why it cannot.
 pub(crate) fn open_prompt(
     workspace: &WeakEntity<Workspace>,
     kind: AgentKind,
+    others: Vec<AgentKind>,
     window: &mut Window,
     cx: &mut App,
 ) -> anyhow::Result<()> {
@@ -251,7 +283,7 @@ pub(crate) fn open_prompt(
         let hooks = global_create_worktree_tasks(workspace, cx);
         let handle = cx.entity().downgrade();
         workspace.toggle_modal(window, cx, |window, cx| {
-            WorktreePrompt::new(handle, kind, plan, hooks, window, cx)
+            WorktreePrompt::new(handle, kind, others, plan, hooks, window, cx)
         });
     });
     Ok(())
@@ -329,6 +361,7 @@ async fn setup_offer(main: &Path, base: &str, fs: &dyn Fs) -> Option<SetupOffer>
 
 /// What a worktree agent starts with: its first prompt, and the setup line as the prompt left it
 /// (#585).
+#[derive(Clone)]
 struct Launch {
     prompt: String,
     setup: Option<SetupOffer>,
@@ -340,6 +373,8 @@ pub(crate) struct WorktreePrompt {
     editor: Entity<Editor>,
     workspace: WeakEntity<Workspace>,
     kind: AgentKind,
+    /// The other installed agent CLIs, and whether each is ticked to start too (#770).
+    others: Vec<(AgentKind, bool)>,
     plan: Plan,
     /// The setup command offered, once read.
     setup: Option<SetupOffer>,
@@ -350,6 +385,7 @@ impl WorktreePrompt {
     fn new(
         workspace: WeakEntity<Workspace>,
         kind: AgentKind,
+        others: Vec<AgentKind>,
         plan: Plan,
         hooks: bool,
         window: &mut Window,
@@ -383,10 +419,23 @@ impl WorktreePrompt {
             editor,
             workspace,
             kind,
+            others: others.into_iter().map(|other| (other, false)).collect(),
             plan,
             setup: None,
             _reading: reading,
         }
+    }
+
+    /// The agents Enter starts: the one chosen, then the ones ticked, in the submenu's order.
+    fn kinds(&self) -> Vec<AgentKind> {
+        std::iter::once(self.kind)
+            .chain(
+                self.others
+                    .iter()
+                    .filter(|(_, ticked)| *ticked)
+                    .map(|(kind, _)| *kind),
+            )
+            .collect()
     }
 
     fn confirm(&mut self, _: &StartWorktreeAgent, window: &mut Window, cx: &mut Context<Self>) {
@@ -396,7 +445,7 @@ impl WorktreePrompt {
         };
         start(
             self.workspace.clone(),
-            self.kind,
+            self.kinds(),
             self.plan.clone(),
             launch,
             window,
@@ -441,10 +490,51 @@ impl Render for WorktreePrompt {
                     .bg(colors.editor_background)
                     .child(self.editor.clone()),
             )
+            .when(!self.others.is_empty(), |prompt| {
+                prompt.child(
+                    h_flex()
+                        .flex_wrap()
+                        .gap_3()
+                        .child(
+                            Label::new("Also start:")
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        )
+                        .children(
+                            self.others
+                                .iter()
+                                .enumerate()
+                                .map(|(index, (kind, ticked))| {
+                                    Checkbox::new(
+                                        SharedString::from(format!(
+                                            "marley-worktree-also-{}",
+                                            kind.program()
+                                        )),
+                                        ToggleState::from(*ticked),
+                                    )
+                                    .label(kind.display_name())
+                                    .label_size(LabelSize::Small)
+                                    .on_click(cx.listener(
+                                        move |prompt, state: &ToggleState, _, cx| {
+                                            if let Some((_, ticked)) = prompt.others.get_mut(index)
+                                            {
+                                                *ticked = state.selected();
+                                                cx.notify();
+                                            }
+                                        },
+                                    ))
+                                }),
+                        ),
+                )
+            })
             .child(
-                Label::new(format!("{} from {}", self.plan.branch(), self.plan.base))
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                Label::new(format!(
+                    "{} from {}",
+                    self.plan.branches(&self.kinds()).join(", "),
+                    self.plan.base
+                ))
+                .size(LabelSize::Small)
+                .color(Color::Muted),
             )
             .children(self.setup.as_ref().map(|setup| {
                 Checkbox::new("marley-worktree-setup", ToggleState::from(setup.checked))
@@ -463,11 +553,12 @@ impl Render for WorktreePrompt {
     }
 }
 
-/// Makes the worktree `plan` names and starts `kind` in it with `launch`'s prompt, after its setup
-/// command when its box is checked, unless a worktree of the project is being made already.
+/// Makes a worktree for each of `kinds`, one after another, and starts each agent in its own with
+/// `launch`'s prompt, after its setup command when its box is checked, unless a worktree of the
+/// project is being made already.
 fn start(
     workspace: WeakEntity<Workspace>,
-    kind: AgentKind,
+    kinds: Vec<AgentKind>,
     plan: Plan,
     launch: Launch,
     window: &Window,
@@ -493,7 +584,25 @@ fn start(
         .clone();
     window
         .spawn(cx, async move |cx| {
-            create(&workspace, kind, &plan, launch, &fs, &setting, cx).await;
+            match free_folders(&plan, &suffixes(&kinds), &fs, &setting, cx).await {
+                Some(folders) => {
+                    for (kind, folder) in kinds.into_iter().zip(folders) {
+                        create(&workspace, kind, &plan, folder, launch.clone(), &fs, cx).await;
+                    }
+                }
+                None => {
+                    cx.update(|_, cx| {
+                        show_toast(
+                            &workspace,
+                            NotificationId::unique::<WorktreePrompt>(),
+                            "No worktree agent: a folder already sits where each worktree would go."
+                                .into(),
+                            cx,
+                        );
+                    })
+                    .log_err();
+                }
+            }
             cx.update(|_, cx| {
                 cx.default_global::<WorktreeAgents>()
                     .creating
@@ -504,29 +613,18 @@ fn start(
         .detach();
 }
 
-/// The create itself. Zed's service shows why its own steps fail; Marley shows why its own do.
+/// The create itself, of the worktree `name` at `path`. Zed's service shows why its own steps fail;
+/// Marley shows why its own do.
 async fn create(
     workspace: &WeakEntity<Workspace>,
     kind: AgentKind,
     plan: &Plan,
+    (name, path): (String, PathBuf),
     launch: Launch,
     fs: &Arc<dyn Fs>,
-    setting: &str,
     cx: &mut AsyncWindowContext,
 ) {
     let Launch { prompt, setup } = launch;
-    let Some((name, path)) = free_folder(plan, fs, setting, cx).await else {
-        cx.update(|_, cx| {
-            show_toast(
-                workspace,
-                NotificationId::unique::<WorktreePrompt>(),
-                "No worktree agent: a folder already sits where each worktree would go.".into(),
-                cx,
-            );
-        })
-        .log_err();
-        return;
-    };
     let branch = format!("{BRANCH_PREFIX}{name}");
     let action = CreateWorktree {
         worktree_name: Some(name.clone()),
@@ -671,30 +769,40 @@ async fn remember_setup(
     command
 }
 
-/// The name and the folder of a worktree with nothing at its folder: Zed's rollback of a refused
-/// create removes the folder with force, so a folder already there is never offered.
-async fn free_folder(
+/// The names and folders of a set's worktrees, `<name><suffix>` for each of `suffixes`, under the
+/// first name whose folders are all empty: Zed's rollback of a refused create removes the folder
+/// with force, so a folder already there is never offered, and a set keeps one name (#770).
+async fn free_folders(
     plan: &Plan,
+    suffixes: &[String],
     fs: &Arc<dyn Fs>,
     setting: &str,
     cx: &mut AsyncWindowContext,
-) -> Option<(String, PathBuf)> {
+) -> Option<Vec<(String, PathBuf)>> {
     let mut tried: Vec<String> = Vec::new();
-    let mut name = plan.name.clone();
+    let mut base = plan.name.clone();
     for _ in 0..NAME_TRIES {
-        let path = cx
-            .update(|_, cx| {
-                plan.repository
-                    .read(cx)
-                    .path_for_new_linked_worktree(&name, setting)
-            })
-            .ok()?
-            .log_err()?;
-        if matches!(fs.metadata(&path).await, Ok(None)) {
-            return Some((name, path));
+        let mut folders = Vec::new();
+        for suffix in suffixes {
+            let name = format!("{base}{suffix}");
+            let path = cx
+                .update(|_, cx| {
+                    plan.repository
+                        .read(cx)
+                        .path_for_new_linked_worktree(&name, setting)
+                })
+                .ok()?
+                .log_err()?;
+            if !matches!(fs.metadata(&path).await, Ok(None)) {
+                break;
+            }
+            folders.push((name, path));
         }
-        tried.push(name);
-        name = cx
+        if folders.len() == suffixes.len() {
+            return Some(folders);
+        }
+        tried.push(base);
+        base = cx
             .update(|_, cx| free_name(plan.repository.read(cx), &tried))
             .ok()??;
     }
