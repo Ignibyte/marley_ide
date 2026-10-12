@@ -5727,3 +5727,11 @@ The Code phase's receipt hashes `crates/`, `script/e2e*`, `*.toml` and the in-ap
 that guide's tool tables, and an edit there after the green gate leaves the receipt stale; `--fast`
 writes none. Edit the in-app guide with the code, before `script/gates.sh --diff`; `docs/` is not
 hashed and can follow.
+
+## L-claude-731-the-phase-gate-sees-write-and-edit-only-001
+*category: process · topic: the phase gate · from: pipeline 731*
+
+`enforce-phase-gate.sh` runs on the Write and Edit tools. Edits made from the shell (a Python or
+`sed` rewrite of a source file) pass it unseen: #731's two Zed files were edited that way before
+its Plan was marked PASS, and only the next Write was blocked. Mark the Plan PASS (spec status,
+ticket, Backlog, brain consultation) before the first edit of any kind, not before the first Write.

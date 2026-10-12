@@ -1351,6 +1351,12 @@ change nothing the notes do not name. To send your own, set `marley.review_notes
 A template without `{notes}` gets the notes after it, past a blank line. Copy notes copies the same
 message. Unset or empty, Marley's own applies.
 
+**Viewed** (#731). Each file's header in the project diff (`git: diff`) ends with a Viewed tick.
+Tick it and the file folds; untick it and the file opens again. The tick is kept with a fingerprint
+of the file's diff, so it is still there after a restart, and it goes, with the file unfolding, as
+soon as the diff changes: your save, an agent's write, or a commit that moves the base. The branch
+diff has no ticks yet.
+
 **Findings from tools** (#730). An agent or a tool connected to Marley's MCP server can put its
 findings into the project diff with `review_notes_add`: each note under its lines on the changed
 side, with where it came from (`clippy`, `codex review`, or the caller's name) and **Keep** and

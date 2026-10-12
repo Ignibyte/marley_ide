@@ -124,6 +124,7 @@ pub mod turn_git;
 pub mod turn_undo;
 pub mod turns;
 pub mod typed_line;
+pub mod viewed_marks;
 pub mod voice;
 pub mod workflows;
 pub mod worktree_agents;

@@ -5297,3 +5297,15 @@ Zed touch is additive in `crates/editor/src/git.rs`: two fields, a placing call 
 `show_diff_review_overlay` and hands the focus back, Keep and Drop through the editor handle.
 Rejected: a tool per note, findings as ordinary notes, widening the diff's excerpts to fit a note,
 and Keep and Drop as dispatched actions (they would reach whatever has the focus).
+
+## AD-claude-731-a-viewed-mark-is-a-fingerprint-of-the-files-diff-001
+*decided at: 2026-10-12 · status: shipped*
+
+The project diff's file headers end with a Viewed tick, drawn by a Marley `editor::Addon` on the
+diff's right-hand editor through one additive Zed touch: a default `Addon` method for trailing
+header controls that the header draws after Open File. A tick folds the file and stores a sha256 of
+the diff's base text and the file's text under the file's absolute path in the key-value store;
+the file comes back ticked and folded while the fingerprint matches, and any change to its diff
+clears the mark and unfolds it, whoever made the change. Rejected: relaxing the header's
+one-addon `.take(1)` (hash-map order would pick), a mark inside Zed's git panel addon, the
+buffer's version (gone at a restart), and a git blob id (no public API for the working file's).

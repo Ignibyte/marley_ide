@@ -2830,6 +2830,22 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
+## Viewed marks in the project diff (`src/viewed_marks.rs`, Zed's `editor`, #731)
+
+- `review_notes::init` calls `viewed_marks::init`, which follows `observe_new::<ProjectDiff>`:
+  each new diff's right-hand editor (`ProjectDiff::editor(cx).rhs_editor()`) gets a `ViewedAddon`
+  holding a `ViewedMarks` entity. `GitPanelAddon` is `pub(crate)` and sits on the staged and
+  unstaged views too, so Marley does not key off it.
+- `ViewedMarks` follows the editor's `BufferRangesUpdated` (a file arrives) and `BuffersRemoved`,
+  and each file's `BufferDiff` (`MultiBuffer::diff_for`). Its `check` compares the file's
+  fingerprint, a sha256 of `base_text_string` and the buffer's text, with the in-memory tick first,
+  then with the key-value store's mark (`marley-viewed`, keyed by the absolute path): a match
+  folds the file and ticks it; a tick that no longer matches goes, with its stored mark, and the
+  file unfolds. `set` writes or deletes the mark off the main thread and folds or unfolds.
+- Zed's side (`zed-touchpoints.md`): `Addon::render_buffer_header_trailing_controls`, a default
+  method that draws nothing, and `render_buffer_header` drawing every addon's after Open File, in
+  the header's trailing row. The tick stops its click, since the header folds on its own.
+
 ## Findings into the project diff (`src/review_tools.rs`, Zed's `editor`, #730)
 
 - `mcp::answer` routes `review_*` to `review_tools::answer`. `review_notes_add` checks the notes

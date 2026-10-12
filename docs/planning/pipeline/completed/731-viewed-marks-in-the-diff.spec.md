@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5d3550a1-f154-459f-8df1-59292c99d91d
 ticket: docs/planning/tickets/open/TICKET-731-viewed-marks-in-the-diff.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Viewed marks in the project diff
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 6; docs/planning/design-notes/finish-line-2026-10-11.md row 11)

@@ -10804,6 +10804,7 @@ dependencies = [
  "marley_system_one",
  "marley_terminal",
  "menu",
+ "multi_buffer",
  "paths",
  "picker",
  "platform_title_bar",

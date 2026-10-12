@@ -25,6 +25,8 @@ struct ReviewNotes;
 
 /// Registers the handler on every workspace; [`crate::init`] calls it once.
 pub fn init(cx: &App) {
+    // The project diff's Viewed ticks, another reviewing aid (#731).
+    crate::viewed_marks::init(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|workspace, _: &SendReviewToAgent, window, cx| {
             if let Err(message) = open_picker(workspace, window, cx) {

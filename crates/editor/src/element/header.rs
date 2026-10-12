@@ -694,6 +694,14 @@ pub(crate) fn render_buffer_header(
         (None, None)
     };
     let focus_handle = editor_read.focus_handle(cx);
+    // Marley: every addon's control for the end of the header (#731).
+    let trailing_controls: Vec<AnyElement> = editor_read
+        .addons
+        .values()
+        .filter_map(|addon| {
+            addon.render_buffer_header_trailing_controls(for_excerpt, buffer, window, cx)
+        })
+        .collect();
     let colors = cx.theme().colors();
     // On transparent windows, only render an opaque `editor_subheader_background` so it masks
     // the editor content beneath it without creating a darker bar. Sticky shadows still require
@@ -959,7 +967,9 @@ pub(crate) fn render_buffer_header(
                                                 }
                                             })),
                                     )
-                                }),
+                                })
+                                // Marley: the addons' controls after Open File (#731).
+                                .children(trailing_controls),
                         )
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(window.listener_for(editor, {

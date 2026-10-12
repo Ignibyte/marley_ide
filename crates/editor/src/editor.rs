@@ -796,6 +796,18 @@ pub trait Addon: 'static {
         None
     }
 
+    // Marley: an addon's control at the end of a file's header, where Marley draws its Viewed
+    // tick in the project diff (#731).
+    fn render_buffer_header_trailing_controls(
+        &self,
+        _: &ExcerptBoundaryInfo,
+        _: &language::BufferSnapshot,
+        _: &Window,
+        _: &App,
+    ) -> Option<AnyElement> {
+        None
+    }
+
     fn extend_buffer_header_context_menu(
         &self,
         menu: ui::ContextMenu,

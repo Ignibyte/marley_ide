@@ -894,6 +894,7 @@ th { background: var(--panel); font-weight: 650; }
 <ol class="steps">
 <li><kbd>Ctrl+Shift+G</kbd> opens the git panel: changed files, Space to stage one, <kbd>Ctrl+Enter</kbd> to commit.</li>
 <li><code>git: diff</code> from the palette opens the project's diff; each changed hunk is an excerpt you can edit.</li>
+<li>Each file's header in it ends with <strong>Viewed</strong> <span class="ticket">#731</span>: tick it and the file folds out of the way. It stays ticked after a restart, and unticks and unfolds itself when the file's diff changes, as when an agent rewrites it.</li>
 <li>In an editor, <kbd>Ctrl+'</kbd> expands the hunk under the cursor, and <kbd>Alt+G</kbd> <kbd>B</kbd> shows blame.</li>
 </ol>
 </article>
@@ -1417,6 +1418,8 @@ th { background: var(--panel); font-weight: 650; }
 <li>Point at a changed line, choose Add Review in the gutter, type a note and press Enter. Add as many as you like, across files.</li>
 <li>Click <strong>Send Review to Agent (N)</strong> in the diff's toolbar. A picker lists the agent terminals: <code>ready</code> ones get the notes pasted and sent; <strong>Copy notes</strong> puts them on the clipboard for any agent.</li>
 <li>Sent notes stay in the diff with Sent beside them.</li>
+<li>The notes go inside a message that asks the agent to check each one before it changes anything <span class="ticket">#732</span>; <code>marley.review_notes_template</code> in your settings sets your own, with <code>{notes}</code> where they go.</li>
+<li>A tool or a reviewing agent can add its findings with <code>review_notes_add</code> <span class="ticket">#730</span>: each waits under its lines with its source, Keep and Drop, and only the ones you keep are sent.</li>
 </ol>
 </article>
 

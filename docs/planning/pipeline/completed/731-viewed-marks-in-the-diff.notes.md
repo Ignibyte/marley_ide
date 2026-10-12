@@ -87,3 +87,65 @@ The box's position is found on a first run (`STOP_AT_DIFF=1`), as #739's scenari
   refresh already runs, and only for marked files.
 - The sticky header draws through the same function, so it shows the box too; P3 looks for a
   doubled box when a header is stuck.
+
+## Phase 1 — Plan (promoted 2026-10-12)
+- **Promotion:** the queued pair moved to `active/`; the ticket is in progress; its Backlog row is
+  gone. The brain (consultation 90ddba7f177a493ebe4ccc744c5c5988) had nothing on the seam.
+- **Seams re-verified** (an Explore pass at `fcde7424b8`). Differences that change the design:
+  - The addons' controls sit at the header's start, after the fold chevron (`header.rs:806-814`).
+    The end of the header is the inner row with the diff stat and Open File (`header.rs:923-963`),
+    inside the header's own click, which folds the file; a control there stops the click.
+  - `Addon::render_buffer_header_controls` gets `&Window` and `&App` and no editor, so the addon
+    holds a marks entity, which holds the editor.
+  - `GitPanelAddon` is `pub(crate)` and also sits on the staged and unstaged diffs, so Marley
+    attaches through `observe_new::<ProjectDiff>` and `ProjectDiff::editor(cx).rhs_editor()`.
+  - `git_ui` folds a deleted or untracked file when it first loads; a mark only folds what it
+    marked, and unticking unfolds.
+  - The store is `KeyValueStore::global(cx).scoped(..)`: `read` is synchronous, `write` and
+    `delete` are async. `marley_workbench` has `db`, `sha2`, `editor`, `git_ui`; it gains
+    `multi_buffer` to name `ExcerptBoundaryInfo` in the trait method.
+- **Design changes:** the new trait method is drawn after Open File in the trailing row, not after
+  the existing controls; the mark's key is the file's absolute path (which names the repository
+  and the file); a file's diff is followed through `MultiBuffer::diff_for` and the editor's
+  `BufferRangesUpdated` and `BuffersRemoved`; one `check` serves both the restore at load and the
+  clearing on a change, comparing an in-memory tick first, so a tick whose store write is still in
+  flight does not read as unmarked.
+
+## Phase 2 — Code
+
+- **Built:** Zed's `Addon::render_buffer_header_trailing_controls` (`crates/editor/src/editor.rs`)
+  and its drawing after Open File (`crates/editor/src/element/header.rs`), both with ledger rows;
+  `viewed_marks.rs` (new: `init`, `ViewedMarks`, `ViewedAddon`); `review_notes::init` calls it;
+  `multi_buffer` added to `marley_workbench`'s dependencies.
+- **Deviations:** as recorded at promotion. The in-app guide's Review notes article also gained a
+  step each for #732's message and #730's findings, which had lagged.
+- **Process slip:** the two Zed files were edited from the shell before the Plan was marked PASS;
+  the phase gate saw only the next Write (L-claude-731-the-phase-gate-sees-write-and-edit-only-001).
+  The Plan was then completed in full before any further code.
+- **The review found** nothing to fix.
+- **Clippy:** clean on the first run.
+- **Gate:** `script/gates.sh --diff` green, 17 of 17, on the tree the scenario ran, the in-app guide's steps included.
+
+## Phase 3 — Test
+
+- **Scenario:** `script/e2e/731-viewed-marks-in-the-diff.sh` under `compositor sway`. The first run
+  stopped at 731-00 to place `alpha.txt`'s Viewed (1513,136); the second ran every step.
+- **731-00-diff (REQ-001):** both headers end with a Viewed box after the diff stat (and Open File
+  on the selected file).
+- **731-01-ticked (REQ-002):** `alpha.txt` ticked, its chevron folded, its lines gone; `beta.txt`
+  open below.
+- **731-02-restart (REQ-003):** after `zed: quit` and a start on the same profile, `git: diff`
+  shows `alpha.txt` still ticked and folded.
+- **731-03-changed (REQ-004):** line 3 of `alpha.txt` rewritten from the shell: the tick gone and
+  the file open with both changed lines (+2 −2).
+- **REQ-005:** by the review: `set(…, false)` removes the tick, deletes the stored mark and unfolds.
+
+## Phase 4 — Complete
+
+- **Documented:** CHANGELOG (Added); the guide (Viewed, beside Findings from tools); the in-app
+  guide's Git article, and its Review notes article caught up on #732 and #730;
+  `marley_workbench.md` ("Viewed marks in the project diff"); new touchpoint rows for
+  `crates/editor/src/editor.rs` (extended) and `crates/editor/src/element/header.rs`.
+- **Knowledge:** L-claude-731-the-phase-gate-sees-write-and-edit-only-001,
+  AD-claude-731-a-viewed-mark-is-a-fingerprint-of-the-files-diff-001.
+- **Brain:** `brain decide` on the consultation recorded at promotion.

@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Viewed marks in the project diff** (#731, 2026-10-12). Each file's header in the project diff
+  ends with a Viewed tick. Ticking folds the file out of the way, and it stays ticked after a
+  restart. When the file's diff changes, as when an agent rewrites it, the tick goes and the file
+  unfolds, so it gets another look.
+
 - **An agent's findings as diff notes** (#730, 2026-10-12). A reviewing agent, or a linter's
   wrapper, calls `review_notes_add` to put its findings into the project diff as notes under their
   lines, each naming where it came from, with Keep and Drop. Marley asks first, as for the editor
