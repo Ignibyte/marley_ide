@@ -5262,3 +5262,15 @@ agent's program after it (`agent/<name>-claude`, `agent/<name>-codex`), the firs
 whose folders are all free; a single agent keeps `agent/<name>`. Rejected: creating them at once
 (Zed's worktree service and the seed's mark are per create, and a refused create rolls back with
 force), and a fresh name per agent (the set would not read as one).
+
+## AD-claude-718-failed-checks-go-to-an-agent-as-a-file-and-an-unsent-prompt-001
+*decided at: 2026-10-12 · status: shipped*
+
+A pull request's checks ride #531's one `gh pr list` call (`statusCheckRollup`, `headRefOid`), and
+the chip marks them. Sending failed checks is the person's act: the project row's menu, which a
+right-click on the chip opens, or the palette, both of which look the pull request up again, then
+a picker of the agents in the project's folder. Only then are the failed Actions jobs'
+failed-step logs fetched, their ends kept, redacted and written to a private file in Marley's data
+folder, and a one-line prompt naming the checks, the commit and the file is pasted without Enter.
+Rejected: fetching logs at each poll, pasting the logs themselves, sending with Enter (CI text
+alone would drive the agent), and a handler on the chip itself (it would have to stop the row's).

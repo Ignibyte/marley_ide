@@ -3956,3 +3956,13 @@ inside the update of the draft's own window, which is the target's window in the
 the lookup would have read it as gone and every Send would have answered "the window is gone".
 Fixed before it ran: the click listener passes `window.window_handle()`, and `window_holding` uses
 it when no other window holds the target's workspace; the thread target carries its workspace.
+
+## F-claude-718-the-checks-file-was-written-before-it-was-made-private-001
+*severity: medium · found in: pipeline 718's Code, the review of the diff · class: a private file written under the umask, then chmod-ed · prevented by: PR-claude-718-make-a-private-file-private-as-it-is-created-001 (new)*
+
+The first `failed_checks::write_in` wrote the checks' logs with `std::fs::write` and then set the
+file to 0600. Between the two, a new file had the umask's mode (0644 on the box), so for that
+moment any local user could read CI logs that may hold secrets the redactor does not know. Fixed
+before it ran: the file is opened with `OpenOptionsExt::mode(0o600)`, so a new file is private
+from its creation, and the open file is set to 0600 before the write, since a truncated file keeps
+the mode it had.

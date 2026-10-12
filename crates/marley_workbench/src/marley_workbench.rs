@@ -55,6 +55,7 @@ pub mod docs_tools;
 pub mod drafts;
 pub mod editor_tools;
 pub mod english;
+pub mod failed_checks;
 pub mod failures;
 pub mod find;
 pub mod fleet;

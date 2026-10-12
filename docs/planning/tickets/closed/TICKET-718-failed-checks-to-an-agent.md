@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #718 (feature; size medium, then large; agents together, after the finish)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [718-failed-checks-to-an-agent.spec.md](../../pipeline/queued/718-failed-checks-to-an-agent.spec.md)
+- **Pipeline doc:** [718-failed-checks-to-an-agent.spec.md](../../pipeline/completed/718-failed-checks-to-an-agent.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 5; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; Chad, 2026-10-11: "14.) ok"
-- **Status:** open (deliberate: the agents-together batch, after the finish)
+- **Status:** closed
 
 ## Summary
 #531's pull request chip already asks `gh` for a project's pull request every two minutes. The same

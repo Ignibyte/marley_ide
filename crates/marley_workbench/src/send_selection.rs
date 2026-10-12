@@ -99,6 +99,8 @@ struct Selection {
 /// focus; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
     cx.set_global(FocusOrder::default());
+    // Failed checks go to an agent through this picker (#718).
+    crate::failed_checks::init(cx);
     cx.observe_new(
         |view: &mut TerminalView, window, cx: &mut Context<TerminalView>| {
             let Some(window) = window else {

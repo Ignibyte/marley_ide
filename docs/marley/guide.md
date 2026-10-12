@@ -360,8 +360,23 @@ header (#531):
   title and link. Marley asks the GitHub CLI, `gh`, when the branch or its latest commit changes
   and every two minutes while the window is active. Without `gh` on the PATH Marley started with,
   logged out of it, or with a remote that is not GitHub, the row shows the counts alone.
+- **Its checks** (#718), beside the number: a red cross when a check failed, a yellow dot while
+  one is still running and none failed, a green tick when all passed. The pointer adds a line such
+  as `Checks: 2 failed (test, ci/external), 1 passed`.
 
 Marley reads neither for a repository Zed does not trust yet.
+
+**Send Failed Checks to Agent…** (#718) is in the project's right-click menu, which a right-click
+on the chip opens, while a check failed; `marley: send failed checks to agent` does the same for
+the project you are in. Marley asks `gh` for the pull request again, then lists the agent CLIs
+working in the project's folder, each with whether it is ready, and Copy Prompt. Pick one and
+Marley reads the failed steps' log of each failed GitHub Actions job (the end of each, where the
+error is), writes them to one file of its own,
+`~/.local/share/marley/checks/<owner>-<repo>-pr<n>-<commit>.log`, readable by you alone and
+redacted while Redact Secrets for Agents is on, and pastes a one-line prompt at the agent's prompt
+without pressing Enter: the pull request, the commit, the failed checks, the file, and each check
+whose log it could not read (another CI's, or an expired log) with its link. Add your ask and press
+Enter. An agent that waits on a question gets nothing, as with a block you send.
 
 A project header's right-click menu has Move Project Up and Move Project Down, which move it one
 place in the rail, past a group as well as a project.

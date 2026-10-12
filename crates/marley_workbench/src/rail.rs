@@ -78,6 +78,7 @@ use zed_actions::agents_sidebar::FocusSidebarFilter;
 use crate::agent_events::{self, AgentEvents};
 use crate::agents::{self, AgentIcon};
 use crate::browser::{BrowserEvent, BrowserHub, BrowserView};
+use crate::failed_checks;
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
 use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, Slot, StateSource};
@@ -487,6 +488,9 @@ struct HeaderMenu {
     closed: bool,
     /// The project's archived threads, newest first (#616).
     archived: Vec<ArchivedThread>,
+    /// Whether the project's pull request has a failed check, which the menu offers to send to an
+    /// agent (#718).
+    failed_checks: bool,
 }
 
 /// A project's archived thread, as its header's menu lists it (#616).
@@ -5362,6 +5366,7 @@ impl Rail {
             at: (index == 0, last),
             closed,
             archived: archived_threads(&group.key, cx),
+            failed_checks: has_failed_checks(group),
         };
         // A project's name reads as a section label, as Warp's tab list labels its tabs; a closed
         // one's is dimmed.
@@ -5562,6 +5567,7 @@ impl Rail {
             at: (first, last),
             closed,
             archived,
+            failed_checks,
             ..
         } = header;
         ContextMenu::build(window, cx, move |menu, _, _| {
@@ -5589,6 +5595,21 @@ impl Rail {
                 closed_key,
                 archived.clone(),
             );
+            // A right-click on the pull request chip opens this menu (#718).
+            let menu = if failed_checks {
+                let workspace = workspace.clone();
+                menu.separator().item(
+                    ContextMenuEntry::new("Send Failed Checks to Agent…").handler(
+                        move |window, cx| {
+                            workspace
+                                .update(cx, |_, cx| failed_checks::send(window, cx))
+                                .log_err();
+                        },
+                    ),
+                )
+            } else {
+                menu
+            };
             // Clearing resets the project's browser (#581), which a closed project has not started
             // (#606); removing the project is what stops it (#507).
             menu.separator()
@@ -9302,6 +9323,15 @@ fn member_git(member: &Entity<Workspace>, cx: &App) -> Option<MemberGit> {
     })
 }
 
+/// Whether the pull request `group`'s row shows has a failed check (#718).
+fn has_failed_checks(group: &GroupEntry) -> bool {
+    group
+        .git
+        .as_ref()
+        .and_then(|git| git.pull_request.as_ref())
+        .is_some_and(|found| failed_checks::any_failed(&found.checks))
+}
+
 /// A project's pull request as its row shows it: GitHub's pull request icon and its number, in
 /// its state's color, with the state, title and link in the tooltip (#531).
 fn pull_request_chip(id: EntityId, found: &PullRequest) -> impl IntoElement {
@@ -9311,13 +9341,18 @@ fn pull_request_chip(id: EntityId, found: &PullRequest) -> impl IntoElement {
         PullRequestState::Merged => Color::Accent,
         PullRequestState::Closed => Color::Error,
     };
-    let tooltip = format!(
+    let mut tooltip = format!(
         "{} pull request #{}: {}\n{}",
         found.state.words(),
         found.number,
         found.title,
         found.url
     );
+    // Its checks (#718).
+    if let Some(summary) = failed_checks::summary(&found.checks) {
+        tooltip.push('\n');
+        tooltip.push_str(&summary);
+    }
     h_flex()
         .id(("marley-rail-pull-request", id))
         .gap_0p5()
@@ -9330,6 +9365,10 @@ fn pull_request_chip(id: EntityId, found: &PullRequest) -> impl IntoElement {
             Label::new(format!("#{}", found.number))
                 .size(LabelSize::XSmall)
                 .color(color),
+        )
+        .children(
+            failed_checks::mark(&found.checks)
+                .map(|(icon, color)| Icon::new(icon).size(IconSize::XSmall).color(color)),
         )
         .tooltip(Tooltip::text(tooltip))
 }
@@ -9376,6 +9415,18 @@ fn git_source(workspace: &Entity<Workspace>, cx: &App) -> Option<GitSource> {
             head: git.head,
             repository: git.repository,
         })
+}
+
+/// The folder, the GitHub `owner/repo` and the branch of `workspace`'s project, when its folder is
+/// a repository's main checkout on a branch with a GitHub `origin` (#718).
+pub(crate) fn github_of(
+    workspace: &Entity<Workspace>,
+    cx: &App,
+) -> Option<(PathBuf, String, String)> {
+    let source = git_source(workspace, cx)?;
+    let repository = source.repository.upgrade()?;
+    let owner_repo = github_repository(&repository, cx)?;
+    Some((source.root, owner_repo, source.branch?))
 }
 
 /// The `owner/repo` of `repository`'s `origin` on GitHub, none for another host.

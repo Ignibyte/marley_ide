@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Failed checks to an agent** (#718, 2026-10-12). A project's pull request chip marks its checks:
+  a red cross when one failed, a yellow dot while one runs, a green tick when all passed, with the
+  names in its tooltip. While a check failed, Send Failed Checks to Agent… in the project's menu
+  (or the palette) writes the failed GitHub Actions jobs' logs to a private file, redacted, and
+  pastes a prompt naming the checks and the file at the agent you pick, for you to finish and send.
+
 - **One prompt to several agents** (#770, 2026-10-12). New Agent in Worktree's prompt has a box for
   each other installed agent CLI. Tick Codex in Claude Code's prompt and one Enter makes two
   worktrees from the same base, `agent/<name>-claude` and `agent/<name>-codex`, and starts each

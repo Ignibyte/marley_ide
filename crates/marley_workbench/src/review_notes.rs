@@ -90,7 +90,7 @@ fn holds_every_file(target: &Target, notes: &[ReviewNote]) -> bool {
 }
 
 /// Whether the agent can take the notes now, in the picker's words.
-const fn readiness(target: &Target) -> &'static str {
+pub(crate) const fn readiness(target: &Target) -> &'static str {
     if target.ready {
         "ready"
     } else if target.waiting {

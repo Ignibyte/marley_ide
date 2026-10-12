@@ -3010,3 +3010,11 @@ otherwise the write's own notification undoes it.
 The Secret Service's `CreateItem` with `replace` replaces an item whose attributes match, and
 ignores the label. Items that must stay apart from another program's, or from an older form of
 one's own, differ in an attribute, not only in their label.
+
+## PR-claude-718-make-a-private-file-private-as-it-is-created-001
+*severity: medium · prevents: F-claude-718-the-checks-file-was-written-before-it-was-made-private-001*
+
+A file only the user may read (logs, transcripts, handoffs, anything an agent's or CI's text goes
+into) is opened with `std::os::unix::fs::OpenOptionsExt::mode(0o600)` and, when it may already
+exist, set to 0600 on the open handle before the first byte is written. Never `std::fs::write`
+then `set_permissions`: the file sits at the umask's mode in between.

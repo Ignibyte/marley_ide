@@ -2807,6 +2807,27 @@ below describe what #743 retired.
   `origin/<base>` then `<base>`, and sums `git diff --numstat --merge-base <base> --`, binary files
   counting nothing.
 
+## Failed checks to an agent (`src/failed_checks.rs`, `src/github.rs`, `src/rail.rs`, #718)
+
+- `github::pull_request` also asks for `headRefOid,statusCheckRollup`. `Rollup` reads the two
+  shapes, tagged by `__typename`: a `CheckRun` is pending until `COMPLETED`, then failed for
+  `FAILURE`, `TIMED_OUT`, `STARTUP_FAILURE` or `ACTION_REQUIRED`, cancelled for `CANCELLED` or
+  `STALE`, else passed; a `StatusContext` is failed for `FAILURE` or `ERROR`, passed for
+  `SUCCESS`, else pending. `Check::job` takes the job id from an Actions link.
+  `github::failed_log` runs `gh run view --repo=… --job=… --log-failed` and keeps the last 64 KiB
+  from a line's start (`last_bytes`).
+- The chip draws `failed_checks::mark` after the number and adds `summary` to its tooltip.
+  `HeaderMenu.failed_checks` (`has_failed_checks`) adds Send Failed Checks to Agent… to the project
+  row's menu, which a right-click on the chip opens, since the chip has no handler of its own.
+- `failed_checks::send` (the menu item and `SendFailedChecksToAgent`, registered by
+  `send_selection::init`) reads the project through `rail::github_of` outside the workspace's
+  update, asks `gh` again, and opens a `TargetPicker` of the agents whose folder is inside the
+  project's, labelled with `review_notes::readiness`, and Copy Prompt. `prepare` reads the failed
+  jobs' logs in the background, keeps 256 KiB in all, redacts them, and writes
+  `<data dir>/checks/<owner>-<repo>-pr<n>-<head 8>.log` (`write_in`: made 0600, and set to it
+  before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
+  or copies it.
+
 ## Per-turn diffs (`src/turns.rs`, `src/turn_git.rs`, #509)
 
 - `Turns`, a global made at the first write, holds a seat per terminal view whose Claude Code

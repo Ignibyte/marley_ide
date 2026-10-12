@@ -5701,3 +5701,12 @@ L-claude-633-scenarios-copy-the-users-settings-so-defaults-reach-real-services-0
 the submenu and #770's "Also start:" show Gemini CLI and OpenCode beside the scenario's fake
 `claude` and `codex`. A scenario ticks or picks only the agents it has fakes for, by their place in
 the first run's shot, and never walks the list by keys past them.
+
+## L-claude-718-a-stand-ins-case-patterns-share-no-spaces-001
+*category: validate · topic: e2e stand-ins · from: pipeline 718*
+
+A stand-in that matches its arguments with `case " $* " in *" a "*" b "*)` fails when `a` and `b`
+are adjacent: the space between them belongs to one pattern, so the next cannot start with it.
+#718's `gh` answered `unknown` for `--job=22 --log-failed` until the pattern read
+`*"--job=22 "*"--log-failed "*`. Write each later piece without its leading space, and check a
+new pattern with the exact arguments in a one-line `bash -c` first.

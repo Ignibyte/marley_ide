@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8819ed71-c0d9-4376-b421-5ad5f499deb5
 ticket: docs/planning/tickets/open/TICKET-718-failed-checks-to-an-agent.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Failed checks to an agent
 type: feature
 slice: agents together (docs/planning/intake/monocode-findings.md items 3 to 6; docs/t3code_architecture/README.md item 11), after the finish
