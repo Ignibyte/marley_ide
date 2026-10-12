@@ -56,7 +56,10 @@ shots=${SHOT_DIR:-${TMPDIR:-/tmp}/marley-shots}
 marley=$(realpath -m "${CARGO_TARGET_DIR:-target}/debug/marley")
 config=${XDG_CONFIG_HOME:-$HOME/.config}/marley
 data=${XDG_DATA_HOME:-$HOME/.local/share}/marley
-class=dev.zed.Zed-Dev
+class=com.ignibyte.Marley
+# The class a Marley installed before #760 still has: its windows count as Marley's too, so the
+# guard below sees the user's Marley, and #743's run of the installed build finds its window.
+legacy_class=dev.zed.Zed-Dev
 name=$(basename "$scenario" .sh)
 
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
@@ -123,8 +126,8 @@ hyprland_signature() {
 
 # The first Marley window's `field` (`pid`, `stableId`, `address`) on Hyprland, or nothing.
 marley_window() {
-  hyprctl clients -j | jq -r --arg class "$class" --arg field "$1" \
-    '[.[] | select(.class == $class)][0][$field] // empty'
+  hyprctl clients -j | jq -r --arg class "$class" --arg legacy "$legacy_class" --arg field "$1" \
+    '[.[] | select(.class == $class or .class == $legacy)][0][$field] // empty'
 }
 
 # The user's active window and workspace, to report whether the run moved them.
@@ -136,7 +139,8 @@ user_focus() {
 # How many Marley windows the user's Hyprland shows, read only; "unknown" without a Hyprland.
 hyprland_marley_windows() {
   if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && command -v hyprctl >/dev/null; then
-    hyprctl clients -j | jq --arg class "$class" '[.[] | select(.class == $class)] | length'
+    hyprctl clients -j | jq --arg class "$class" --arg legacy "$legacy_class" \
+      '[.[] | select(.class == $class or .class == $legacy)] | length'
   else
     echo unknown
   fi
@@ -158,8 +162,8 @@ sway_msg() { swaymsg -s "$SWAY_SOCK" "$@"; }
 
 # The pid of Marley's window in the sway, or nothing.
 sway_marley_pid() {
-  sway_msg -t get_tree | jq -r --arg class "$class" \
-    '[.. | objects | select(.app_id? == $class)][0].pid // empty'
+  sway_msg -t get_tree | jq -r --arg class "$class" --arg legacy "$legacy_class" \
+    '[.. | objects | select(.app_id? == $class or .app_id? == $legacy)][0].pid // empty'
 }
 
 # The pointer helper, built from its source into the shots folder unless a build of this very
@@ -779,7 +783,9 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
 
 if [[ $COMPOSITOR == hyprland ]]; then
-  hyprctl eval "hl.window_rule({ match = { class = \"$class\" }, workspace = \"9 silent\", render_unfocused = true })" >/dev/null
+  for rule_class in "$class" "$legacy_class"; do
+    hyprctl eval "hl.window_rule({ match = { class = \"$rule_class\" }, workspace = \"9 silent\", render_unfocused = true })" >/dev/null
+  done
   hyprctl eval 'hl.config({ misc = { focus_on_activate = false } })' >/dev/null
 fi
 

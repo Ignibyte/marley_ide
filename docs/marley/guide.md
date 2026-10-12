@@ -80,8 +80,9 @@ installed (and says so when the tree had uncommitted changes), the menu entry's 
 when a Marley is running, and a note when the prefix's `bin` is not on your PATH. The entry
 claims no file types, so Marley never becomes the default app for text files or folders.
 
-Marley's windows have the class `dev.zed.Zed-Dev` (stock Zed's is `dev.zed.Zed`), which is what a
-Hyprland window rule matches.
+Marley's windows have the class `com.ignibyte.Marley` (#760; stock Zed's is `dev.zed.Zed`, and a
+Marley installed before #760 had `dev.zed.Zed-Dev`), which is what a Hyprland window rule matches.
+Its About window and a window title's `${appName}` say Marley.
 
 ### Remote projects over SSH (#445)
 

@@ -5187,3 +5187,15 @@ its own connection store, so it opens from any window, a remote project's includ
 renaming the first entry (orphans saved threads), one entry with a harness choice (Zed keys a
 conversation by its agent), opening in the Default group, and writing entries into the host's
 settings.
+
+## AD-claude-760-marleys-app-id-name-and-socket-are-its-own-on-the-dev-channel-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-437-marley-identity-is-app-name-and-the-dev-channel-001, AD-claude-445-marleys-remote-server-is-staged-by-the-install-and-matched-by-commit-001*
+
+Marley stays on Zed's `dev` channel and gives its arm Marley's own values: the app id and X11
+class `com.ignibyte.Marley` (Ignibyte's domain reversed, as Zed's `dev.zed.Zed` reverses
+`zed.dev`), the display name `Marley`, and the socket `marley-<channel>.sock`, built once in
+`single_instance::socket_in`, which Zed's listener calls. Nothing persists or keys on the id or
+the name, so the database, the `"dev"` settings block and the credentials file do not move. No
+shim for the old socket: an installed Marley from before restarts once. Rejected: a Marley
+channel (four migrations), `marley` as the id (no namespace), a check for the old socket in
+`main.rs`.

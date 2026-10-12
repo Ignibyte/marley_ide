@@ -184,7 +184,7 @@ Exec="$bin/marley" %U
 Icon=marley
 Terminal=false
 StartupNotify=true
-StartupWMClass=dev.zed.Zed-Dev
+StartupWMClass=com.ignibyte.Marley
 Categories=Development;IDE;
 Keywords=zed;editor;terminal;agent;browser;
 EOF

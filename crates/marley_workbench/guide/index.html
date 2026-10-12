@@ -337,7 +337,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>script/install-marley --remote-server-only</code></td><td>Builds and stages Marley's remote server for SSH projects, and nothing else.</td></tr>
 </table>
 <p class="note">Each install also builds Marley's remote server for Linux x86_64 hosts and stages it under <code>~/.local/share/marley/remote_servers</code>. Marley uploads it to a host that lacks the server for its commit, so a remote project opens there.</p>
-<p class="note">The installed files are <code>bin/marley</code> (the launcher), <code>lib/marley/marley</code> (the binary, about 2 GB with its debug information), <code>share/applications/marley.desktop</code> and the icon. Marley's windows have the class <code>dev.zed.Zed-Dev</code>, which is what a Hyprland window rule matches.</p>
+<p class="note">The installed files are <code>bin/marley</code> (the launcher), <code>lib/marley/marley</code> (the binary, about 2 GB with its debug information), <code>share/applications/marley.desktop</code> and the icon. Marley's windows have the class <code>com.ignibyte.Marley</code> (a Marley installed before #760 had <code>dev.zed.Zed-Dev</code>), which is what a Hyprland window rule matches.</p>
 </article>
 
 <article id="start-marley">

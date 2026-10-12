@@ -67,7 +67,8 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 ## One Marley per data directory (`src/single_instance.rs`, #513)
 
 - `zed`'s `main` runs Zed's single-instance check on the dev channel too: it binds
-  `<data dir>/zed-dev.sock`, so `--user-data-dir` gives a Marley a socket of its own. It runs only
+  `<data dir>/marley-dev.sock` (`single_instance::socket_path`, which Zed's listener calls since
+  #760; `zed-dev.sock` before), so `--user-data-dir` gives a Marley a socket of its own. It runs only
   where `socket_fits()`: a socket path of 108 bytes or more fails the bind as a running Marley
   would, so such a data directory starts without the check and logs a warning.
 - When the check finds a Marley running, `hand_off(paths_or_urls)` sends it one datagram per

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley calls itself Marley** (#760, slice 2 of Marley's release identity, 2026-10-11). Its
+  windows tell the desktop they are `com.ignibyte.Marley` (they said `dev.zed.Zed-Dev`), the About
+  window and a window title's `${appName}` say Marley, and the single-instance socket is
+  `marley-dev.sock`. Marley stays on Zed's `dev` channel, so its database, settings and credentials
+  stay where they are. A window rule on the old class needs the new one; after the reinstall, quit
+  the running Marley before starting the new one.
+
 - **A manager on each harness** (#758, 2026-10-11). A harness on another machine with a manager
   gets its own **Manager · box-2** entry, its own notices ("Manager · box-2: Report") and its own
   Needs you entries. Clicking one, or Open Manager Thread on the manager's row, opens that

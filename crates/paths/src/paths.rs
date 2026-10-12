@@ -638,8 +638,9 @@ pub fn global_gitignore_path() -> Option<PathBuf> {
 }
 
 // Marley: the fork's identity checks. Its directories must never be stock Zed's, and on any
-// release channel but dev it would share stock Zed's keyring items, updater and app id
-// (TICKET-445), so the channel stays dev until Marley has its own.
+// release channel but dev it would share stock Zed's keyring items and updater and move its
+// database, settings block and credentials (TICKET-445), so the channel stays dev; dev's app id
+// and name are Marley's own (#760).
 #[cfg(test)]
 mod tests {
     use super::*;

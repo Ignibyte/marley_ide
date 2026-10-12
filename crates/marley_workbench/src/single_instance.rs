@@ -1,7 +1,8 @@
 //! One Marley per data directory (#513).
 //!
 //! Every Marley build is on Zed's `dev` channel, and they share one data directory, where a
-//! second app hangs. Zed's single-instance check binds `<data dir>/zed-<channel>.sock` and reads
+//! second app hangs. Zed's single-instance check binds [`socket_path`],
+//! `<data dir>/marley-<channel>.sock` since #760, and reads
 //! each datagram on it as a URL: `file://` opens a path, and `zed://open` brings a window
 //! forward. When that check finds a Marley running, `zed`'s `main` calls [`hand_off`] before
 //! the launch exits, so the paths go to the running Marley, as Zed's CLI would hand them, instead
@@ -55,14 +56,15 @@ pub fn activation_token_in(url: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The socket Zed's check binds in the data directory.
-fn socket_path() -> PathBuf {
+/// The socket Zed's check binds in the data directory, and Marley's hand-off sends to.
+#[must_use]
+pub fn socket_path() -> PathBuf {
     socket_in(paths::data_dir())
 }
 
-/// The socket Zed's check binds in `data_dir`.
+/// The socket Zed's check binds in `data_dir`: Marley's name, with Zed's channel (#760).
 fn socket_in(data_dir: &Path) -> PathBuf {
-    data_dir.join(format!("zed-{}.sock", *RELEASE_CHANNEL_NAME))
+    data_dir.join(format!("marley-{}.sock", *RELEASE_CHANNEL_NAME))
 }
 
 /// Whether Zed's check can bind the data directory's socket.
