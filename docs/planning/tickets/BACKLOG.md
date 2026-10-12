@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-763](open/TICKET-763-the-updater-off-with-marleys-explanation.md) | chore | the updater off, with Marley's own explanation (slice 5) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

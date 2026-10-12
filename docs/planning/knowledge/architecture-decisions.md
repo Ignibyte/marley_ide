@@ -5220,3 +5220,11 @@ dispatches `OpenZedUrl` (the editor's two link tests, `Workspace::open_url_or_fi
 terminal hook), as Zed's URL modal already did. Rejected: a gpui hook in `open_url`, claiming
 `x-scheme-handler/zed` (stock Zed's), and an `xdg-mime default` call in the install (it writes the
 user's `mimeapps.list`).
+
+## AD-claude-763-marley-has-no-update-source-and-check-for-updates-says-so-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-445-marleys-remote-server-is-staged-by-the-install-and-matched-by-commit-001*
+
+Marley updates from its checkout through `script/install-marley`; it has no update source and its
+`dev` channel never polls. Check for Updates on `dev` says so in an Info prompt of Marley's own,
+ahead of Zed's packager explanation. Rejected: setting `ZED_UPDATE_EXPLANATION` at build time
+(Zed's prompt title names Zed and a package manager).

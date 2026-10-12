@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Check for Updates explains itself** (#763, the last slice of Marley's release identity,
+  2026-10-11). It used to do nothing at all; now it says Marley updates through its install script
+  and what to run. Marley never asks zed.dev for an update.
+
 - **`marley://` links** (#762, slice 4 of Marley's release identity, 2026-10-11). Marley's desktop
   entry claims the `marley://` scheme, and a `marley://` link means what the `zed://` link of the
   same path means, so `xdg-open marley://settings` opens Marley's settings. A `zed://` or

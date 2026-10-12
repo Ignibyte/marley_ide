@@ -308,6 +308,21 @@ pub fn init(client: Arc<Client>, cx: &mut App) {
 }
 
 pub fn check(_: &Check, window: &mut Window, cx: &mut App) {
+    // Marley: Marley updates from its checkout; on its `dev` channel it says how (#763).
+    if ReleaseChannel::try_global(cx) == Some(ReleaseChannel::Dev) {
+        drop(window.prompt(
+            gpui::PromptLevel::Info,
+            "Marley updates through its install script",
+            Some(
+                "Pull Marley's checkout and run \"just install\" there, which runs \
+                 script/install-marley. A Marley that is running keeps its build until you quit it \
+                 and start it again.",
+            ),
+            &["OK"],
+            cx,
+        ));
+        return;
+    }
     if let Some(message) = option_env!("ZED_UPDATE_EXPLANATION")
         .map(ToOwned::to_owned)
         .or_else(|| env::var("ZED_UPDATE_EXPLANATION").ok())

@@ -114,7 +114,8 @@ with a line for each start, and keeps one older log as `stderr.log.old` once the
 file is the only record of one; `Marley.log` says nothing about it.
 
 To update, pull and run `just install` again. Each file is replaced by a rename, so a Marley that
-is running keeps its old build until you quit it and start it again.
+is running keeps its old build until you quit it and start it again. Marley never checks zed.dev
+for an update: Check for Updates says this (#763).
 
 ### One Marley at a time
 
