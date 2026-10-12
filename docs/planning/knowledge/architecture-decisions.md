@@ -5320,3 +5320,16 @@ section that folds it, and a chip per file that shows the file in the project di
 changes, else opens it at its line. The diffs stay Zed's; ticks live with the tab; a guide sent
 again with the same title replaces the open one's sections. Rejected: a guide file in the
 repository, a diff drawn inside the tab, and saved ticks.
+
+## AD-claude-726-claude-codes-plan-is-reviewed-in-a-tab-over-the-agent-socket-001
+*decided at: 2026-10-12 · status: shipped (Marley's half; the plugin's half is a harness request)*
+
+Claude Code's plan reaches Marley through the shared plugin's `tool.check` and a
+`marley-agent approve` verb with `rh approve`'s contract, over the agent socket, which gives an
+`approve` minutes and watches its caller instead of the reports' 3.5 s. The plan opens in a Plan
+tab beside the terminal, off by default behind `marley.plan_review`; notes anchor on the
+Markdown's selected source range; Approve or Send Feedback answers once, to the request the tab
+shows (a nonce), and a withdrawn or timed-out request leaves the plan to Claude Code's dialog.
+Rejected: a blocking `PermissionRequest` hook in Marley's own plugin (a second hook path beside the
+shared one), the ACP permission request (no feedback text), and binding `c` at startup (the
+keymap reload clears it).

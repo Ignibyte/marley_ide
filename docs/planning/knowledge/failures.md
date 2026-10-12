@@ -3976,3 +3976,15 @@ read every item's `buffer_kind`, the Guide tab among them, and gpui panicked wit
 GuideTab while it is already being updated"; Marley ended at the first click. The rule already
 said so; the chip was written without it. Fixed in #733: the listener hands the open to
 `window.defer`, which runs with no entity leased.
+
+## F-claude-726-the-plans-c-key-reached-no-binding-001
+*severity: medium · found in: pipeline 726's Test, the second and third runs · class: a key bound outside the keymap files, and a focus outside the binding's context · prevented by: PR-claude-726-a-marley-key-goes-in-marleys-keymap-file-001 (new)*
+
+The Plan tab's `c` (comment on the selected passage) did nothing twice. First, the tab's focus
+was an outer handle on the tab's root, outside the plan area's `PlanReviewPlan` context, so a
+click on the tab focused a node the binding's context did not cover. Fixed: the plan area's
+handle is the tab's focus, and any mouse-down there focuses it in the capture phase, before the
+Markdown element handles it. Second, the binding itself was registered with `cx.bind_keys` in the
+module's `init`, and Zed's keymap reload clears bindings and loads the keymap files again, so
+the binding was gone by the time a key came. Fixed: `c` is in `crates/marley_workbench/keymap.json`
+under `PlanReviewPlan`, where Marley's other bindings are.

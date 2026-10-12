@@ -100,6 +100,14 @@
     }
   },
   {
+    // A plan in its review tab (#726): `c` comments on the selected passage. Only in the plan's
+    // area, so the note editors still take the letter.
+    "context": "PlanReviewPlan",
+    "bindings": {
+      "c": "plan_review::Comment"
+    }
+  },
+  {
     // A projectless group's name (#600): Enter makes or renames the group, Escape closes it.
     "context": "MarleyGroupName > Editor",
     "bindings": {

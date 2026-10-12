@@ -218,7 +218,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 10],
+    _agent_events: [Subscription; 11],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -968,6 +968,8 @@ enum InboxTarget {
         generation: u64,
         request: Box<codex_events::Request>,
     },
+    /// Claude Code's plan waiting in its review tab, by the terminal view (#726).
+    Plan(u64),
     /// A terminal's agent its usage limit stopped (#715, #765): the terminal view, the terminal,
     /// and the limit as its entry showed it.
     Limit {
@@ -982,8 +984,9 @@ impl Rail {
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
     /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
     /// while the Threads view shows, the CLI sessions it lists (#754).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 10] {
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 11] {
         [
+            cx.observe_global_in::<crate::plan_review::PendingPlans>(window, Self::refresh),
             cx.observe_global_in::<Harness>(window, Self::refresh),
             cx.observe_global_in::<crate::harness_hosts::Hosts>(window, Self::refresh),
             cx.observe_global_in::<crate::codex_server::CodexRequests>(window, Self::refresh),
@@ -1997,6 +2000,7 @@ impl Rail {
                 let watched = match self.snapshot.inbox.get(key) {
                     Some(
                         InboxTarget::Terminal(id)
+                        | InboxTarget::Plan(id)
                         | InboxTarget::Codex { view: id, .. }
                         | InboxTarget::Limit { view: id, .. },
                     ) => focus.terminal == Some(*id) && focus.terminal_focused,
@@ -2313,6 +2317,9 @@ impl Rail {
                     browser::show_paused(&target, window, cx);
                 });
             }
+            Some(InboxTarget::Plan(id)) => {
+                crate::plan_review::show_tab(EntityId::from(id), window, cx);
+            }
             Some(InboxTarget::Harness(slot, id)) => self.open_harness(&slot, &id, window, cx),
             Some(InboxTarget::Manager(slot)) => self.open_manager_thread(&slot, window, cx),
             None => {}
@@ -2410,6 +2417,7 @@ impl Rail {
             ),
             (InboxKind::Harness, _) => Icon::new(IconName::Server),
             (InboxKind::Codex, _) => Icon::new(IconName::AiOpenAi),
+            (InboxKind::Plan, _) => Icon::new(IconName::FileDoc),
             _ => Icon::new(IconName::ToolWeb),
         };
         let open_key = key.clone();
@@ -2646,7 +2654,12 @@ impl Rail {
                     _ => {}
                 }
             }
-            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(..) | InboxTarget::Manager(_))
+            Some(
+                InboxTarget::Terminal(_)
+                | InboxTarget::Plan(_)
+                | InboxTarget::Harness(..)
+                | InboxTarget::Manager(_),
+            )
             | None => {}
         }
     }
@@ -7339,6 +7352,15 @@ fn inbox_entries(project: &str, members: &[Entity<Workspace>], snapshot: &mut Sn
             }
         }
         for view in member.read(cx).items_of_type::<TerminalView>(cx) {
+            // A plan waiting in its review tab takes the place of the seat's wait (#726).
+            if let Some(entry) = crate::plan_review::entry_of(view.entity_id(), project, cx) {
+                snapshot.inbox.insert(
+                    entry.key.clone(),
+                    InboxTarget::Plan(view.entity_id().as_u64()),
+                );
+                snapshot.rail.inbox.push(entry);
+                continue;
+            }
             // A Codex request the inbox answers takes the place of the seat's wait (#651).
             let terminal = view.read(cx).terminal().entity_id();
             if let Some((generation, requests)) = crate::codex_server::requests_of(terminal, cx) {

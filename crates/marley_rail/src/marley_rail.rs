@@ -501,6 +501,8 @@ pub enum InboxKind {
     Harness,
     /// A request Codex's App Server asks its clients to approve (#651).
     Codex,
+    /// Claude Code's plan, waiting in its review tab (#726).
+    Plan,
 }
 
 /// One way an inbox entry answers in place (#508, #651).

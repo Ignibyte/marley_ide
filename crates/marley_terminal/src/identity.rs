@@ -120,11 +120,27 @@ pub fn set_data_dir(directory: Option<std::path::PathBuf>) {
         .unwrap_or_else(std::sync::PoisonError::into_inner) = directory;
 }
 
+/// The variable naming the tools whose permission call an agent's plugin hands to Marley through
+/// [`BIN_VARIABLE`]'s `approve` (#726), comma-separated: `ExitPlanMode` while plan review is on.
+pub const APPROVE_TOOLS_VARIABLE: &str = "MARLEY_APPROVE_TOOLS";
+
+/// The tools terminals started from now on name as [`APPROVE_TOOLS_VARIABLE`].
+static APPROVE_TOOLS: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+/// Sets the tools each local interactive terminal started from now on names as
+/// [`APPROVE_TOOLS_VARIABLE`]; none empties it (#726).
+pub fn set_approve_tools(tools: Option<String>) {
+    *APPROVE_TOOLS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = tools;
+}
+
 /// The variables a terminal gives its agents (#652).
 ///
 /// [`BIN_VARIABLE`] names `program` in a terminal that `named` itself (a local interactive one,
 /// as [`TERMINAL_ID_VARIABLE`] is set), and is empty in any other; [`DATA_DIR_VARIABLE`] the same
-/// for Marley's own data directory. Emptied, not removed: the program inherits Marley's own
+/// for Marley's own data directory, and [`APPROVE_TOOLS_VARIABLE`] for the tools handed to Marley
+/// (#726). Emptied, not removed: the program inherits Marley's own
 /// environment besides the map, and a Marley started from a Marley terminal carries its parent's.
 pub fn agent_environment(
     env: &mut impl Extend<(String, String)>,
@@ -144,6 +160,14 @@ pub fn agent_environment(
         .map(|directory| directory.to_string_lossy().into_owned())
         .unwrap_or_default();
     env.extend([(DATA_DIR_VARIABLE.to_string(), data_dir)]);
+    let approve_tools = APPROVE_TOOLS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+        .filter(|_| named && program.is_some())
+        .cloned()
+        .unwrap_or_default();
+    env.extend([(APPROVE_TOOLS_VARIABLE.to_string(), approve_tools)]);
     if named {
         let inherited = std::env::var(PLUGIN_DIRS_VARIABLE).unwrap_or_default();
         let plugin_dirs = plugin_dirs(&inherited, &marley_plugins());

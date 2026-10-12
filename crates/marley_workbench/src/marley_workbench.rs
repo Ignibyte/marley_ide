@@ -83,6 +83,7 @@ pub mod mcp_servers;
 pub mod notifications;
 pub mod omarchy_theme;
 pub mod panel_tabs;
+pub mod plan_review;
 pub mod playwright_scripts;
 pub mod ports;
 pub mod process;

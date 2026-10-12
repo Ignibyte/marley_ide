@@ -9,6 +9,12 @@ to either host. The program checks no field rule: it sends the report, with the 
 `agent-socket` beside it), and Marley answers whether it took it. Accepted, it prints nothing and
 exits 0; refused, it prints the refusal's name and reason on stderr and exits 1; when no Marley
 answers, `marley_not_running`. Arguments `rh` would refuse to parse exit 2.
+
+Since #726, `"$MARLEY_BIN" approve --source S --call ID --tool NAME`, with the tool's input as JSON
+on stdin, asks the user to decide a tool call, as `rh approve` does: it waits for the decision and
+prints it on stdout as one JSON line (`{"decision": "approve"}` or `{"decision": "deny", "reason":
+...}`), exiting 0. Refused, unanswered in time, or with no Marley, it prints nothing on stdout and
+exits 1, so the plugin leaves the call to the agent's own dialog.
 """
 
 import argparse
@@ -18,8 +24,9 @@ import socket
 import sys
 import time
 
-# Within the plugin's budgets: a release must end inside Claude Code's `session.end`.
-DEADLINES = {"report": 4.0, "release": 0.9}
+# Within the plugin's budgets: a release must end inside Claude Code's `session.end`, and an
+# approve inside the plugin's ten minutes for a decision.
+DEADLINES = {"report": 4.0, "release": 0.9, "approve": 570.0}
 
 
 def quota_window(text):
@@ -69,6 +76,10 @@ def parser():
     report.add_argument("--quota", type=quota_window, action="append", default=[])
     release = verbs.add_parser("release")
     release.add_argument("--source", required=True)
+    approve = verbs.add_parser("approve")
+    approve.add_argument("--source", required=True)
+    approve.add_argument("--call", required=True)
+    approve.add_argument("--tool", required=True)
     return top
 
 
@@ -138,12 +149,22 @@ def main():
     if args.verb == "report":
         request = {"verb": "report", "terminal": terminal,
                    "report": report_of(args, top.error)}
+    elif args.verb == "approve":
+        try:
+            tool_input = json.loads(sys.stdin.read() or "{}")
+        except ValueError:
+            top.error("the tool's input on stdin is not JSON")
+        request = {"verb": "approve", "terminal": terminal, "source": args.source,
+                   "call": args.call, "tool": args.tool, "input": tool_input}
     else:
         request = {"verb": "release", "terminal": terminal, "source": args.source}
     answer = send(request, deadline)
     if not isinstance(answer, dict):
         sys.stderr.write("marley_not_running: no Marley answered on its agent socket\n")
         return 1
+    if args.verb == "approve" and answer.get("decision") in ("approve", "deny"):
+        sys.stdout.write(json.dumps(answer) + "\n")
+        return 0
     if answer.get("ok") is True:
         return 0
     sys.stderr.write(f"{answer.get('refused', 'agent_refused')}: {answer.get('reason', '')}\n")

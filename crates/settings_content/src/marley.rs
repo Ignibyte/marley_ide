@@ -245,6 +245,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: unset
     pub review_notes_template: Option<String>,
+    /// Whether Claude Code's plan opens in a review tab beside its terminal when it asks to leave
+    /// plan mode (#726): select a passage and comment, then Approve or Send Feedback. Needs the
+    /// shared Claude Code plugin, at a revision that hands the call to Marley. Applies to
+    /// terminals opened after the change.
+    ///
+    /// Default: false
+    pub plan_review: Option<bool>,
     /// Whether Marley's agents get the `rustal-ste` skill (#725): Simplified Technical English with
     /// Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent
     /// gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin

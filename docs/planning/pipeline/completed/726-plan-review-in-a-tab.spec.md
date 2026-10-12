@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8a3f8df1-5c61-45a6-abb8-1d695b9f2836
 ticket: docs/planning/tickets/open/TICKET-726-plan-review-in-a-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Plan review in a center tab, slice 1 — Claude Code's plan from a terminal
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 1; docs/planning/design-notes/finish-line-2026-10-11.md row 10); waits on a rustal-harness change to the shared plugin (D1)

@@ -1253,6 +1253,27 @@ Marley → Agents (`marley.claude_code_shared_plugin`).
   skill. While it is on, a terminal gets the skill from it, and Marley's own skill folder (#725)
   steps aside, so Claude Code lists the skill once.
 
+### Plan review (#726)
+
+With **Plan Review** on in Settings → Marley → Agents (`marley.plan_review`, off by default), a
+Claude Code in a new local terminal that finishes a plan and asks to leave plan mode hands the
+plan to Marley instead of its own dialog. It needs the shared plugin (above) at a revision that
+does this, which rustal-harness has yet to ship; until then Claude Code's dialog decides as
+before.
+
+- The plan opens as Markdown in a **Plan** tab beside the terminal, taking the focus only when the
+  terminal had it, and Needs you lists "Plan to review" until you answer.
+- Select a passage and press `c`, or right-click and choose **Comment…**; type your comment and
+  press Enter. Each note shows its passage and your words, with × to remove it. An **Overall** note
+  sits below.
+- **Approve** lets Claude Code go on. **Send Feedback** (once there is a note) sends the notes back
+  as the reason: each note's passage and comment, then the overall note, asking Claude Code to
+  address every note and plan again. Its revised plan replaces the old one in the same tab.
+- A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes
+  back to the terminal's own dialog; the tab says so and its buttons go off.
+- Marley's terminals carry `MARLEY_APPROVE_TOOLS=ExitPlanMode` while the setting is on; the plugin
+  reads it, and `"$MARLEY_BIN" approve` waits for your answer.
+
 ### Per-turn diffs
 
 With the plugin connected, Marley keeps each turn of a terminal's Claude Code that changed the

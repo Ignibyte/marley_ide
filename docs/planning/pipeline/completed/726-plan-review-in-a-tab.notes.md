@@ -180,3 +180,104 @@ one run in plan mode, recorded in Phase 3.
   the highlight, which proves the range was read.
 - An answer that crosses a withdrawn request: the nonce and the request's presence are checked on
   the main thread before the send (D7).
+
+## Phase 1 — Plan (promoted 2026-10-12)
+- **Promotion:** the queued pair moved to `active/`; the ticket is in progress; its Backlog row is
+  gone. The brain (consultation 878e50b2e69b4510a19a9a3bae5ad4e2) had nothing on the seam.
+- **The harness request (D1)** is not sent: rustal-harness is paused at Chad's word, and no
+  ticket, gate or build goes to it until he or this session says go. This slice builds Marley's
+  half, checked with a stand-in that plays the plugin's part, as the spec's UI proof already does.
+  The request's text stands in the spec's D1, for Chad to pass on.
+- **Seams re-verified** (an Explore pass at `2cca1c4385`); differences that change the design:
+  - The agent socket answers every request within `ANSWER_TIMEOUT` (3.5 s, `agent_socket.rs:26`,
+    enforced at 145) and never reads the stream again, so it cannot see the caller hang up. An
+    `approve` line gets its own wait (570 s), and the connection's thread watches for the peer's
+    end while it waits, raising a flag on the request that the app reads.
+  - `MAX_LINE` (64 KiB) cuts a longer line instead of refusing it; the cut line fails to parse and
+    is refused as a bad shape. A plan that long goes back to Claude Code's dialog.
+  - `marley-agent` is a Python script (`bin/marley-agent`, embedded by `agent_reports.rs:28`):
+    `DEADLINES` (22) is looked up by verb, so `approve` needs its entry; nothing goes to stdout
+    today, and `approve` prints the decision there.
+  - `Request` (`report.rs:373-390`) is tagged by `verb` with `deny_unknown_fields`; `take`
+    (`agent_reports.rs:180-194`) answers at once, so an `Approve` keeps its `AgentRequest` in the
+    plans global until the user answers.
+  - `identity::agent_environment` empties an unset variable rather than removing it; the plugin
+    reads an empty `MARLEY_APPROVE_TOOLS` as none. The switch follows `shared_plugin::init`'s
+    pattern (a static setter, reconciled on `SettingsStore` changes).
+  - `Markdown`'s selection is a private source byte range; a left click outside clears it on mouse
+    down, so a note starts from the right-click menu or `c` (D5). `selected_range` is the Zed touch.
+  - `InboxTarget` is private to `rail.rs` (944); `inbox_entries` must give a plan entry precedence
+    over the terminal's waiting entry, as Codex requests have; `observe_marks` gains the plans
+    global (11 subscriptions).
+  - No helper adds a tab beside a given terminal; the tab goes to the pane holding the terminal
+    when it is a center pane, else the active center pane.
+
+## Phase 2 — Code
+
+- **Built:** Zed touches (ledger rows first): `Markdown::selected_range`;
+  `MarleySettingsContent.plan_review`; the Settings window's Plan Review row (Agents, 22 items).
+  Marley: `identity::{APPROVE_TOOLS_VARIABLE, set_approve_tools}` and the variable in
+  `agent_environment`; the socket's approve wait (`waits_on_user`, `wait_for_user`, `peer_gone`,
+  `AgentRequest::withdrawn`); `Request::Approve`, `answer_decision`, `Refusal::ApproveTool`;
+  `PlanNote` and `plan_feedback`; `marley-agent approve` (570 s, the decision on stdout);
+  `agent_reports::take` handing approves over; `plan_review.rs` (new: the switch, `PendingPlans`,
+  `arrived`, `open_tab`, the watch, `answer`, `entry_of`, `show_tab`, `PlanReview`); the rail's
+  `InboxKind::Plan` entry, target, icon and observer; `c` in Marley's keymap.
+- **Deviations:** as recorded at promotion; `c` is bound in `keymap.json` (below); a note's
+  editor confirms on `menu::Confirm`, Enter's binding in a single-line editor.
+- **The review found** nothing more before the run; the Test phase found the `c` failure below.
+- **Clippy:** `option_if_let_else`, `too_long_first_doc_paragraph`, the action's `Eq`,
+  `too_many_lines` twice (split into `open_tab` and `render_column`), `needless_pass_by_value`
+  (the request destructured), a missing semicolon, `missing_const_for_fn`, `redundant_clone`,
+  `needless_pass_by_ref_mut`, and a borrow of the theme across a listener (colors copied out). All
+  fixed at the source; `#[allow(dead_code)]` lines first written were removed before any run.
+- **Gate:** the first `script/gates.sh --diff` was red on dylint's `shared_string_from_str_literal` (the tab's tooltip, a 35-byte literal through `SharedString::from`); fixed with `SharedString::new_static`, which changes no behavior the scenario saw, and the second run was green, 17 of 17.
+
+## Phase 3 — Test
+
+- **Scenario:** `script/e2e/726-plan-review-in-a-tab.sh` under `compositor sway`;
+  `marley.plan_review` on in the run's settings; a stand-in `claude` plays the plugin's part
+  (report idle, then `"$MARLEY_BIN" approve --tool ExitPlanMode` with the plan on stdin, a revised
+  plan after a deny). The first run stopped at 726-02 to place the points.
+- **The `c` failure:** the second and third runs showed no note after the drag and `c`
+  (726-03a showed the passage selected). Two causes, both fixed
+  (F-claude-726-the-plans-c-key-reached-no-binding-001): the tab's focus sat outside the
+  binding's context, and `cx.bind_keys` was cleared by the keymap reload. The fifth run passed
+  every check with no panic in the log.
+- **726-01-env (REQ-001):** the stand-in printed `MARLEY_APPROVE_TOOLS=[ExitPlanMode]`.
+- **726-02-tab (REQ-003, REQ-004):** "Plan · repo" beside the terminal, the plan drawn as Markdown
+  (heading, numbered steps, code spans), "Claude Code waits for your answer.", the hint, Overall,
+  Approve, Send Feedback off; Needs you lists "Claude Code · repo — Plan to review".
+- **726-03a-dragged, 726-03-note (REQ-005):** step 3's text selected by the drag; after `c`, a
+  comment and Enter, the note "“Run the tests and report what failed.”" / "Say which tests" with
+  ×; the overall note "Keep the change small."; Send Feedback on.
+- **726-04-feedback (REQ-006):** the log: `toolu_1: exit 0 {"decision": "deny", "reason": "The user
+  reviewed your plan and asks for changes. … Note 1\nQuote: \"Run the tests and report what
+  failed.\"\nComment: \"Say which tests\"\n\nOverall: \"Keep the change small.\""}`. The stand-in
+  sent its revised plan at once, so the shot already shows it waiting.
+- **726-05-revised (REQ-007):** "Fix the login form, revised" in the same tab, no notes, the overall
+  note empty, Send Feedback off.
+- **726-06-approved (REQ-008):** "Approved.", both buttons off, Needs you empty; the log:
+  `toolu_2: exit 0 {"decision": "approve"}`.
+- **726-07-off (REQ-002):** with the switch off, a new terminal prints `tools=[]`.
+- **REQ-009, REQ-010:** by the review: the socket raises `withdrawn` when the peer closes or the
+  wait runs out, and the one-second sweep marks the tab and drops the entry; `marley-agent`
+  prints nothing and exits 1 on a refusal or no answer.
+- **Not reached:** the real Claude Code's call, until rustal-harness ships the plugin change (D1);
+  the harness is paused at Chad's word.
+
+## Phase 4 — Complete
+
+- **Documented:** CHANGELOG (Added); the guide ("Plan review", under the shared plugin) and the
+  in-app guide (a Plan review article and the settings table's row); `marley_workbench.md`
+  ("Plan review"), `marley_mcp.md` (the socket's approve wait), `marley_agent.md` (`Approve`,
+  `answer_decision`, `plan_feedback`); the touchpoint rows of `crates/markdown/src/markdown.rs`,
+  `crates/settings_content/src/marley.rs` and `crates/settings_ui/src/marley_page.rs`.
+- **Knowledge:** F-claude-726-the-plans-c-key-reached-no-binding-001,
+  PR-claude-726-a-marley-key-goes-in-marleys-keymap-file-001,
+  L-claude-726-a-markdown-selection-is-gone-by-a-menu-entrys-click-001,
+  L-claude-726-enter-in-a-single-line-editor-is-menu-confirm-001,
+  AD-claude-726-claude-codes-plan-is-reviewed-in-a-tab-over-the-agent-socket-001.
+- **Brain:** `brain decide` on the consultation recorded at promotion.
+- **Open, for Chad:** the harness request (D1) for the shared plugin; rustal-harness is paused at
+  his word. Until it ships, the setting changes nothing a real Claude Code does.

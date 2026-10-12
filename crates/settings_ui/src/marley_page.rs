@@ -190,7 +190,7 @@ fn layout_section() -> [SettingsPageItem; 7] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 21] {
+fn agents_section() -> [SettingsPageItem; 22] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -578,6 +578,26 @@ fn agents_section() -> [SettingsPageItem; 21] {
                         .marley
                         .get_or_insert_default()
                         .claude_code_shared_plugin = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Claude Code's plan in a review tab, off by default (#726).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Plan Review",
+            description: "Open Claude Code's plan in a tab beside its terminal when it asks to leave plan mode: select a passage and comment, add an overall note, then Approve or Send Feedback. Needs the Shared Claude Code Plugin, at a revision that hands the call to Marley; until then Claude Code's own dialog decides. Applies to terminals opened after the change.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.plan_review"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.plan_review.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().plan_review = value;
                 },
             }),
             metadata: None,

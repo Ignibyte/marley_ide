@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Plan review** (#726, 2026-10-12). With `marley.plan_review` on, Claude Code's plan opens in a
+  tab beside its terminal when it asks to leave plan mode: select a passage and press `c` to
+  comment, add an overall note, then Approve or Send Feedback, which sends your notes back for a
+  revised plan. The plan waits in Needs you meanwhile. Marley's side is done; it waits on the
+  shared Claude Code plugin handing the plan over (a rustal-harness change), and until then Claude
+  Code's own dialog decides.
+
 - **Guided review** (#733, 2026-10-12). An agent can hand you a change in ordered sections with
   `review_guide_open`. A Guide tab shows each section's summary, a chip per file that brings the
   file up in the project diff, and a Reviewed box that folds the section away, with "K of N

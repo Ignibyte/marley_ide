@@ -436,6 +436,12 @@ pub fn route_of_choice(option: &str) -> Route;
   three `usage.*` counts and `quota.KIND.percent_used` and `.resets_at_ms`.
 - `Request` is the socket's line, tagged by `verb`: `Report { terminal, report }` or
   `Release { terminal, source }`; `answer_ok` and `answer_refused` are the answers.
+- Since #726 `Request::Approve { terminal, source, call, tool, input }` asks the user to decide a
+  tool call, as `rh approve` does; `answer_decision(decision, reason)` is its answer
+  (`{"decision": "approve"}` or with a `reason` for a deny), and `Refusal::ApproveTool`
+  (`agent_approve_tool`) refuses a tool Marley does not decide. `PlanNote` and `plan_feedback`
+  (in `marley_agent.rs`) write a plan's deny reason: a lead line, each note's quote and comment,
+  then the overall note, escaped as a review note's words are.
 - `stat_fields(stat)` reads a `/proc/PID/stat` line's parent and start time from the fields after
   its last `)`, since a process's name may hold spaces and parentheses. `MAX_ANCESTRY` (32) bounds
   the walk to a terminal.

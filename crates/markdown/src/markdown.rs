@@ -1111,6 +1111,12 @@ impl Markdown {
         self.source.get(self.selection.start..self.selection.end)
     }
 
+    // Marley: the selection's place in the source, which a plan's note anchors on (#726).
+    pub fn selected_range(&self) -> Option<Range<usize>> {
+        (self.selection.end > self.selection.start)
+            .then_some(self.selection.start..self.selection.end)
+    }
+
     pub fn set_search_highlights(
         &mut self,
         highlights: Vec<Range<usize>>,

@@ -69,6 +69,8 @@ struct Incoming {
 /// as before.
 pub(crate) fn start(data_dir: PathBuf, cx: &mut App) {
     cx.set_global(Reports::default());
+    // Plans arrive over the same socket (#726).
+    crate::plan_review::init(cx);
     let socket = socket_path(&data_dir);
     if !marley_browser::service::socket_fits(&socket) {
         log::warn!(
@@ -183,7 +185,31 @@ fn take(incoming: Incoming, cx: &mut App) {
         chain,
         folder,
     } = incoming;
-    let reply = match serde_json::from_str::<Request>(&request.line) {
+    let parsed = serde_json::from_str::<Request>(&request.line);
+    // An approve waits on the user: its review answers it (#726).
+    if let Ok(Request::Approve {
+        terminal,
+        source,
+        call,
+        tool,
+        input,
+    }) = parsed
+    {
+        match terminal_of(&chain, &terminal, cx) {
+            Ok((workspace, view, _)) => {
+                let approve = crate::plan_review::Approve {
+                    source,
+                    call,
+                    tool,
+                    input,
+                };
+                crate::plan_review::arrived(request, &workspace, &view, approve, cx);
+            }
+            Err((refusal, reason)) => request.answer(report::answer_refused(refusal, &reason)),
+        }
+        return;
+    }
+    let reply = match parsed {
         Err(error) => report::answer_refused(Refusal::Shape, &error.to_string()),
         Ok(parsed) => match accept(parsed, &chain, folder.as_deref(), cx) {
             Ok(()) => report::answer_ok(),
@@ -323,6 +349,11 @@ fn accept(
             crate::resume::on_release(&terminal_entity, cx);
             Ok(())
         }
+        // `take` hands an approve to its review before this (#726).
+        Request::Approve { .. } => Err((
+            Refusal::Shape,
+            "an approve is answered by its review".to_string(),
+        )),
     }
 }
 

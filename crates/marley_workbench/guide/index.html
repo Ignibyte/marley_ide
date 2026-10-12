@@ -1215,6 +1215,19 @@ th { background: var(--panel); font-weight: 650; }
 <p class="note">The plugin's hooks answer only in Marley's terminals. <code>claude -p</code> (print mode) sends no notifications.</p>
 </article>
 
+<article id="plan-review">
+<h3>Plan review <span class="ticket">#726</span></h3>
+<p class="what"><strong>What it is.</strong> When Claude Code finishes a plan and asks to leave plan mode, the plan opens in a tab beside its terminal for you to read and answer: notes on passages, an overall note, then Approve or Send Feedback.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Turn on <strong>Plan Review</strong> in Settings → Marley → Agents (<code>marley.plan_review</code>, off by default), and the <strong>Shared Claude Code Plugin</strong>. It needs the plugin at a revision that hands the plan to Marley; until then Claude Code's own dialog decides.</li>
+<li>In a new local terminal, start <code>claude</code> in plan mode. When its plan is ready, a <strong>Plan</strong> tab opens beside the terminal, and Needs you lists it.</li>
+<li>Select a passage and press <kbd>c</kbd>, or right-click and choose Comment…; type your comment and press Enter. Add an overall note below the notes.</li>
+<li>Press <strong>Approve</strong> to let Claude Code go on, or <strong>Send Feedback</strong> to send your notes back; Claude Code revises the plan, and the new one replaces it in the same tab.</li>
+</ol>
+<p class="note">A plan left unanswered for nearly ten minutes, or one whose Claude Code stopped waiting, goes back to the terminal's own dialog, and the tab says so.</p>
+</article>
+
 <article id="shared-claude-plugin">
 <h3>The shared Claude Code plugin, and agents' own reports <span class="ticket">#652 · #709</span></h3>
 <p class="what"><strong>What it is.</strong> A second plugin for Claude Code, the one Marley shares with rustal-harness. Loaded in Marley's terminals, it makes Claude Code report its own state to the rail: working, waiting on you and for which tool, or idle. Any agent or wrapper can send the same reports through <code>MARLEY_BIN</code>.</p>
@@ -2308,6 +2321,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>embedded_harness</code></td><td><code>false</code></td><td>Marley runs rustal-harness's runtime itself and shows its sessions in the rail (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>harness_writes</code></td><td><code>false</code></td><td>A harness session's tab answers, sends and watches, and agents may propose seats (in <code>settings.json</code> only)</td></tr>
 <tr><td><code>claude_code_shared_plugin</code></td><td><code>false</code></td><td>New local terminals load the Claude Code plugin shared with rustal-harness</td></tr>
+<tr><td><code>plan_review</code></td><td><code>false</code></td><td>Claude Code's plan opens in a review tab beside its terminal when it asks to leave plan mode (needs the shared plugin)</td></tr>
 <tr><td><code>assistant</code></td><td><code>{ "enabled": true, "agent": "auto" }</code></td><td>The Marley agent, and what it runs on: <code>"auto"</code>, <code>"claude_code"</code>, <code>"codex"</code> or <code>"zed"</code></td></tr>
 <tr><td><code>agent_control</code></td><td><code>{ "stopped": false, "editors": "ask_first", "threads": "ask_first", "actions": "ask_first", "actions_allowed": [], "secret_globs": [...] }</code></td><td>The kill switch, each area's mode (<code>"off"</code>, <code>"ask_every"</code>, <code>"ask_first"</code>, <code>"allow"</code>), the actions you allow by name, and the file names agents never read (<code>secret_globs</code> in <code>settings.json</code> only)</td></tr>
 <tr><td><code>system_one</code></td><td>off</td><td><code>enabled</code>, <code>provider</code>, <code>projects</code>, <code>metadata_only_projects</code>, <code>daily_budget_cents</code>, <code>uses</code></td></tr>

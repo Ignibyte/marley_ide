@@ -437,6 +437,41 @@ pub const DEFAULT_REVIEW_TEMPLATE: &str = "Review notes on your work follow. For
      it against the code before you change anything, then say whether you agree and why. Fix only \
      what you agree with, and change nothing the notes do not name.\n\n{notes}";
 
+/// A note on a passage of an agent's plan (#726): the passage as selected, and the reviewer's words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanNote {
+    /// The passage of the plan the note is on.
+    pub quote: String,
+    /// The reviewer's words.
+    pub comment: String,
+}
+
+/// What a plan's feedback tells the agent (#726).
+///
+/// A lead line, each note as its number, its quote and its comment, then the overall note. The
+/// words are escaped as a review note's are, so the feedback holds no escape sequence.
+#[must_use]
+pub fn plan_feedback(notes: &[PlanNote], overall: &str) -> String {
+    let mut parts = vec![
+        "The user reviewed your plan and asks for changes. Address every note below, then call \
+         ExitPlanMode again with the revised plan."
+            .to_string(),
+    ];
+    for (index, note) in notes.iter().enumerate() {
+        parts.push(format!(
+            "Note {}\nQuote: \"{}\"\nComment: \"{}\"",
+            index + 1,
+            escape_comment(note.quote.trim()),
+            escape_comment(note.comment.trim())
+        ));
+    }
+    let overall = overall.trim();
+    if !overall.is_empty() {
+        parts.push(format!("Overall: \"{}\"", escape_comment(overall)));
+    }
+    parts.join("\n\n")
+}
+
 /// Where the notes go in a review template (#732).
 pub const NOTES_PLACEHOLDER: &str = "{notes}";
 

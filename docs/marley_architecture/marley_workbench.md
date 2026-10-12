@@ -2830,6 +2830,28 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
+## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, #726)
+
+- `plan_review::init` (from `agent_reports::start`) follows `marley.plan_review`: on, it hands
+  `identity::set_approve_tools(Some("ExitPlanMode"))` to the terminals started from then on.
+- `agent_reports::take` hands a `Request::Approve` from a known terminal to `plan_review::arrived`
+  with the socket's `AgentRequest`, unanswered. A tool other than `ExitPlanMode`, the switch off,
+  or an input with no `plan` is refused `agent_approve_tool` or `agent_report_shape`, which leaves
+  Claude Code's dialog in charge.
+- `arrived` numbers the request (a nonce), shows the plan in the terminal's `PlanReview` tab (made
+  in the pane holding the terminal, else the active one; focused only when the terminal had the
+  focus) and keeps the request in the `PendingPlans` global, which the rail observes. A second
+  plan from the same terminal replaces the first, whose request is refused. A one-second watch
+  drops plans whose `withdrawn` flag the socket raised and marks their tabs.
+- `PlanReview`: a `Markdown` (default options, HTML not parsed) in an area whose focus is the
+  tab's (`PlanReviewPlan`, where Marley's keymap binds `c` to `plan_review::Comment`); the
+  right-click menu keeps the selected range when it opens, since a click on its entry clears the
+  Markdown's selection first; notes are source ranges painted with `set_search_highlights`; a
+  note's single-line editor takes `menu::Confirm` and `editor::Cancel`. Approve and Send Feedback
+  call `answer`, which sends once to the request with the tab's nonce, unless it was withdrawn.
+- The rail: `InboxKind::Plan` entries from `plan_review::entry_of`, ahead of the seat's own wait;
+  `InboxTarget::Plan` opens the tab through `show_tab`, deferred out of the rail's update.
+
 ## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
 
 - `review_tools::guide_open` checks the guide (`guide_of`: a title, 1 to 30 sections, absolute

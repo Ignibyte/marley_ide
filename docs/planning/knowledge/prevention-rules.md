@@ -3018,3 +3018,13 @@ A file only the user may read (logs, transcripts, handoffs, anything an agent's 
 into) is opened with `std::os::unix::fs::OpenOptionsExt::mode(0o600)` and, when it may already
 exist, set to 0600 on the open handle before the first byte is written. Never `std::fs::write`
 then `set_permissions`: the file sits at the umask's mode in between.
+
+## PR-claude-726-a-marley-key-goes-in-marleys-keymap-file-001
+*severity: medium · prevents: F-claude-726-the-plans-c-key-reached-no-binding-001*
+
+A key Marley binds for its own views goes in `crates/marley_workbench/keymap.json` under the
+view's key context, never in a `cx.bind_keys` call at startup: Zed's keymap reload clears the
+bindings and loads the keymap files again, so a programmatic binding is gone after the first
+reload (tests may still bind directly). Bind a single printable key only in a context that holds
+no editor, so the editors inside the view keep the letter, and make that context's element the
+view's focus.

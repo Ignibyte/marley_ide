@@ -6,15 +6,17 @@
 //! sends the line; the peer's credentials say which process sent it, and only a process of the user
 //! Marley runs as is heard. What the line means is the app's: the socket hands each request, with
 //! the peer's process, to a handler on the connection's own thread, and writes back whatever answer
-//! the app gives before the deadline.
+//! the app gives before the deadline. Since #726 a request that waits on the user (`approve`) has
+//! minutes, and its connection watches the peer meanwhile: a peer that stops waiting withdraws it.
 
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
+use std::time::{Duration, Instant};
 
 /// The longest line a request may be.
 const MAX_LINE: u64 = 64 * 1024;
@@ -25,6 +27,13 @@ const READ_TIMEOUT: Duration = Duration::from_secs(2);
 /// How long the app has to answer, under the program's 4 s for a report.
 const ANSWER_TIMEOUT: Duration = Duration::from_millis(3_500);
 
+/// How long a request that waits on the user may wait, under the program's 570 s for `approve`
+/// (#726).
+const DECISION_TIMEOUT: Duration = Duration::from_secs(565);
+
+/// How often a connection that waits on the user checks that its peer still waits.
+const PEER_CHECK: Duration = Duration::from_millis(500);
+
 /// One request that came in, with the peer's process; [`AgentRequest::answer`] sends the reply.
 #[derive(Debug)]
 pub struct AgentRequest {
@@ -33,6 +42,7 @@ pub struct AgentRequest {
     /// The peer's process, from its credentials.
     pub pid: u32,
     answer: SyncSender<String>,
+    withdrawn: Arc<AtomicBool>,
 }
 
 impl AgentRequest {
@@ -41,6 +51,13 @@ impl AgentRequest {
         if self.answer.send(reply).is_err() {
             log::debug!("agent socket: an answer came after its request stopped waiting");
         }
+    }
+
+    /// A flag raised when the request will take no answer: its peer stopped waiting, or its wait
+    /// ran out (#726).
+    #[must_use]
+    pub fn withdrawn(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.withdrawn)
     }
 }
 
@@ -137,16 +154,96 @@ fn serve(stream: UnixStream, uid: rustix::process::Uid, handler: &AgentHandler) 
         return;
     }
     let (answer, answered): (SyncSender<String>, Receiver<String>) = sync_channel(1);
+    let line = line.trim_end().to_string();
+    let decision = waits_on_user(&line);
+    let withdrawn = Arc::new(AtomicBool::new(false));
     handler(AgentRequest {
-        line: line.trim_end().to_string(),
+        line,
         pid,
         answer,
+        withdrawn: Arc::clone(&withdrawn),
     });
-    let reply = answered.recv_timeout(ANSWER_TIMEOUT).unwrap_or_else(|_| {
-        r#"{"refused":"marley_not_running","reason":"Marley did not answer in time"}"#.to_string()
-    });
+    let reply = if decision {
+        match wait_for_user(&stream, &answered) {
+            Waited::Answered(reply) => reply,
+            Waited::OutOfTime(reply) => {
+                withdrawn.store(true, Ordering::SeqCst);
+                reply
+            }
+            Waited::Gone => {
+                withdrawn.store(true, Ordering::SeqCst);
+                return;
+            }
+        }
+    } else {
+        answered.recv_timeout(ANSWER_TIMEOUT).unwrap_or_else(|_| {
+            r#"{"refused":"marley_not_running","reason":"Marley did not answer in time"}"#
+                .to_string()
+        })
+    };
     let mut stream = stream;
     if let Err(error) = stream.write_all(format!("{reply}\n").as_bytes()) {
         log::debug!("agent socket: writing an answer: {error}");
+    }
+}
+
+/// Whether a request's line asks for the user's decision (`approve`, #726), which waits minutes
+/// rather than seconds.
+fn waits_on_user(line: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()
+        .and_then(|request| {
+            request
+                .get("verb")
+                .and_then(serde_json::Value::as_str)
+                .map(|verb| verb == "approve")
+        })
+        .unwrap_or(false)
+}
+
+/// How a wait on the user ended.
+enum Waited {
+    /// The app answered.
+    Answered(String),
+    /// Nobody answered in time; the refusal to write.
+    OutOfTime(String),
+    /// The peer stopped waiting.
+    Gone,
+}
+
+/// Waits for the app's answer to a request that waits on the user, checking the peer between.
+fn wait_for_user(stream: &UnixStream, answered: &Receiver<String>) -> Waited {
+    let started = Instant::now();
+    loop {
+        match answered.recv_timeout(PEER_CHECK) {
+            Ok(reply) => return Waited::Answered(reply),
+            Err(RecvTimeoutError::Disconnected) => {
+                return Waited::OutOfTime(
+                    r#"{"refused":"no_answer","reason":"Marley dropped the request"}"#.to_string(),
+                );
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+        }
+        if peer_gone(stream) {
+            return Waited::Gone;
+        }
+        if started.elapsed() >= DECISION_TIMEOUT {
+            return Waited::OutOfTime(
+                r#"{"refused":"no_answer","reason":"the user did not answer in time"}"#.to_string(),
+            );
+        }
+    }
+}
+
+/// Whether the peer closed its end: a peek that reads nothing and does not wait.
+fn peer_gone(stream: &UnixStream) -> bool {
+    let mut byte = [0_u8; 1];
+    match rustix::net::recv(
+        stream,
+        &mut byte,
+        rustix::net::RecvFlags::PEEK | rustix::net::RecvFlags::DONTWAIT,
+    ) {
+        Ok((_, read)) => read == 0,
+        Err(error) => error != rustix::io::Errno::AGAIN,
     }
 }

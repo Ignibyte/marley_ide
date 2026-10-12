@@ -240,6 +240,11 @@ OR Apache-2.0, with the Marley crates' lint table.
   3.5 s with no answer the peer reads `marley_not_running`.
 - What the line means is the app's (`marley_workbench::agent_reports`); this module knows no
   report. `AgentSocket` removes its file when dropped.
+- Since #726 a line whose `verb` is `approve` waits on the user (`waits_on_user`): up to
+  565 s, under the program's 570, polling every 500 ms. Between polls `peer_gone` peeks the
+  socket without waiting (`rustix::net::recv` with `PEEK | DONTWAIT`); a peer that closed ends the
+  wait with nothing written. Either that or the time running out raises the request's `withdrawn`
+  flag (`AgentRequest::withdrawn`), which the app reads to mark the request gone.
 
 ## Claude Code's IDE server (`ide.rs`, `ide_transport.rs`, #653)
 

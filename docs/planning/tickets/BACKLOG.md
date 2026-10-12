@@ -16,7 +16,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | Ticket | Type | Why it waits |
 |---|---|---|
 | [TICKET-716](open/TICKET-716-delegation-tools.md) | feature | after the finish: agents that start agents, tracked and never lost; waits on a harness request (seat labels, an ended state) |
-| [TICKET-726](open/TICKET-726-plan-review-in-a-tab.md) | feature | after the finish, the review batch: plan review in a center tab (in slices) |
 | [TICKET-727](open/TICKET-727-plan-versions-and-diff.md) | feature | the review batch: plan versions and a diff between them |
 | [TICKET-728](open/TICKET-728-question-cards-in-plans.md) | feature | the review batch: question cards in plans |
 | [TICKET-729](open/TICKET-729-notes-on-markdown-and-last-reply.md) | feature | the review batch: notes on any Markdown file or the agent's last reply |

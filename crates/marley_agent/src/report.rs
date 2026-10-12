@@ -148,6 +148,8 @@ pub enum Refusal {
     ReleaseAuthority,
     /// A release for a terminal with no authority.
     ReleaseNone,
+    /// An approve for a tool Marley takes no decision on, or while its review is off (#726).
+    ApproveTool,
 }
 
 impl Refusal {
@@ -168,6 +170,7 @@ impl Refusal {
             Self::Quota => "agent_report_quota",
             Self::ReleaseAuthority => "agent_release_authority",
             Self::ReleaseNone => "agent_release_none",
+            Self::ApproveTool => "agent_approve_tool",
         }
     }
 }
@@ -387,12 +390,38 @@ pub enum Request {
         /// The source releasing.
         source: String,
     },
+    /// A tool call the agent asks the user to decide, as `rh approve` takes it (#726); it is
+    /// answered when the user decides.
+    Approve {
+        /// The `MARLEY_TERMINAL_ID` the program runs under.
+        terminal: String,
+        /// The source asking.
+        source: String,
+        /// The tool call's id.
+        call: String,
+        /// The tool's name.
+        tool: String,
+        /// The tool's input, as the agent gave it.
+        input: serde_json::Value,
+    },
 }
 
 /// The answer to an accepted request.
 #[must_use]
 pub fn answer_ok() -> String {
     serde_json::json!({ "ok": true }).to_string()
+}
+
+/// The answer to an approve: the user's decision, `approve` or `deny`, and for a deny what the
+/// agent is told (#726).
+#[must_use]
+pub fn answer_decision(decision: &str, reason: Option<&str>) -> String {
+    reason
+        .map_or_else(
+            || serde_json::json!({ "decision": decision }),
+            |reason| serde_json::json!({ "decision": decision, "reason": reason }),
+        )
+        .to_string()
 }
 
 /// The answer to a refused request: its name and the reason.

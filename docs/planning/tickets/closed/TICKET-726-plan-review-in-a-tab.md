@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #726 (feature; size large, in slices; the review batch after the finish)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [726-plan-review-in-a-tab.spec.md](../../pipeline/queued/726-plan-review-in-a-tab.spec.md) (slice 1)
+- **Pipeline doc:** [726-plan-review-in-a-tab.spec.md](../../pipeline/completed/726-plan-review-in-a-tab.spec.md)
 - **Source ticket:** [plannotator-findings.md](../../intake/plannotator-findings.md), item 1; Chad, 2026-10-09: "take a look at https://github.com/backnotprop/plannotator and see what may be to add to the list"; Chad, 2026-10-11, on the [finish-line list](../../design-notes/finish-line-2026-10-11.md): "10.) yes"
-- **Status:** open (deliberate: the review batch, after the finish)
+- **Status:** closed (Marley's half; the plugin's half is a harness request)
 
 ## Summary
 Claude Code's `ExitPlanMode` plan opens as rendered Markdown in a center tab beside the agent's

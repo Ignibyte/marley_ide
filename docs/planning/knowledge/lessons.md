@@ -5735,3 +5735,19 @@ hashed and can follow.
 `sed` rewrite of a source file) pass it unseen: #731's two Zed files were edited that way before
 its Plan was marked PASS, and only the next Write was blocked. Mark the Plan PASS (spec status,
 ticket, Backlog, brain consultation) before the first edit of any kind, not before the first Write.
+
+## L-claude-726-a-markdown-selection-is-gone-by-a-menu-entrys-click-001
+*category: gpui · topic: acting on a Markdown element's selection · from: pipeline 726*
+
+Zed's `Markdown` element clears its selection on any left mouse-down outside it, in the capture
+phase, so a button or a context-menu entry that acts on "the selection" finds none by the time its
+click (mouse-up) runs. Take the range when the menu opens (a right mouse-down does not clear it)
+or act on a key in the element's own context; `Markdown::selected_range` (#726) gives the source
+range.
+
+## L-claude-726-enter-in-a-single-line-editor-is-menu-confirm-001
+*category: gpui · topic: a single-line editor's Enter · from: pipeline 726*
+
+Zed's keymap maps Enter to `editor::Newline` only for `Editor && mode == full`; elsewhere the
+global block maps it to `menu::Confirm`. A single-line editor that submits on Enter registers a
+`menu::Confirm` handler (and `editor::Cancel` for Escape), not `editor::Newline`.
