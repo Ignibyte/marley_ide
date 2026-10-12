@@ -3352,8 +3352,8 @@ approvals inbox, per-turn diffs, permission modes, worktree agents with review a
 the terminal items from Warp (an agent typing into a running program, blocks over ssh, filtering
 a block, a sticky command header, runbook commands).
 
-Waiting on purpose: the rest of Marley's own release identity, its URL scheme and its updater
-(#762, #763); its remote server, app id and keyring label shipped (#445, #760, #761).
+Marley's own release identity shipped in five slices: its remote server, app id, keyring label,
+`marley://` scheme and updater message (#445, #760 to #763).
 
 `docs/marley/three-prong-plan.md` names the longer road: block-scoped path links and a jump to the
 first failure (T2), a prompt editor (T3), tasks and runnables as blocks (T4), native block headers
