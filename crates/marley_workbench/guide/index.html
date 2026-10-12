@@ -280,6 +280,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#harness-writes">Answer, message and watch a session</a></li>
 <li><a href="#harness-seat">A harness seat in one step</a></li>
 <li><a href="#harness-manager">The manager in the Agent Panel</a></li>
+<li><a href="#harness-schedule">Scheduled runs</a></li>
 </ol></li>
 <li><a href="#fleet">The fleet</a><ol>
 <li><a href="#fleet-panel">The Fleet panel</a></li>
@@ -2179,6 +2180,19 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <li>A harness on another machine (<code>marley.harnesses</code>) with a manager has its own entry, <strong>Manager · box-2</strong>, its own notices (<code>Manager · box-2: Report</code>) and its Needs you entries under <code>Harness · box-2</code>.</li>
 </ol>
 <p class="note">The entry runs the harness's command up to <code>mcp</code>, then <code>acp</code>, so a root over SSH is reached over SSH. It follows the manager when the role moves. Records from before Marley connected raise nothing. A seat's or a manager's thread opens from any window, a remote project's included.</p>
+</article>
+
+<article id="harness-schedule">
+<h3>Scheduled runs <span class="ticket">#719</span></h3>
+<p class="what"><strong>What it is.</strong> A prompt the harness sends an agent on a schedule: every so many minutes, daily or on weekdays at a time. The harness keeps the tasks, runs each one in a session of its own and keeps every run. Marley shows the tasks and their runs, and tells you only when a run found something.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Add a task with the harness's command, for example <code>rh schedule add checks --profile tests --cwd ~/code/app --prompt "Run the tests and say what broke" --daily 09:00</code>. <code>rh schedule pause</code>, <code>resume</code> and <code>remove</code> change it; Marley does not.</li>
+<li>The rail's Harness section lists each task under the harness's sessions: its schedule and next run, or "paused", and its last run's outcome and first line. A run's own session is not listed among the sessions.</li>
+<li>Click a task to open its history in a tab: each run, newest first, with its time, its outcome and its first line. Click a run to open its session.</li>
+<li>When a run ends with <code>finding</code>, Needs you lists "&lt;task&gt; found something: &lt;first line&gt;" and a desktop notice shows. Opening the entry opens the run's session and marks it seen. A run that found nothing, or failed, raises nothing.</li>
+</ol>
+<p class="note">Marley reads the tasks every 15 seconds. Marking a finding seen sets the label <code>finding.seen</code> on its session, which needs harness writes on (<code>marley.harness_writes</code>); without them the entry goes until Marley restarts. A finding that ended while Marley was closed is listed without a notice. It needs a harness with scheduled tasks (rustal-harness MREQ-011).</p>
 </article>
 </section>
 

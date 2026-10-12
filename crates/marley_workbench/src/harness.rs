@@ -292,7 +292,7 @@ fn set_connection(
 }
 
 /// Changes `slot`'s sessions; each harness's Manager entry follows its own (#694, #758), and the
-/// delegations its seats carry are followed (#716).
+/// delegations its seats carry (#716) and its scheduled runs' findings (#719) are followed.
 fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapshot)) {
     match slot {
         Slot::Primary => change(&mut cx.global_mut::<Harness>().seats),
@@ -304,6 +304,7 @@ fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapsho
     }
     sync_manager_entries(cx);
     crate::delegation::follow(slot, cx);
+    crate::schedule_runs::follow(slot, cx);
 }
 
 /// The first harness, then each `marley.harnesses` names, in order.
@@ -1108,6 +1109,8 @@ async fn connected(
         }
         // Each harness's manager thread, on its own connection (#758).
         follow_thread(slot, &server, cx).await;
+        // Its scheduled tasks, every 15 seconds (#719).
+        crate::schedule_runs::poll(slot, cx).await;
         let now = now_minute();
         if now != minute {
             minute = now;

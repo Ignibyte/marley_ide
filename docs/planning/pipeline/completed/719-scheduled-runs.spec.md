@@ -1,7 +1,7 @@
 ---
 pipeline_id: ad397fcf-e64c-49b5-a8b2-83ca5a46a4fb
 ticket: docs/planning/tickets/open/TICKET-719-scheduled-runs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Scheduled runs from the harness, shown in Marley
 type: feature
 slice: agents together (docs/planning/intake/monocode-findings.md item 6), the harness's scheduler (rustal-harness MREQ-011)
@@ -32,9 +32,12 @@ and a Needs you entry with a desktop notice only when a run found something. Cha
 - **The history tab:** a task's runs, newest first: the time, the outcome in its color and the first
   line; a click on a run opens its session (#534's tab).
 - **Findings:** a run session whose `schedule.outcome` is `finding` raises one Needs you entry
-  ("<task> found something: <first line>") and one desktop notice. Opening the entry opens the
-  run's session and sets its label `schedule.seen`, so the entry does not come back after a
-  restart. `nothing` and `failed` raise nothing.
+  ("<task> found something: <first line>"), and one desktop notice when Marley sees the run end; a
+  finding that ended while Marley was away is listed without a notice. Opening the entry opens the
+  run's session and sets its label `finding.seen` (the harness reserves `schedule.`), so the entry
+  does not come back after a restart. `nothing` and `failed` raise nothing.
+- **Run sessions** are not listed among the harness's sessions: each task's row and history reach
+  them, so a daily task does not add a row a day.
 - The tasks are read every 15 seconds while connected; a harness without the tools shows none.
 - `docs/marley/guide.md` and the in-app guide.
 
@@ -75,8 +78,10 @@ Shots:
 - **D1:** the harness schedules, runs and records (Chad, 2026-10-11); Marley builds no timer.
 - **D2:** Marley polls `schedule_tasks` every 15 seconds on its connection, as it reads the
   manager's thread, and reads findings from the run sessions' labels on the fleet stream.
-- **D3:** a finding's "seen" lives on the run's session as the label `schedule.seen`, so nothing is
-  stored in Marley and a restart does not raise it again.
+- **D3:** a finding's "seen" lives on the run's session as the label `finding.seen`, so nothing is
+  stored in Marley and a restart does not raise it again. `schedule` is a first segment the harness
+  reserves (TICKET-118), so the key starts with `finding`, as #716's `delegation.told` does. Without
+  the write grant the label cannot be set; the entry then stays gone until Marley restarts.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |
@@ -86,7 +91,8 @@ Shots:
 | REQ-003 | WHEN a run ends with `nothing` or `failed`, the system shall raise nothing. | The bus's log |
 | REQ-004 | WHEN the user opens a task, the system shall show its runs newest first with time, outcome and first line. | Shot 719-03 |
 | REQ-005 | WHEN the user opens a run, the system shall open its session. | Shot 719-04 |
-| REQ-006 | WHEN the user opens a finding's entry, the system shall set the run's `schedule.seen` label, so the entry does not return. | Review of the diff; the label in the fleet |
+| REQ-006 | WHEN the user opens a finding's entry, the system shall set the run's `finding.seen` label, so the entry does not return. | The label in the scenario's `rh fleet`; the entry gone in shot 719-04 |
+| REQ-007 | WHILE a session is a scheduled run's, the rail shall list it under its task and not among the harness's sessions. | Shot 719-01 |
 
 ## Phase Plan
 - **P1 Plan** — this spec; at promotion the design in the notes, once the harness's ticket has landed.

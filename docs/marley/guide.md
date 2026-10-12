@@ -3092,6 +3092,21 @@ Marley follows it beside the one above:
   remote project's included: Marley builds it on a project of its own with no folders, so it
   needs nothing of the window's project and its entry comes from this machine's settings.
 
+**Scheduled runs** (#719). The harness runs a prompt on a schedule: `rh schedule add NAME
+--profile PROFILE --cwd DIR --prompt TEXT` with `--every MINUTES`, `--daily HH:MM` or
+`--weekdays HH:MM`, and `rh schedule pause|resume|remove NAME`. Each run opens a session from the
+profile, sends the prompt, and ends with `finding`, `nothing` or `failed` and a first line; the
+harness then stops the session and keeps the run (rustal-harness `docs/SCHEDULE.md`). Marley
+builds no timer. It reads each followed harness's tasks every 15 seconds and lists them in the
+Harness section after the sessions: the name, the schedule and the next run ("every 60 min · next
+14:05", "daily 09:00 · paused"), and the last run's outcome and first line. A run's session is not
+listed among the sessions. A click on a task opens its history in a tab: its runs newest first,
+each with its time, outcome and first line; a click on a run opens its session. A run that ends
+with `finding` raises one Needs you entry, "<task> found something: <first line>", and one
+desktop notice; one that ended while Marley was closed is listed without a notice. Opening the
+entry opens the run's session and sets the session's label `finding.seen` (harness writes on), so
+the entry does not come back after a restart. `nothing` and `failed` raise nothing.
+
 **Try it on a real host** (#758). Scenarios run the second harness through a stand-in `ssh` on
 one machine; a real host is checked by hand. `HOST`, `ROOT` and the `rh` path are yours:
 1. On `HOST`: `rh` installed, `ROOT` owned by the SSH user with mode 0700, `rh --state ROOT serve`

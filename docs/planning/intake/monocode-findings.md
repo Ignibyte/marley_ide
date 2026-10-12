@@ -65,6 +65,7 @@ against Marley's guide and changelog. Nothing of its code is carried over: it is
 6. **Scheduled runs** (medium to large). Recurring prompts for Rusty or the Marley agent,
    reported in Needs you. Per Chad's 2026-10-02 call that agent hosting is the harness's, the
    scheduler may belong in rustal-harness, with Marley showing the runs.
+   Built as #719 (2026-10-12): the harness schedules (its TICKET-118), Marley shows the runs.
 7. **An MCP manager and agent CLI update checks** (small to medium). A Settings page for each
    agent CLI's MCP servers, and a warning when Claude Code is older than the shared plugin needs
    (#709).

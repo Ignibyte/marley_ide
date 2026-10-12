@@ -218,7 +218,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 12],
+    _agent_events: [Subscription; 13],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -963,6 +963,13 @@ enum InboxTarget {
     /// A delegated seat that ended after its caller closed (#716): its session, and its
     /// delegation, marked told once the entry opens it.
     Delegation { seat: String, delegation: String },
+    /// A scheduled run that found something (#719): its harness, its session, and its run,
+    /// marked seen once the entry opens it.
+    Finding {
+        slot: Slot,
+        session: String,
+        run: String,
+    },
     /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
     /// terminal, the connection's generation, and the request as its entry showed it.
     Codex {
@@ -986,10 +993,11 @@ impl Rail {
     /// The globals whose changes redraw rows: agents' events and turns, a terminal's unread mark
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
     /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
-    /// while the Threads view shows, the CLI sessions it lists (#754), and the delegations that
-    /// ended after their caller closed (#716).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 12] {
+    /// while the Threads view shows, the CLI sessions it lists (#754), the delegations that
+    /// ended after their caller closed (#716), and the harnesses' scheduled tasks (#719).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 13] {
         [
+            cx.observe_global_in::<crate::schedule_runs::Schedules>(window, Self::refresh),
             cx.observe_global_in::<crate::plan_review::PendingPlans>(window, Self::refresh),
             cx.observe_global_in::<crate::delegation::Delegations>(window, Self::refresh),
             cx.observe_global_in::<Harness>(window, Self::refresh),
@@ -2016,7 +2024,8 @@ impl Rail {
                         InboxTarget::Click(_)
                         | InboxTarget::Harness(..)
                         | InboxTarget::Manager(_)
-                        | InboxTarget::Delegation { .. },
+                        | InboxTarget::Delegation { .. }
+                        | InboxTarget::Finding { .. },
                     )
                     | None => false,
                 };
@@ -2334,6 +2343,10 @@ impl Rail {
                 self.open_harness(&Slot::Primary, &seat, window, cx);
                 crate::delegation::mark_told(&seat, &delegation, cx);
             }
+            Some(InboxTarget::Finding { slot, session, run }) => {
+                self.open_harness(&slot, &session, window, cx);
+                crate::schedule_runs::mark_seen(&slot, &session, &run, cx);
+            }
             None => {}
         }
     }
@@ -2370,6 +2383,18 @@ impl Rail {
             cx,
             move |workspace, window, cx| crate::harness::open(workspace, &slot, &id, window, cx),
         );
+    }
+
+    /// Opens the history of `slot`'s scheduled task `task` in a tab of the shown group (#719).
+    fn open_schedule(&self, slot: &Slot, task: &str, window: &Window, cx: &mut Context<Self>) {
+        let Some(shown) = self
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
+        else {
+            return;
+        };
+        crate::schedule_runs::open_history(shown, slot.clone(), task.to_string(), window, cx);
     }
 
     /// The inbox (#508): the agents that wait on the user, oldest first, over the projects,
@@ -2671,7 +2696,8 @@ impl Rail {
                 | InboxTarget::Plan(_)
                 | InboxTarget::Harness(..)
                 | InboxTarget::Manager(_)
-                | InboxTarget::Delegation { .. },
+                | InboxTarget::Delegation { .. }
+                | InboxTarget::Finding { .. },
             )
             | None => {}
         }
@@ -4958,7 +4984,14 @@ impl Rail {
             crate::harness::seats_of(slot, cx)
                 .seats()
                 .iter()
+                // A scheduled run's session is reached from its task's row (#719).
+                .filter(|seat| !crate::schedule_runs::is_run(seat))
                 .map(|seat| harness_row(slot, seat, stale, quiet_after_ms, now, cx))
+                .chain(
+                    crate::schedule_runs::tasks_of(slot, cx)
+                        .iter()
+                        .map(|task| schedule_row(slot, task, stale, cx)),
+                )
                 .collect()
         };
         let (title, key) = slot.name().map_or_else(
@@ -7608,6 +7641,51 @@ fn harness_row(
     with_seat_menu(row, menu_slot, profile, manager, &element, cx)
 }
 
+/// A scheduled task's row under its harness's sessions (#719): its schedule and next run, and its
+/// last run's outcome; a click opens its history.
+fn schedule_row(
+    slot: &Slot,
+    task: &crate::schedule_runs::ScheduledTask,
+    stale: bool,
+    cx: &Context<Rail>,
+) -> AnyElement {
+    let (last, color) = crate::schedule_runs::last_run_words(task);
+    let lines = vec![
+        RowLine::muted(crate::schedule_runs::schedule_words(task)),
+        RowLine {
+            text: last,
+            state: None,
+            color: if stale { Color::Muted } else { color },
+            cut: Cut::End,
+        },
+    ];
+    let icon = Icon::new(IconName::Clock)
+        .size(IconSize::Small)
+        .color(Color::Muted)
+        .into_any_element();
+    let title = Label::new(task.name.clone())
+        .size(LabelSize::Small)
+        .color(if stale { Color::Muted } else { Color::Default })
+        .truncate()
+        .into_any_element();
+    // Two harnesses may each hold a task of the same name (#740).
+    let element = slot
+        .name()
+        .map_or_else(|| task.name.clone(), |name| format!("{name}-{}", task.name));
+    let (slot, name) = (slot.clone(), task.name.clone());
+    row_card(
+        SharedString::from(format!("marley-rail-schedule-{element}")),
+        format!("marley-rail-schedule-icon-{element}"),
+        false,
+        icon,
+        title,
+        lines,
+        cx,
+    )
+    .on_click(cx.listener(move |rail, _, window, cx| rail.open_schedule(&slot, &name, window, cx)))
+    .into_any_element()
+}
+
 /// A harness row with its right-click menu, in the group the window shows: Open as Thread on a
 /// seat a profile opened, the seat's thread through the harness's ACP window (#742), and Open
 /// Manager Thread on the manager's row (#758).
@@ -7899,6 +7977,43 @@ fn manager_entries(snapshot: &mut Snapshot, cx: &App) {
                     route: None,
                 });
             }
+        }
+    }
+}
+
+/// Each scheduled run that found something and that the user has not opened, as an inbox entry
+/// under its harness that opens the run's session (#719).
+fn finding_entries(snapshot: &mut Snapshot, cx: &App) {
+    for slot in crate::harness::slots(cx) {
+        let project = slot
+            .name()
+            .map_or_else(|| "Harness".to_string(), |name| format!("Harness · {name}"));
+        for finding in crate::schedule_runs::findings(&slot, cx) {
+            let key = format!("finding:{}", finding.run);
+            let ask = match finding.line.as_deref().filter(|line| !line.is_empty()) {
+                Some(line) => format!("{} found something: {}", finding.task, one_line(line)),
+                None => format!("{} found something", finding.task),
+            };
+            snapshot.inbox.insert(
+                key.clone(),
+                InboxTarget::Finding {
+                    slot: slot.clone(),
+                    session: finding.session,
+                    run: finding.run,
+                },
+            );
+            snapshot.rail.inbox.push(InboxEntry {
+                key,
+                kind: InboxKind::Harness,
+                agent: finding.task,
+                project: project.clone(),
+                ask,
+                waited: String::new(),
+                answers: Vec::new(),
+                chips: Vec::new(),
+                level: 0,
+                route: None,
+            });
         }
     }
 }
@@ -9171,6 +9286,7 @@ fn build_snapshot(
     }
     harness_entries(&mut snapshot, cx);
     manager_entries(&mut snapshot, cx);
+    finding_entries(&mut snapshot, cx);
     snapshot.rail.filtering = !filter.is_empty();
     note_focus(
         &mut snapshot,

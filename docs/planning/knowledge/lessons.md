@@ -5798,3 +5798,14 @@ minute, a worktree in seconds more) answers `starting` once the user allows it, 
 and goes on in the background, a failure shown as a notification. A seat also refuses a send until
 it is idle, so the first prompt is sent again with the same delivery id until it is taken, which
 the harness's retry rule makes safe.
+
+## L-claude-719-start-the-harness-before-a-private-session-bus-001
+*category: e2e · topic: scenarios that run a real harness and a private notification bus · from: pipeline 719*
+
+rustal-harness launches a session's process through the user's own session bus. A scenario that
+exports a private `DBUS_SESSION_BUS_ADDRESS` (#688's notification server, so no banner reaches the
+user's desktop) before `rh serve` starts gives the runtime that private bus, and every session it
+opens then fails: "launch process proof was not confirmed", and a scheduled run reads `failed`.
+Start `rh serve` first and switch the bus for Marley after it. Record the runtime's pid in setup and
+stop it in teardown after `rh shutdown`: a runtime that does not take the shutdown outlives its
+deleted root.

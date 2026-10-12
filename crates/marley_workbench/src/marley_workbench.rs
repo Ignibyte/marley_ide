@@ -103,6 +103,7 @@ pub mod running_errors;
 pub mod rustal_skill;
 pub mod rusty;
 pub mod safe_write;
+pub mod schedule_runs;
 pub mod scrollback;
 pub mod send_block;
 pub mod send_selection;

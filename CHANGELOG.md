@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Scheduled runs** (#719, 2026-10-12). The rail's Harness section lists the harness's scheduled
+  tasks with their next run and last outcome, and a task's history opens in a tab, each run
+  opening its session. A run that found something raises one Needs you entry and a desktop
+  notice; opening the entry marks it seen on the harness, so it stays gone after a restart. The
+  harness keeps the tasks and runs them (rustal-harness TICKET-118).
+
 - **Agents that start agents** (#716, 2026-10-12). An agent in a Marley terminal can start another
   agent with `agent_start`, after you allow it: a harness seat with its first prompt, beside the
   caller or in a new worktree. The harness keeps the record, and when the new agent's turn ends
@@ -1446,6 +1452,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **Two dependencies past new security advisories** (#719, 2026-10-12). `ammonia` 4.1.7
+  (RUSTSEC-2021-0157, CSS `url("")` escaping) and `quinn-proto` 0.11.18 (RUSTSEC-2026-0338, -0340,
+  -0343, panics a remote peer can cause), patch releases taken in `Cargo.lock`.
 
 - **`c` makes a note in the Plan tab again** (#729). Since #728 the key did nothing after a drag
   over the plan's text; it now makes the note, and still types into a question card's field.

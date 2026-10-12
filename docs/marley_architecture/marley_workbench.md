@@ -2345,6 +2345,31 @@ alike.
   `Delegations`. `harness::write_tool` and `read_tool` are the crate's calls to a harness tool from
   outside a session's tab.
 
+## Scheduled runs (`src/schedule_runs.rs`, #719)
+
+- rustal-harness keeps the tasks, runs each in a session it opens from the task's profile and stops
+  after the run, and records the outcome (TICKET-118, its `docs/SCHEDULE.md`); Marley builds no
+  timer. The global `Schedules` holds, per `Slot`, the tasks from the last `schedule_tasks` read and
+  what Marley did about the findings: each one's first line, the ones being read, the ones given a
+  notice or waiting for their line to get it, and the ones the user opened.
+- `harness::connected` calls `schedule_runs::poll` after `follow_thread`; it reads `schedule_tasks`
+  through `harness::read_tool` once 15 seconds have passed. An error, an unknown tool among them,
+  leaves no tasks: a harness without the scheduler shows none.
+- `harness::change_seats` ends with `schedule_runs::follow`: each session labelled
+  `schedule.outcome: finding` without `finding.seen` is a finding. A finding whose first line is
+  unknown is read with `schedule_run`; one whose session last changed after `Schedules` was made
+  (Marley's first connection) gets one desktop notice, tagged by run, once its line is read.
+- The rail: `harness_section` leaves out sessions labelled `schedule.run` and adds `schedule_row`
+  per task after the sessions (the schedule and the next run, or "paused"; the last run's outcome
+  and first line, colored by `outcome_of`); a click opens `ScheduleView` in the Home group
+  (`open_history`). `finding_entries` lists each finding as an `InboxTarget::Finding`, which opens
+  the run's session and calls `mark_seen`: the run is seen locally at once, and `session_label`
+  sets `finding.seen` (a first segment the harness does not reserve; it reserves `schedule.`). The
+  rail observes `Schedules`.
+- `ScheduleView` reads `schedule_runs {task, limit: 32}` when it opens and again when the task's
+  `last_run` changes; each row, newest first, shows the run's local time, its outcome and its first
+  line, and a click opens the run's session with `harness::open_in_home`.
+
 ## A new agent on a harness (`src/harness_seat.rs`, `src/agents.rs`, #741)
 
 - The New Agent picker's `Place::Harness { slot, name }` follows Browse…, one per

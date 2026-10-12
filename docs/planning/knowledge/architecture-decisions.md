@@ -5398,3 +5398,18 @@ prompt, after a restart too, and lists a delegation whose caller is closed in Ne
 start asks the user (Sensitive), and the seat keeps its CLI's own prompts. Rejected: a plain CLI in
 a terminal with Marley's own store (lost with Marley, and hosting in Marley), the harness's
 delegated work (operator offers only) and agent mail (harness sessions only).
+
+## AD-claude-719-scheduled-runs-are-the-harnesss-and-a-findings-seen-is-its-sessions-label-001
+*decided at: 2026-10-12 · status: shipped*
+
+Scheduled tasks and their runs belong to rustal-harness (Chad, 2026-10-11; its TICKET-118): it
+keeps the tasks, opens a session per run, records the outcome, and stops the session. Marley
+builds no timer and stores nothing: it reads `schedule_tasks` every 15 seconds for the rail, reads
+a task's runs for its history tab, and finds a run that found something on the fleet, a session
+labelled `schedule.outcome: finding`. The user's "seen" is the session's label `finding.seen`, set
+with `session_label` when the Needs you entry opens it, so a restart does not raise it again; the
+harness reserves the `schedule.` segment, so the key starts with `finding`. A notice goes only to a
+run that ended after Marley connected. A run's session is listed under its task, not among the
+harness's sessions, so a daily task adds no row a day. Rejected: a timer in Marley (lost with
+Marley, and hosting in Marley), and a seen list on Marley's disk (a second record of the harness's
+runs).
