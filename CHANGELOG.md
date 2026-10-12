@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Follow Omarchy's theme** (#759, 2026-10-11). On Omarchy, Follow Omarchy's Theme in the
+  Layout section (off by default) draws Marley in the desktop's theme. Omarchy fills Marley's theme
+  template at each theme switch and a hook copies the result into Marley's themes folder, so the
+  editor, the panels and the terminal's 16 colours change with the desktop, light or dark, with no
+  restart. Turning it off puts back the theme you had and removes what Marley wrote. Without
+  Omarchy it does nothing.
+
 - **File choosers, downloads and Take Over in the Browser tab** (#767, 2026-10-11). A page's
   Choose File opens Zed's path prompt for you; one an agent's click opened waits in a bar until
   the agent answers it with `browser_upload` or you choose. Downloads land in your Downloads

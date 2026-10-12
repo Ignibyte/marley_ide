@@ -3044,8 +3044,8 @@ Commands with no key of their own, from the command palette:
 
 Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (Ctrl+Alt+, opens
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
-first in the list (#515). The page has a Layout section, with the layout as a dropdown and the
-Prompt Editor toggle (#627), an Agents
+first in the list (#515). The page has a Layout section, with the layout as a dropdown, the
+Prompt Editor toggle (#627) and Follow Omarchy's Theme (#759), an Agents
 section with Redact Secrets for Agents (#516), Codex App Server (#650) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
 Untested Claude Code (#648) and App Server on Untested Codex (#650), a Voice section with the Voice toggle (#642), a Rusty
 section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
@@ -3061,6 +3061,9 @@ Marley's own keys in the file:
     "layout": "marley",
     // The shell's prompt editor at every prompt (true, the default), or only on Ctrl+G (#627).
     "prompt_editor": true,
+    // On Omarchy, draw Marley in the desktop's theme and follow each theme switch (#759). Off by
+    // default.
+    "omarchy_theme": false,
     // Hide secrets in what Marley's tools give agents (true by default), and more to hide: each
     // entry is a regular expression, and one that does not compile is named in a notification.
     "redact_secrets_for_agents": true,
@@ -3106,6 +3109,21 @@ looks like the default and has no reset control.
 Telemetry is off by default in Marley (#514): `telemetry.metrics` and `telemetry.diagnostics`
 default to false, and turning either on works as in Zed.
 
+On Omarchy, **Follow Omarchy's Theme** (`marley.omarchy_theme`, off by default) draws Marley in the
+desktop's theme (#759). Turned on, Marley writes a theme template to
+`~/.config/omarchy/themed/marley.json.tpl` and a hook to
+`~/.config/omarchy/hooks/theme-set.d/marley-theme`. At each theme switch Omarchy fills the template
+with the theme's colours and the hook copies the result to `~/.config/marley/themes/omarchy.json`,
+which Marley reloads like any theme file there: the editor, the panels and the terminal's 16
+colours change with the desktop, light or dark as the theme is, with no restart. When the current
+theme has no render yet, turning it on runs `omarchy-theme-refresh` once, which re-applies the
+theme, so Hyprland and the terminals reload too. Marley selects the "Omarchy" theme and remembers
+the one it replaced. Turning it off puts that one back, unless you picked another theme meanwhile,
+and removes the hook and the copy. The template stays Marley's while its first line is Marley's
+comment; delete that line to keep your own edits, and Marley neither rewrites nor removes the file.
+A render with a colour Omarchy could not fill keeps the last good copy. Without Omarchy the setting
+does nothing.
+
 Environment variables and flags:
 
 | Name | Read by | What it does |
@@ -3114,6 +3132,8 @@ Environment variables and flags:
 | `MARLEY_SYSTEM_ONE_KEY` | Marley | The System One layer's key; it comes before the keyring |
 | `MARLEY_CLOUDFLARE_API_TOKEN` | Marley | The `cloudflare` provider's API token (#548); it comes before the keyring |
 | `MARLEY_RH` | Marley | The harness's `rh` to run when `embedded_harness` is on; when set, the PATH is not searched |
+| `MARLEY_OMARCHY_HOME` | Marley | The home folder Omarchy's `.config/omarchy` and `.local/state/omarchy` are read under, for Follow Omarchy's Theme (default `$HOME`) |
+| `MARLEY_OMARCHY_REFRESH` | Marley | The program that re-applies Omarchy's current theme (default `omarchy-theme-refresh` on the PATH) |
 | `MARLEY_MCP_ENDPOINT` | The bridge | The endpoint file to read |
 | `CLAUDE_CONFIG_DIR` | Marley | Claude Code's configuration directory, for whether the plugin is installed (default `~/.claude`) |
 | `ZED_LOG`, `RUST_LOG` | Marley | The log filter. It matches the crate a line is logged from: `ZED_LOG=marley_browser=debug` logs each input-to-frame time, and `marley_workbench::browser` names the Browser tab's own lines |

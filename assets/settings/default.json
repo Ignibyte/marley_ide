@@ -1899,6 +1899,11 @@
     // state (working, waiting on you and for what, idle) to the rail. Applies to terminals opened
     // after the change. A Claude Code under a managed disableSideloadFlags refuses to start with it.
     "claude_code_shared_plugin": false,
+    // Follow Omarchy's theme (#759): on Omarchy, Marley's theme template is rendered at each
+    // theme switch and a hook copies it into Marley's themes folder. Turning it on applies
+    // Omarchy's current theme once and selects the "Omarchy" theme; off puts back the theme
+    // chosen before. Without Omarchy it does nothing.
+    "omarchy_theme": false,
     // The rustal-ste skill for Marley's agents (#725): Simplified Technical English with Rustal's
     // glossary, verbs and message shapes, for what one agent writes to another. Zed's agent gets it
     // built in, Claude Code in Marley's terminals and the Marley entry through a plugin folder, and

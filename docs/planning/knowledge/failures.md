@@ -3894,3 +3894,14 @@ chip went had nothing to take, the key went to the page, and the bar was gone: t
 check failed with "browser_click was not refused". Fixed in #767: `last_agent`, set with each
 action and never cleared, holds who acted.
 
+## F-claude-759-the-theme-template-drew-secondary-text-in-omarchys-border-shade-001
+*severity: low · found in: pipeline 759's Test, the first run's 759-03-on · class: a palette slot used for a role it was not made for*
+
+The first template took `text.muted`, the placeholders, hints, comments and the punctuation's
+brackets and delimiters from Omarchy's `muted`, as Omarchy's VS Code template does. In tokyo-night
+`muted` is `#414868` on `#1a1b26`, a border shade, and Zed draws far more secondary text with
+`text.muted` than VS Code's description foreground: the rail's row subtitles, the breadcrumb and
+the semicolons were close to invisible in the shot. Fixed in #759: secondary text is
+`{{ mix foreground background 35% }}` (`#777d98` in tokyo-night, near Tokyo Night's own
+`#787c99`), and placeholders, hints, comments and ignored files take `dark_foreground`, which is
+the comment colour of both stock palettes' upstream themes. Borders and backgrounds keep `muted`.

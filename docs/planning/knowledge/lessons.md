@@ -5609,3 +5609,12 @@ under the toolbar, which pushes the page down by its height (about 28 pixels at 
 A scenario that clicks page coordinates after an agent navigated calibrates them with the bar
 there; #767's first click on Choose File landed on blank page above the button.
 
+## L-claude-759-omarchys-muted-is-a-border-shade-not-a-text-colour-001
+*category: theming · topic: Omarchy's colour slots in a Zed theme · from: pipeline 759*
+
+Omarchy's `muted` (`color8`) is a surface and border shade; in dark palettes it sits at about 2:1
+against `background`. A Zed theme built from Omarchy's slots reads text from `foreground`, from
+`dark_foreground` for comments and placeholders, and from a `mix` of `foreground` toward
+`background` for secondary text, and keeps `muted` for borders, scrollbars and backgrounds.
+Render the template with `omarchy-theme-set-templates` under a scratch HOME to read the values
+before a run.

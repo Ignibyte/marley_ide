@@ -77,6 +77,7 @@ pub mod mcp;
 pub mod mcp_server_form;
 pub mod mcp_servers;
 pub mod notifications;
+pub mod omarchy_theme;
 pub mod panel_tabs;
 pub mod playwright_scripts;
 pub mod ports;
@@ -1001,6 +1002,7 @@ pub fn init(cx: &mut App) {
     claude_plugin::init(cx);
     claude_ide::init(cx);
     shared_plugin::init(cx);
+    omarchy_theme::init(cx);
     rustal_skill::init(cx);
     notifications::init(cx);
     close_guard::init(cx);

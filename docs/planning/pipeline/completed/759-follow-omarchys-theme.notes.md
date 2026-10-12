@@ -1,6 +1,6 @@
 # Follow Omarchy's theme — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-759-follow-omarchys-theme.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-759-follow-omarchys-theme.md
 - **Pipeline spec:** 759-follow-omarchys-theme.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-11)
@@ -174,8 +174,95 @@
 - **A theme named "Omarchy" from an extension** would collide in the registry. None is installed
   here; the later load wins.
 
-## Phase 2 — Code
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/` at `28759687d8`; the BACKLOG row removed; the ticket in
+  progress. Brain: consultation 0884411c91114017bf67a5b222bae860; Rusty's own theme follower
+  (TICKET-029 there) reads `~/.local/state/omarchy/current/theme`, Omarchy 4's path, falling back
+  to Omarchy 3's; the hook here names Omarchy 4's, as Omarchy's own app hooks do.
+- **Seams checked again** (an Explore pass). What moved or differs:
+  - `crates/zed/src/main.rs`: `load_user_themes_in_background` 1944-1994, `watch_themes`
+    1996-2028, started at 882-883; both call `load_user_theme(&registry, &bytes)` and then
+    `theme_settings::reload_theme`.
+  - **Two corrections to the design:** `theme` and `theme_settings` are only dev-dependencies of
+    `marley_workbench` (`Cargo.toml:114-115`), so they move to `[dependencies]`; and the settings
+    observer reloads only when the theme's name or overrides change, so loading a changed family
+    under the same name needs an explicit `theme_settings::reload_theme(cx)`, as `main.rs` does.
+  - `theme_settings`: `load_user_theme(registry: &ThemeRegistry, bytes: &[u8])` 244, public;
+    `reload_theme` 204; `ThemeRegistry::global(cx)` (`registry.rs:84`). The `theme` setting's
+    path is `.theme.theme` (`ThemeSelection`, `settings_content/src/theme.rs:328-341`); the user's
+    file through `raw_user_settings()`; Marley writes through `settings::update_settings_file`
+    (as `links.rs:221`).
+  - `claude_plugin.rs` shows its toast in one workspace; every workspace is
+    `mcp::all_workspaces(cx)` from a task.
+  - Lines: `shared_plugin::init` at `marley_workbench.rs:1003`; `default.json`'s
+    `claude_code_shared_plugin` at 1897-1901; `layout_section` `[SettingsPageItem; 6]` at
+    `marley_page.rs:59-168`; the runner's scrub at `script/e2e.sh:665-699`, exports at 703-708;
+    ledger rows 59, 63, 68.
+  - Omarchy here: `omarchy-hook` runs each `theme-set.d` file but `*.sample` with `bash`;
+    `theme-set.d` exists and is empty; `tokyo-night` and `catppuccin-latte` ship `colors.toml`.
+    The current theme (dazzle-dusk) ships its own `aether.zed.json`, no `marley.json`.
 
-## Phase 3 — Test
+## Phase 2 — Code (2026-10-11)
+- **Built:** `marley_workbench/src/omarchy_theme.rs` (`OmarchyPaths`, `refresh_program`,
+  `template_is_marleys`, `install_in`, `copy_render`, `write_file`, `remove_in`, the
+  `OmarchyTheme` global, `init`, `reconcile`, `turn_on`, `select`, `turn_off`, `user_theme`,
+  `names_omarchy`, `show_warning`); `omarchy/marley.json.tpl` and `omarchy/theme-set-hook.sh`;
+  `init` beside `shared_plugin::init`; `theme` and `theme_settings` moved to `[dependencies]`;
+  `process.rs`'s doc and `.config/spawn-sites.txt` name `omarchy-theme-refresh`. Zed side: the
+  setting (`settings_content/src/marley.rs`), its default and comment (`default.json`), the
+  seventh Layout item (`settings_ui/src/marley_page.rs`), their three ledger rows extended. The
+  runner's copy and exports; the guide's Settings section and two variables.
+- **Deviations from the design:** the template's text keys left `muted` after the Test phase's
+  first shot (F-claude-759-…): secondary text is a mix of `foreground` toward `background`, and
+  comments, placeholders and hints take `dark_foreground`, against D8's "comment `muted`".
+- **The review:** the refresh runs only when turned on after start, never at start; the switch
+  is read again after the refresh; the replaced selection is kept only when it does not already
+  name "Omarchy", so turning it on twice keeps the first; restore happens only while "Omarchy" is
+  still selected (D4); the settings write happens outside any entity update; the file writes go
+  through a temporary file and a rename; a path the shell cannot quote is an error, not a hook.
+  Zed's watcher polls a themes folder that does not exist yet until it does
+  (`fs_watcher.rs:238`), so the first copy is seen.
+- **Clippy found and fixed:** `redundant_closure_for_method_calls`, `needless_pass_by_ref_mut`
+  (three, `AsyncApp` by shared reference), and two compile errors (`TaskExt` in scope, a closure
+  for `cx.update`). `cargo fmt`, then clippy again, clean.
+- **The gate:** `script/gates.sh --diff` green on its first run, 17 of 17, on the tree with the
+  template's fix.
 
-## Phase 4 — Complete
+## Phase 3 — Test (2026-10-11)
+- **The scenario:** `script/e2e/759-follow-omarchys-theme.sh`, under `compositor sway`. A fake
+  Omarchy home with tokyo-night's and catppuccin-latte's `colors.toml`; a `switch` that renders
+  with Omarchy's own `omarchy-theme-set-templates` under the fake HOME and runs the `theme-set.d`
+  hooks; a fake `omarchy-theme-refresh` that logs and switches to the current palette. Exit 0,
+  all 13 checks passing. Shots read (second run, after the template fix):
+  - `759-01-setting`: the Settings window's Marley page, Layout section; Follow Omarchy's Theme
+    last, its description in full, the toggle off (REQ-001).
+  - `759-02-absent`: on, with the fake home empty: Gruvbox Dark everywhere, the terminal's 16
+    colours Gruvbox's; the home still empty, no refresh, `theme` "Gruvbox Dark" (REQ-002).
+  - `759-03-on`: tokyo-night: the navy background, blue accent, Tokyo Night's syntax hues, the
+    terminal's 16 colours tokyo-night's, secondary text legible; `theme` "Omarchy", one refresh,
+    the template, the hook and `omarchy.json` in place, the copy dark (REQ-003, REQ-004).
+  - `759-04-switch`: after the fake switch, the whole window light in latte's colours (red
+    keywords, green strings, the latte terminal palette), the same process; the copy light, no
+    second refresh (REQ-005).
+  - `759-05-off`: Gruvbox Dark again; `theme` "Gruvbox Dark"; the template, the hook and the copy
+    gone; the user's own `themed/` and `theme-set.d/` listings unchanged (REQ-007, REQ-008,
+    REQ-011).
+  - REQ-006: a render with `{{ accent }}` put back in, the hook run by hand: `omarchy.json`
+    byte-for-byte the same.
+- **Fix on the way:** the first run's 759-03 drew the rail's subtitles, the breadcrumb and the
+  semicolons in `#414868`, close to invisible (F-claude-759-…, L-claude-759-…). The template
+  changed; the build and the run again; 759-03 above is the second run's.
+- **What no scenario shows:** a start with the setting on (REQ-009) and the toasts (REQ-010),
+  read in the diff as the visual check plan says.
+
+## Phase 4 — Complete (2026-10-11)
+- **Documented:** `CHANGELOG.md` (Added, #759); the guide (the Layout list, the settings block, a
+  paragraph on Follow Omarchy's Theme, `MARLEY_OMARCHY_HOME` and `MARLEY_OMARCHY_REFRESH` in the
+  variables table); `marley_workbench.md` (a new section). The three ledger rows describe what
+  shipped.
+- **Knowledge appended:**
+  AD-claude-759-marley-follows-omarchys-theme-through-omarchys-own-templates-001;
+  F-claude-759-the-theme-template-drew-secondary-text-in-omarchys-border-shade-001;
+  L-claude-759-omarchys-muted-is-a-border-shade-not-a-text-colour-001.
+- **Brain:** consultation 0884411c91114017bf67a5b222bae860 closed with a decision.
+- **Closed:** the ticket moved to `closed/`, the pipeline archived, committed.

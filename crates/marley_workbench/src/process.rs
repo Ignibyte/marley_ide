@@ -1,8 +1,8 @@
 //! The workbench's one module that starts programs (CONSTITUTION §14, gate:22).
 //!
-//! `claude`, `voxtype`, `git`, `gh`, `rh` and `codex` run through `output`, `follow` and `serve`,
-//! and nothing else in the crate spawns a process. A program the workbench runs goes through one of them, so the
-//! gate's count of spawn calls stays where it is.
+//! `claude`, `voxtype`, `git`, `gh`, `rh`, `codex` and `omarchy-theme-refresh` run through `output`,
+//! `follow` and `serve`, and nothing else in the crate spawns a process. A program the workbench
+//! runs goes through one of them, so the gate's count of spawn calls stays where it is.
 
 use std::ffi::OsStr;
 use std::path::Path;

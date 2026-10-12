@@ -5147,3 +5147,15 @@ after an agent acted, the same words and refusal, checked when a write starts. R
 generation that fails a queued write (a browser write is one short action), a folder Marley
 invents for downloads, and opening the path prompt for an agent's chooser.
 
+## AD-claude-759-marley-follows-omarchys-theme-through-omarchys-own-templates-001
+*decided at: 2026-10-11 · status: shipped · builds on: L-claude-725-a-default-on-feature-that-writes-outside-marley-must-be-off-in-e2e-001*
+
+Following Omarchy's theme is one switch, `marley.omarchy_theme`, off by default. Omarchy renders
+Marley's template at each theme switch, and a `theme-set.d` hook copies the render into Marley's
+themes folder, where Zed's own theme watcher reloads it. Marley renders nothing: turned on with no
+render there, it runs `omarchy-theme-refresh` once. The setting names the theme ("Omarchy"), and
+the replaced selection is kept in the key-value store and put back on off only while "Omarchy" is
+still selected. The template is Marley's while its first line is the marker. Rejected: a symlink
+into Omarchy's state folder (the watcher never sees the target change), a Marley watcher on that
+folder, rendering `colors.toml` inside Marley (a second renderer to keep in step with Omarchy),
+and drawing the theme over the setting at runtime (Zed's observers put the configured theme back).

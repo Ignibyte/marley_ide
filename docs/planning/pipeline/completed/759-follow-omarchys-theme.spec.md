@@ -1,7 +1,7 @@
 ---
 pipeline_id: b5d2ed0d-3532-4f4a-a7f4-677fa9203da9
-ticket: docs/planning/tickets/open/TICKET-759-follow-omarchys-theme.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-759-follow-omarchys-theme.md
+status: Phase 4 — Complete PASS
 title: Follow Omarchy's theme
 type: feature
 slice: the finish line (docs/planning/design-notes/finish-line-2026-10-11.md), item 9, follow Omarchy's theme

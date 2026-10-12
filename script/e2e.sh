@@ -688,6 +688,9 @@ marley["assistant"] = {"enabled": False}
 # The rustal-ste skill is on by default and writes a copy into Codex's skills folder (#725); the
 # copy turns it off. #725's own scenario turns it on, with CODEX_HOME in the run's folder.
 marley["rustal_ste_skill"] = False
+# Following Omarchy's theme writes into the user's Omarchy (#759); the copy turns it off, and the
+# exports below point a run's Omarchy at an empty folder. #759's own scenario turns it on.
+marley["omarchy_theme"] = False
 for font in ("ui_font_size", "ui_font_family", "buffer_font_size", "buffer_font_family",
              "agent_ui_font_size", "agent_buffer_font_size"):
     settings.pop(font, None)
@@ -706,6 +709,9 @@ export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 export MARLEY_CODEX=$E2E_WORK/no-codex
 # Nor does it write into the user's Codex home (#725): a run's Codex home is its own.
 export CODEX_HOME=$E2E_WORK/codex-home
+# Nor at the user's Omarchy (#759): a run's is empty, and its refresh a program that is not there.
+export MARLEY_OMARCHY_HOME=$E2E_WORK/omarchy-home
+export MARLEY_OMARCHY_REFRESH=$E2E_WORK/no-omarchy-refresh
 cp -r "$data/db" "$E2E_PROFILE/db"
 # The user's graph settings stay out of every run: their groups name the user's tags and folders
 # (R-D8), and their sliders would change what a scenario sees (#657).

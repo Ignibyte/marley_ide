@@ -56,7 +56,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 6] {
+fn layout_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -159,6 +159,29 @@ fn layout_section() -> [SettingsPageItem; 6] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().english_hint = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: follow Omarchy's theme (#759).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Follow Omarchy's Theme",
+            description: "On Omarchy, follow the desktop's theme: Omarchy renders Marley's theme at each theme switch. Turning it on re-applies Omarchy's current theme once. Off puts back the theme chosen before. Nothing happens without Omarchy.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.omarchy_theme"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.omarchy_theme.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .omarchy_theme = value;
                 },
             }),
             metadata: None,

@@ -2036,6 +2036,35 @@ alike.
 - **`plugin_folder`** gives the digest path for the Marley entry's `CLAUDE_CODE_PLUGIN_DIRS`
   (`assistant.rs`). Terminals take it through `identity::plugin_dirs`, after the shared plugin.
 
+## Following Omarchy's theme (`src/omarchy_theme.rs`, `omarchy/`, #759)
+
+- **The files.** `omarchy/marley.json.tpl` is a Zed theme family, "Omarchy", written in Omarchy's
+  template language (`{{ key }}`, `{{ mix a b N% }}`, two-digit alpha suffixes); its first line is
+  the marker comment. `omarchy/theme-set-hook.sh` copies the render to `omarchy.json` in Marley's
+  themes folder through a temporary file, and skips a render with `{{` left. Both are embedded with
+  `include_str!`.
+- **`OmarchyPaths`** puts everything under `MARLEY_OMARCHY_HOME`, else the home folder:
+  - the template in `.config/omarchy/themed/`;
+  - the hook as `.config/omarchy/hooks/theme-set.d/marley-theme`;
+  - the render at `.local/state/omarchy/current/theme/marley.json`.
+
+  `present` wants the current theme's `colors.toml` and the config folder.
+- **`reconcile`** runs at start and on each settings change. It acts only when
+  `marley.omarchy_theme` differs from what the `OmarchyTheme` global last applied. While an apply
+  runs, `running` holds the next one back; the apply reconciles again when it ends.
+  - On, it runs `install_in`: the template while missing or marked, the hook with its two paths
+    quoted by `shlex` (mode 755), and a render newer than the copy. At start it stops there.
+  - Turned on later, it also:
+    1. runs `omarchy-theme-refresh` (`MARLEY_OMARCHY_REFRESH`) through `process::run_program`
+       when no render is there;
+    2. checks the switch again;
+    3. calls `select`: `load_user_theme`, `reload_theme`, the replaced selection kept as JSON in
+       the key-value store (scope `marley-omarchy-theme`), and `theme` written as "Omarchy".
+  - Off: the kept selection goes back while `theme` still names "Omarchy", then `remove_in`
+    deletes the hook, the copy, and the template while marked.
+- **At each switch** Zed's own `watch_themes` reloads `omarchy.json`; Marley takes no part.
+- **Errors** go to a toast in every workspace (`show_warning`) and to the log.
+
 ## Palette actions for agents (`src/action_tools.rs`, #707)
 
 - **Who may run what:** `ALLOWED` (37 names) and the user's

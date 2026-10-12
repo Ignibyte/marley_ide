@@ -231,6 +231,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub claude_code_shared_plugin: Option<bool>,
+    /// Whether Marley follows Omarchy's theme (#759): Omarchy renders Marley's theme template at
+    /// each theme switch and a hook copies it into Marley's themes folder. Turning it on applies
+    /// Omarchy's current theme once; off puts back the theme chosen before. Nothing happens
+    /// without Omarchy.
+    ///
+    /// Default: false
+    pub omarchy_theme: Option<bool>,
     /// Whether Marley's agents get the `rustal-ste` skill (#725): Simplified Technical English with
     /// Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent
     /// gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin
