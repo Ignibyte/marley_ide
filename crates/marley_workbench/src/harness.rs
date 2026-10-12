@@ -153,11 +153,18 @@ pub(crate) struct Harness {
     palette_shown: Option<(bool, bool)>,
     /// The `rh` the embedded runtime runs, once found (#691).
     rh: Option<PathBuf>,
-    /// The command of the Agent Panel's Manager entry, while it is in the defaults (#694).
-    manager_entry: Option<(PathBuf, Vec<String>)>,
-    /// How far Marley has read the manager thread, once it has (#688).
-    thread_cursor: Option<u64>,
-    /// The manager's records posted while its thread was not in front, until it is (#688).
+    /// The Manager entries in the defaults, by name, with their commands (#694, #758).
+    manager_entries: collections::HashMap<String, (PathBuf, Vec<String>)>,
+    /// The first harness's manager thread, as Marley follows it (#688).
+    manager: ManagerFollow,
+}
+
+/// How Marley follows one harness's manager thread (#688, #758): how far it has read, once it has,
+/// and the records posted while the thread was not in front, until it is. The first harness keeps
+/// its own in `Harness`, a host's goes in its `Followed`, and goes with it.
+#[derive(Default)]
+pub(crate) struct ManagerFollow {
+    cursor: Option<u64>,
     unread: Vec<ManagerRecord>,
 }
 
@@ -284,19 +291,61 @@ fn set_connection(
     }
 }
 
-/// Changes `slot`'s sessions; the primary's Manager entry follows its own (#694).
+/// Changes `slot`'s sessions; each harness's Manager entry follows its own (#694, #758).
 fn change_seats(slot: &Slot, cx: &mut App, change: impl FnOnce(&mut FleetSnapshot)) {
     match slot {
-        Slot::Primary => {
-            change(&mut cx.global_mut::<Harness>().seats);
-            sync_manager_entry(cx);
-        }
+        Slot::Primary => change(&mut cx.global_mut::<Harness>().seats),
         Slot::Host(name) => {
             if let Some(followed) = crate::harness_hosts::Hosts::get_mut(name, cx) {
                 change(&mut followed.seats);
             }
         }
     }
+    sync_manager_entries(cx);
+}
+
+/// The first harness, then each `marley.harnesses` names, in order.
+pub(crate) fn slots(cx: &App) -> Vec<Slot> {
+    std::iter::once(Slot::Primary)
+        .chain(
+            crate::harness_hosts::Hosts::names(cx)
+                .into_iter()
+                .map(Slot::Host),
+        )
+        .collect()
+}
+
+/// `slot`'s connection, while its harness is followed.
+fn connection_of(slot: &Slot, cx: &App) -> Option<Connection> {
+    match slot {
+        Slot::Primary => Harness::connection(cx),
+        Slot::Host(name) => Some(
+            crate::harness_hosts::Hosts::get(name, cx)?
+                .connection
+                .clone(),
+        ),
+    }
+}
+
+/// `slot`'s manager thread, as Marley follows it, while the harness is followed.
+fn manager_follow<'a>(slot: &Slot, cx: &'a App) -> Option<&'a ManagerFollow> {
+    match slot {
+        Slot::Primary => Some(&cx.try_global::<Harness>()?.manager),
+        Slot::Host(name) => Some(&crate::harness_hosts::Hosts::get(name, cx)?.manager),
+    }
+}
+
+/// `slot`'s manager thread, to change.
+fn manager_follow_mut<'a>(slot: &Slot, cx: &'a mut App) -> Option<&'a mut ManagerFollow> {
+    match slot {
+        Slot::Primary => Some(&mut cx.global_mut::<Harness>().manager),
+        Slot::Host(name) => Some(&mut crate::harness_hosts::Hosts::get_mut(name, cx)?.manager),
+    }
+}
+
+/// The records `slot`'s manager posted that the user has not seen (#688, #758).
+pub(crate) fn unread_of<'a>(slot: &Slot, cx: &'a App) -> &'a [ManagerRecord] {
+    manager_follow(slot, cx).map_or(&[], |follow| follow.unread.as_slice())
 }
 
 /// Bumps `slot`'s minute, so the rail draws a working session's `no update in N m` again.
@@ -368,12 +417,6 @@ impl Harness {
         }
     }
 
-    /// The manager's records the user has not seen (#688).
-    pub(crate) fn unread(cx: &App) -> &[ManagerRecord] {
-        cx.try_global::<Self>()
-            .map_or(&[], |harness| harness.unread.as_slice())
-    }
-
     /// The harness's sessions, in the order the harness first published them.
     pub(crate) fn seats(cx: &App) -> &FleetSnapshot {
         static NONE: std::sync::LazyLock<FleetSnapshot> =
@@ -423,22 +466,46 @@ pub(crate) fn writes_on(cx: &App) -> bool {
             .is_some_and(|harness| harness.source != Source::Off)
 }
 
-/// The Agent Panel's entry for the root's manager thread, and its key in the agent servers (#694).
+/// The Agent Panel's entry for the first harness's manager thread, and its key in the agent
+/// servers (#694); a host's is `Manager · <name>` (#758).
 pub(crate) const MANAGER_ENTRY: &str = "Manager";
 
-/// Whether the followed harness has a manager: a session labelled `role: manager`, which the
-/// harness moves with the designation.
-fn has_manager(cx: &App) -> bool {
-    Harness::seats(cx).seats().iter().any(|seat| {
+/// The name of `slot`'s Manager entry: `Manager` for the first harness, which saved threads and
+/// earlier scenarios use, and `Manager · <name>` for a host's, the form seat entries take (#758).
+pub(crate) fn manager_entry_name(slot: &Slot) -> String {
+    slot.name().map_or_else(
+        || MANAGER_ENTRY.to_string(),
+        |name| format!("{MANAGER_ENTRY} · {name}"),
+    )
+}
+
+/// The harness whose Manager entry `agent` is, while that harness is followed (#758).
+pub(crate) fn manager_of_entry(agent: &project::AgentId, cx: &App) -> Option<Slot> {
+    let name = agent.0.as_ref();
+    let slot = if name == MANAGER_ENTRY {
+        Slot::Primary
+    } else {
+        let host = name.strip_prefix(MANAGER_ENTRY)?.strip_prefix(" · ")?;
+        crate::harness_hosts::Hosts::get(host, cx)?;
+        Slot::Host(SharedString::from(host.to_string()))
+    };
+    seat_command_of(&slot, cx)?;
+    Some(slot)
+}
+
+/// Whether `slot`'s harness has a manager: a session labelled `role: manager`, which the harness
+/// moves with the designation.
+fn has_manager(slot: &Slot, cx: &App) -> bool {
+    seats_of(slot, cx).seats().iter().any(|seat| {
         seat.labels
             .get("role")
             .is_some_and(|role| role == "manager")
     })
 }
 
-/// Whether the user is looking at the manager thread: the active window's workspace shows the
-/// Agent Panel with the Manager agent selected (#688), or a thread tab on it in front (#772).
-fn manager_in_front(cx: &App) -> bool {
+/// Whether the user is looking at `slot`'s manager thread: the active window's workspace shows the
+/// Agent Panel with that Manager entry selected (#688), or a thread tab on it in front (#772).
+fn manager_in_front(slot: &Slot, cx: &App) -> bool {
     let Some(multi_workspace) = cx
         .active_window()
         .and_then(|window| window.downcast::<MultiWorkspace>())
@@ -447,20 +514,14 @@ fn manager_in_front(cx: &App) -> bool {
         return false;
     };
     let workspace = multi_workspace.workspace();
-    let manager = Agent::Custom {
-        id: project::AgentId::new(MANAGER_ENTRY),
-    };
+    let entry = project::AgentId::new(manager_entry_name(slot));
+    let manager = Agent::Custom { id: entry.clone() };
     let in_panel = AgentPanel::is_visible(workspace, cx)
         && workspace
             .read(cx)
             .panel::<AgentPanel>(cx)
             .is_some_and(|panel| panel.read(cx).selected_agent(cx) == manager);
-    in_panel
-        || crate::thread_tab::shows_agent(
-            workspace.read(cx),
-            &project::AgentId::new(MANAGER_ENTRY),
-            cx,
-        )
+    in_panel || crate::thread_tab::shows_agent(workspace.read(cx), &entry, cx)
 }
 
 /// A page of `thread_read` (#688).
@@ -512,100 +573,173 @@ async fn read_thread(
 /// How many pages of the thread one read goes through at most.
 const THREAD_PAGES: usize = 64;
 
-/// Follows the manager thread while the fleet has a manager and the write verbs are on: the first
-/// read goes to the end and raises nothing, and each later one hands the manager's new records to
-/// `manager_posted`. A thread that cannot be read is logged and read again on the next pass.
-async fn follow_thread(server: &ContextServer, cx: &AsyncApp) {
+/// Follows `slot`'s manager thread while its harness has a manager and takes writes, on that
+/// harness's own connection (#758): the first read goes to the end and raises nothing, and each
+/// later one hands the manager's new records to `manager_posted`. A thread that cannot be read is
+/// logged and read again on the next pass. A harness that loses its manager loses its unread
+/// records, and its next manager is read quietly from the end again.
+async fn follow_thread(slot: &Slot, server: &ContextServer, cx: &AsyncApp) {
     let cursor = cx.update(|cx| {
-        (has_manager(cx) && writes_on(cx)).then(|| cx.global::<Harness>().thread_cursor)
+        if has_manager(slot, cx) && writes_on_slot(slot, cx) {
+            return manager_follow(slot, cx).map(|follow| follow.cursor);
+        }
+        if let Some(follow) = manager_follow_mut(slot, cx) {
+            *follow = ManagerFollow::default();
+        }
+        None
     });
     let Some(cursor) = cursor else {
         return;
     };
     match read_thread(server, cursor.unwrap_or(0), cx).await {
         Ok((records, reached)) => cx.update(|cx| {
-            cx.global_mut::<Harness>().thread_cursor = Some(reached);
+            if let Some(follow) = manager_follow_mut(slot, cx) {
+                follow.cursor = Some(reached);
+            }
             if cursor.is_some() {
-                manager_posted(records, cx);
+                manager_posted(slot, records, cx);
             }
         }),
         Err(Failure::Resync) => {
             // Past what the harness keeps: read to the end again, quietly.
-            cx.update(|cx| cx.global_mut::<Harness>().thread_cursor = None);
+            cx.update(|cx| {
+                if let Some(follow) = manager_follow_mut(slot, cx) {
+                    follow.cursor = None;
+                }
+            });
         }
         Err(Failure::Failed(error)) => log::debug!("harness: the manager thread: {error:#}"),
     }
     cx.update(|cx| {
-        if !cx.global::<Harness>().unread.is_empty() && manager_in_front(cx) {
-            cx.global_mut::<Harness>().unread.clear();
+        if !unread_of(slot, cx).is_empty()
+            && manager_in_front(slot, cx)
+            && let Some(follow) = manager_follow_mut(slot, cx)
+        {
+            follow.unread.clear();
         }
     });
 }
 
-/// Raises the manager's new records while its thread is not in front: a desktop notice for each,
-/// and a mark the rail's inbox lists until the thread is in front (#688).
-fn manager_posted(records: Vec<ManagerRecord>, cx: &mut App) {
-    if records.is_empty() || manager_in_front(cx) {
+/// Raises `slot`'s manager's new records while its thread is not in front: a desktop notice for
+/// each, titled with that harness's Manager entry, and a mark the rail's inbox lists until the
+/// thread is in front (#688, #758).
+fn manager_posted(slot: &Slot, records: Vec<ManagerRecord>, cx: &mut App) {
+    if records.is_empty() || manager_in_front(slot, cx) {
         return;
     }
+    let entry = manager_entry_name(slot);
+    let tag = slot
+        .name()
+        .map_or_else(String::new, |name| format!("{name}-"));
     for record in &records {
-        log::info!(
-            "harness: the manager posted a {}: {}",
-            record.kind,
-            record.line
-        );
+        log::info!("harness: {entry} posted a {}: {}", record.kind, record.line);
         cx.show_system_notification(SystemNotification {
-            tag: SharedString::from(format!("marley-manager-{}", record.id)),
-            title: SharedString::from(format!("Manager: {}", record.kind_word())),
+            tag: SharedString::from(format!("marley-manager-{tag}{}", record.id)),
+            title: SharedString::from(format!("{entry}: {}", record.kind_word())),
             body: SharedString::from(record.line.clone()),
             actions: Vec::new(),
         });
     }
-    cx.global_mut::<Harness>().unread.extend(records);
+    if let Some(follow) = manager_follow_mut(slot, cx) {
+        follow.unread.extend(records);
+    }
 }
 
-/// Puts a `Manager` agent server in the settings' in-memory defaults while the write verbs are on
-/// and the followed harness has a manager, a session labelled `role: manager`, which the harness
-/// moves with the designation; takes it out otherwise (#694). It runs the harness's `rh acp`
-/// through the command Marley follows the harness with, as `seat_command` gives it, so a root over
-/// SSH is reached over SSH; the thread it shows is the person's side of the manager's.
-fn sync_manager_entry(cx: &mut App) {
-    let command = (writes_on(cx) && has_manager(cx))
-        .then(|| Harness::seat_command(cx))
-        .flatten()
-        .map(|(program, mut args)| {
-            args.push("acp".to_string());
-            (program, args)
-        });
-    if cx.global::<Harness>().manager_entry == command {
+/// The command of `slot`'s Manager entry: its harness's `rh … acp`, through the command Marley
+/// reaches that harness with, so a root over SSH is reached over SSH. A bare program is found on
+/// Marley's own search path, since Zed runs an agent server in its project's shell environment
+/// (PR-claude-742).
+fn manager_command(slot: &Slot, cx: &App) -> Option<(PathBuf, Vec<String>)> {
+    let (program, mut args, _) = seat_command_of(slot, cx)?;
+    let program = if program.components().count() == 1 {
+        which::which(&program).unwrap_or(program)
+    } else {
+        program
+    };
+    args.push("acp".to_string());
+    Some((program, args))
+}
+
+/// Puts a Manager agent server in the settings' in-memory defaults for each followed harness that
+/// takes writes and has a manager, a session labelled `role: manager`, which the harness moves
+/// with the designation, and takes out each other (#694, #758). The thread an entry shows is the
+/// person's side of that harness's manager's.
+pub(crate) fn sync_manager_entries(cx: &mut App) {
+    let mut wanted: collections::HashMap<String, (PathBuf, Vec<String>)> = slots(cx)
+        .iter()
+        .filter(|slot| writes_on_slot(slot, cx) && has_manager(slot, cx))
+        .filter_map(|slot| Some((manager_entry_name(slot), manager_command(slot, cx)?)))
+        .collect();
+    // An entry made for a saved thread stays while its harness's fleet is not read yet: a
+    // connection counts as up once its fleet is seeded.
+    for (name, command) in &cx.global::<Harness>().manager_entries {
+        if !wanted.contains_key(name)
+            && let Some(slot) = manager_of_entry(&project::AgentId::new(name.clone()), cx)
+            && writes_on_slot(&slot, cx)
+            && connection_of(&slot, cx) != Some(Connection::Connected)
+        {
+            wanted.insert(name.clone(), command.clone());
+        }
+    }
+    if cx.global::<Harness>().manager_entries == wanted {
         return;
     }
+    let gone: Vec<String> = cx
+        .global::<Harness>()
+        .manager_entries
+        .keys()
+        .filter(|name| !wanted.contains_key(*name))
+        .cloned()
+        .collect();
     cx.global_mut::<Harness>()
-        .manager_entry
-        .clone_from(&command);
+        .manager_entries
+        .clone_from(&wanted);
     cx.update_global::<SettingsStore, _>(|store, cx| {
         store.update_default_settings(cx, |defaults| {
             let servers = defaults.agent_servers.get_or_insert_default();
-            match command {
-                Some((path, args)) => {
-                    servers.insert(
-                        MANAGER_ENTRY.to_string(),
-                        settings::CustomAgentServerSettings::Custom {
-                            path,
-                            args,
-                            env: collections::HashMap::default(),
-                            default_mode: None,
-                            default_config_options: collections::HashMap::default(),
-                            favorite_config_option_values: collections::HashMap::default(),
-                        },
-                    );
-                }
-                None => {
-                    servers.remove(MANAGER_ENTRY);
-                }
+            for name in &gone {
+                servers.remove(name);
+            }
+            for (name, (path, args)) in wanted {
+                servers.insert(name, manager_server(path, args));
             }
         });
     });
+}
+
+/// Makes `slot`'s Manager entry if it is not in the defaults yet, so a saved thread on it can
+/// connect before its harness's fleet is read (#758); the next sync keeps it while the harness has
+/// a manager. Its agent id, while the harness is followed.
+pub(crate) fn ensure_manager_entry(slot: &Slot, cx: &mut App) -> Option<project::AgentId> {
+    let name = manager_entry_name(slot);
+    if !cx.global::<Harness>().manager_entries.contains_key(&name) {
+        let (path, args) = manager_command(slot, cx)?;
+        cx.global_mut::<Harness>()
+            .manager_entries
+            .insert(name.clone(), (path.clone(), args.clone()));
+        let entry = name.clone();
+        cx.update_global::<SettingsStore, _>(|store, cx| {
+            store.update_default_settings(cx, |defaults| {
+                defaults
+                    .agent_servers
+                    .get_or_insert_default()
+                    .insert(entry, manager_server(path, args));
+            });
+        });
+    }
+    Some(project::AgentId::new(name))
+}
+
+/// A Manager entry's agent server: `path` with `args`, nothing else set.
+fn manager_server(path: PathBuf, args: Vec<String>) -> settings::CustomAgentServerSettings {
+    settings::CustomAgentServerSettings::Custom {
+        path,
+        args,
+        env: collections::HashMap::default(),
+        default_mode: None,
+        default_config_options: collections::HashMap::default(),
+        favorite_config_option_values: collections::HashMap::default(),
+    }
 }
 
 /// Lists `OpenHarnessSession` in the palette while the write verbs are on, and `NewHarnessSeat`
@@ -648,7 +782,7 @@ fn follow_setting(cx: &mut App) {
     };
     if cx.global::<Harness>().source == source {
         filter_palette(cx);
-        sync_manager_entry(cx);
+        sync_manager_entries(cx);
         return;
     }
     let (run, embed) = match &source {
@@ -670,8 +804,9 @@ fn follow_setting(cx: &mut App) {
     // harness's sessions live on in its tmux server.
     harness.run = run;
     harness.embed = embed;
+    harness.manager = ManagerFollow::default();
     filter_palette(cx);
-    sync_manager_entry(cx);
+    sync_manager_entries(cx);
 }
 
 /// Keeps the runtime Marley runs itself: finds `rh`, serves the root, follows it once it is
@@ -969,10 +1104,8 @@ async fn connected(
                 });
             });
         }
-        // The Manager's thread is the primary harness's alone (#694).
-        if *slot == Slot::Primary {
-            follow_thread(&server, cx).await;
-        }
+        // Each harness's manager thread, on its own connection (#758).
+        follow_thread(slot, &server, cx).await;
         let now = now_minute();
         if now != minute {
             minute = now;

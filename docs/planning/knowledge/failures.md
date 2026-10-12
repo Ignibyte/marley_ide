@@ -3917,3 +3917,13 @@ first connection waits five seconds, showed "client did not become ready within 
 rule already said to keep a scenario's socket folders short; the scenario had not applied it.
 Fixed in #445's scenario: the homes live under `mktemp -d "$XDG_RUNTIME_DIR/m445.XXXXXX"`, removed
 at teardown.
+
+## F-claude-758-an-entry-made-for-a-saved-thread-was-removed-by-the-sync-its-own-write-ran-001
+*severity: medium · found in: pipeline 758's Code, the review of the diff · class: a write to the settings' defaults re-entering the observer that reconciles them*
+
+`ensure_manager_entry` puts a saved Manager thread's entry in the in-memory defaults before its
+harness's fleet is read. That write fires the `SettingsStore` observers, and `follow_setting` runs
+`sync_manager_entries`, which wanted only harnesses with a `role: manager` session and so would
+have removed the entry at once: the restored tab would connect to an agent that is no longer
+there. Fixed before it ran: the sync keeps an entry whose harness is followed with writes while
+its connection is not yet `Connected`, which `connected` sets only after `seed`.

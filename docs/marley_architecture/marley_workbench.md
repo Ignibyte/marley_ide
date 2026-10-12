@@ -1855,15 +1855,15 @@ alike.
     read on the background executor) and the typed name. Confirm calls `session_open` and
     opens the returned id's tab. `filter_palette` lists the action only while `writes_on`.
 
-- **The Manager entry (#694).** `sync_manager_entry` runs after `seed`, after each page of
-  events, and in `follow_setting`.
+- **The Manager entry (#694).** Per harness since #758 (below). `sync_manager_entry` runs after
+  `seed`, after each page of events, and in `follow_setting`.
   - While `writes_on` and a seat's labels hold `role: manager`, it puts
     `agent_servers["Manager"]` in the in-memory defaults: a `Custom` server with
     `seat_command`'s program and arguments plus `acp`.
   - Otherwise it takes the entry out.
   - `Harness.manager_entry` keeps the command in place, so the defaults change only when it does.
-- **The manager's notices (#688).** `follow_thread` runs after each fleet poll while
-  `has_manager` and `writes_on`.
+- **The manager's notices (#688).** Per harness since #758 (below). `follow_thread` runs after
+  each fleet poll while `has_manager` and `writes_on`.
   - `read_thread` pages `thread_read {after}` to its end (`ThreadPage`, at most `THREAD_PAGES`),
     keeping `thread_record`s whose author is `manager` as `ManagerRecord`s.
   - The first read only sets `Harness.thread_cursor`, and a resync clears it.
@@ -2192,8 +2192,8 @@ alike.
   unchanged, restarts a changed one and drops the rest; it reads the merged settings as
   `harness_writes` does, so `MarleySettings` has no field for it.
 - `harness::Slot { Primary, Host(name) }` names a harness. `follow`, `connected` and `seed` take
-  it and write through `set_connection`, `change_seats` and `bump_minute`; the Manager's thread
-  is followed for `Primary` only. `seats_of`, `server_of`, `seat_command_of` (with whether the
+  it and write through `set_connection`, `change_seats` and `bump_minute`; each harness's manager
+  thread is followed on its own connection (#758). `seats_of`, `server_of`, `seat_command_of` (with whether the
   words cross a remote shell, so `Seat::commands` quotes them) and `writes_on_slot` read either.
 - `HarnessView` keeps its slot: its observer (`Harness` or `Hosts`), reads, answers, sends and
   controls go to that harness, and its tab title adds ` · name`.
@@ -2221,6 +2221,39 @@ alike.
 - New Agent: `Start::seat()` maps Claude Agent's thread (`claude-acp`) to `SeatView::Thread`, and
   `start_agent_on` opens the thread from `seat start`'s `profile`. The rail's `with_seat_menu` gives
   a row with a `profile` label, while its harness takes writes, **Open as Thread**.
+
+## A manager on each harness (`src/harness.rs`, `src/thread_tab.rs`, `src/rail.rs`, #758)
+
+- **Entries.** `manager_entry_name(slot)` is `Manager` for the first harness and
+  `Manager · <name>` for a host. `sync_manager_entries`, after every `change_seats`, in
+  `follow_setting` and at the end of `follow_hosts`, puts one in the in-memory `agent_servers` for
+  each slot that takes writes and has a `role: manager` session, with `manager_command(slot)`:
+  `seat_command_of(slot)` + `acp`, a bare program resolved through `which`. `Harness.manager_entries`
+  maps each name to its command, and the defaults change only when the map does. An entry
+  `ensure_manager_entry` made for a saved thread stays while its harness's connection is not
+  `Connected`, since the fleet is seeded before that.
+- **`manager_of_entry`** reads a name back to its slot while that harness is followed.
+  `harness_seat::seat_of_entry` and `ensure_seat_entry` refuse the profile `Manager`.
+- **Following.** `ManagerFollow { cursor, unread }` lives in `Harness.manager` for the first
+  harness and in `Followed.manager` for a host, so it goes with the host. `follow_thread(slot)`
+  runs after every slot's fleet pass; a slot without a manager or writes has its `ManagerFollow`
+  reset. `manager_posted(slot)` titles its notice with the entry's name and tags it
+  `marley-manager-[<name>-]<id>`. `manager_in_front(slot)` reads the entry's panel selection or
+  `thread_tab::shows_agent`.
+- **The rail.** `manager_entries` walks `harness::slots`, keyed `manager:<id>` or
+  `manager:<name>:<id>`, under `Harness` or `Harness · <name>`; `InboxTarget::Manager(Slot)` opens
+  `thread_tab::open_manager_thread` in the shown workspace. `harness_row` passes `role: manager` to
+  `with_seat_menu`, which adds **Open Manager Thread**; `shown_workspace` reads the rail's window.
+- **`thread_tab::open_manager_thread`**: an open tab on the entry comes forward
+  (`activate_agent`); else the store's newest non-draft record on it opens (`open_saved`); else
+  one tick later `retained_session` asks the harness project's connection for `session_list` and
+  takes its first session, and the new tab's `ThreadSpec.session` loads it, titled with the entry.
+  `thread_tab::start` sends a manager entry here, so New Agent and `marley agent-thread` do too.
+- **The harness project (D6).** `harness_project_for` builds a seat's or a manager's view on the
+  `HarnessProject` global: `Project::local` with no folders, from the workspace's app state, and
+  its own `AgentConnectionStore`, made on first use and logged at each view. `build_view` takes it
+  for those agents in every caller; `open_saved` and the restore skip the worktree for them
+  (`ensure_harness_entry`).
 
 ## A new agent on a harness (`src/harness_seat.rs`, `src/agents.rs`, #741)
 

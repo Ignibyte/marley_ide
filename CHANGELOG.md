@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A manager on each harness** (#758, 2026-10-11). A harness on another machine with a manager
+  gets its own **Manager · box-2** entry, its own notices ("Manager · box-2: Report") and its own
+  Needs you entries. Clicking one, or Open Manager Thread on the manager's row, opens that
+  manager's thread in a tab: its open tab, else its last thread, else a tab that loads the
+  manager's whole thread, so the report shows. A seat's or a manager's thread now opens from any
+  window, a remote project's included.
+
 - **Remote projects over SSH** (#445, slice 1 of Marley's release identity, 2026-10-11). Marley
   opens folders on other Linux x86_64 machines and in dev containers. Each install builds
   Marley's own remote server from the same tree and stages it, and Marley uploads it to a host

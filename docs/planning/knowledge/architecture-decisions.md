@@ -5173,3 +5173,17 @@ and otherwise uploads the staged one through Zed's packager seam
 SSH hosts and dev containers alike. Rejected: keeping `-dev-build` and comparing only `version`
 (two Marleys on one host would swap servers at every connect), a protocol version on the wire,
 the upload written into each transport, and `build-remote-server-binary` in release.
+
+## AD-claude-758-every-followed-harness-gets-its-manager-and-harness-threads-build-on-marleys-own-project-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-740-several-harnesses-sit-beside-the-first-001, AD-claude-742-a-seats-thread-is-an-agent-server-named-for-the-seat-001*
+
+Each followed harness with a manager gets its own Manager entry (`Manager` for the first, which
+saved threads use, `Manager · <name>` for a host), followed on that harness's own connection, with
+its own notices and Needs you entries; a manager is per root, as the harness decides (its D130).
+Needs you and Open Manager Thread open a tab, not the Agent Panel: the open tab, else the newest
+saved thread, else a new tab that loads the harness's retained thread from `session/list`. Every
+harness thread, seat or manager, is built on a local project of Marley's own with no folders and
+its own connection store, so it opens from any window, a remote project's included. Rejected:
+renaming the first entry (orphans saved threads), one entry with a harness choice (Zed keys a
+conversation by its agent), opening in the Default group, and writing entries into the host's
+settings.

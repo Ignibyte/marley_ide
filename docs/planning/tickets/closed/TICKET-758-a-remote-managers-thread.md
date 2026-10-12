@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #758 (feature, the control plane: agents anywhere)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [758-a-remote-managers-thread.spec.md](../../pipeline/queued/758-a-remote-managers-thread.spec.md)
+- **Pipeline doc:** [758-a-remote-managers-thread.spec.md](../../pipeline/completed/758-a-remote-managers-thread.spec.md)
 - **Source ticket:** Chad, 2026-10-11: "is there a way to do remote agent threads. meaning if manager
   lives on a remote server and we dont want to steer them through the cli. Using or not using our
   harness (preferrable our harness)", then "ok we can build it. once things are spec and then add
   the things for the missing manager." Research: [harness and Zed's remote server](../../design-notes/harness-and-zed-remote-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley follows a harness on every host it lists (#740), but the Agent Panel's Manager entry (#694),

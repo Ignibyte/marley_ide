@@ -50,8 +50,7 @@ use menu::{
 };
 use project::git_store::{GitStoreEvent, Repository, RepositoryEvent};
 use project::{
-    AgentId, AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey, UpdatedEntriesSet,
-    WorktreeId,
+    AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey, UpdatedEntriesSet, WorktreeId,
 };
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
@@ -955,8 +954,8 @@ enum InboxTarget {
     Click(String),
     /// A harness session, by its harness (#740) and its id (#534).
     Harness(Slot, String),
-    /// The manager's records the user has not seen: the Manager thread (#688).
-    Manager,
+    /// A manager's records the user has not seen: its harness's Manager thread (#688, #758).
+    Manager(Slot),
     /// A request a terminal's Codex App Server asks to approve (#651): the terminal view, the
     /// terminal, the connection's generation, and the request as its entry showed it.
     Codex {
@@ -2001,7 +2000,7 @@ impl Rail {
                         focus.thread.as_deref() == Some(thread_key.as_str())
                     }
                     Some(
-                        InboxTarget::Click(_) | InboxTarget::Harness(..) | InboxTarget::Manager,
+                        InboxTarget::Click(_) | InboxTarget::Harness(..) | InboxTarget::Manager(_),
                     )
                     | None => false,
                 };
@@ -2311,27 +2310,14 @@ impl Rail {
                 });
             }
             Some(InboxTarget::Harness(slot, id)) => self.open_harness(&slot, &id, window, cx),
-            Some(InboxTarget::Manager) => self.open_manager_thread(window, cx),
+            Some(InboxTarget::Manager(slot)) => self.open_manager_thread(&slot, window, cx),
             None => {}
         }
     }
 
-    /// Opens the manager thread for its unread records (#688): a Manager thread the rail lists, else
-    /// a new one in the shown workspace.
-    fn open_manager_thread(&self, window: &mut Window, cx: &mut Context<Self>) {
-        let manager = Agent::Custom {
-            id: AgentId::new(crate::harness::MANAGER_ENTRY),
-        };
-        let listed = self
-            .snapshot
-            .threads
-            .iter()
-            .find(|(_, thread)| thread.agent == manager)
-            .map(|(key, _)| key.clone());
-        if let Some(key) = listed {
-            self.open_thread(&key, window, cx).log_err();
-            return;
-        }
+    /// Opens `slot`'s manager thread for its unread records (#688) in a tab of the shown group
+    /// (#758): its open tab, else its newest saved thread, else the harness's retained thread.
+    fn open_manager_thread(&self, slot: &Slot, window: &mut Window, cx: &mut Context<Self>) {
         let Some(workspace) = self
             .multi_workspace
             .upgrade()
@@ -2339,15 +2325,8 @@ impl Rail {
         else {
             return;
         };
-        // In a tab, as every thread opens in the Marley layout (#772).
         workspace.update(cx, |workspace, cx| {
-            crate::thread_tab::start(
-                workspace,
-                Some(AgentId::new(crate::harness::MANAGER_ENTRY)),
-                None,
-                window,
-                cx,
-            );
+            crate::thread_tab::open_manager_thread(workspace, slot, window, cx);
         });
     }
 
@@ -2663,7 +2642,7 @@ impl Rail {
                     _ => {}
                 }
             }
-            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(..) | InboxTarget::Manager)
+            Some(InboxTarget::Terminal(_) | InboxTarget::Harness(..) | InboxTarget::Manager(_))
             | None => {}
         }
     }
@@ -7497,12 +7476,15 @@ fn harness_row(
     let element = slot
         .name()
         .map_or_else(|| seat.id.clone(), |name| format!("{name}-{}", seat.id));
-    // A seat a profile opened can be opened as a thread too (#742).
-    let profile = seat
-        .labels
-        .get("profile")
-        .filter(|_| crate::harness::writes_on_slot(slot, cx))
-        .cloned();
+    // A seat a profile opened can be opened as a thread too (#742), and the manager's row opens
+    // its manager thread (#758).
+    let writes = crate::harness::writes_on_slot(slot, cx);
+    let profile = seat.labels.get("profile").filter(|_| writes).cloned();
+    let manager = writes
+        && seat
+            .labels
+            .get("role")
+            .is_some_and(|role| role == "manager");
     let menu_slot = slot.clone();
     let slot = slot.clone();
     let tooltip = (!signals.is_empty()).then(|| signals_tooltip(&signals, &seat.title, now_ms));
@@ -7519,18 +7501,20 @@ fn harness_row(
         row.tooltip(move |_, cx| Tooltip::with_meta(title.clone(), None, meta.clone(), cx))
     })
     .on_click(cx.listener(move |rail, _, window, cx| rail.open_harness(&slot, &id, window, cx)));
-    match profile {
-        Some(profile) => with_seat_menu(row, menu_slot, profile, &element, cx),
-        None => row.into_any_element(),
+    if profile.is_none() && !manager {
+        return row.into_any_element();
     }
+    with_seat_menu(row, menu_slot, profile, manager, &element, cx)
 }
 
-/// A seat row with its right-click menu, Open as Thread (#742): the seat's thread through the
-/// harness's ACP window, in the group the window shows.
+/// A harness row with its right-click menu, in the group the window shows: Open as Thread on a
+/// seat a profile opened, the seat's thread through the harness's ACP window (#742), and Open
+/// Manager Thread on the manager's row (#758).
 fn with_seat_menu(
     row: Stateful<Div>,
     menu_slot: Slot,
-    profile: String,
+    profile: Option<String>,
+    manager: bool,
     element: &str,
     cx: &Context<Rail>,
 ) -> AnyElement {
@@ -7541,27 +7525,45 @@ fn with_seat_menu(
     .trigger(move |_, _, _| row)
     .menu(move |window, cx| {
         let (rail, slot, profile) = (rail.clone(), menu_slot.clone(), profile.clone());
-        ContextMenu::build(window, cx, move |menu, _, _| {
-            menu.entry("Open as Thread", None, move |window, cx| {
-                // Plain over the weak rail: opening the thread updates the workspace
-                // (PR-claude-701).
-                let Some(workspace) = rail.upgrade().and_then(|rail| {
-                    rail.read(cx)
-                        .multi_workspace
-                        .upgrade()
-                        .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
-                }) else {
-                    return;
-                };
-                workspace.update(cx, |workspace, cx| {
-                    crate::harness_seat::open_seat_thread(
-                        workspace, &slot, &profile, None, window, cx,
-                    );
+        ContextMenu::build(window, cx, move |mut menu, _, _| {
+            if let Some(profile) = profile {
+                let (rail, slot) = (rail.clone(), slot.clone());
+                menu = menu.entry("Open as Thread", None, move |window, cx| {
+                    let Some(workspace) = shown_workspace(&rail, cx) else {
+                        return;
+                    };
+                    workspace.update(cx, |workspace, cx| {
+                        crate::harness_seat::open_seat_thread(
+                            workspace, &slot, &profile, None, window, cx,
+                        );
+                    });
                 });
-            })
+            }
+            if manager {
+                menu = menu.entry("Open Manager Thread", None, move |window, cx| {
+                    let Some(workspace) = shown_workspace(&rail, cx) else {
+                        return;
+                    };
+                    workspace.update(cx, |workspace, cx| {
+                        crate::thread_tab::open_manager_thread(workspace, &slot, window, cx);
+                    });
+                });
+            }
+            menu
         })
     })
     .into_any_element()
+}
+
+/// The workspace `rail`'s window shows. Read plain over the weak rail: opening a thread from a
+/// menu updates the workspace (PR-claude-701).
+fn shown_workspace(rail: &WeakEntity<Rail>, cx: &App) -> Option<Entity<Workspace>> {
+    rail.upgrade().and_then(|rail| {
+        rail.read(cx)
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
+    })
 }
 
 /// How many characters of a source word Marley does not know the row shows.
@@ -7744,26 +7746,35 @@ fn harness_slot_entries(snapshot: &mut Snapshot, slot: &Slot, cx: &App) {
     }
 }
 
-/// Each record of the manager's the user has not seen, as an inbox entry that opens the manager
-/// thread (#688).
+/// Each record of each harness's manager the user has not seen, as an inbox entry under that
+/// harness that opens its manager thread (#688, #758).
 fn manager_entries(snapshot: &mut Snapshot, cx: &App) {
-    for record in Harness::unread(cx) {
-        let key = format!("manager:{}", record.id);
-        if let std::collections::hash_map::Entry::Vacant(vacant) = snapshot.inbox.entry(key.clone())
-        {
-            vacant.insert(InboxTarget::Manager);
-            snapshot.rail.inbox.push(InboxEntry {
-                key,
-                kind: InboxKind::Harness,
-                agent: crate::harness::MANAGER_ENTRY.to_string(),
-                project: "Harness".to_string(),
-                ask: format!("{}: {}", record.kind_word(), one_line(&record.line)),
-                waited: String::new(),
-                answers: Vec::new(),
-                chips: Vec::new(),
-                level: 0,
-                route: None,
-            });
+    for slot in crate::harness::slots(cx) {
+        // Under its harness's name, as a host's sessions are (#740, #758).
+        let (key_prefix, project) = slot.name().map_or_else(
+            || ("manager:".to_string(), "Harness".to_string()),
+            |name| (format!("manager:{name}:"), format!("Harness · {name}")),
+        );
+        let agent = crate::harness::manager_entry_name(&slot);
+        for record in crate::harness::unread_of(&slot, cx) {
+            let key = format!("{key_prefix}{}", record.id);
+            if let std::collections::hash_map::Entry::Vacant(vacant) =
+                snapshot.inbox.entry(key.clone())
+            {
+                vacant.insert(InboxTarget::Manager(slot.clone()));
+                snapshot.rail.inbox.push(InboxEntry {
+                    key,
+                    kind: InboxKind::Harness,
+                    agent: agent.clone(),
+                    project: project.clone(),
+                    ask: format!("{}: {}", record.kind_word(), one_line(&record.line)),
+                    waited: String::new(),
+                    answers: Vec::new(),
+                    chips: Vec::new(),
+                    level: 0,
+                    route: None,
+                });
+            }
         }
     }
 }

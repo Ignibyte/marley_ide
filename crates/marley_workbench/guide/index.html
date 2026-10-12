@@ -321,7 +321,7 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="install">
-<h3>Install and update <span class="ticket">#502 · #517</span></h3>
+<h3>Install and update <span class="ticket">#502 · #517 · #445</span></h3>
 <p class="what"><strong>What it is.</strong> <code>just install</code> builds Marley in the release profile from its checkout and installs the launcher, the binary, a menu entry and an icon under <code>~/.local</code>.</p>
 <h4>How to use it</h4>
 <ol class="steps">
@@ -334,7 +334,9 @@ th { background: var(--panel); font-weight: 650; }
 <tr><th>Option</th><th>What it does</th></tr>
 <tr><td><code>just install --prefix DIR</code></td><td>Installs under <code>DIR</code> instead of <code>~/.local</code>.</td></tr>
 <tr><td><code>just install --regress</code></td><td>Runs the golden set of end-to-end scenarios against the build first (about an hour), and installs only if every one passes.</td></tr>
+<tr><td><code>script/install-marley --remote-server-only</code></td><td>Builds and stages Marley's remote server for SSH projects, and nothing else.</td></tr>
 </table>
+<p class="note">Each install also builds Marley's remote server for Linux x86_64 hosts and stages it under <code>~/.local/share/marley/remote_servers</code>. Marley uploads it to a host that lacks the server for its commit, so a remote project opens there.</p>
 <p class="note">The installed files are <code>bin/marley</code> (the launcher), <code>lib/marley/marley</code> (the binary, about 2 GB with its debug information), <code>share/applications/marley.desktop</code> and the icon. Marley's windows have the class <code>dev.zed.Zed-Dev</code>, which is what a Hyprland window rule matches.</p>
 </article>
 
@@ -2095,16 +2097,17 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 </article>
 
 <article id="harness-manager">
-<h3>The manager in the Agent Panel <span class="ticket">#688 · #694</span></h3>
+<h3>The manager in the Agent Panel <span class="ticket">#688 · #694 · #758</span></h3>
 <p class="what"><strong>What it is.</strong> When the harness has a manager, the Agent Panel lists <strong>Manager</strong>: a thread with the manager through the harness's <code>rh acp</code>. You write to it there, and Marley raises its reports while you look elsewhere.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>With harness writes on, give the harness a manager: a seat whose role is <code>manager</code>. New Agent… then lists <strong>Manager</strong>; with no manager it does not.</li>
 <li>Type in its thread. The harness hands your message to the manager once the manager is idle, and the turn ends.</li>
 <li>Read the manager's messages and reports (<code>Report: …</code>) as its replies, between your turns too. A confirmation it asks for comes up as a permission request, Allow or Reject, for 60 seconds.</li>
-<li>While the Manager thread is not in front, each new record shows a desktop notice, such as <code>Manager: Report</code> with its first line, and a Needs you entry, <code>Manager · Report: …</code>, until you look. The entry opens the Manager thread.</li>
+<li>While the Manager thread is not in front, each new record shows a desktop notice, such as <code>Manager: Report</code> with its first line, and a Needs you entry, <code>Manager · Report: …</code>, until you look. The entry opens the Manager thread in a tab: its open tab, else its last thread, else a new tab that loads the manager's whole thread. Open Manager Thread on the manager's row in the rail does the same.</li>
+<li>A harness on another machine (<code>marley.harnesses</code>) with a manager has its own entry, <strong>Manager · box-2</strong>, its own notices (<code>Manager · box-2: Report</code>) and its Needs you entries under <code>Harness · box-2</code>.</li>
 </ol>
-<p class="note">The entry runs the harness's command up to <code>mcp</code>, then <code>acp</code>, so a root over SSH is reached over SSH. It follows the manager when the role moves. Records from before Marley connected raise nothing.</p>
+<p class="note">The entry runs the harness's command up to <code>mcp</code>, then <code>acp</code>, so a root over SSH is reached over SSH. It follows the manager when the role moves. Records from before Marley connected raise nothing. A seat's or a manager's thread opens from any window, a remote project's included.</p>
 </article>
 </section>
 

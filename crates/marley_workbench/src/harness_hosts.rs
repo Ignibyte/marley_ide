@@ -3,7 +3,7 @@
 //! `marley.harnesses` names each, and Marley follows each beside the harness it follows already
 //! (`marley.harness`, or its own runtime), over its own SSH connection, as the harness settled
 //! (its D164). Each is followed by `harness::follow` through its own `Slot`, and its sessions,
-//! connection and fold live here, in the `Hosts` global.
+//! connection, fold and manager thread (#758) live here, in the `Hosts` global.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -190,6 +190,8 @@ pub(crate) struct Followed {
     pub(crate) folded: bool,
     /// Bumped each minute while a session works, so its `no update in N m` is drawn again.
     pub(crate) minute: u64,
+    /// Its manager's thread, as Marley follows it (#758).
+    pub(crate) manager: crate::harness::ManagerFollow,
     _run: Task<()>,
 }
 
@@ -258,9 +260,12 @@ pub(crate) fn follow_hosts(cx: &mut App) {
             server: None,
             folded: false,
             minute: 0,
+            manager: crate::harness::ManagerFollow::default(),
             _run: run,
         });
     }
     cx.global_mut::<Hosts>().followed = followed;
     crate::harness::filter_palette(cx);
+    // A host no longer followed takes its Manager entry with it (#758).
+    crate::harness::sync_manager_entries(cx);
 }

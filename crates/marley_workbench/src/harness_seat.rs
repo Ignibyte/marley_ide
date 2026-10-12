@@ -421,7 +421,8 @@ pub(crate) fn seat_of_entry(agent: &AgentId, cx: &App) -> Option<(Slot, String)>
         && profile
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || "-_.".contains(character));
-    if !plain {
+    // `Manager · <harness>` is a manager's entry, not a seat's (#758).
+    if !plain || profile == crate::harness::MANAGER_ENTRY {
         return None;
     }
     let slot = if harness == FIRST_HARNESS {
@@ -437,6 +438,10 @@ pub(crate) fn seat_of_entry(agent: &AgentId, cx: &App) -> Option<(Slot, String)>
 /// servers, as the Manager's is (#694): `[ssh HOST] rh --state ROOT acp --seat PROFILE`, the
 /// harness's window onto the seat (its TICKET-116). `None` while Marley cannot reach the harness.
 pub(crate) fn ensure_seat_entry(slot: &Slot, profile: &str, cx: &mut App) -> Option<AgentId> {
+    // Its entry would read as the harness's Manager entry (#758).
+    if profile == crate::harness::MANAGER_ENTRY {
+        return None;
+    }
     let (program, mut args, remote) = seat_command_of(slot, cx)?;
     // Zed runs an agent server in the project's shell environment, whose search path can differ
     // from Marley's own: the entry runs the `ssh` (or `rh`) Marley follows the harness with.
@@ -493,12 +498,12 @@ pub(crate) fn open_seat_thread(
 ) {
     let Some(agent) = ensure_seat_entry(slot, profile, cx) else {
         let place = slot.name().map_or("the harness", |name| name.as_ref());
-        not_started(
-            SeatAgent::Claude,
-            place,
-            "Marley follows no harness it can reach",
-            cx,
-        );
+        let reason = if profile == crate::harness::MANAGER_ENTRY {
+            "a seat profile named Manager has no thread: the name is the manager's"
+        } else {
+            "Marley follows no harness it can reach"
+        };
+        not_started(SeatAgent::Claude, place, reason, cx);
         return;
     };
     if crate::thread_tab::activate_agent(workspace, &agent, window, cx) {

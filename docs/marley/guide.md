@@ -2840,8 +2840,11 @@ Panel's agents and New Agent… list **Manager**. Its thread is the manager thre
 - **Notices** (#688). Marley follows the thread. A record from the manager while the Manager thread
   is not in front (another tab, another window, or the panel closed) shows a desktop notice,
   "Manager: Report" with its first line. It also adds a "Needs you" entry, "Manager · Report: …",
-  until you look; the entry opens the Manager thread. Records from before Marley connected stay
-  quiet.
+  until you look. The entry opens the Manager thread in a tab of the group you are in (#758): its
+  open tab, else its last thread, else a new tab that loads the manager's whole thread, so the
+  record shows. Records from before Marley connected stay quiet.
+- **Open Manager Thread** (#758). Right-click the manager's row in the Harness section for the
+  same.
 
 When Marley runs the harness itself, it follows it with `--grant write` while the switch is on. A
 `harness` command keeps its own arguments: add `"--grant", "write"` there, or the harness refuses
@@ -2871,8 +2874,14 @@ Marley follows it beside the one above:
   `Harness · box-2`.
 - **Seats.** With `harness_writes` on, the New Harness Seat form gains a Harness row: Default
   (the harness above) and each name. The seat's commands run through the chosen one.
-- **What stays with the first.** The Manager entry, `marley: open harness session` and agents'
-  seat tools (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only.
+- **A manager on each** (#758). Each harness with a manager has its own entry, **Manager ·
+  box-2**, beside the first harness's **Manager**, running `ssh … box-2 rh --state ROOT acp`. Its
+  notices read "Manager · box-2: Report", its Needs you entries sit under `Harness · box-2`, and
+  each opens that harness's tab, as above. A harness that loses its manager, or is no longer
+  followed, takes its entry and its entries in Needs you with it. Restored after a restart, a
+  `Manager · box-2` tab makes its entry again while box-2 is followed.
+- **What stays with the first.** `marley: open harness session` and agents' seat tools
+  (`seat_add`, `seat_stop`, `seat_remove`) work on the harness above only.
 - **An agent there.** New Agent's **On box-2…** starts Claude Code or Codex as a seat on it, with a
   terminal attached here (#741), or, for Claude Agent, as a thread tab onto the seat (#742).
 - **Open as Thread** (#742). Right-click a seat's row: a seat a profile opened has **Open as
@@ -2881,6 +2890,26 @@ Marley follows it beside the one above:
   seat's text replies only: its tool calls and approvals stay in the seat's terminal and tab.
   Restored after a restart, the tab finds its seat again by its name while the harness is
   followed.
+- **From any window** (#758). A seat's or a manager's thread opens in the window you ask from, a
+  remote project's included: Marley builds it on a project of its own with no folders, so it
+  needs nothing of the window's project and its entry comes from this machine's settings.
+
+**Try it on a real host** (#758). Scenarios run the second harness through a stand-in `ssh` on
+one machine; a real host is checked by hand. `HOST`, `ROOT` and the `rh` path are yours:
+1. On `HOST`: `rh` installed, `ROOT` owned by the SSH user with mode 0700, `rh --state ROOT serve`
+   running, and a manager: `rh --state ROOT seat add boss --agent claude --role manager --cwd DIR`,
+   then `rh --state ROOT seat start boss`.
+2. In Marley's settings, `marley.harnesses` names `HOST` with `ssh`, `state` and `rh`, and
+   `marley.harness_writes` is on. The rail shows `HARNESS · HOST` with `boss`.
+3. New Agent lists `Manager · HOST`. Start it and type "hello": `rh --state ROOT thread show` on
+   `HOST` holds it, and the manager's answer appears in the tab.
+4. Show another tab and have the manager post a report: a notice reads `Manager · HOST: Report`
+   and Needs you lists it. The entry brings the tab forward with the report and clears.
+5. Quit Marley and start it again: the tab comes back and still talks to the manager.
+6. Open a project on `HOST` (Open Remote Folder). In that window, right-click a seat's row → Open as
+   Thread, and the manager's row → Open Manager Thread: both tabs open in that window and answer.
+7. Cut the network to `HOST` for a minute: the rail marks `HARNESS · HOST` stale, and once it is
+   back the tab answers again after you reopen it.
 
 ## The Fleet panel
 

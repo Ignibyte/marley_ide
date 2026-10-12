@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-758](open/TICKET-758-a-remote-managers-thread.md) | feature | a remote harness's manager as a thread: a Manager entry per harness, seat threads from remote windows |
 | [TICKET-760](open/TICKET-760-marley-calls-itself-marley.md) | chore | Marley calls itself Marley: app id, window class, name, socket (release identity slice 2) |
 | [TICKET-761](open/TICKET-761-marleys-keyring-label.md) | chore | Marley's keyring label (slice 3) |
 | [TICKET-762](open/TICKET-762-the-marley-scheme.md) | chore | the `marley://` scheme and the desktop entry (slice 4) |

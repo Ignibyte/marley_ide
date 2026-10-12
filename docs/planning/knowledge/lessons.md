@@ -5631,3 +5631,20 @@ the daemon swallowed. A debug Marley waits five seconds for the first connection
 server that starts fast. A fake host for a scenario is an sshd whose `ForceCommand` sets `HOME`
 and the XDG folders and runs `$SSH_ORIGINAL_COMMAND`, with sftp's server (`*/sftp-server`) started
 with `-d` on the fake home, plus `ssh`, `scp` and `sftp` wrappers first on Marley's PATH.
+
+## L-claude-758-a-fixture-managers-turn-never-ends-001
+*category: e2e · topic: a scenario that writes to a harness manager through `rh acp` · from: pipeline 758*
+
+`rh acp` answers a prompt to a terminal manager `end_turn` only once the fleet shows that manager
+busy and then idle after the hand-off (rustal-harness `acp.rs` `progress`). #688's fixture
+manager reports idle once and never again, so a message sent to it keeps its turn open, and the
+next prompt on the same `rh acp`, from any tab that shares the connection, fails "a prompt is
+already running". A scenario sends one message per fixture manager, and proves a later tab live
+with a record the manager posts instead.
+
+## L-claude-758-a-rail-rows-tooltip-covers-its-right-click-menu-in-a-shot-001
+*category: e2e · topic: shooting a rail row's right-click menu · from: pipeline 758*
+
+A harness row whose session declares signals carries a tooltip ("State reported by the agent")
+that opens under the pointer about half a second after the right-click and covers the menu. Shoot
+the menu 0.3 seconds after the click, before the tooltip; the menu is already drawn then.

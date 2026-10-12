@@ -1,7 +1,7 @@
 ---
 pipeline_id: ddb46c16-8dab-4b59-9727-0b451b0e54d3
-ticket: docs/planning/tickets/open/TICKET-758-a-remote-managers-thread.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-758-a-remote-managers-thread.md
+status: Phase 4 — Complete PASS
 title: A remote manager's thread
 type: feature
 slice: the control plane (docs/marley/three-prong-plan.md), agents anywhere (docs/planning/design-notes/agents-anywhere-2026-10-10.md)
@@ -152,10 +152,13 @@ Shots:
 - `758-07-row-menu`: right-click on box-2's manager row, then Open Manager Thread. The same tab
   comes forward.
 
+- `758-08-remote-window` (added at promotion, since #445 landed): a project on #445's fake host
+  (an sshd whose ForceCommand runs in a fake home, with a server staged for the debug build's
+  commit) opens in its own window. From that window's rail, Open Manager Thread on box-2's manager
+  row opens the tab in that window, and it answers.
+
 Every harness thread in the run is built on Marley's harness project; the log line at its creation
-says so. A remote project's window is out of a scenario's reach: Zed's SSH transport needs its own
-master connection and a server built from the same commit, which the fake `ssh` cannot stand in
-for. The remote window, and a real second machine, are checked by hand.
+says so. A real second machine is checked by hand.
 
 **By-hand check on a real host** (Chad; `HOST`, `ROOT` and the `rh` path are his):
 1. On `HOST`: `rh` installed, `ROOT` owned by the SSH user with mode 0700, `rh --state ROOT serve`
@@ -214,7 +217,7 @@ for. The remote window, and a real second machine, are checked by hand.
 | REQ-005 | WHILE a harness's Manager tab is active in the active window, the system shall raise no notice or Needs you entry for that manager's records. | Shot 758-05 and the notice log |
 | REQ-006 | WHEN Open Manager Thread is chosen on a manager's row, the system shall open or bring forward that harness's Manager tab. | Shot 758-07 |
 | REQ-007 | WHEN Marley starts with a saved `Manager · <name>` tab and that harness is followed, the system shall restore the tab and make its entry again. | The review of the diff; by-hand step 5 |
-| REQ-008 | WHEN a seat's or a manager's thread is opened from a window whose project is remote, the system shall open it in that window and connect it to its harness. | The review of the diff (local windows take the same path); by-hand step 6 |
+| REQ-008 | WHEN a seat's or a manager's thread is opened from a window whose project is remote, the system shall open it in that window and connect it to its harness. | Shot 758-08; by-hand step 6 |
 | REQ-009 | WHEN a harness loses its manager or stops being followed, the system shall remove its Manager entry and its Needs you entries. | The review of the diff |
 
 ## Phase Plan

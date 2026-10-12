@@ -10,7 +10,7 @@ use gpui::{
     Global, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, TestAppContext, VisualTestContext,
 };
 use marley_rail::Selection;
-use project::{AgentRegistryStore, Project};
+use project::{AgentId, AgentRegistryStore, Project};
 use serde_json::json;
 use settings::MarleyLayout;
 use util::{path, path_list::PathList};

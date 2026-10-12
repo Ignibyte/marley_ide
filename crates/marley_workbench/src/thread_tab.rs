@@ -21,6 +21,11 @@
 //! A tab comes back after a restart (#736): it saves its thread's id, agent and folders in its own
 //! table, and restoring it loads the thread as the Agent Panel loads one from its history, once
 //! the workspace's panel exists.
+//!
+//! A harness thread, a seat's (#742) or a manager's (#758), is built on Marley's harness project
+//! instead of the window's: a local project with no folders, with its own connection store, so it
+//! starts from any window, a remote project's included, and its entry, in this machine's settings,
+//! is one the project reads.
 
 use std::any::TypeId;
 use std::borrow::Cow;
@@ -30,7 +35,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use acp_thread::AgentSessionListRequest;
 use agent::ThreadStore;
+use agent_client_protocol::schema::v1 as acp;
 use agent_settings::AgentProfileId;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::{
@@ -299,12 +306,8 @@ impl SerializableItem for ThreadTab {
                 "the thread of a saved tab is no longer kept"
             )));
         }
-        // A harness seat's thread (#742): its entry made again, and its folder on the seat's host.
-        let seat = crate::harness_seat::seat_of_entry(&AgentId::new(saved.agent.clone()), cx);
-        if let Some((slot, profile)) = &seat {
-            crate::harness_seat::ensure_seat_entry(slot, profile, cx);
-        }
-        let on_seat = seat.is_some();
+        // A harness thread (#742, #758): its entry made again, and its folder on the harness's host.
+        let on_harness = ensure_harness_entry(&AgentId::new(saved.agent.clone()), cx);
         window.spawn(cx, async move |cx| {
             // Zed adds the Agent Panel while it still restores items; its connection store is the
             // one a tab's thread shares (#734).
@@ -318,7 +321,7 @@ impl SerializableItem for ThreadTab {
             }
             let panel = panel.context("the workspace has no Agent Panel for its thread tab")?;
             let hidden = if saved.own_folders
-                && !on_seat
+                && !on_harness
                 && let Some(folder) = saved.folders.first()
                 && cx.update(|_, cx| needs_worktree(&project, folder, cx))?
             {
@@ -343,6 +346,7 @@ impl SerializableItem for ThreadTab {
                     title: saved.title.map(SharedString::from),
                     own_folders: saved.own_folders,
                     profile: None,
+                    session: None,
                 };
                 let view = build_view(project, workspace, &panel, thread, fs, window, cx);
                 Ok(cx.new(|cx| Self::new(view, &panel, hidden, cx)))
@@ -711,6 +715,7 @@ pub(crate) fn start_on_seat(
                     title: None,
                     own_folders: true,
                     profile: None,
+                    session: None,
                 };
                 open_thread(workspace, thread, None, fs, window, cx);
             })
@@ -739,6 +744,18 @@ pub(crate) fn start(
     let agent = agent.map_or_else(|| panel.read(cx).selected_agent(cx), Agent::from);
     // `marley agent-thread` without `--provider` starts this agent next (#749).
     crate::commands::remember_thread_agent(agent.id().0.as_ref(), cx);
+    // A harness's manager has one thread: its tab, saved thread or retained thread (#758).
+    if let Some(slot) = crate::harness::manager_of_entry(&agent.id(), cx) {
+        cx.spawn_in(window, async move |workspace, cx| {
+            workspace
+                .update_in(cx, |workspace, window, cx| {
+                    open_manager_thread(workspace, &slot, window, cx);
+                })
+                .log_err();
+        })
+        .detach();
+        return;
+    }
     let folder = folder.unwrap_or_else(|| default_folder(workspace, cx));
     start_thread(workspace, agent, folder, None, window, cx);
 }
@@ -802,6 +819,7 @@ pub(crate) fn start_thread(
                     title: None,
                     own_folders: true,
                     profile,
+                    session: None,
                 };
                 open_thread(workspace, thread, hidden, fs, window, cx);
             })
@@ -865,16 +883,13 @@ pub(crate) fn open_saved(
     } else {
         record.folder_paths().clone()
     };
-    // A harness seat's thread (#742): its entry made again, and its folder on the seat's host.
-    let seat = crate::harness_seat::seat_of_entry(&record.agent_id, cx);
-    if let Some((slot, profile)) = &seat {
-        crate::harness_seat::ensure_seat_entry(slot, profile, cx);
-    }
+    // A harness thread (#742, #758): its entry made again, and its folder on the harness's host.
+    let on_harness = ensure_harness_entry(&record.agent_id, cx);
     let project = workspace.project().clone();
     let joining = folders
         .paths()
         .first()
-        .filter(|folder| seat.is_none() && needs_worktree(&project, folder, cx))
+        .filter(|folder| !on_harness && needs_worktree(&project, folder, cx))
         .cloned();
     let fs = Arc::clone(&workspace.app_state().fs);
     let thread = ThreadSpec {
@@ -884,6 +899,7 @@ pub(crate) fn open_saved(
         title: Some(record.display_title()),
         own_folders: true,
         profile: None,
+        session: None,
     };
     cx.spawn_in(window, async move |workspace, cx| {
         let hidden = match joining {
@@ -945,6 +961,164 @@ struct ThreadSpec {
     /// The profile Zed's own agent's thread takes (#738): the Marley or Rusty entry's on Zed's
     /// agent.
     profile: Option<AgentProfileId>,
+    /// The agent's session to load when the thread has no record yet (#758: a manager's retained
+    /// thread).
+    session: Option<acp::SessionId>,
+}
+
+/// Makes `agent`'s entry again when it is a harness seat's (#742) or a harness's Manager (#758),
+/// and says whether it is one.
+fn ensure_harness_entry(agent: &AgentId, cx: &mut App) -> bool {
+    if let Some(slot) = crate::harness::manager_of_entry(agent, cx) {
+        crate::harness::ensure_manager_entry(&slot, cx);
+        return true;
+    }
+    if let Some((slot, profile)) = crate::harness_seat::seat_of_entry(agent, cx) {
+        crate::harness_seat::ensure_seat_entry(&slot, &profile, cx);
+        return true;
+    }
+    false
+}
+
+/// The project every harness thread is built on, and its connection store (#758 D6).
+struct HarnessProject {
+    project: Entity<Project>,
+    connections: Entity<AgentConnectionStore>,
+}
+
+impl Global for HarnessProject {}
+
+/// The project and the connection store `agent`'s thread is built on when it is a harness thread:
+/// Marley's harness project, made on first use from `workspace`'s app state. `None` for any other
+/// agent, whose thread is built on its window's project.
+fn harness_project_for(
+    agent: &AgentId,
+    workspace: &WeakEntity<Workspace>,
+    cx: &mut App,
+) -> Option<(Entity<Project>, Entity<AgentConnectionStore>)> {
+    if crate::harness::manager_of_entry(agent, cx).is_none()
+        && crate::harness_seat::seat_of_entry(agent, cx).is_none()
+    {
+        return None;
+    }
+    if let Some(built) = cx.try_global::<HarnessProject>() {
+        return Some((built.project.clone(), built.connections.clone()));
+    }
+    let app_state = Arc::clone(workspace.upgrade()?.read(cx).app_state());
+    let project = Project::local(
+        Arc::clone(&app_state.client),
+        app_state.node_runtime.clone(),
+        app_state.user_store.clone(),
+        Arc::clone(&app_state.languages),
+        Arc::clone(&app_state.fs),
+        None,
+        project::LocalProjectFlags::default(),
+        cx,
+    );
+    let connections = cx.new(|cx| AgentConnectionStore::new(project.clone(), cx));
+    cx.set_global(HarnessProject {
+        project: project.clone(),
+        connections: connections.clone(),
+    });
+    Some((project, connections))
+}
+
+/// Opens `slot`'s manager thread in a tab of `workspace` (#758): its open tab comes forward, else
+/// its newest saved thread opens, else a new tab loads the harness's retained thread, the session
+/// `session/list` names, so the record that raised an entry shows.
+pub(crate) fn open_manager_thread(
+    workspace: &mut Workspace,
+    slot: &crate::harness::Slot,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let Some(agent) = crate::harness::ensure_manager_entry(slot, cx) else {
+        let place = slot.name().map_or("the harness", |name| name.as_ref());
+        refuse(
+            workspace,
+            format!("Marley does not reach {place}, so its manager has no thread."),
+            cx,
+        );
+        return;
+    };
+    if activate_agent(workspace, &agent, window, cx) {
+        return;
+    }
+    let saved = ThreadMetadataStore::try_global(cx).and_then(|store| {
+        store
+            .read(cx)
+            .entries()
+            .filter(|record| record.agent_id == agent && !record.is_draft())
+            .max_by_key(|record| record.updated_at)
+            .cloned()
+    });
+    if let Some(record) = saved {
+        open_saved(workspace, &record, window, cx);
+        return;
+    }
+    let folder = crate::harness::root_of(slot, cx).unwrap_or_else(|| default_folder(workspace, cx));
+    let fs = Arc::clone(&workspace.app_state().fs);
+    // One tick later, so the agent server store has taken an entry just made.
+    cx.spawn_in(window, async move |workspace, cx| {
+        let session = retained_session(&agent, &workspace, Arc::clone(&fs), cx).await;
+        workspace
+            .update_in(cx, |workspace, window, cx| {
+                // Named for its entry, as the manager's own window names no thread.
+                let title = SharedString::from(agent.0.to_string());
+                let thread = ThreadSpec {
+                    agent: Agent::from(agent),
+                    thread_id: ThreadId::new(),
+                    folders: PathList::new(&[folder]),
+                    title: Some(title),
+                    own_folders: true,
+                    profile: None,
+                    session,
+                };
+                open_thread(workspace, thread, None, fs, window, cx);
+            })
+            .log_err();
+    })
+    .detach();
+}
+
+/// The first session the harness's window lists for `agent`, its retained thread; `None` when it
+/// lists none or cannot be reached, and the tab starts a new session instead.
+async fn retained_session(
+    agent: &AgentId,
+    workspace: &WeakEntity<Workspace>,
+    fs: Arc<dyn Fs>,
+    cx: &mut gpui::AsyncWindowContext,
+) -> Option<acp::SessionId> {
+    let connecting = cx
+        .update(|_, cx| {
+            let (_, store) = harness_project_for(agent, workspace, cx)?;
+            let key = Agent::from(agent.clone());
+            let server = key.server(fs, ThreadStore::global(cx));
+            let entry = store.update(cx, |store, cx| store.request_connection(key, server, cx));
+            Some(entry.read(cx).wait_for_connection())
+        })
+        .ok()
+        .flatten()?;
+    let connected = connecting
+        .await
+        .map_err(|error| log::warn!("thread tab: {agent} did not connect: {error:?}"))
+        .ok()?;
+    let listing = cx
+        .update(|_, cx| {
+            let list = connected.connection.session_list(cx)?;
+            Some(list.list_sessions(AgentSessionListRequest::default(), cx))
+        })
+        .ok()
+        .flatten()?;
+    let sessions = listing
+        .await
+        .map_err(|error| log::warn!("thread tab: {agent} listed no sessions: {error:#}"))
+        .ok()?;
+    sessions
+        .sessions
+        .into_iter()
+        .next()
+        .map(|session| session.session_id)
 }
 
 /// The `ConversationView` for `thread`, as the Agent Panel builds one: the panel's connection
@@ -959,17 +1133,26 @@ fn build_view(
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<ConversationView> {
-    let connection_store: Entity<AgentConnectionStore> = panel.read(cx).connection_store().clone();
+    let agent_id = thread.agent.id();
+    let (project, connection_store) = harness_project_for(&agent_id, &workspace, cx).map_or_else(
+        || (project, panel.read(cx).connection_store().clone()),
+        |harness| {
+            log::info!("thread tab: {agent_id} is built on Marley's harness project");
+            harness
+        },
+    );
     let threads = ThreadStore::global(cx);
     let server = thread.agent.server(fs, threads.clone());
     // Only Zed's own agent keeps its threads in Zed's thread store, as the panel passes it.
     let thread_store = thread.agent.is_native().then_some(threads);
-    let session = ThreadMetadataStore::try_global(cx).and_then(|store| {
-        store
-            .read(cx)
-            .entry(thread.thread_id)
-            .and_then(|record| record.session_id.clone())
-    });
+    let session = ThreadMetadataStore::try_global(cx)
+        .and_then(|store| {
+            store
+                .read(cx)
+                .entry(thread.thread_id)
+                .and_then(|record| record.session_id.clone())
+        })
+        .or(thread.session);
     let profile = thread.profile.clone();
     let view = cx.new(|cx| {
         let mut view = ConversationView::new(

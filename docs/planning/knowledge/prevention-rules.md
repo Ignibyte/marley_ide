@@ -2996,3 +2996,10 @@ A CDP call that runs the page's handlers (`Input.dispatchMouseEvent`, `Input.dis
 `prompt`. Run browser actions through `browser_tools::acting`, which races them against the tab
 showing a dialog; never await such a call bare in a tool's answer path.
 
+## PR-claude-758-a-defaults-write-reenters-its-own-reconcile-001
+*severity: medium · prevents: F-claude-758-an-entry-made-for-a-saved-thread-was-removed-by-the-sync-its-own-write-ran-001*
+
+`update_default_settings` notifies every `SettingsStore` observer, and Marley's reconcilers
+(`follow_setting`, `follow_hosts`) run there. Code that writes a default another reconcile also
+owns gives that reconcile a reason to keep it, in the state the reconcile reads, before the write:
+otherwise the write's own notification undoes it.
