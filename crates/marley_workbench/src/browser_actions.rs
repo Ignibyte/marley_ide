@@ -319,10 +319,15 @@ async fn upload(
     by: Option<&SharedString>,
     cx: &mut AsyncApp,
 ) -> Result<ToolAnswer, Refusal> {
-    let reference = arguments
-        .get("ref")
-        .and_then(Value::as_str)
-        .ok_or_else(|| bad_argument("give `ref`, the file input's ref from browser_snapshot"))?;
+    let reference = arguments.get("ref").and_then(Value::as_str);
+    // No ref: the file chooser the page waits on (#767).
+    if reference.is_none() && hub.read_with(cx, |hub, _| hub.chooser(tab).is_none()) {
+        return Err(Refusal::new(
+            "no_chooser",
+            "the page waits on no file chooser, and no `ref` names a file input",
+        )
+        .next("Give `ref`, the file input's ref from browser_snapshot."));
+    }
     let paths = strings(arguments, "paths")
         .filter(|paths| !paths.is_empty())
         .ok_or_else(|| bad_argument("give `paths`, absolute paths of files to upload"))?;
@@ -351,6 +356,9 @@ async fn upload(
         }
     }
     cx.update(|cx| allowed_uploads(&files, cx))?;
+    let Some(reference) = reference else {
+        return answer_chooser(tab, files, hub, by, cx).await;
+    };
     let target = ref_target(tab, reference, hub, cx)?;
     let (session, _) = ref_origin(page, tab, &target, hub, cx).await?;
     let what = target.describe();
@@ -390,6 +398,43 @@ async fn upload(
         },
     )
     .await
+}
+
+/// `browser_upload` with no ref: `files` answer the file chooser the page waits on (#767).
+async fn answer_chooser(
+    tab: &str,
+    files: Vec<PathBuf>,
+    hub: &Entity<BrowserHub>,
+    by: Option<&SharedString>,
+    cx: &mut AsyncApp,
+) -> Result<ToolAnswer, Refusal> {
+    let shown = files
+        .iter()
+        .filter_map(|file| file.file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let files: Vec<String> = files
+        .iter()
+        .map(|file| file.to_string_lossy().into_owned())
+        .collect();
+    let hub_for_action = hub.clone();
+    let tab_for_action = tab.to_string();
+    acting(
+        hub,
+        tab,
+        format!("choosing {shown} for the page's file chooser"),
+        format!("chose {shown} for the page's file chooser"),
+        by,
+        cx,
+        async move |cx| {
+            let task =
+                hub_for_action.update(cx, |hub, cx| hub.answer_chooser(&tab_for_action, files, cx));
+            task.await
+        },
+    )
+    .await
+    .map_err(Refusal::from)
 }
 
 /// Refuses a file outside every open project, or one a secret glob matches.

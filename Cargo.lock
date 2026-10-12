@@ -10772,6 +10772,7 @@ dependencies = [
  "context_server",
  "ctor",
  "db",
+ "dirs",
  "editor",
  "env_var",
  "fs",

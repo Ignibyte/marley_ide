@@ -1726,7 +1726,7 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>browser_console</code>, <code>browser_network</code></td><td>The latest console messages and requests</td></tr>
 <tr><td><code>browser_navigate</code>, <code>browser_back</code>, <code>browser_open_url</code></td><td>Load a URL, go back, open a local page in a project's tab</td></tr>
 <tr><td><code>browser_click</code>, <code>browser_type</code>, <code>browser_press</code>, <code>browser_scroll</code></td><td>Act in the page as your mouse and keys would</td></tr>
-<tr><td><code>browser_hover</code>, <code>browser_select</code>, <code>browser_drag</code>, <code>browser_upload</code></td><td>Hover, choose in a select list, drag, and set a file input's files from an open project</td></tr>
+<tr><td><code>browser_hover</code>, <code>browser_select</code>, <code>browser_drag</code>, <code>browser_upload</code></td><td>Hover, choose in a select list, drag, and set a file input's files from an open project, or answer the file chooser the page waits on</td></tr>
 <tr><td><code>browser_dialog</code></td><td>Answer the alert, confirm or prompt an agent's action opened</td></tr>
 <tr><td><code>browser_resize</code>, <code>browser_color_scheme</code></td><td>Lay the page out as a phone or tablet or at a size, and force its dark or light scheme; the toolbar's chip names it, with Reset</td></tr>
 <tr><td><code>browser_wait</code></td><td>Wait until the page shows a text, loses one, has an element, or reaches a URL</td></tr>
@@ -1825,13 +1825,16 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="browser-per-project">
-<h3>A Chromium per project <span class="ticket">#507 · #583 · #581 · #755</span></h3>
+<h3>A Chromium per project <span class="ticket">#507 · #583 · #581 · #755 · #767</span></h3>
 <p class="what"><strong>What it is.</strong> Each project gets its own Chromium and profile, so a login in one project is not a login in another, and each project's cookies and storage survive restarts.</p>
 <h4>How to use it</h4>
 <ul class="points">
 <li>A project's Chromium starts with its first Browser tab and keeps running after Marley quits (so restored tabs find their pages) until you log out or remove the project.</li>
 <li>To sign a project out of every site, right-click its header and choose Clear Browser Data…, or run <code>marley: clear project browser data</code>.</li>
 <li>To see or stop the Chromium units: <code>systemctl --user list-units 'marley-browser-*'</code>, then <code>systemctl --user stop &lt;unit&gt;</code>.</li>
+<li>A page's Choose File opens Zed's path prompt; one an agent's click opened waits in a bar for the agent's <code>browser_upload</code>, or for your Choose…</li>
+<li>Downloads land in your Downloads folder, with a notification to open the file or show it in its folder.</li>
+<li>Once an agent has acted in a page, Take Over (or Ctrl-I in the tab) gives you the page and refuses the agents' actions there until you click Hand Back.</li>
 <li>If the kernel kills a page for memory, only that page's tab closes: the project's Chromium and its other tabs keep running.</li>
 </ul>
 <p class="note">Chromium listens on no network port: it talks only to Marley's relay, through files only you can read.</p>

@@ -5601,3 +5601,11 @@ Marley's headless Chromium reports the desktop's colour scheme to pages: on this
 `prefers-color-scheme` is dark before anything forces it. A scenario that shows a forced scheme
 reads the page's starting one and forces the other, rather than assuming light.
 
+## L-claude-767-the-control-bar-moves-the-page-after-an-agents-first-action-001
+*category: e2e · topic: clicking a page in a Browser tab · from: pipeline 767*
+
+Since #767 a page an agent has acted in, `browser_navigate` included, shows the control bar
+under the toolbar, which pushes the page down by its height (about 28 pixels at the run's scale).
+A scenario that clicks page coordinates after an agent navigated calibrates them with the bar
+there; #767's first click on Choose File landed on blank page above the button.
+

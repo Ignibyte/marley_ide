@@ -47,9 +47,10 @@ use gpui::{
     DismissEvent, DispatchPhase, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
     HitboxBehavior, Image, ImageSource, InspectorElementId, KeyDownEvent, LayoutId, Modifiers,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, Pixels, Point,
-    PromptLevel, RenderImage, ScrollWheelEvent, Size, Style, StyledImage, Subscription, Task,
-    UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
+    Pixels, Point, PromptLevel, RenderImage, ScrollWheelEvent, Size, Style, StyledImage,
+    Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point,
+    relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::consequence::Class;
@@ -92,7 +93,7 @@ use crate::{
     AllowPausedClick, Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload,
     ClearProjectBrowserData, DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress,
     KeepAnnotation, NewBrowserTab, NewPlaywrightScript, OpenBrowser, PickElement,
-    PlaywrightScripts, RecordThis, RefusePausedClick, RestoreAddress, SendPick,
+    PlaywrightScripts, RecordThis, RefusePausedClick, RestoreAddress, SendPick, TakeOverBrowser,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -234,6 +235,12 @@ pub enum BrowserEvent {
     },
     /// A page's `<select>` is opening (#495): its tab shows the list.
     SelectOpened {
+        /// The page.
+        target: String,
+    },
+    /// A page asked for files (#767): its tab opens the path prompt when the person's press
+    /// asked, else holds the chooser for an agent.
+    ChooserOpened {
         /// The page.
         target: String,
     },
@@ -427,6 +434,66 @@ struct PageState {
     tab_pixels: Option<(u32, u32)>,
     /// Where an agent's drag waits for Chromium to intercept the page's HTML drag (#756).
     drag: Option<oneshot::Sender<Value>>,
+    /// The file chooser the page opened and no one answered yet (#767).
+    chooser: Option<Chooser>,
+    /// Whether the person took the page over from agents (#767).
+    taken_over: bool,
+    /// Who acted in the page last, kept after the Agent chip goes: Take Over has something to
+    /// take (#767).
+    last_agent: Option<SharedString>,
+    /// The page's downloads this session, the newest last (#767).
+    downloads: Vec<Download>,
+}
+
+/// A file chooser a page opened (#767): the input it fills, in the session it came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Chooser {
+    session: String,
+    backend_node_id: Option<i64>,
+    /// Whether it takes several files.
+    pub multiple: bool,
+}
+
+/// A download a page started (#767).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Download {
+    #[serde(skip)]
+    guid: String,
+    /// The name it is saved under.
+    pub name: String,
+    /// Where it is, once finished.
+    pub path: Option<PathBuf>,
+    /// `in_progress`, `completed` or `canceled`.
+    pub state: &'static str,
+}
+
+/// How many downloads a page keeps (#767).
+const DOWNLOADS_KEPT: usize = 20;
+
+/// The folder downloads land in (#767): `$XDG_DOWNLOAD_DIR`, else the user dirs' download
+/// folder, else `~/Downloads`.
+fn download_folder() -> PathBuf {
+    std::env::var_os("XDG_DOWNLOAD_DIR")
+        .filter(|folder| !folder.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::download_dir)
+        .unwrap_or_else(|| util::paths::home_dir().join("Downloads"))
+}
+
+/// `name` in `folder`, with " (1)", " (2)" and on before its extension while that is taken.
+fn unique_in(folder: &Path, name: &str) -> PathBuf {
+    let first = folder.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, extension) = match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() => (stem, format!(".{extension}")),
+        _ => (name, String::new()),
+    };
+    (1..10_000)
+        .map(|number| folder.join(format!("{stem} ({number}){extension}")))
+        .find(|path| !path.exists())
+        .unwrap_or(first)
 }
 
 /// A device size an agent laid a page out at (#756).
@@ -521,6 +588,10 @@ impl PageState {
             scheme: None,
             tab_pixels: None,
             drag: None,
+            chooser: None,
+            taken_over: false,
+            last_agent: None,
+            downloads: Vec::new(),
             favicon: None,
             pause: None,
             agent_unseen: None,
@@ -1156,6 +1227,7 @@ impl BrowserHub {
                 }
             })
             .ok();
+            allow_downloads(&connection, cx).await;
             match pages_and_identity(&connection, &name).await {
                 Ok((pages, identity)) => {
                     this.update(cx, |this, cx| {
@@ -2684,6 +2756,11 @@ impl BrowserHub {
             })
             .detach();
         }
+        page.last_agent = Some(
+            client
+                .clone()
+                .unwrap_or_else(|| SharedString::new_static("An agent")),
+        );
         page.agent = Some(AgentAction {
             text,
             ended: Some(Instant::now()),
@@ -3042,6 +3119,219 @@ impl BrowserHub {
             page.drag = Some(sender);
         }
         receiver
+    }
+
+    fn file_chooser_opened(
+        &mut self,
+        target: &str,
+        session: String,
+        backend_node_id: Option<i64>,
+        multiple: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(page) = self.page_state_mut(target) else {
+            return;
+        };
+        // A newer chooser replaces one no one answered.
+        page.chooser = Some(Chooser {
+            session,
+            backend_node_id,
+            multiple,
+        });
+        cx.emit(BrowserEvent::ChooserOpened {
+            target: target.to_string(),
+        });
+        cx.notify();
+    }
+
+    /// The file chooser `target` holds (#767).
+    #[must_use]
+    pub fn chooser(&self, target: &str) -> Option<&Chooser> {
+        self.page_state(target)
+            .and_then(|page| page.chooser.as_ref())
+    }
+
+    /// Answers the file chooser of `target` with `paths` (#767).
+    pub fn answer_chooser(
+        &mut self,
+        target: &str,
+        paths: Vec<String>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(), String>> {
+        let Some(page) = self.page_state_mut(target) else {
+            return Task::ready(Err(format!("no page {target}")));
+        };
+        let Some(chooser) = page.chooser.take() else {
+            return Task::ready(Err("the page asks for no file".to_string()));
+        };
+        let session = page.page.clone();
+        cx.notify();
+        let Some(node) = chooser.backend_node_id else {
+            return Task::ready(Err(
+                "the page's chooser names no input, so Marley cannot fill it".to_string(),
+            ));
+        };
+        cx.spawn(async move |_, _| {
+            session
+                .set_file_input(&chooser.session, node, &paths)
+                .await
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    /// Lets the file chooser of `target` go unanswered (#767).
+    pub fn cancel_chooser(&mut self, target: &str, cx: &mut Context<Self>) {
+        if let Some(page) = self.page_state_mut(target)
+            && page.chooser.take().is_some()
+        {
+            cx.notify();
+        }
+    }
+
+    /// The downloads of `target` this session (#767).
+    #[must_use]
+    pub fn downloads(&self, target: &str) -> &[Download] {
+        self.page_state(target)
+            .map_or(&[], |page| page.downloads.as_slice())
+    }
+
+    /// A download began in the frame `frame`: a page's main frame, or one of its iframes'.
+    fn download_began(&mut self, frame: &str, guid: String, name: &str, cx: &mut Context<Self>) {
+        // The name a page suggests is a file name, never a path.
+        let name = Path::new(name)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "download".to_string());
+        let Some(page) = self.pages.iter_mut().find(|page| {
+            page.target() == frame || page.iframes.iter().any(|iframe| iframe.frame_id == frame)
+        }) else {
+            log::info!("browser: a download began in {frame}, which no page holds");
+            return;
+        };
+        page.downloads.push(Download {
+            guid,
+            name,
+            path: None,
+            state: "in_progress",
+        });
+        if page.downloads.len() > DOWNLOADS_KEPT {
+            page.downloads.remove(0);
+        }
+        cx.notify();
+    }
+
+    /// A download moved on: finished, it is renamed from Chromium's id to its name, and a
+    /// notification names it with Open and Show in Folder (#767).
+    fn download_progress(&mut self, guid: &str, state: &str, cx: &mut Context<Self>) {
+        let Some(download) = self
+            .pages
+            .iter_mut()
+            .flat_map(|page| page.downloads.iter_mut())
+            .find(|download| download.guid == guid)
+        else {
+            return;
+        };
+        match state {
+            "canceled" => {
+                download.state = "canceled";
+                log::info!("browser: the download of {} was canceled", download.name);
+                cx.notify();
+            }
+            "completed" if download.state == "in_progress" => {
+                download.state = "completed";
+                let name = download.name.clone();
+                let guid = guid.to_string();
+                cx.spawn(async move |this, cx| {
+                    let renamed = cx
+                        .background_spawn(futures::future::lazy(move |_| {
+                            let folder = download_folder();
+                            let path = unique_in(&folder, &name);
+                            std::fs::rename(folder.join(&guid), &path).map(|()| (guid, path))
+                        }))
+                        .await;
+                    match renamed {
+                        Ok((guid, path)) => {
+                            this.update(cx, |this, cx| this.downloaded(&guid, path, cx))
+                                .ok();
+                        }
+                        Err(error) => log::warn!("browser: a finished download: {error}"),
+                    }
+                })
+                .detach();
+            }
+            _ => {}
+        }
+    }
+
+    fn downloaded(&mut self, guid: &str, path: PathBuf, cx: &mut Context<Self>) {
+        if let Some(download) = self
+            .pages
+            .iter_mut()
+            .flat_map(|page| page.downloads.iter_mut())
+            .find(|download| download.guid == guid)
+        {
+            download.path = Some(path.clone());
+        }
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let message = SharedString::from(format!("Downloaded {name}"));
+        workspace::notifications::show_app_notification(
+            NotificationId::composite::<Download>(guid.to_string()),
+            cx,
+            move |cx| {
+                let opened = path.clone();
+                let shown = path.clone();
+                cx.new(|cx| {
+                    workspace::notifications::simple_message_notification::MessageNotification::new(
+                        message.clone(),
+                        cx,
+                    )
+                    .primary_message("Open")
+                    .primary_on_click(move |_, cx| cx.open_with_system(&opened))
+                    .secondary_message("Show in Folder")
+                    .secondary_on_click(move |_, cx| cx.reveal_path(&shown))
+                })
+            },
+        );
+        cx.notify();
+    }
+
+    /// Whether an agent has acted in `target` (#767): Take Over has something to take.
+    #[must_use]
+    pub fn agent_acted(&self, target: &str) -> bool {
+        self.page_state(target)
+            .is_some_and(|page| page.last_agent.is_some())
+    }
+
+    /// Whether the person took `target` over from agents (#767).
+    #[must_use]
+    pub fn is_taken(&self, target: &str) -> bool {
+        self.page_state(target).is_some_and(|page| page.taken_over)
+    }
+
+    /// Takes `target` over, or hands it back; false when no agent has acted there and nothing
+    /// was taken, so the key reaches the page (#767).
+    pub fn toggle_control(&mut self, target: &str, cx: &mut Context<Self>) -> bool {
+        let Some(page) = self.page_state_mut(target) else {
+            return false;
+        };
+        if !page.taken_over && page.last_agent.is_none() {
+            return false;
+        }
+        page.taken_over = !page.taken_over;
+        cx.emit(BrowserEvent::PageStatusChanged {
+            target: target.to_string(),
+        });
+        cx.notify();
+        true
+    }
+
+    /// Who acted in `target` last, as the control bar names them (#767).
+    fn agent_name(&self, target: &str) -> Option<SharedString> {
+        self.page_state(target)?.last_agent.clone()
     }
 
     fn drag_intercepted(&mut self, target: &str, data: Value) {
@@ -3451,6 +3741,47 @@ const fn window_pixels(length: f64) -> Pixels {
 }
 
 /// Rounds a length to the whole CSS pixels CDP takes, between 1 and 16,384.
+/// Has a project's browser save downloads in the Downloads folder, renamed when they finish
+/// (#767).
+async fn allow_downloads(connection: &Connection, cx: &AsyncApp) {
+    let folder = download_folder();
+    let made = cx
+        .background_spawn({
+            let folder = folder.clone();
+            futures::future::lazy(move |_| std::fs::create_dir_all(&folder))
+        })
+        .await;
+    match made {
+        Ok(()) => {
+            Page::allow_downloads(connection, &folder).await.log_err();
+        }
+        Err(error) => {
+            log::warn!("browser: no downloads folder {}: {error}", folder.display());
+        }
+    }
+}
+
+/// A download's beginning or progress (#767), an event of the browser's own session.
+fn follow_download(this: &WeakEntity<BrowserHub>, event: &Event, cx: &mut AsyncApp) {
+    let text = |name: &str| {
+        event
+            .params
+            .get(name)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    if event.method == "Browser.downloadWillBegin" {
+        let (frame, guid, name) = (text("frameId"), text("guid"), text("suggestedFilename"));
+        this.update(cx, |this, cx| this.download_began(&frame, guid, &name, cx))
+            .ok();
+    } else {
+        let (guid, state) = (text("guid"), text("state"));
+        this.update(cx, |this, cx| this.download_progress(&guid, &state, cx))
+            .ok();
+    }
+}
+
 /// The size an emulated page's stream fits within: its tab's, in device pixels (#756).
 fn stream_within(page: &PageState) -> Option<(u32, u32)> {
     page.emulated.as_ref().and(page.tab_pixels)
@@ -3789,6 +4120,10 @@ async fn follow(
                         .ok();
                 }
             }
+            // The browser's own events, on no page's session (#767).
+            "Browser.downloadWillBegin" | "Browser.downloadProgress" => {
+                follow_download(&this, &event, cx);
+            }
             _ => follow_navigation(&this, event, generation, cx).await,
         }
     }
@@ -3875,6 +4210,18 @@ async fn follow_navigation(
                     .ok();
                 }
                 Err(error) => log::warn!("browser: a dialog the page opened: {error}"),
+            }
+        }
+        // The page asked for files (#767), in its own session or an iframe's.
+        "Page.fileChooserOpened" => {
+            let node = event.params.get("backendNodeId").and_then(Value::as_i64);
+            let multiple =
+                event.params.get("mode").and_then(Value::as_str) == Some("selectMultiple");
+            if let Some(session) = event.session_id.clone() {
+                this.update(cx, |this, cx| {
+                    this.file_chooser_opened(&target, session, node, multiple, cx);
+                })
+                .ok();
             }
         }
         // An agent's drag started the page's HTML drag, which Chromium holds for it (#756).
@@ -5041,6 +5388,15 @@ impl BrowserView {
             BrowserEvent::SelectOpened { target: opened } if *opened == target => {
                 self.open_select(window, cx);
             }
+            // The person's press asked for files: the path prompt; an agent's waits in the bar.
+            BrowserEvent::ChooserOpened { target: opened }
+                if *opened == target
+                    && self
+                        .pressed_at
+                        .is_some_and(|pressed_at| pressed_at.elapsed() < USER_PRESS) =>
+            {
+                self.choose_files(window, cx);
+            }
             // The user picked in this tab: the pick's caption takes the focus.
             BrowserEvent::PickStaged { target: picked, id } if *picked == target => {
                 let caption = self.caption(*id, window, cx);
@@ -5201,6 +5557,175 @@ impl BrowserView {
             .update(cx, |hub, cx| hub.answer_pause(&target, allow, cx));
         if self.pause_focus.contains_focused(window, cx) {
             window.focus(&self.focus_handle, cx);
+        }
+    }
+
+    /// Zed's path prompt for the file chooser the page holds (#767): the files chosen fill the
+    /// page's input, and a cancelled prompt lets the chooser go.
+    fn choose_files(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.target.clone() else {
+            return;
+        };
+        let Some(multiple) = self
+            .hub
+            .read(cx)
+            .chooser(&target)
+            .map(|chooser| chooser.multiple)
+        else {
+            return;
+        };
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let paths = workspace.update(cx, |workspace, cx| {
+            let lister = project::DirectoryLister::Project(workspace.project().clone());
+            workspace.prompt_for_open_path(
+                PathPromptOptions {
+                    files: true,
+                    directories: false,
+                    multiple,
+                    prompt: Some(SharedString::new_static("Upload")),
+                },
+                lister,
+                window,
+                cx,
+            )
+        });
+        let hub = self.hub.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            let chosen = paths.await.log_err().flatten();
+            let Some(paths) = chosen else {
+                hub.update(cx, |hub, cx| hub.cancel_chooser(&target, cx));
+                return;
+            };
+            let paths = paths
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect();
+            let answered = hub.update(cx, |hub, cx| hub.answer_chooser(&target, paths, cx));
+            if let Err(error) = answered.await {
+                log::warn!("browser: the files chosen for {target}: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// The bar of the file chooser the page holds (#767): Choose… opens the path prompt, Cancel
+    /// lets it go, and an agent answers it with `browser_upload`.
+    fn chooser_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let target = self.target.as_deref()?;
+        self.hub.read(cx).chooser(target)?;
+        let colors = cx.theme().colors();
+        Some(
+            h_flex()
+                .id("marley-browser-chooser")
+                .debug_selector(|| "marley-browser-chooser".to_string())
+                .w_full()
+                .flex_none()
+                .px_2()
+                .py_1()
+                .gap_2()
+                .border_b_1()
+                .border_color(colors.border)
+                .bg(colors.surface_background)
+                .child(
+                    Icon::new(IconName::File)
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new("The page asks for a file")),
+                )
+                .child(
+                    Button::new("marley-browser-chooser-cancel", "Cancel").on_click(cx.listener(
+                        |this, _, _, cx| {
+                            if let Some(target) = this.target.clone() {
+                                this.hub
+                                    .update(cx, |hub, cx| hub.cancel_chooser(&target, cx));
+                            }
+                        },
+                    )),
+                )
+                .child(
+                    Button::new("marley-browser-chooser-choose", "Choose…")
+                        .style(ButtonStyle::Filled)
+                        .on_click(cx.listener(|this, _, window, cx| this.choose_files(window, cx))),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// The bar of who controls the page once an agent has acted there (#767), as the terminal's
+    /// (#525): Take Over, or "You have control" and Hand Back.
+    fn control_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let target = self.target.as_deref()?;
+        let hub = self.hub.read(cx);
+        let (sentence, button) = if hub.is_taken(target) {
+            (
+                SharedString::new_static(
+                    "You have control: agents' actions in this page are refused",
+                ),
+                "Hand Back",
+            )
+        } else {
+            let who = hub.agent_name(target)?;
+            (format!("{who} acted in this page").into(), "Take Over")
+        };
+        let colors = cx.theme().colors();
+        Some(
+            h_flex()
+                .id("marley-browser-control")
+                .debug_selector(|| "marley-browser-control".to_string())
+                .w_full()
+                .flex_none()
+                .px_2()
+                .py_0p5()
+                .gap_2()
+                .border_b_1()
+                .border_color(colors.border_variant)
+                .child(
+                    Icon::new(IconName::Sparkle)
+                        .size(IconSize::Small)
+                        .color(Color::Accent),
+                )
+                .child(
+                    div().flex_1().min_w_0().child(
+                        Label::new(sentence)
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                            .truncate(),
+                    ),
+                )
+                .child(
+                    Button::new("marley-browser-control-toggle", button)
+                        .style(ButtonStyle::Subtle)
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.toggle_control(cx);
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// Takes the page over from agents, or hands it back (#767); false when no agent has acted
+    /// here.
+    fn toggle_control(&self, cx: &mut Context<Self>) -> bool {
+        let Some(target) = self.target.clone() else {
+            return false;
+        };
+        self.hub
+            .update(cx, |hub, cx| hub.toggle_control(&target, cx))
+    }
+
+    /// Ctrl-I: Take Over or Hand Back once an agent has acted here; otherwise the key reaches the
+    /// page, as the terminal's does (#525).
+    fn take_over(&mut self, _: &TakeOverBrowser, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.toggle_control(cx) {
+            cx.propagate();
         }
     }
 
@@ -7125,10 +7650,19 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::toggle_scripts))
             .on_action(cx.listener(Self::keep_annotation))
             .on_action(cx.listener(Self::drop_annotation))
+            .on_action(cx.listener(Self::take_over))
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(toolbar)
-            .children(self.pause_bar(cx))
+            .children(
+                [
+                    self.pause_bar(cx),
+                    self.chooser_bar(cx),
+                    self.control_bar(cx),
+                ]
+                .into_iter()
+                .flatten(),
+            )
             .children(trays.into_iter().flatten())
             .child(
                 div()
@@ -7148,26 +7682,7 @@ impl Render for BrowserView {
                     })
                     .children(annotations)
                     .when_some(message, |this, (headline, hint)| {
-                        this.child(
-                            v_flex()
-                                .absolute()
-                                .inset_0()
-                                .items_center()
-                                .justify_center()
-                                .gap_1()
-                                .px_8()
-                                .child(
-                                    div()
-                                        .max_w(rems(48.))
-                                        .text_center()
-                                        .child(Label::new(headline).color(Color::Muted)),
-                                )
-                                .when_some(hint, |this, hint| {
-                                    this.child(
-                                        Label::new(hint).size(LabelSize::Small).color(Color::Muted),
-                                    )
-                                }),
-                        )
+                        this.child(Self::render_message(headline, hint))
                     })
                     .children(comparison)
                     .children(dialog),
@@ -7183,6 +7698,28 @@ impl Render for BrowserView {
                 )
                 .with_priority(1)
             }))
+    }
+}
+
+impl BrowserView {
+    /// What the tab says over the page while it shows none: why, and what to do.
+    fn render_message(headline: SharedString, hint: Option<SharedString>) -> impl IntoElement {
+        v_flex()
+            .absolute()
+            .inset_0()
+            .items_center()
+            .justify_center()
+            .gap_1()
+            .px_8()
+            .child(
+                div()
+                    .max_w(rems(48.))
+                    .text_center()
+                    .child(Label::new(headline).color(Color::Muted)),
+            )
+            .when_some(hint, |this, hint| {
+                this.child(Label::new(hint).size(LabelSize::Small).color(Color::Muted))
+            })
     }
 }
 

@@ -4015,6 +4015,19 @@ below describe what #743 retired.
   scheme) when a page has them. An upload's paths are made real in the background (a link inside
   a project can point anywhere), then checked with `editor_tools::project_holding` and
   `not_secret`.
+- Since #767 `PageState` also keeps `chooser` (the session, the input's node, `multiple`),
+  `downloads` (the newest 20: name, path, state) and `taken_over` with `last_agent` (who acted
+  last, kept after the Agent chip's five seconds). `BrowserHub::start` calls `allow_downloads`
+  (the folder: `$XDG_DOWNLOAD_DIR`, `dirs::download_dir`, `~/Downloads`); `follow` hands the
+  session-less download events to `follow_download`; a finished download is renamed off the main
+  thread (`unique_in`) and an app notification offers Open (`open_with_system`) and Show in Folder
+  (`reveal_path`). `follow_navigation` hands `Page.fileChooserOpened` to `file_chooser_opened`,
+  which emits `ChooserOpened`; the view opens `prompt_for_open_path` when its press is within
+  `USER_PRESS` (#495's rule), else the chooser bar waits (Choose…, Cancel) for the person or
+  `browser_upload` with no `ref` (`answer_chooser`, else `no_chooser`). The control bar (Take Over,
+  or Hand Back) and `TakeOverBrowser` (Ctrl-I in `MarleyBrowser`, propagated when no agent acted)
+  toggle `taken_over`; `run` refuses `WRITES` there with `taken_over`, and `not_paused` refuses
+  `browser_navigate` and `browser_check_pick` with the same words.
 - `browser.rs` keeps `emulated`, `scheme`, `tab_pixels` and the drag's one-shot in `PageState`;
   `resize` leaves an emulated page's layout alone and only refits its stream; the toolbar's
   emulation chip (`render_emulation`) has Reset, `reset_emulation`.

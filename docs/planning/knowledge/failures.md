@@ -3885,3 +3885,12 @@ chip said "failed", while the dialog card waited for the user. Nothing tied
 dialog. Fixed in #756: `acting` races every action against the tab showing a dialog and answers
 when one shows, naming it.
 
+## F-claude-767-take-over-read-the-agent-chips-five-second-record-001
+*severity: medium · found in: pipeline 767's Test, the first full run · class: a lasting state read from a passing one*
+
+Take Over first read "an agent acted here" from `PageState.agent`, the Agent chip's record,
+which the hub clears five seconds after each action so the chip goes. Ctrl-I pressed after the
+chip went had nothing to take, the key went to the page, and the bar was gone: the run's taken
+check failed with "browser_click was not refused". Fixed in #767: `last_agent`, set with each
+action and never cleared, holds who acted.
+

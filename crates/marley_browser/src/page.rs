@@ -482,6 +482,17 @@ impl Page {
             log::warn!("browser: a page keeps Chromium's own user agent: {error}");
         }
         page.call("Page.enable", json!({})).await?;
+        // A headless page shows no file chooser: Chromium reports it instead, and Marley answers
+        // it with the person's choice or an agent's files (#767).
+        if let Err(error) = page
+            .call(
+                "Page.setInterceptFileChooserDialog",
+                json!({ "enabled": true }),
+            )
+            .await
+        {
+            log::warn!("browser: a page's file chooser stays Chromium's: {error}");
+        }
         page.call(
             "Emulation.setFocusEmulationEnabled",
             json!({ "enabled": true }),
@@ -489,6 +500,31 @@ impl Page {
         .await?;
         page.observe(&page.session_id).await?;
         Ok(page)
+    }
+
+    /// Has the browser save downloads into `folder` under ids and report them (#767):
+    /// `Browser.downloadWillBegin` and `Browser.downloadProgress` arrive on the connection's
+    /// browser session, with no page's session, and Marley renames a finished one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn allow_downloads(
+        connection: &Connection,
+        folder: &std::path::Path,
+    ) -> Result<(), CdpError> {
+        connection
+            .call(
+                "Browser.setDownloadBehavior",
+                json!({
+                    "behavior": "allowAndName",
+                    "downloadPath": folder.to_string_lossy(),
+                    "eventsEnabled": true,
+                }),
+                None,
+            )
+            .await
+            .map(drop)
     }
 
     /// Closes the page `target_id`, attached or not, as closing its tab in a browser does.

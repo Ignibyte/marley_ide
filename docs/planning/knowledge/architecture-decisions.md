@@ -5135,3 +5135,15 @@ MCP's defaults (destructive, open world) are the wrong guess for most of them. A
 is non-destructive until named in `DESTRUCTIVE`, which its ticket's review checks. Rejected: a
 field on `ToolSpec` (66 edits, and a default chosen by whoever adds a row).
 
+## AD-claude-767-the-browser-tab-answers-choosers-saves-downloads-and-can-be-taken-over-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-756-agents-answer-dialogs-and-lay-pages-out-as-devices-001*
+
+A page's file chooser is intercepted: the person's press (within #495's second) opens Zed's path
+prompt, an agent's click holds it in a bar for `browser_upload` with no ref or the person's
+Choose…, so an agent never puts a prompt in front of the person. Downloads go to the Downloads
+folder (`$XDG_DOWNLOAD_DIR` first), renamed from Chromium's id to the page's name, with a
+notification; nothing asks before a download. Take Over matches the terminal's (#525): Ctrl-I only
+after an agent acted, the same words and refusal, checked when a write starts. Rejected: a
+generation that fails a queued write (a browser write is one short action), a folder Marley
+invents for downloads, and opening the path prompt for an agent's chooser.
+

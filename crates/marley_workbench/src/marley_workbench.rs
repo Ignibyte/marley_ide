@@ -229,6 +229,11 @@ actions!(
         /// back; without such an agent, the key goes to the terminal's program (#525).
         #[derive(Eq)]
         TakeOverTerminal,
+        /// Takes the focused Browser tab's page over from agents, whose browser actions there are
+        /// refused until you hand it back; without an agent's action there, the key goes to the
+        /// page (#767).
+        #[derive(Eq)]
+        TakeOverBrowser,
         /// Runs the command an agent waits to run in the focused terminal; without one, the key
         /// goes to the terminal's program (#556).
         #[derive(Eq)]

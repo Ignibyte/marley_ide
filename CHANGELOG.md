@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **File choosers, downloads and Take Over in the Browser tab** (#767, 2026-10-11). A page's
+  Choose File opens Zed's path prompt for you; one an agent's click opened waits in a bar until
+  the agent answers it with `browser_upload` or you choose. Downloads land in your Downloads
+  folder under the page's name for them, with a notification to open the file or show it. Once an
+  agent has acted in a page, Take Over (or Ctrl-I) gives you the page and refuses agents' browser
+  actions there until Hand Back, as the terminal's Take Over does.
+
 - **MCP annotations on every tool** (#766, 2026-10-11). Each tool Marley's MCP server lists, and
   the five of Claude Code's IDE link, carries a title and MCP's read-only, destructive,
   idempotent and open-world hints, so a client can tell a read from an action and an action that

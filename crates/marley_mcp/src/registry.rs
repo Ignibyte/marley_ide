@@ -401,8 +401,9 @@ const REGISTRY: &[ToolSpec] = &[
     ),
     browser_write(
         "upload",
-        "Set the files of a file input by its ref: `paths`, absolute paths of files inside one \
-         of the user's open projects; a file a secret glob matches is refused.",
+        "Set the files of a file input by its ref, or, with no ref, answer the file chooser the \
+         page waits on (browser_tabs reports it): `paths`, absolute paths of files inside one of \
+         the user's open projects; a file a secret glob matches is refused.",
     ),
     browser_write(
         "dialog",
@@ -1764,7 +1765,7 @@ fn acting_arguments(verb: &str, element: &Value) -> Value {
                 "ref": element.clone(),
                 "paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths of files in an open project." }
             }),
-            &["ref", "paths"],
+            &["paths"],
         ),
         "dialog" => browser_arguments(
             json!({

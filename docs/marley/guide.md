@@ -2153,7 +2153,7 @@ The browser family, acting. These need the `browser.write` grant:
 | `browser_hover` | Moves your mouse onto an element by its ref, or a point, and leaves it there (#756) |
 | `browser_select` | Chooses options of a select list by `values` or `labels`; the page gets its input and change events, and Marley's list stays shut. An option not there is refused `no_option`, naming the options there |
 | `browser_drag` | Drags from one element or point to another; a page's HTML drag and drop is finished with its drop events |
-| `browser_upload` | Sets a file input's files: `paths` inside an open project, never a file a secret glob matches (`outside_projects`, `no_file`, `secret_file`) |
+| `browser_upload` | Sets a file input's files by its `ref`, or with no `ref` answers the file chooser the page waits on: `paths` inside an open project, never a file a secret glob matches (`outside_projects`, `no_file`, `secret_file`, `no_chooser`) |
 | `browser_dialog` | Answers the tab's open alert, confirm, prompt or leave-page dialog: `accept`, and `text` for a prompt (`no_dialog` when none is open) |
 | `browser_resize` | Lays the page out as a device (`preset`: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24, iPad Mini, iPad Air, iPad Pro 13, Surface Pro 7, Laptop, Desktop), at `width` and `height`, or back at the tab's size with `fill` |
 | `browser_color_scheme` | Makes the page's `prefers-color-scheme` `dark` or `light`, or the system's again with `system` |
@@ -2355,6 +2355,22 @@ at that size, scaled down to fit, from its top left. Reset, beside the chip, put
 the tab's size and the system's scheme. A page without `<meta name="viewport">` lays out 980 pixels
 wide on a phone, as a real phone does.
 
+### Files, downloads and taking over
+
+- **File choosers (#767).** A page's Choose File opens Zed's path prompt when you clicked it; the
+  files you pick fill the page's input, and Escape picks none. When an agent's click opened it,
+  a bar under the toolbar says "The page asks for a file", with Choose… for you and Cancel, and
+  the agent answers it with `browser_upload`. `browser_tabs` reports a chooser waiting.
+- **Downloads (#767).** A page's download is saved in your Downloads folder (`$XDG_DOWNLOAD_DIR`,
+  else the desktop's download folder, else `~/Downloads`) under the name the page gives it, with
+  " (1)" and on when that name is taken. A notification names it, with Open and Show in Folder,
+  and `browser_tabs` lists each tab's downloads.
+- **Take Over (#767).** Once an agent has acted in a page, a bar under the toolbar names who, with
+  Take Over. Take Over, or Ctrl-I in the Browser tab, gives you the page: the bar reads "You have
+  control", and every agent's browser action there is refused until you click Hand Back. Before
+  any agent has acted, Ctrl-I reaches the page as before. It works as the terminal's Take Over
+  does.
+
 ### The element picker and the pick tray
 
 The crosshair, or Ctrl+Shift+C, turns on pick mode (#496). Chromium's own inspect highlight and
@@ -2414,9 +2430,9 @@ with browser_recording." An agent you tell "it broke just now" can list the reco
 
 ### Limits of the Browser tab
 
-- Headless Chromium draws no browser UI. Marley draws dialogs and select lists, but not file
-  choosers, downloads, context menus or the page's cursor shape. An agent sets a file input's
-  files with `browser_upload`; a person cannot choose files yet.
+- Headless Chromium draws no browser UI. Marley draws dialogs and select lists, answers file
+  choosers through Zed's path prompt and saves downloads (#767), but draws no context menus or
+  the page's cursor shape.
 - On a screen scaled above 1, pages look soft: Chromium's frames stay at 1×.
 - Japanese and Chinese through a live input method are untested.
 - A title a single-page app sets later, with no navigation, does not reach the tab.

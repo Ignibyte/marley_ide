@@ -140,6 +140,13 @@ for.
   `Input.dispatchDragEvent` `dragEnter`, `dragOver` and `drop` at the end point, as Playwright's
   Chromium driver does, since headless Chromium never completes a native drag; otherwise it
   releases the mouse there.
+- Since #767 `attach` turns on `Page.setInterceptFileChooserDialog`, so a page's file chooser
+  arrives as `Page.fileChooserOpened` (its `backendNodeId` and `mode`, on the page's session or an
+  iframe's) and is answered with `set_file_input`. `allow_downloads(connection, folder)` sends
+  `Browser.setDownloadBehavior` (`allowAndName`, events on) with no session: the relay puts it on
+  Marley's browser session, so `Browser.downloadWillBegin` and `downloadProgress` come back
+  session-less, and a finished file sits in the folder under Chromium's id until Marley renames
+  it. Each project's Chromium is its own process (#507), so the default context is per project.
 - `frame::decode` turns a frame's base64 JPEG into a BGRA `RenderImage`.
 
 ## Input (`src/input.rs`, #489)

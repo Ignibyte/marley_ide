@@ -143,6 +143,7 @@
     // Escape reaches the page, or ends pick mode, instead of Zed's Unfollow.
     "context": "MarleyBrowser",
     "bindings": {
+      "ctrl-i": "marley::TakeOverBrowser",
       "escape": null,
       "ctrl-l": "marley::FocusAddressBar",
       "ctrl-t": "marley::NewBrowserTab",

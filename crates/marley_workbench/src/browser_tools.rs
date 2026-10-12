@@ -120,9 +120,15 @@ pub fn answer(call: AppCall, cx: &mut App) {
     .detach();
 }
 
-/// Refuses a write in `tab` while a click waits there for the user (#571).
+/// What a write in a tab the user took over is told (#767), as `terminal_type` is (#525).
+const TAKEN_OVER: &str = "the user has taken over this tab; wait until they hand it back";
+
+/// Refuses a write in `tab` while a click waits there for the user (#571), or while the user has
+/// taken the tab over (#767).
 fn not_paused(tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> Result<(), String> {
-    if hub.read_with(cx, |hub, _| hub.is_paused(tab)) {
+    if hub.read_with(cx, |hub, _| hub.is_taken(tab)) {
+        Err(TAKEN_OVER.to_string())
+    } else if hub.read_with(cx, |hub, _| hub.is_paused(tab)) {
         Err(click_pause::PAUSED_WRITE.to_string())
     } else {
         Ok(())
@@ -309,6 +315,10 @@ async fn run(
     }
     let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
     if WRITES.contains(&tool) {
+        if hub.read_with(cx, |hub, _| hub.is_taken(&tab)) {
+            return Err(Refusal::new("taken_over", TAKEN_OVER)
+                .next("Ask the user to hand the tab back, or wait until they do."));
+        }
         not_paused(&tab, hub, cx)?;
         cx.update(|cx| show_for_agent(&tab, cx));
     }
@@ -493,6 +503,12 @@ struct TabRow {
     /// The device size and scheme an agent set (#756).
     #[serde(skip_serializing_if = "Option::is_none")]
     emulation: Option<Value>,
+    /// The file chooser the page waits on, which `browser_upload` answers (#767).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_chooser: Option<Value>,
+    /// The page's downloads this session (#767).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    downloads: Option<Value>,
 }
 
 /// `browser_tabs`: every page, once the pages being attached are.
@@ -529,11 +545,14 @@ async fn tabs(
                             .map(|project| project.name.to_string())
                     });
                 let (dialog, emulation) = page_extras(hub, &summary.id, cx);
+                let (file_chooser, downloads) = page_files(hub, &summary.id, cx);
                 TabRow {
                     default: default.as_deref() == Some(summary.id.as_str()),
                     project,
                     dialog,
                     emulation,
+                    file_chooser,
+                    downloads,
                     summary,
                 }
             })
@@ -564,6 +583,20 @@ fn page_extras(hub: &Entity<BrowserHub>, tab: &str, cx: &App) -> (Option<Value>,
     (dialog, emulation)
 }
 
+/// The file chooser a page waits on and its downloads, for `browser_tabs` and `browser_look`
+/// (#767).
+fn page_files(hub: &Entity<BrowserHub>, tab: &str, cx: &App) -> (Option<Value>, Option<Value>) {
+    let hub = hub.read(cx);
+    let chooser = hub
+        .chooser(tab)
+        .map(|chooser| json!({ "multiple": chooser.multiple }));
+    let downloads = hub.downloads(tab);
+    let downloads = (!downloads.is_empty())
+        .then(|| serde_json::to_value(downloads).ok())
+        .flatten();
+    (chooser, downloads)
+}
+
 async fn look(
     page: &Page,
     tab: &str,
@@ -591,6 +624,7 @@ async fn look(
     };
     let image = page.screenshot().await.map_err(|error| error.to_string())?;
     let (_, emulation) = cx.update(|cx| page_extras(hub, tab, cx));
+    let (file_chooser, _) = cx.update(|cx| page_files(hub, tab, cx));
     let open_dialog = hub.read_with(cx, |hub, _| hub.dialog(tab).cloned());
     let structured = serde_json::to_value(Look {
         tab: tab.to_string(),
@@ -602,6 +636,7 @@ async fn look(
         selection,
         dialog: open_dialog.map(|dialog| dialog_json(&dialog, cx)),
         emulation,
+        file_chooser,
     })
     .map_err(|error| error.to_string())?;
     Ok(ToolAnswer {
@@ -1052,6 +1087,9 @@ struct Look {
     /// The device size and scheme an agent set (#756).
     #[serde(skip_serializing_if = "Option::is_none")]
     emulation: Option<Value>,
+    /// The file chooser the page waits on (#767).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_chooser: Option<Value>,
 }
 
 async fn take_snapshot(
