@@ -264,6 +264,17 @@ impl Tool {
     }
 }
 
+/// The annotations of a tool that only reads Marley's state (#766).
+fn reads(title: &str) -> Value {
+    json!({
+        "title": title,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+    })
+}
+
 /// The tools listed to a client with `parts`.
 fn tool_list(parts: Parts) -> Value {
     let empty = json!({ "type": "object", "properties": {} });
@@ -272,6 +283,7 @@ fn tool_list(parts: Parts) -> Value {
             "name": "getDiagnostics",
             "description": "Get language diagnostics from Marley's language servers: one file's, \
                             by its URI, or every file's in the project that has any.",
+            "annotations": reads("Diagnostics"),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -286,6 +298,7 @@ fn tool_list(parts: Parts) -> Value {
             "name": "getWorkspaceFolders",
             "description": "Get the folders of the project Marley serves.",
             "inputSchema": empty,
+            "annotations": reads("Workspace folders"),
         }),
     ];
     if parts.selection {
@@ -294,16 +307,19 @@ fn tool_list(parts: Parts) -> Value {
                 "name": "getCurrentSelection",
                 "description": "Get the selection in Marley's last focused file editor.",
                 "inputSchema": empty,
+                "annotations": reads("Current selection"),
             }),
             json!({
                 "name": "getLatestSelection",
                 "description": "Get the most recent selection Marley sent.",
                 "inputSchema": empty,
+                "annotations": reads("Latest selection"),
             }),
             json!({
                 "name": "getOpenEditors",
                 "description": "Get the files open in Marley's editors.",
                 "inputSchema": empty,
+                "annotations": reads("Open editors"),
             }),
         ]);
     }

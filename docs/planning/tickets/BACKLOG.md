@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-766](open/TICKET-766-mcp-annotations.md) | chore | MCP annotations on every Marley tool; the guide's tool tables caught up |
 | [TICKET-767](open/TICKET-767-file-choosers-downloads-and-take-over.md) | feature | file choosers, downloads and Take Over in the Browser tab |
 | [TICKET-759](open/TICKET-759-follow-omarchys-theme.md) | feature | follow Omarchy's theme (opt-in, Omarchy only) |
 | [TICKET-445](open/TICKET-445-marley-release-identity.md) | chore | Marley's own remote server, so SSH projects open (slice 1 of the release identity) |

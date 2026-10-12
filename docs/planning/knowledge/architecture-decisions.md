@@ -5125,3 +5125,13 @@ tool and stays inside the server's 30 seconds. Rejected: an agent script tool (n
 runs in a page), centring the frame (annotations and clicks would need a second mapping), and
 emulating touch.
 
+## AD-claude-766-tool-annotations-are-derived-from-the-registry-row-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-756-agents-answer-dialogs-and-lay-pages-out-as-devices-001*
+
+Marley's MCP tools carry MCP 2025-06-18's annotations, derived when `tools/list` is built from
+the row's tier and family and three short lists in the registry (`DESTRUCTIVE`, `IDEMPOTENT`,
+`BROWSER_RECORDS`), not written on each of the 66 rows, and every tool states all four hints, since
+MCP's defaults (destructive, open world) are the wrong guess for most of them. A new write tool
+is non-destructive until named in `DESTRUCTIVE`, which its ticket's review checks. Rejected: a
+field on `ToolSpec` (66 edits, and a default chosen by whoever adds a row).
+

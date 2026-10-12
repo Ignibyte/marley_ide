@@ -788,10 +788,83 @@ pub fn tools_list_for(principal: &Principal, enabled: &BTreeSet<String>) -> Valu
                 "description": spec.description,
                 "inputSchema": input,
                 "outputSchema": output,
+                "annotations": annotations(spec),
             })
         })
         .collect();
     json!({ "tools": tools })
+}
+
+/// The write tools that change or send what the user cannot take back from Marley: MCP's
+/// `destructiveHint` (#766).
+const DESTRUCTIVE: &[&str] = &[
+    "session_surface_to_human",
+    "terminal_type",
+    "terminal_run",
+    "editor_edit",
+    "editor_save",
+    "thread_post",
+    "thread_answer",
+    "action_run",
+    "settings_change",
+    "keymap_change",
+    "seat_add",
+    "seat_stop",
+    "seat_remove",
+    "browser_navigate",
+    "browser_back",
+    "browser_click",
+    "browser_type",
+    "browser_press",
+    "browser_select",
+    "browser_drag",
+    "browser_upload",
+    "browser_dialog",
+];
+
+/// The write tools a second call with the same arguments leaves as the first did (#766).
+const IDEMPOTENT: &[&str] = &[
+    "editor_open",
+    "browser_open_url",
+    "browser_resize",
+    "browser_color_scheme",
+];
+
+/// The browser's tools that read Marley's own records, not a page: closed-world (#766).
+const BROWSER_RECORDS: &[&str] = &[
+    "browser_picks",
+    "browser_pick",
+    "browser_recordings",
+    "browser_recording",
+    "browser_draft_test",
+    "browser_annotations",
+];
+
+/// A tool's MCP annotations (#766): its title and all four hints, since MCP's defaults
+/// (destructive, open world) are the wrong guess for most of Marley's tools. A page the browser
+/// tools reach is the open world; every other tool stays inside Marley and its projects.
+fn annotations(spec: &ToolSpec) -> Value {
+    let name = spec.name();
+    let read = spec.tier == Tier::Read;
+    let open_world = spec.family == Family::Browser && !BROWSER_RECORDS.contains(&name.as_str());
+    json!({
+        "title": tool_title(spec),
+        "readOnlyHint": read,
+        "destructiveHint": !read && DESTRUCTIVE.contains(&name.as_str()),
+        "idempotentHint": read || IDEMPOTENT.contains(&name.as_str()),
+        "openWorldHint": open_world,
+    })
+}
+
+/// A tool's name in words, as a client shows it: "Browser: color scheme".
+fn tool_title(spec: &ToolSpec) -> String {
+    let family = spec.family.as_str();
+    let mut letters = family.chars();
+    let family = letters
+        .next()
+        .map(|first| first.to_ascii_uppercase().to_string() + letters.as_str())
+        .unwrap_or_default();
+    format!("{family}: {}", spec.verb.replace('_', " "))
 }
 
 /// The input + output JSON Schemas for a tool (the one thing that is NOT a `&'static str` on `ToolSpec`).

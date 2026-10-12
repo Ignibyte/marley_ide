@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **MCP annotations on every tool** (#766, 2026-10-11). Each tool Marley's MCP server lists, and
+  the five of Claude Code's IDE link, carries a title and MCP's read-only, destructive,
+  idempotent and open-world hints, so a client can tell a read from an action and an action that
+  cannot be taken back. The guide now lists every tool the server serves.
+
 - **The browser tools agents lacked** (#756, 2026-10-11). Agents can hover, choose in a select
   list, drag (HTML drag and drop included), upload a file from an open project, answer a page's
   dialog, wait for text, an element or a URL, lay the page out as a phone or tablet or at a size,

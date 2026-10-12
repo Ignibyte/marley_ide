@@ -2134,6 +2134,7 @@ The browser family, reading:
 | `browser_annotations` | The boxes over a page: each one's id, box in page coordinates, note, who drew it and when |
 | `browser_recordings` | The recordings you saved: id, tab, URL, title, when, how many seconds, frames and entries |
 | `browser_recording` | One recording's timeline; `frame` gives one frame, counted from 1, as an image |
+| `browser_draft_test` | A Playwright test drafted from a recording, by its `id`, and where in the project it would go (#506) |
 | `browser_wait` | Waits until the page shows `text`, stops showing `text_gone`, has an element of `role` (and `name`), or is at a URL holding `url`: every condition given, looked for every 250 ms for up to `timeout_ms` (10 s by default, 20 s at most). Refused `not_met`, with what did not hold, when time runs out (#756) |
 
 The browser family, acting. These need the `browser.write` grant:
@@ -2147,6 +2148,8 @@ The browser family, acting. These need the `browser.write` grant:
 | `browser_press` | Presses a key or a chord: Enter, Tab, Escape, ArrowDown, Ctrl+A, Shift+Tab |
 | `browser_scroll` | Scrolls by pixels (`dy` down, `dx` right), or an element into view |
 | `browser_annotate` | Draws a box with a note around an element or over an area, marked as the agent's; `clear` removes the agent's own boxes |
+| `browser_check_pick` | Finds a pick's element again after a change, by its most durable locator, and says what changed: its box, styles, text, role and name, or HTML, with a new crop (#505) |
+| `browser_open_url` | Opens a URL a program in `directory` asked to open, in a Browser tab of that folder's project, as Marley's `BROWSER` opener does (#561) |
 | `browser_hover` | Moves your mouse onto an element by its ref, or a point, and leaves it there (#756) |
 | `browser_select` | Chooses options of a select list by `values` or `labels`; the page gets its input and change events, and Marley's list stays shut. An option not there is refused `no_option`, naming the options there |
 | `browser_drag` | Drags from one element or point to another; a page's HTML drag and drop is finished with its drop events |
@@ -2157,6 +2160,13 @@ The browser family, acting. These need the `browser.write` grant:
 
 The tools that read or act in one page take `tab`, an id from `browser_tabs`, and without it act
 on the tab you focused last. Every answer from a page names its tab.
+
+Every tool Marley lists carries MCP's annotations (#766), so a client can tell a read from an
+action: a title ("Browser: click"), `readOnlyHint` for the reads, `destructiveHint` for the
+actions you cannot take back from Marley (typing into a terminal, saving a file, a click,
+navigating, an upload), `idempotentHint` for the reads and for actions a second call leaves as
+the first did (opening an editor, a device size), and `openWorldHint` for the browser tools that
+reach a page. The tools of Claude Code's IDE link are marked read-only.
 
 `browser_find` and `terminal_find` are listed and answered only while their use is on in the
 System One settings ([The find tools](#the-find-tools)). A client lists its tools when it

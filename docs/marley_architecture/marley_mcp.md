@@ -88,6 +88,13 @@ OR Apache-2.0, with the Marley crates' lint table.
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
   Since #574 the `tab` argument's and the tools' descriptions say that a call naming none acts in
   the project the agent runs in, and `browser_tabs`' output adds `project` and `default`.
+- Since #766 every entry of `tools_list_for` carries `annotations` (`annotations(spec)`): a
+  `title` ("Browser: click", `tool_title`) and all four hints, derived from the row's tier, its
+  family, and three lists in the registry: `DESTRUCTIVE` (writes the user cannot take back from
+  Marley), `IDEMPOTENT` (writes a second call leaves as the first did) and `BROWSER_RECORDS` (the
+  browser's tools over Marley's own records, closed-world); every other browser tool is
+  open-world. Reads are read-only and idempotent. The IDE server's five tools (`ide.rs`, `reads`)
+  are read-only and closed-world.
 - Since #756 eight more: seven writes (`browser_hover`, `browser_select`, `browser_drag`,
   `browser_upload`, `browser_dialog`, `browser_resize`, `browser_color_scheme`, their arguments
   in `acting_arguments`, the write tools' shared output gaining `dialog`) and one read,

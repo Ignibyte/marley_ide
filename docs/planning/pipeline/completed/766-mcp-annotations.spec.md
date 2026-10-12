@@ -1,7 +1,7 @@
 ---
 pipeline_id: c6fc52f0-21e6-4cc2-96a2-e70aa9484662
-ticket: docs/planning/tickets/open/TICKET-766-mcp-annotations.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-766-mcp-annotations.md
+status: Phase 4 — Complete PASS
 title: MCP annotations on every Marley tool
 type: chore
 slice: Marley's MCP server; the second slice of the T3 Code survey's item 10 (#756 the first)
