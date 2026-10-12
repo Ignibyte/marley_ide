@@ -76,6 +76,10 @@ pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String;
 - **`review_prompt`** (#522) turns `ReviewLine`s into the prompt review notes are sent as, in file
   and line order: `File:`, `Line: N` or `Lines: A-B`, `User comment: "…"`, a blank line between
   notes; the words' backslashes, quotes, CR and LF escaped and other control characters dropped.
+- **`review_message`** (#732) puts those notes in a template: each `NOTES_PLACEHOLDER` (`{notes}`)
+  replaced, or the notes after a blank line when there is none; no template or an empty one is
+  `DEFAULT_REVIEW_TEMPLATE`, which asks for a verdict per note and no change beyond them. The
+  template's control characters other than LF and tab are dropped.
 - **`permission_mark`** (#532) says whether an agent runs without its prompts. For Claude Code a
   reported mode decides (`BYPASS_MODE` marks, any other clears), else its arguments
   (`--dangerously-skip-permissions`, `--permission-mode bypassPermissions` and its `=` form);

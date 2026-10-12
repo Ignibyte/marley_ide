@@ -425,6 +425,36 @@ pub fn review_prompt(mut notes: Vec<ReviewLine>) -> String {
         .join("\n\n")
 }
 
+/// Marley's own message around review notes (#732): it asks the agent to check each note before it
+/// changes anything, to give its verdict, and to keep to what the notes name.
+pub const DEFAULT_REVIEW_TEMPLATE: &str = "Review notes on your work follow. For each note, check \
+     it against the code before you change anything, then say whether you agree and why. Fix only \
+     what you agree with, and change nothing the notes do not name.\n\n{notes}";
+
+/// Where the notes go in a review template (#732).
+pub const NOTES_PLACEHOLDER: &str = "{notes}";
+
+/// The message that carries `notes` in `template` (#732).
+///
+/// Each `{notes}` is replaced by them, or with none the notes come after a blank line; no template,
+/// or an empty one, is [`DEFAULT_REVIEW_TEMPLATE`]. The template's control characters other than a
+/// line break or a tab are dropped, so the message holds no escape sequence.
+#[must_use]
+pub fn review_message(template: Option<&str>, notes: &str) -> String {
+    let template = template
+        .filter(|template| !template.trim().is_empty())
+        .unwrap_or(DEFAULT_REVIEW_TEMPLATE);
+    let template: String = template
+        .chars()
+        .filter(|character| !character.is_control() || matches!(character, '\n' | '\t'))
+        .collect();
+    if template.contains(NOTES_PLACEHOLDER) {
+        template.replace(NOTES_PLACEHOLDER, notes)
+    } else {
+        format!("{}\n\n{notes}", template.trim_end())
+    }
+}
+
 /// The reviewer's words inside the prompt's quotes.
 fn escape_comment(comment: &str) -> String {
     let mut escaped = String::with_capacity(comment.len());

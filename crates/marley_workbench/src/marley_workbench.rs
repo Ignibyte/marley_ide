@@ -406,6 +406,8 @@ pub struct MarleySettings {
     pub continue_at_reset: ContinueAtReset,
     /// Whether past CLI sessions are listed in Threads (#754).
     pub list_cli_sessions: ListCliSessions,
+    /// The user's message for review notes, none for Marley's own (#732).
+    pub review_notes_template: Option<String>,
     /// Seconds a working Claude Code may be quiet before the stall kind's first check; 0 is none
     /// (#569).
     pub stall_check_after_seconds: u64,
@@ -758,6 +760,9 @@ impl Settings for MarleySettings {
             resume_agents: ResumeAgents::from_content(marley),
             continue_at_reset: ContinueAtReset::from_content(marley),
             list_cli_sessions: ListCliSessions::from_content(marley),
+            review_notes_template: marley
+                .and_then(|marley| marley.review_notes_template.clone())
+                .filter(|template| !template.trim().is_empty()),
             stall_check_after_seconds: marley
                 .and_then(|marley| marley.stall_check_after_seconds)
                 .unwrap_or(60),

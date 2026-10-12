@@ -1,7 +1,7 @@
 ---
 pipeline_id: f7b6fd1d-a1c6-45d0-89f1-7faab46fd295
 ticket: docs/planning/tickets/open/TICKET-732-a-feedback-template-for-review-notes.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A feedback template for review notes
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 7; docs/planning/design-notes/finish-line-2026-10-11.md row 11)

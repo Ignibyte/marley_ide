@@ -5710,3 +5710,11 @@ are adjacent: the space between them belongs to one pattern, so the next cannot 
 #718's `gh` answered `unknown` for `--job=22 --log-failed` until the pattern read
 `*"--job=22 "*"--log-failed "*`. Write each later piece without its leading space, and check a
 new pattern with the exact arguments in a one-line `bash -c` first.
+
+## L-claude-732-a-stand-in-reads-a-bracketed-pastes-marks-001
+*category: validate · topic: e2e stand-ins · from: pipeline 732*
+
+Marley's terminal pastes into a program that asked for bracketed paste, and a stand-in agent's
+cooked-mode `stdin` hands it the marks: the first line it reads starts with `ESC[200~` and the last
+ends with `ESC[201~`. A check on the first line of a pasted message matches `^got: .*<text>`, not
+`^got: <text>` or `grep -x`.

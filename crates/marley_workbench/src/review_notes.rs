@@ -13,6 +13,7 @@ use editor::actions::SendReviewToAgent;
 use editor::{Editor, ReviewNote};
 use gpui::{AnyWindowHandle, App, ClipboardItem, Context, Focusable as _, WeakEntity, Window};
 use marley_agent::ReviewLine;
+use settings::Settings as _;
 use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
@@ -114,7 +115,7 @@ fn deliver(
 ) {
     let target = match pick {
         Pick::Copy => {
-            cx.write_to_clipboard(ClipboardItem::new_string(prompt(notes, None)));
+            cx.write_to_clipboard(ClipboardItem::new_string(prompt(notes, None, cx)));
             return;
         }
         Pick::Agent(target) => target,
@@ -131,7 +132,7 @@ fn deliver(
         }
         return;
     }
-    let text = prompt(notes, target.cwd.as_deref());
+    let text = prompt(notes, target.cwd.as_deref(), cx);
     let ids: Vec<usize> = notes.iter().map(|note| note.id).collect();
     let editor = editor.clone();
     // After the picker's update, as a selection's send runs.
@@ -159,8 +160,8 @@ fn deliver(
 
 /// The prompt for `notes`, each file relative to `cwd`, the agent's folder, when it lies under
 /// it, else absolute.
-fn prompt(notes: &[ReviewNote], cwd: Option<&Path>) -> String {
-    marley_agent::review_prompt(
+fn prompt(notes: &[ReviewNote], cwd: Option<&Path>, cx: &App) -> String {
+    let lines = marley_agent::review_prompt(
         notes
             .iter()
             .map(|note| ReviewLine {
@@ -175,7 +176,12 @@ fn prompt(notes: &[ReviewNote], cwd: Option<&Path>) -> String {
                 comment: note.comment.clone(),
             })
             .collect(),
-    )
+    );
+    // In the user's template, or Marley's own (#732); Copy carries the same message.
+    let template = crate::MarleySettings::get_global(cx)
+        .review_notes_template
+        .clone();
+    marley_agent::review_message(template.as_deref(), &lines)
 }
 
 fn show_toast(workspace: &mut Workspace, message: impl Into<String>, cx: &mut Context<Workspace>) {

@@ -238,6 +238,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub omarchy_theme: Option<bool>,
+    /// The message review notes reach an agent in (#732), with `{notes}` where the notes go; a
+    /// template without it gets the notes after a blank line. Unset or empty, Marley's own asks the
+    /// agent to check each note, say whether it agrees, and change nothing the notes do not name.
+    /// Write a line break as `\n`.
+    ///
+    /// Default: unset
+    pub review_notes_template: Option<String>,
     /// Whether Marley's agents get the `rustal-ste` skill (#725): Simplified Technical English with
     /// Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent
     /// gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin

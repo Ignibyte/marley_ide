@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A message around review notes** (#732, 2026-10-12). Review notes now reach the agent inside a
+  message that asks it to check each note against the code, say whether it agrees, and change
+  nothing the notes do not name. `marley.review_notes_template` replaces it with your own, `{notes}`
+  marking where the notes go. Copy notes copies the same message.
+
 - **Failed checks to an agent** (#718, 2026-10-12). A project's pull request chip marks its checks:
   a red cross when one failed, a yellow dot while one runs, a green tick when all passed, with the
   names in its tooltip. While a check failed, Send Failed Checks to Agent… in the project's menu

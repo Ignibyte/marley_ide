@@ -1339,6 +1339,18 @@ The prompt gives each note as `File:` (relative to the agent's folder), `Line:` 
 `User comment: "…"`. Sent notes stay in the diff with Sent beside them, and the button counts only
 the ones not sent; Copy notes marks nothing sent.
 
+The notes come inside a message (#732). Marley's own asks the agent to check each note against the
+code before it changes anything, say whether it agrees and why, fix only what it agrees with, and
+change nothing the notes do not name. To send your own, set `marley.review_notes_template` in
+`settings.json`, with `{notes}` where the notes go and `\n` for a line break:
+
+```json
+"marley": { "review_notes_template": "Please look at these notes.\n\n{notes}\n\nReply before you edit." }
+```
+
+A template without `{notes}` gets the notes after it, past a blank line. Copy notes copies the same
+message. Unset or empty, Marley's own applies.
+
 ## Zed's Agent Panel with Marley's tools
 
 Zed's Agent Panel works as it does in Zed. In the Marley layout it docks on the right (Ctrl+?

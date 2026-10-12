@@ -1377,8 +1377,10 @@ alike.
   and focused, `paste_then` of `prompt(notes, cwd)` with `\r` after the pause (#594), and the
   diff's editor
   `mark_review_notes_sent(ids)`.
-- `prompt` makes each file relative to the agent's folder when it lies under it and hands the
-  notes to `marley_agent::review_prompt`.
+- `prompt` makes each file relative to the agent's folder when it lies under it, hands the
+  notes to `marley_agent::review_prompt`, and wraps them with `review_message` in
+  `MarleySettings.review_notes_template` (#732, `marley.review_notes_template`, blank taken as
+  unset), so the paste and Copy carry the same message.
 - The Zed side: `DiffReviewFeatureFlag::enabled_for_all`; `StoredReviewComment::sent`; the count
   of unsent notes behind `ReviewCommentsChanged` and the button; `ReviewNote`,
   `Editor::unsent_review_notes` (anchors to points, `point_to_buffer_point`, the buffer file's

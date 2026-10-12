@@ -5274,3 +5274,14 @@ failed-step logs fetched, their ends kept, redacted and written to a private fil
 folder, and a one-line prompt naming the checks, the commit and the file is pasted without Enter.
 Rejected: fetching logs at each poll, pasting the logs themselves, sending with Enter (CI text
 alone would drive the agent), and a handler on the chip itself (it would have to stop the row's).
+
+## AD-claude-732-review-notes-ride-in-a-template-the-user-can-set-001
+*decided at: 2026-10-12 · status: shipped*
+
+Review notes reach an agent inside a message: `marley.review_notes_template`, with `{notes}` where
+they go (appended after a blank line when it is missing), or Marley's own, which asks the agent to
+check each note, give a verdict, and change nothing the notes do not name. The template's control
+characters other than LF and tab are dropped, so a template cannot carry a bracketed paste's end
+mark. Copy notes carries the same message. Rejected: a template file, a Settings window row (its
+field is one line), plannotator's `{{feedback}}`, and dropping the notes when the placeholder is
+missing.

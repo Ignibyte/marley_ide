@@ -22,7 +22,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-729](open/TICKET-729-notes-on-markdown-and-last-reply.md) | feature | the review batch: notes on any Markdown file or the agent's last reply |
 | [TICKET-730](open/TICKET-730-agent-findings-as-diff-notes.md) | feature | the review batch: agent findings as diff notes over MCP |
 | [TICKET-731](open/TICKET-731-viewed-marks-in-the-diff.md) | feature | the review batch: viewed marks in the project diff |
-| [TICKET-732](open/TICKET-732-a-feedback-template-for-review-notes.md) | feature | the review batch: a feedback template for review notes |
 | [TICKET-733](open/TICKET-733-guided-review.md) | feature | the review batch: guided review |
 | [TICKET-757](open/TICKET-757-claude-code-remote-control-switch.md) | feature | shelved (Chad: "yes and shelve"): a switch for Claude Code's Remote Control |
 | [TICKET-719](open/TICKET-719-scheduled-runs.md) | feature | moved to rustal-harness (Chad: "harness yes"); Marley shows the runs once the harness has a scheduler |
