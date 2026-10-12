@@ -179,6 +179,9 @@ pub(super) struct StoredReviewComment {
     pub(super) is_editing: bool,
     // Marley: sent to an agent, so kept in the diff and out of its count (#522).
     pub(super) sent: bool,
+    // Marley: where a tool's note came from, and whether it waits for Keep or Drop (#730).
+    pub(super) source: Option<SharedString>,
+    pub(super) proposed: bool,
 }
 
 // Marley: a review note as plain data, for Marley's handler of `SendReviewToAgent` (#522).
@@ -191,6 +194,8 @@ pub struct ReviewNote {
     pub first_line: u32,
     pub last_line: u32,
     pub comment: String,
+    // Marley: the tool a kept finding came from (#730).
+    pub source: Option<String>,
 }
 
 /// Represents an active diff review overlay that appears when clicking the "Add Review" button.
@@ -236,6 +241,8 @@ impl StoredReviewComment {
             range: anchor_range,
             is_editing: false,
             sent: false,
+            source: None,
+            proposed: false,
         }
     }
 }
@@ -764,8 +771,13 @@ impl Editor {
     pub(super) fn total_review_comment_count(&self) -> usize {
         self.stored_review_comments
             .iter()
-            // Marley: a sent note stays in the diff but leaves the count (#522).
-            .map(|(_, v)| v.iter().filter(|comment| !comment.sent).count())
+            // Marley: a sent note stays in the diff but leaves the count (#522), and a proposal
+            // counts once kept (#730).
+            .map(|(_, v)| {
+                v.iter()
+                    .filter(|comment| !comment.sent && !comment.proposed)
+                    .count()
+            })
             .sum()
     }
 
@@ -777,7 +789,10 @@ impl Editor {
         let snapshot = self.buffer.read(cx).snapshot(cx);
         let mut notes = Vec::new();
         for (_, comments) in &self.stored_review_comments {
-            for comment in comments.iter().filter(|comment| !comment.sent) {
+            for comment in comments
+                .iter()
+                .filter(|comment| !comment.sent && !comment.proposed)
+            {
                 let start = comment.range.start.to_point(&snapshot);
                 let end = comment.range.end.to_point(&snapshot);
                 let Some((buffer, start)) = snapshot.point_to_buffer_point(start) else {
@@ -799,6 +814,7 @@ impl Editor {
                     first_line: start.row + 1,
                     last_line: end.row.max(start.row) + 1,
                     comment: comment.comment.clone(),
+                    source: comment.source.as_ref().map(ToString::to_string),
                 });
             }
         }
@@ -819,6 +835,80 @@ impl Editor {
         let total_count = self.total_review_comment_count();
         cx.emit(EditorEvent::ReviewCommentsChanged { total_count });
         cx.notify();
+    }
+
+    // Marley: a tool's finding, placed as a proposal the user keeps or drops (#730).
+    /// Places a review note from `source` on `range`, which starts at a line's start, as a
+    /// proposal: its block opens without taking the focus, and the note neither counts nor goes
+    /// with a send until kept. Its id, or none when the range lies in no file of this editor.
+    pub fn add_review_note(
+        &mut self,
+        range: Range<Anchor>,
+        comment: String,
+        source: SharedString,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        let buffer_snapshot = self.buffer.read(cx).snapshot(cx);
+        let start_point = range.start.to_point(&buffer_snapshot);
+        let end_point = range.end.to_point(&buffer_snapshot);
+        let file_path = buffer_snapshot.file_at(start_point)?.path().clone();
+        let display_snapshot = self.display_snapshot(cx);
+        let rows = display_snapshot
+            .point_to_display_point(start_point, Bias::Left)
+            .row()
+            ..display_snapshot
+                .point_to_display_point(end_point, Bias::Left)
+                .row();
+        // The block's prompt takes the focus; whatever had it gets it back.
+        let focused = window.focused(cx);
+        self.show_diff_review_overlay(rows, window, cx);
+        match focused {
+            Some(handle) => window.focus(&handle, cx),
+            None => window.blur(cx),
+        }
+        let hunk_key = DiffHunkKey {
+            file_path,
+            hunk_start_anchor: buffer_snapshot.anchor_before(start_point),
+        };
+        let id = self.add_review_comment(hunk_key.clone(), comment, range, cx);
+        if let Some(stored) = self
+            .stored_review_comments
+            .iter_mut()
+            .flat_map(|(_, comments)| comments.iter_mut())
+            .find(|stored| stored.id == id)
+        {
+            stored.source = Some(source);
+            stored.proposed = true;
+        }
+        cx.emit(EditorEvent::ReviewCommentsChanged {
+            total_count: self.total_review_comment_count(),
+        });
+        self.refresh_diff_review_overlay_height(&hunk_key, window, cx);
+        Some(id)
+    }
+
+    // Marley: a proposal kept becomes an ordinary unsent note (#730).
+    /// Keeps the proposed note `id`, which then counts and goes with the next send.
+    pub fn keep_review_note(&mut self, id: usize, cx: &mut Context<Self>) {
+        for stored in self
+            .stored_review_comments
+            .iter_mut()
+            .flat_map(|(_, comments)| comments.iter_mut())
+            .filter(|stored| stored.id == id)
+        {
+            stored.proposed = false;
+        }
+        cx.emit(EditorEvent::ReviewCommentsChanged {
+            total_count: self.total_review_comment_count(),
+        });
+        cx.notify();
+    }
+
+    // Marley: a proposal dropped goes as a deleted note does (#730).
+    /// Drops the proposed note `id`.
+    pub fn drop_review_note(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.delete_review_comment(&DeleteReviewComment { id }, window, cx);
     }
 
     /// Adds a new review comment to a specific hunk.
@@ -2741,6 +2831,8 @@ impl Editor {
                     avatar_size,
                     action_icon_size,
                     colors,
+                    // Marley: a proposal's Keep and Drop act on the editor (#730).
+                    editor_handle,
                 ))
             })
             .into_any_element()
@@ -2754,6 +2846,7 @@ impl Editor {
         avatar_size: Pixels,
         action_icon_size: IconSize,
         colors: &theme::ThemeColors,
+        editor_handle: &WeakEntity<Editor>,
     ) -> impl IntoElement {
         let comment_count = comments.len();
 
@@ -2808,6 +2901,7 @@ impl Editor {
                         avatar_size,
                         action_icon_size,
                         colors,
+                        editor_handle.clone(),
                     )
                 }))
             })
@@ -2820,11 +2914,15 @@ impl Editor {
         avatar_size: Pixels,
         action_icon_size: IconSize,
         colors: &theme::ThemeColors,
+        editor_handle: WeakEntity<Editor>,
     ) -> impl IntoElement {
         let comment_id = comment.id;
         let is_editing = inline_editor.is_some();
-        // Marley: a sent note says so (#522).
+        // Marley: a sent note says so (#522); a tool's note names its source, and a proposal
+        // offers Keep and Drop (#730).
         let sent = comment.sent;
+        let source = comment.source.clone();
+        let proposed = comment.proposed;
 
         h_flex()
             .w_full()
@@ -2872,6 +2970,13 @@ impl Editor {
                     .child(comment.comment)
                     .into_any_element()
             })
+            .when_some(source.filter(|_| !is_editing), |row, source| {
+                row.child(
+                    Label::new(source)
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
             .child(if is_editing {
                 // Editing mode: show close and confirm buttons
                 h_flex()
@@ -2909,6 +3014,32 @@ impl Editor {
                                 cx,
                             );
                         }),
+                    )
+                    .into_any_element()
+            } else if proposed {
+                // Marley: a proposal waits for Keep or Drop (#730).
+                let (keep, drop) = (editor_handle.clone(), editor_handle);
+                h_flex()
+                    .gap_1()
+                    .child(
+                        Button::new(format!("diff-review-keep-{comment_id}"), "Keep")
+                            .label_size(LabelSize::Small)
+                            .on_click(move |_, _, cx| {
+                                keep.update(cx, |editor, cx| {
+                                    editor.keep_review_note(comment_id, cx);
+                                })
+                                .log_err();
+                            }),
+                    )
+                    .child(
+                        Button::new(format!("diff-review-drop-{comment_id}"), "Drop")
+                            .label_size(LabelSize::Small)
+                            .on_click(move |_, window, cx| {
+                                drop.update(cx, |editor, cx| {
+                                    editor.drop_review_note(comment_id, window, cx);
+                                })
+                                .log_err();
+                            }),
                     )
                     .into_any_element()
             } else if sent {

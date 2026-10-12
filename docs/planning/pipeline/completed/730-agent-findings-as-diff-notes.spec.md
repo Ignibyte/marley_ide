@@ -1,7 +1,7 @@
 ---
 pipeline_id: 97420e97-5adf-48e9-900a-7a0866b40b5f
 ticket: docs/planning/tickets/open/TICKET-730-agent-findings-as-diff-notes.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Agent findings as diff notes
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 5; docs/planning/design-notes/finish-line-2026-10-11.md row 11)

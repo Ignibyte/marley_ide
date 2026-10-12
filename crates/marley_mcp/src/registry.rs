@@ -44,6 +44,8 @@ pub enum Family {
     Seat,
     /// Messages an agent drafts for the user to review and send (#769).
     Draft,
+    /// Findings a tool puts into the project diff as review notes the user keeps or drops (#730).
+    Review,
 }
 
 impl Family {
@@ -66,6 +68,7 @@ impl Family {
             Self::Keymap => "keymap",
             Self::Seat => "seat",
             Self::Draft => "draft",
+            Self::Review => "review",
         }
     }
 
@@ -87,6 +90,7 @@ impl Family {
                 | Self::Keymap
                 | Self::Seat
                 | Self::Draft
+                | Self::Review
         )
     }
 }
@@ -718,6 +722,20 @@ const REGISTRY: &[ToolSpec] = &[
                       `bad_argument`.",
     },
     ToolSpec {
+        family: Family::Review,
+        verb: "notes_add",
+        tier: Tier::Write,
+        grant_class: "review.write",
+        description: "Put findings into the project diff as review notes for the user to keep or \
+                      drop: `source` names what found them (your name when left out), `notes` \
+                      up to 50, each an absolute `path`, `first_line`, optional `last_line` (from \
+                      1, on the changed side) and `comment`. Marley opens the project's diff and \
+                      shows each note under its lines with Keep and Drop; a kept note goes to the \
+                      author agent with the user's own. A note whose lines the diff does not show \
+                      is left out and named in `refused` with the reason. Asks the user first, as \
+                      the editor tools do.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -904,6 +922,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Keymap => keymap_change_schemas(),
         Family::Seat => seat_schemas(spec.verb),
         Family::Draft => draft_schemas(),
+        Family::Review => review_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -954,6 +973,69 @@ fn draft_schemas() -> (Value, Value) {
                 "opened": { "type": "boolean" }
             },
             "required": ["draft", "to", "opened"]
+        }),
+    )
+}
+
+/// The schemas of `review_notes_add` (#730): the source and the notes; the answer lists the notes
+/// placed and the ones left out.
+fn review_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "What found the notes, such as `clippy` or `codex review`."
+                },
+                "notes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": { "type": "string", "description": "The file's absolute path." },
+                            "first_line": { "type": "integer", "minimum": 1 },
+                            "last_line": { "type": "integer", "minimum": 1 },
+                            "comment": { "type": "string", "minLength": 1 }
+                        },
+                        "required": ["path", "first_line", "comment"],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": ["notes"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "source": { "type": "string" },
+                "placed": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": { "type": "string" },
+                            "first_line": { "type": "integer" },
+                            "last_line": { "type": "integer" }
+                        }
+                    }
+                },
+                "refused": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": { "type": "string" },
+                            "first_line": { "type": "integer" },
+                            "reason": { "type": "string" }
+                        }
+                    }
+                }
+            },
+            "required": ["source", "placed", "refused"]
         }),
     )
 }
@@ -3098,10 +3180,11 @@ mod tests {
                 "seat_stop",
                 "seat_remove",
                 "draft_message",
+                "review_notes_add",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 67);
+        assert_eq!(registry().len(), 68);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

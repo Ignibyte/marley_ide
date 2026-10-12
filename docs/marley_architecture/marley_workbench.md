@@ -2830,6 +2830,25 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
+## Findings into the project diff (`src/review_tools.rs`, Zed's `editor`, #730)
+
+- `mcp::answer` routes `review_*` to `review_tools::answer`. `review_notes_add` checks the notes
+  (absolute paths, lines from 1, at most 50, comments cut at 4,000 characters), takes the source
+  from the call or the caller's name, finds the first note's project (`editor_tools::project_holding`)
+  and is admitted through `agent_control::admit(Area::Editors, Level::Act, …)`.
+- `place` activates the project's workspace, runs `ProjectDiff::deploy_at_project_path` for the
+  first file, and takes the diff's `rhs_editor()`. The diff loads its files a few at a time with no
+  event at the end, so each note's range is tried every 100 ms for up to three seconds:
+  `range_in_diff` finds the file's buffer among the multibuffer's, anchors the lines in the buffer,
+  and maps them with `anchor_in_excerpt`, which is none outside the diff's excerpts. Each found
+  range goes to `Editor::add_review_note`; the answer lists `placed` and `refused` with reasons.
+- Zed's side (`zed-touchpoints.md`): `StoredReviewComment.{source, proposed}`, `ReviewNote.source`,
+  the count and `unsent_review_notes` skipping proposals; `add_review_note` opens the block through
+  `show_diff_review_overlay` and gives the focus back, then stores the note as a proposal and
+  resizes the block; `keep_review_note`; `drop_review_note` runs the delete handler;
+  `render_comment_row` takes the editor handle, so Keep and Drop reach the editor whatever has the
+  focus. `review_notes::prompt` passes `source` into `ReviewLine`.
+
 ## Per-turn diffs (`src/turns.rs`, `src/turn_git.rs`, #509)
 
 - `Turns`, a global made at the first write, holds a seat per terminal view whose Claude Code

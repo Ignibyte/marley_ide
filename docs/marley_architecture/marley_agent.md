@@ -76,6 +76,8 @@ pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String;
 - **`review_prompt`** (#522) turns `ReviewLine`s into the prompt review notes are sent as, in file
   and line order: `File:`, `Line: N` or `Lines: A-B`, `User comment: "…"`, a blank line between
   notes; the words' backslashes, quotes, CR and LF escaped and other control characters dropped.
+- **`ReviewLine.source`** (#730): a kept finding's tool, written as `Source: "<name>"` after its
+  `User comment:`, escaped as the comment is.
 - **`review_message`** (#732) puts those notes in a template: each `NOTES_PLACEHOLDER` (`{notes}`)
   replaced, or the notes after a blank line when there is none; no template or an empty one is
   `DEFAULT_REVIEW_TEMPLATE`, which asks for a verdict per note and no change beyond them. The

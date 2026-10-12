@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's findings as diff notes** (#730, 2026-10-12). A reviewing agent, or a linter's
+  wrapper, calls `review_notes_add` to put its findings into the project diff as notes under their
+  lines, each naming where it came from, with Keep and Drop. Marley asks first, as for the editor
+  tools. Only kept notes count on Send Review to Agent and go to the agent, with a `Source:` line.
+
 - **A message around review notes** (#732, 2026-10-12). Review notes now reach the agent inside a
   message that asks it to check each note against the code, say whether it agrees, and change
   nothing the notes do not name. `marley.review_notes_template` replaces it with your own, `{notes}`

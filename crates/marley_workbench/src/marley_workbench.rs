@@ -92,6 +92,7 @@ pub mod rail;
 pub mod remote;
 pub mod resume;
 pub mod review_notes;
+pub mod review_tools;
 pub mod rich_input;
 pub mod routing;
 pub mod running_errors;

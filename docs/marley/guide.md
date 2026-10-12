@@ -1351,6 +1351,16 @@ change nothing the notes do not name. To send your own, set `marley.review_notes
 A template without `{notes}` gets the notes after it, past a blank line. Copy notes copies the same
 message. Unset or empty, Marley's own applies.
 
+**Findings from tools** (#730). An agent or a tool connected to Marley's MCP server can put its
+findings into the project diff with `review_notes_add`: each note under its lines on the changed
+side, with where it came from (`clippy`, `codex review`, or the caller's name) and **Keep** and
+**Drop**. Marley asks first, as for the editor tools (Settings → Marley → Agent Control → Editors),
+and opens the project's diff. A finding is a proposal until you keep it: it does not count on Send
+Review to Agent and is not sent. Keep makes it an ordinary note that still names its source, and it
+goes to the agent with a `Source:` line after its comment; Drop removes it. A finding on lines the
+diff does not show (an unchanged part of a file, or a file with no changes) is left out, and the
+tool's answer says which and why.
+
 ## Zed's Agent Panel with Marley's tools
 
 Zed's Agent Panel works as it does in Zed. In the Marley layout it docks on the right (Ctrl+?
@@ -2108,6 +2118,8 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   sent. **Drop** closes the tab and sends nothing. Nothing asks first, since the tab is the review.
   An agent CLI that waits on a question, or a thread where you have a message typed, keeps the
   draft open and says why.
+- `review_notes_add` puts findings into the project diff as notes you keep or drop (#730), as
+  "Findings from tools" under Review notes to the agent describes. It asks as `editor_open` does.
 - `action_list` lists the palette actions an agent may run (#707). These are Marley's safe ones
   (docks and panels, splits, pane navigation, search, go-to, Format, folds and the finders) and
   any you name in `marley.agent_control.actions_allowed`. Settings → Marley → Agent Control →

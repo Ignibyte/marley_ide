@@ -114,6 +114,7 @@ pub fn start(cx: &mut App) {
                 "thread.write",
                 "action.write",
                 "draft.write",
+                "review.write",
             ]),
             ..transport::ServerData::default()
         }),
@@ -562,6 +563,10 @@ fn answer(mut call: AppCall, cx: &mut App) {
     }
     if call.tool == "draft_message" {
         crate::drafts::answer(call, cx);
+        return;
+    }
+    if call.tool.starts_with("review_") {
+        crate::review_tools::answer(call, cx);
         return;
     }
     if call.tool == "ports_list" {

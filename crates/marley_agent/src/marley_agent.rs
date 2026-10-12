@@ -395,15 +395,18 @@ pub struct ReviewLine {
     pub last: u32,
     /// The reviewer's words.
     pub comment: String,
+    /// The tool a kept finding came from (#730); none for the user's own note.
+    pub source: Option<String>,
 }
 
 /// The prompt that hands review notes to an agent (#522).
 ///
 /// It takes the form Orca's report describes for its diff notes
 /// (`src/shared/diff-comments-format.ts`): per note `File: <path>`, `Line: N` or `Lines: A-B`, and
-/// `User comment: "<words>"`, the notes in file and line order, a blank line between them. In the
-/// words a backslash, a quote, a CR and a LF are escaped, and any other control character is
-/// dropped, so the prompt holds no escape sequence.
+/// `User comment: "<words>"`, the notes in file and line order, a blank line between them; a tool's
+/// finding adds `Source: "<name>"` (#730). In the words and the source a backslash, a quote, a CR
+/// and a LF are escaped, and any other control character is dropped, so the prompt holds no escape
+/// sequence.
 #[must_use]
 pub fn review_prompt(mut notes: Vec<ReviewLine>) -> String {
     notes.sort_by(|a, b| (&a.path, a.first, a.last).cmp(&(&b.path, b.first, b.last)));
@@ -416,8 +419,11 @@ pub fn review_prompt(mut notes: Vec<ReviewLine>) -> String {
                 format!("Lines: {}-{}", note.first, note.last)
             };
             let path: String = note.path.chars().filter(|c| !c.is_control()).collect();
+            let source = note.source.as_deref().map_or_else(String::new, |source| {
+                format!("\nSource: \"{}\"", escape_comment(source))
+            });
             format!(
-                "File: {path}\n{lines}\nUser comment: \"{}\"",
+                "File: {path}\n{lines}\nUser comment: \"{}\"{source}",
                 escape_comment(&note.comment)
             )
         })

@@ -5285,3 +5285,15 @@ characters other than LF and tab are dropped, so a template cannot carry a brack
 mark. Copy notes carries the same message. Rejected: a template file, a Settings window row (its
 field is one line), plannotator's `{{feedback}}`, and dropping the notes when the placeholder is
 missing.
+
+## AD-claude-730-a-tools-findings-are-proposals-in-the-project-diff-001
+*decided at: 2026-10-12 · status: shipped*
+
+Findings from a tool or a reviewing agent enter the project diff through one batch MCP tool,
+`review_notes_add` (a `review` family of its own, `review.write`, admitted as the editor tools
+are), as review notes that name their source and wait as proposals with Keep and Drop. Only kept
+notes count and go to an agent, with a `Source:` line. A note goes only on lines the diff shows. The
+Zed touch is additive in `crates/editor/src/git.rs`: two fields, a placing call that reuses
+`show_diff_review_overlay` and hands the focus back, Keep and Drop through the editor handle.
+Rejected: a tool per note, findings as ordinary notes, widening the diff's excerpts to fit a note,
+and Keep and Drop as dispatched actions (they would reach whatever has the focus).

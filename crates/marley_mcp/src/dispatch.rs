@@ -253,7 +253,8 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Actions
         | Family::Keymap
         | Family::Seat
-        | Family::Draft => Handled {
+        | Family::Draft
+        | Family::Review => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

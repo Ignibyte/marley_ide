@@ -174,6 +174,7 @@ fn prompt(notes: &[ReviewNote], cwd: Option<&Path>, cx: &App) -> String {
                 first: note.first_line,
                 last: note.last_line,
                 comment: note.comment.clone(),
+                source: note.source.clone(),
             })
             .collect(),
     );

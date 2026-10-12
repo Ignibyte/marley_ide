@@ -104,3 +104,75 @@
 - The overlay's height is computed from the count of comments; a proposal's buttons must fit the
   two lines a comment row gets, or the height counts them.
 - An agent's comment can be long; the row wraps it, and the tool cuts it at a bound it states.
+
+## Phase 1 — Plan (promoted 2026-10-12)
+- **Promotion:** the queued pair moved to `active/`; the ticket is in progress; its Backlog row is
+  gone. The brain (consultation a4df09371d8e4d4ebd5721845c20dd00) had nothing on the seam.
+- **Seams re-verified** (an Explore pass at `8190786f44`): as the queued notes say, with these
+  differences, which change the design below:
+  - `show_diff_review_overlay(display_range, window, cx)` (git.rs 572) keys the block by the
+    range's first line and always focuses its prompt; `add_review_comment` (825) is `pub(super)`
+    and draws no block; `refresh_diff_review_overlay_height` (2510) resizes a block, and
+    `ReviewCommentsChanged` does not. `render_comment_row` (2816) is a static fn with no editor
+    handle; `render_diff_review_overlay` (2567) has one.
+  - Nothing announces that the project diff has loaded: `DiffMultibuffer::refresh` loads files 16
+    at a time and ends in `cx.notify()`. `ProjectDiff::editor()` is a `SplittableEditor`
+    (`rhs_editor()`), and `act_as::<Editor>` answers the same editor #522 reads.
+  - `MultiBufferSnapshot::anchor_in_excerpt` is `None` outside the diff's excerpts, the check D5
+    needs. `review_prompt` now feeds #732's `review_message`.
+- **Design changes:**
+  - `add_review_note` calls `show_diff_review_overlay` for the note's rows and gives the focus
+    back to what had it, so the upstream function is not touched; it stores the note as a proposal
+    under the same key and resizes the block.
+  - Keep and Drop act through the editor handle, not a dispatched action: a dispatched action goes
+    to the focused element, which may be a terminal. `render_comment_row` gains the handle as an
+    argument.
+  - `review_tools` waits for each file's excerpts with a bounded retry (three seconds), since the
+    admission question may already have used most of an app call's 30 seconds.
+  - The family is `review` with the verb `notes_add` (wire name `review_notes_add`).
+
+## Phase 2 — Code
+
+- **Built:** Zed's `crates/editor/src/git.rs` (its ledger row first): `source` and `proposed`,
+  `ReviewNote.source`, proposals out of the count and the send, `add_review_note`,
+  `keep_review_note`, `drop_review_note`, and `render_comments_section` and `render_comment_row`
+  taking the editor handle for the source label and Keep and Drop. `marley_mcp`: `Family::Review`,
+  `review_notes_add`, `review_schemas`, the deferred arm, the registry test (68 tools).
+  `marley_workbench`: `review_tools.rs` (new), the `review.write` grant and the `review_` route,
+  `review_notes::prompt` passing the source. `marley_agent`: `ReviewLine.source` and the
+  `Source:` line.
+- **Deviations:** the source line reads `Source: "<name>"`, quoted and escaped as the comment is,
+  rather than bare; the design changes recorded at promotion.
+- **The review found** nothing to fix. Seen, left as upstream does: a hunk's comment box stays
+  open, empty, after its last note is dropped, as it does when the user deletes their own last note.
+- **Clippy:** a borrow of `call.tool` across its move (cloned first) and `needless_pass_by_ref_mut`
+  twice. Fixed at the source. A language server's `cargo check --workspace` was running on the
+  repository when clippy was due; the run waited for it.
+- **Gate:** `script/gates.sh --diff` green, 17 of 17, on the code the scenario ran; green again after the in-app guide's row (the receipt hashes it, L-claude-730-the-receipt-hashes-the-in-app-guide-001).
+
+## Phase 3 — Test
+
+- **Scenario:** `script/e2e/730-agent-findings-as-diff-notes.sh` under `compositor sway`: #522's
+  set-up with a twenty-line `notes.txt`, lines 10 and 12 changed; `mcp_agent` calls
+  `review_notes_add` (source `scenario-lint`, lines 10, 12 and 1). The first run stopped at 730-02
+  to place Keep (1525,337) and Drop (1566,529); the second passed every check.
+- **730-01-asked (REQ-001):** "e2e wants to use review_notes_add", "put 3 review notes from
+  scenario-lint into the project diff", Allow for This Session, Always for This Project, Deny.
+- **730-02-proposed (REQ-002 to REQ-004):** the Uncommitted Changes diff in front; under line 10
+  "Ten should stay in lower case" and under line 12 "Twelve may stay as it is", each with
+  `scenario-lint`, Keep and Drop; the toolbar has no Send Review to Agent. The answer: placed 10
+  and 12, refused 1 with "the lines are not shown in the project diff".
+- **730-03-kept (REQ-005, REQ-006):** line 10's note without buttons, still `scenario-lint`; line
+  12's gone; Send Review to Agent (1).
+- **730-04-sent (REQ-007):** the stand-in read #732's message, `File: notes.txt`, `Line: 10`,
+  `User comment: "Ten should stay in lower case"`, `Source: "scenario-lint"`; nothing of line 12.
+
+## Phase 4 — Complete
+
+- **Documented:** CHANGELOG (Added); the guide (Findings from tools; the tool in Agent Control's
+  list) and the in-app guide's Review notes table; `marley_mcp.md`, `marley_agent.md`,
+  `marley_workbench.md` ("Findings into the project diff"); the touchpoint row of
+  `crates/editor/src/git.rs` describes what shipped.
+- **Knowledge:** L-claude-730-the-receipt-hashes-the-in-app-guide-001,
+  AD-claude-730-a-tools-findings-are-proposals-in-the-project-diff-001. No failure found.
+- **Brain:** `brain decide` on the consultation recorded at promotion.

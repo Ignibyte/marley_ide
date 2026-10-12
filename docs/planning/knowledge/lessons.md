@@ -5718,3 +5718,12 @@ Marley's terminal pastes into a program that asked for bracketed paste, and a st
 cooked-mode `stdin` hands it the marks: the first line it reads starts with `ESC[200~` and the last
 ends with `ESC[201~`. A check on the first line of a pasted message matches `^got: .*<text>`, not
 `^got: <text>` or `grep -x`.
+
+## L-claude-730-the-receipt-hashes-the-in-app-guide-001
+*category: validate · topic: the gate's receipt · from: pipeline 730*
+
+The Code phase's receipt hashes `crates/`, `script/e2e*`, `*.toml` and the in-app guide
+(`crates/marley_workbench/guide/index.html`). A ticket that adds an MCP tool also adds its row to
+that guide's tool tables, and an edit there after the green gate leaves the receipt stale; `--fast`
+writes none. Edit the in-app guide with the code, before `script/gates.sh --diff`; `docs/` is not
+hashed and can follow.
