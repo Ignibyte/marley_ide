@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Remote projects over SSH** (#445, slice 1 of Marley's release identity, 2026-10-11). Marley
+  opens folders on other Linux x86_64 machines and in dev containers. Each install builds
+  Marley's own remote server from the same tree and stages it, and Marley uploads it to a host
+  that lacks it. On the host the server is named for Marley's commit and is used only when its
+  `version` answers that commit, so a stale server is replaced. With nothing staged the
+  connection says which platform and commit it needs and to run
+  `script/install-marley --remote-server-only`.
+
 - **Follow Omarchy's theme** (#759, 2026-10-11). On Omarchy, Follow Omarchy's Theme in the
   Layout section (off by default) draws Marley in the desktop's theme. Omarchy fills Marley's theme
   template at each theme switch and a hook copies the result into Marley's themes folder, so the

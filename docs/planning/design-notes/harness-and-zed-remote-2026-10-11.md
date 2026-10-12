@@ -336,7 +336,7 @@ project, open a remote terminal, start a new agent on its harness. No setting mo
 
 | # | Repo | Ticket | Needs |
 |---|---|---|---|
-| M1 | Marley | Marley's own remote server (a′): stage `remote_server` for Linux x86_64 at install, name the dev server by commit, upload the staged one; same for dev containers | none |
+| M1 | Marley | Marley's own remote server (a′): stage `remote_server` for Linux x86_64 at install, name the dev server by commit, upload the staged one; same for dev containers. Shipped as #445 slice 1, 2026-10-11 | none |
 | M2 | Marley | Seats in a remote project (c): match a remote window's host to `marley.harnesses`, default New Agent there to the harness in the project's root, make a seat thread from a remote window work or say why | M1 to see the edits in a remote project |
 | M3 | Marley | One host picker (d) over the three host lists | M2 |
 

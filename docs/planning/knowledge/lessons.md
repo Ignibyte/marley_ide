@@ -5618,3 +5618,16 @@ against `background`. A Zed theme built from Omarchy's slots reads text from `fo
 `background` for secondary text, and keeps `muted` for borders, scrollbars and backgrounds.
 Render the template with `omarchy-theme-set-templates` under a scratch HOME to read the values
 before a run.
+
+## L-claude-445-a-remote-servers-own-error-is-on-the-host-001
+*category: e2e · topic: a Zed remote project that does not open · from: pipeline 445*
+
+When a remote project fails with "client did not become ready within the timeout", the client
+holds nothing more: the server's error is on the host. Read the host's
+`~/.local/share/marley/logs/server-<id>.log`, then run the server's `run` subcommand in the
+foreground with the same `--log-file`, `--pid-file` and three socket paths, which prints the error
+the daemon swallowed. A debug Marley waits five seconds for the first connection
+(`INITIAL_CONNECTION_TIMEOUT`, sixty in release), so a scenario on the debug build also needs a
+server that starts fast. A fake host for a scenario is an sshd whose `ForceCommand` sets `HOME`
+and the XDG folders and runs `$SSH_ORIGINAL_COMMAND`, with sftp's server (`*/sftp-server`) started
+with `-d` on the fake home, plus `ssh`, `scp` and `sftp` wrappers first on Marley's PATH.

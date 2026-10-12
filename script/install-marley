@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# install-marley [--prefix DIR] [--regress]: build `marley` in the release profile and install a
-# copy with a desktop entry, so the menu starts an installed Marley rather than the debug binary in
-# the shared target directory, which a `cargo clean` or a failed build takes away (TICKET-502).
+# install-marley [--prefix DIR] [--regress] [--remote-server-only]: build `marley` in the release
+# profile and install a copy with a desktop entry, so the menu starts an installed Marley rather
+# than the debug binary in the shared target directory, which a `cargo clean` or a failed build
+# takes away (TICKET-502).
 # With `--regress`, the golden set (script/regress, #517) runs against the new build before
 # anything is replaced, and a failure installs nothing. Since 2026-09-29 no test runs unless asked
 # (CONSTITUTION §7); `--skip-regress`, the old way to skip it, is still accepted.
@@ -19,14 +20,24 @@
 # The build stays on the `dev` channel (crates/zed/RELEASE_CHANNEL), so the installed and the
 # debug builds share ~/.config/marley and ~/.local/share/marley. Since #513 a second Marley on
 # the same data directory hands its paths to the one that runs and exits.
+#
+# Every install also stages Marley's remote server for Linux x86_64 hosts (#445). On the `dev`
+# channel Zed's client neither downloads a server nor checks one, so Marley uploads the one staged
+# for its commit to a host whose ~/.zed_server lacks it. The server is built from the same tree,
+# static (musl) and in its own cargo invocation, so the editor's features stay out of it, then
+# stripped and gzipped as script/bundle-linux does, into
+# ${XDG_DATA_HOME:-~/.local/share}/marley/remote_servers/dev/linux-x86_64/<commit>.gz, the layout
+# of Zed's own download cache. The newest three are kept. `--remote-server-only` stages the server
+# and builds or installs nothing else.
 set -euo pipefail
 
 usage() {
-  echo "usage: script/install-marley [--prefix DIR] [--regress]   (DIR defaults to ~/.local)"
+  echo "usage: script/install-marley [--prefix DIR] [--regress] [--remote-server-only]   (DIR defaults to ~/.local)"
 }
 
 prefix=$HOME/.local
 regress=0
+server_only=0
 while (($#)); do
   case $1 in
     --prefix)
@@ -40,6 +51,10 @@ while (($#)); do
       ;;
     --skip-regress)
       regress=0
+      shift
+      ;;
+    --remote-server-only)
+      server_only=1
       shift
       ;;
     -h | --help)
@@ -67,12 +82,57 @@ lib=$prefix/lib/marley
 applications=$prefix/share/applications
 entry=$applications/marley.desktop
 
+# Builds the remote server and stages it for Marley's commit; prints where it went.
+stage_remote_server() {
+  local target=x86_64-unknown-linux-musl tool
+  for tool in musl-gcc llvm-objcopy gzip; do
+    if ! command -v "$tool" >/dev/null; then
+      echo "install-marley: the remote server needs $tool (the musl and llvm packages)" >&2
+      exit 1
+    fi
+  done
+  if ! rustup target list --installed | grep -qx "$target"; then
+    rustup target add "$target"
+  fi
+  until ! pgrep -x cargo >/dev/null; do sleep 2; done
+  echo "==> building the remote server for $target in the release profile"
+  CC_x86_64_unknown_linux_musl=musl-gcc \
+    cargo --config .cargo/bundle-config.toml build --release --target "$target" -p remote_server
+
+  local commit platform_dir
+  commit=$(git rev-parse HEAD)
+  platform_dir=${XDG_DATA_HOME:-$HOME/.local/share}/marley/remote_servers/dev/linux-x86_64
+  mkdir -p "$platform_dir"
+  server_stripped=$platform_dir/.remote_server.$$
+  server_packed=$platform_dir/.$commit.gz.$$
+  trap 'rm -f "$server_stripped" "$server_packed"' EXIT
+  llvm-objcopy --strip-debug --discard-all \
+    "${CARGO_TARGET_DIR:-$root/target}/$target/release/remote_server" "$server_stripped"
+  gzip --best --stdout "$server_stripped" >"$server_packed"
+  mv -f "$server_packed" "$platform_dir/$commit.gz"
+  rm -f "$server_stripped"
+  # The newest three staged servers are kept; the names are commits, so they hold no spaces.
+  find "$platform_dir" -maxdepth 1 -name '*.gz' -printf '%T@ %p\n' | sort -rn | tail -n +4 |
+    cut -d' ' -f2- | xargs -r rm -f --
+  if [[ -n $(git status --porcelain) ]]; then
+    echo "    remote server for linux-x86_64 at ${commit:0:10}, with changes not committed: $platform_dir/$commit.gz"
+  else
+    echo "    remote server for linux-x86_64 at ${commit:0:10}: $platform_dir/$commit.gz"
+  fi
+}
+
 # The target directory is shared by every project on the box. `pgrep -x`, since `pgrep -f`
 # would match this script's own command line.
 until ! pgrep -x cargo >/dev/null; do sleep 2; done
 
+if ((server_only)); then
+  stage_remote_server
+  exit 0
+fi
+
 echo "==> building marley in the release profile"
 cargo build --release -p zed --bin marley
+stage_remote_server
 
 if ((regress)); then
   echo "==> the golden set against the new build (script/regress, asked for with --regress)"

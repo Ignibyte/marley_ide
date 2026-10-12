@@ -2,16 +2,14 @@
 
 - **Ticket:** LOCAL #445 (feature, packaging: the release identity, slice 1 of 5)
 - **Owner:** ba5cc5f0-d61c-4b8e-97c8-fde390e55d4a
-- **Pipeline doc:** [445-marley-release-identity.spec.md](../../pipeline/queued/445-marley-release-identity.spec.md)
+- **Pipeline doc:** [445-marley-release-identity.spec.md](../../pipeline/completed/445-marley-release-identity.spec.md)
 - **Source ticket:** the #437 inspect ledger (`../../pipeline/completed/437-marley-app-identity.notes.md`).
   Chad, 2026-10-11, answering "Marley's own identity: its own app id, keyring name, `marley://`
   links and updater … it also unblocks building Marley's remote server, so SSH projects work":
   "7.) yes". Plan: [finish-line shelf](../../design-notes/finish-line-2026-10-11.md) (row 7, the
   release step) and the first recommendation (M1) of
   [harness-and-zed-remote-2026-10-11.md](../../design-notes/harness-and-zed-remote-2026-10-11.md).
-- **Status:** open (held since 2026-10-01: "wait on 445 that way if there is any bugs we wont
-  have to cut multiple releases"; lifted 2026-10-11: built last of the build-now items, as the
-  release step)
+- **Status:** closed (slice 1, 2026-10-11; slices 2 to 5 are #760 to #763)
 
 ## Summary
 Marley ships on Zed's `dev` channel, and on `dev` Zed's client can neither download a remote

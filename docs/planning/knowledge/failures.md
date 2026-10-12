@@ -3905,3 +3905,15 @@ the semicolons were close to invisible in the shot. Fixed in #759: secondary tex
 `{{ mix foreground background 35% }}` (`#777d98` in tokyo-night, near Tokyo Night's own
 `#787c99`), and placeholders, hints, comments and ignored files take `dark_foreground`, which is
 the comment colour of both stock palettes' upstream themes. Borders and backgrounds keep `muted`.
+
+## F-claude-445-a-fake-hosts-home-under-the-scratchpad-made-the-servers-sockets-too-long-001
+*severity: low · found in: pipeline 445's Test, the first two runs · class: a Unix socket path past sun_path · prevented by: PR-claude-check-a-unix-socket-path-against-sun-path-001*
+
+The scenario first put its fake hosts' homes under the run's folder in the scratchpad. The remote
+server binds its stdin, stdout and stderr sockets under `~/.local/share/marley/server_state/<id>/`,
+which there passed 108 bytes, so `run` failed with "failed to bind stdin socket: path must be
+shorter than SUN_LEN". The proxy only said "failed to spawn server", and the debug client, whose
+first connection waits five seconds, showed "client did not become ready within the timeout". The
+rule already said to keep a scenario's socket folders short; the scenario had not applied it.
+Fixed in #445's scenario: the homes live under `mktemp -d "$XDG_RUNTIME_DIR/m445.XXXXXX"`, removed
+at teardown.

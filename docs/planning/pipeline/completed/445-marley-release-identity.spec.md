@@ -1,7 +1,7 @@
 ---
 pipeline_id: 12b9067b-bda2-44e8-8c08-8ed646a7ec9c
-ticket: docs/planning/tickets/open/TICKET-445-marley-release-identity.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-445-marley-release-identity.md
+status: Phase 4 — Complete PASS
 title: Marley's own remote server - the install stages it, the client uploads it, both ends match by commit
 type: feature
 slice: packaging, the release identity (TICKET-445), slice 1 of 5; M1 of docs/planning/design-notes/harness-and-zed-remote-2026-10-11.md

@@ -15,7 +15,7 @@ use futures::{
 use gpui::{App, AppContext as _, AsyncApp, Task};
 use parking_lot::Mutex;
 use paths::remote_server_dir_relative;
-use release_channel::{AppVersion, ReleaseChannel};
+use release_channel::{AppCommitSha, AppVersion, ReleaseChannel};
 use rpc::proto::Envelope;
 use semver::Version;
 pub use settings_content::SshPortForwardOption;
@@ -1018,8 +1018,14 @@ impl SshRemoteConnection {
         version: Version,
         cx: &mut AsyncApp,
     ) -> Result<Arc<RelPath>> {
+        // Marley: on `dev` the server is named for the commit Marley was built from (#445), so a
+        // stale server never matches and two Marleys on one host keep their own.
+        let commit = cx.update(|cx| match release_channel {
+            ReleaseChannel::Dev => AppCommitSha::try_global(cx).map(|commit| commit.full()),
+            _ => None,
+        });
         let version_str = match release_channel {
-            ReleaseChannel::Dev => "build".to_string(),
+            ReleaseChannel::Dev => commit.clone().unwrap_or_else(|| "build".to_string()),
             _ => version.to_string(),
         };
         let binary_name = format!(
@@ -1044,7 +1050,13 @@ impl SshRemoteConnection {
                 true,
             )
             .await
-            .is_ok();
+            // Marley: on `dev` the server counts only when its `version` answers Marley's commit
+            // (#445); the output may end in the PTY's `\r\n`.
+            .is_ok_and(|output| {
+                commit
+                    .as_ref()
+                    .is_none_or(|commit| output.trim().ends_with(commit.as_str()))
+            });
 
         #[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
         if let Some(remote_server_path) = super::build_remote_server_from_source(
@@ -1076,6 +1088,9 @@ impl SshRemoteConnection {
 
         let wanted_version = cx.update(|cx| match release_channel {
             ReleaseChannel::Nightly => Ok(None),
+            // Marley: on `dev` with a commit, the delegate's lookup supplies the server
+            // `script/install-marley` staged, as it fetches Nightly's (#445).
+            ReleaseChannel::Dev if commit.is_some() => Ok(None),
             ReleaseChannel::Dev => {
                 anyhow::bail!(
                     "ZED_BUILD_REMOTE_SERVER is not set and no remote server exists at ({:?})",

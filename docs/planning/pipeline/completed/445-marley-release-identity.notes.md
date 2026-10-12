@@ -1,6 +1,6 @@
 # Marley's own remote server - the install stages it, the client uploads it, both ends match by commit — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-445-marley-release-identity.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-445-marley-release-identity.md
 - **Pipeline spec:** 445-marley-release-identity.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-11)
@@ -121,3 +121,116 @@
   deletes the one not running at the next start, and the other re-uploads at its next connect.
 - **#758** says a remote project's window is out of a scenario's reach; once this slice lands it
   is not, if #758 is built after it.
+
+### Promotion (2026-10-11)
+- **Promoted** from `queued/` to `active/` under the goal "continue until all tickets are
+  finished"; the BACKLOG row removed; the ticket `in-progress`, its link on `active/`. The open
+  questions for Chad (D5, D6, slice 2's channel) take the written defaults, as the session runs
+  the queue on defaults.
+- **Brain:** consultation ae6b7024268d48188085752a6a0bf544. Nothing on this seam came back, only
+  the due follow-ups. A second consultation asked by mistake (27d15e43…) is closed with no
+  decision.
+- **Seams checked again** (an Explore pass at `6594e7f7fa`). Every cited range holds within a line
+  or two. What the design takes from it:
+  - **ssh.rs has no commit.** `SshRemoteConnection::new` reads the channel and version
+    (1004-1005) and `ensure_server_binary` (1014-1020) takes no commit; it reads
+    `AppCommitSha::try_global(cx)` itself, as docker.rs does at 85-91. `AppCommitSha` is set only
+    when the build had `ZED_COMMIT_SHA` (`main.rs:526-528`); `crates/zed/build.rs:49-71` sets it
+    from `git rev-parse HEAD`. A `dev` build with no commit keeps `build` and Zed's bail.
+  - **The probe** (1038-1047) keeps `run_command`'s `Result<String>` (stdout, 1568-1584) and,
+    on `dev` with a commit, counts the server only when the trimmed output ends with the full
+    commit. docker.rs's probe is `run_docker_exec(…)`, also a `Result<String>`.
+  - **The release build compiles the build-from-source block out**
+    (`cfg(any(debug_assertions, feature = "build-remote-server-binary"))`, 1049-1071), so on
+    `dev` it reaches the bail at 1077-1086. In a debug build `ZED_BUILD_REMOTE_SERVER=never`
+    skips it (`transport.rs:262-295`).
+  - **The delegates** (`remote_connection.rs:488-537`, `639-704`) pass the channel, the version,
+    `os` and `arch` as strings (`RemoteOs::as_str` "linux", `RemoteArch::as_str` "x86_64"); the
+    staged lookup in `auto_update.rs` reads the commit through its own `cx`.
+  - **`download_remote_server_release`** starts with the `GlobalAutoUpdate` read (599-613); the
+    `dev` branch goes before it. Zed's cache keeps five per platform
+    (`REMOTE_SERVER_CACHE_LIMIT`, 49); the install keeps three of its own.
+  - **The host's cleanup** (`server.rs:1428-1447`, at each server start) deletes every
+    `zed-remote-server-dev-*` not running, since no commit parses as a newer semver: servers
+    named by commit clean themselves up, as D1 says.
+  - **`remote_server`'s commit** comes from `git rev-parse HEAD` alone
+    (`crates/remote_server/build.rs:20-32`), so a dirty tree names the clean commit at both ends.
+  - **The scenario's sshds:** 584's `start_sshd` (55-95), 596's and 641's set-ups; none uses
+    `ForceCommand` or opens a Zed remote project. `MARLEY_SSH` reaches only the workbench, so
+    Zed's transport needs `ssh`, `scp` and `sftp` wrappers first on Marley's PATH.
+  - `single_instance.rs:24` accepts `ssh://`; the e2e profile copies nothing under
+    `remote_servers`, so each run starts with nothing staged.
+- **Pre-flight:** clean; `musl-gcc`, `llvm-objcopy` and `sshd` present; the
+  `x86_64-unknown-linux-musl` target installed for 1.98.1; 302 GB free on `/mnt/fast`.
+
+## Phase 2 — Code (2026-10-11)
+- **Built:** the three ledger rows first (`ssh.rs`, `docker.rs`, `auto_update.rs`). `ssh.rs`:
+  `AppCommitSha` imported; in `ensure_server_binary` the commit read on `dev`, the name
+  `zed-remote-server-dev-<commit>`, the probe's `is_ok_and` that compares the trimmed `version`
+  output with the commit, and `ReleaseChannel::Dev if commit.is_some() => Ok(None)` before Zed's
+  bail. `docker.rs`: the same three with the commit it receives (`dev_commit`).
+  `auto_update.rs`: `Ok(None)` at the top of `get_remote_server_release_url` on `dev`, and on
+  `dev` `download_remote_server_release` returns `staged_dev_remote_server`, a new private
+  function: the staged `<commit>.gz` or the error naming the platform, the short commit, the
+  install step and the path it looked for. `script/install-marley`: `--remote-server-only`,
+  `stage_remote_server` (tools checked, the target added through rustup when missing, the musl
+  build with `bundle-config.toml` and `musl-gcc`, `llvm-objcopy`, `gzip --best`, a rename into
+  place, the newest three kept, the log line with the dirty-tree note), run after the editor's
+  build. The guide: what you need, the install paragraph, a new "Remote projects over SSH (#445)"
+  section, the debug build's `ZED_BUILD_REMOTE_SERVER=never`, and the variables table.
+- **Deviations from the design:** none in the code. The staging run moved before the gate, so a
+  crate that failed to build for musl would be fixed before the gate rather than after; none did.
+- **The review:** a `dev` build with no commit keeps Zed's name and bail; the probe's output may
+  carry the PTY's `\r\n` and a login banner, so it is trimmed and compared with `ends_with`; the
+  staged lookup runs before the `GlobalAutoUpdate` read, so it works with auto-update off; the
+  error path reaches the connection modal (445-01). Each hunk carries a `// Marley:` line.
+- **Clippy:** `./script/clippy -p remote -p auto_update` stops in `project`
+  (`trusted_worktrees.rs:161`, `RemoteConnectionOptions::Mock` not covered): the narrow scope turns
+  on `remote`'s test-support without `project`'s. Pre-existing, not in scope; the gate's scope
+  (every Marley crate, `--all-features`) unifies the features and is clean.
+- **The gate:** `script/gates.sh --diff` green on its first run, 17 of 17, after the Test phase's
+  scenario fixes.
+
+## Phase 3 — Test (2026-10-11)
+- **The staging run** (REQ-005, REQ-006): `XDG_DATA_HOME=<scratchpad> script/install-marley
+  --remote-server-only`, with four older fake `.gz` files seeded. The musl build took 9 min 2 s.
+  The staged `6594e7f7fa02f723b1cdf2fb58d8e9ee73cbc375.gz` (39 MB, 114 MB unpacked) is "ELF 64-bit
+  LSB pie executable, x86-64, static-pie linked"; its `version` prints that commit. Three files
+  were left: the new server and the two newest fakes. The installed `lib/marley/marley`,
+  `bin/marley`, desktop entry and icon kept their mtimes.
+- **The scenario:** `script/e2e/445-marley-release-identity.sh`, under `compositor sway`, on the
+  debug build at the same commit, with `E2E_REMOTE_SERVER` naming the staged file. Exit 0, all six
+  checks passing. Shots read (the last run):
+  - `445-01-not-staged`: "Failed to connect over SSH": "no Marley remote server is staged for
+    linux-x86_64 at commit 6594e7f: run script/install-marley --remote-server-only in Marley's tree
+    at that commit (looked for …/remote_servers/dev/linux-x86_64/6594e7f7….gz)", Retry and Cancel;
+    host one received no server (REQ-004).
+  - `445-02-opened`: a window on `127.0.0.1`, `project`, its Project Panel listing `host-one.md`
+    and `host_one.rs`; host one's `.zed_server` holds only `zed-remote-server-dev-6594e7f7…`, whose
+    `version` prints the commit (REQ-001, REQ-002).
+  - `445-03-replaced`: host two's window with `host-two.md` and `host_two.rs`; the stand-in that
+    answered `…0445` now answers Marley's commit (REQ-003).
+  - The user's `~/.ssh`, `~/.zed_server` and `~/.local/share/marley/server_state` listings equal
+    before and after.
+- **Fixes on the way:** `user_listing` exits non-zero for a missing folder and the runner runs
+  with errexit (`|| true`); the fake homes moved under the runtime directory after the server's
+  socket paths passed 108 bytes (F-claude-445-…, L-claude-445-…); a teardown guard for an unset
+  hosts folder; distinct file names per host and the Project Panel opened, so each shot shows
+  which host it is.
+- **What no scenario shows:** a dev container (REQ-007, no container runtime in a run), read in the
+  diff: the same lookup through the same delegate.
+
+## Phase 4 — Complete (2026-10-11)
+- **Documented:** `CHANGELOG.md` (Added, #445); the guide (what you need, the install paragraph,
+  "Remote projects over SSH (#445)", the debug build's note, `ZED_BUILD_REMOTE_SERVER`); the three
+  ledger rows describe what shipped; M1's row in the research note says shipped. The in-app
+  guide's Install article (`crates/marley_workbench/guide/index.html`) gets the staged server and
+  `--remote-server-only` with the next change to that file, since the file is in the gate's
+  receipt.
+- **Knowledge appended:**
+  AD-claude-445-marleys-remote-server-is-staged-by-the-install-and-matched-by-commit-001;
+  F-claude-445-a-fake-hosts-home-under-the-scratchpad-made-the-servers-sockets-too-long-001;
+  L-claude-445-a-remote-servers-own-error-is-on-the-host-001.
+- **Brain:** consultation ae6b7024268d48188085752a6a0bf544 closed with a decision.
+- **Closed:** the ticket moved to `closed/` (slice 1; slices 2 to 5 are #760 to #763), the pipeline
+  archived, committed.

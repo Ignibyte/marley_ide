@@ -216,12 +216,17 @@ impl DockerExecConnection {
             .remote_platform
             .context("No remote platform defined; cannot proceed.")?;
 
+        // Marley: on `dev` the server is named for the commit Marley was built from (#445).
+        let dev_commit = match release_channel {
+            ReleaseChannel::Dev => commit.as_ref().map(AppCommitSha::full),
+            _ => None,
+        };
         let version_str = match release_channel {
             ReleaseChannel::Nightly => {
                 let commit = commit.map(|s| s.full()).unwrap_or_default();
                 format!("{}-{}", version, commit)
             }
-            ReleaseChannel::Dev => "build".to_string(),
+            ReleaseChannel::Dev => dev_commit.clone().unwrap_or_else(|| "build".to_string()),
             _ => version.to_string(),
         };
         let binary_name = format!(
@@ -240,7 +245,13 @@ impl DockerExecConnection {
                 &["version"],
             )
             .await
-            .is_ok();
+            // Marley: on `dev` the server counts only when its `version` answers Marley's commit
+            // (#445).
+            .is_ok_and(|output| {
+                dev_commit
+                    .as_ref()
+                    .is_none_or(|commit| output.trim().ends_with(commit.as_str()))
+            });
         #[cfg(any(debug_assertions, feature = "build-remote-server-binary"))]
         if let Some(remote_server_path) = super::build_remote_server_from_source(
             &remote_platform,
@@ -277,6 +288,9 @@ impl DockerExecConnection {
 
         let wanted_version = cx.update(|cx| match release_channel {
             ReleaseChannel::Nightly => Ok(None),
+            // Marley: on `dev` with a commit, the delegate's lookup supplies the staged server
+            // (#445).
+            ReleaseChannel::Dev if dev_commit.is_some() => Ok(None),
             ReleaseChannel::Dev => {
                 anyhow::bail!(
                     "ZED_BUILD_REMOTE_SERVER is not set and no remote server exists at ({:?})",

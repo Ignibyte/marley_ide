@@ -52,6 +52,8 @@ download again on first use.
 - For the Claude Code plugin: `claude` on the PATH, and Python 3 for its MCP bridge.
 - Optional: the agent CLIs you use (`claude`, `codex`, `gemini`, `opencode`) and Voxtype, for
   dictation once Voice is turned on.
+- For the remote server the install builds: `musl-gcc` and `llvm-objcopy` (Arch's `musl` and
+  `llvm` packages). The `x86_64-unknown-linux-musl` target is added through rustup when missing.
 
 ### Install with `just install`
 
@@ -60,7 +62,9 @@ target directory is shared by every project on the dev box), builds `marley` in 
 profile and installs it under `~/.local`. `just install --regress` first runs Marley's golden set
 of e2e scenarios against that build (#517, about an hour; see [For developers](#for-developers))
 and installs only when every scenario passed. `just install --prefix DIR` installs somewhere
-else.
+else. Each install also builds Marley's remote server and stages it (see
+[Remote projects over SSH](#remote-projects-over-ssh-445)); `script/install-marley
+--remote-server-only` stages the server and builds or installs nothing else.
 
 | Path under the prefix | What it is |
 |---|---|
@@ -78,6 +82,27 @@ claims no file types, so Marley never becomes the default app for text files or 
 
 Marley's windows have the class `dev.zed.Zed-Dev` (stock Zed's is `dev.zed.Zed`), which is what a
 Hyprland window rule matches.
+
+### Remote projects over SSH (#445)
+
+Open Remote Folder (in Add Project's popover), `ssh_connections` and `marley ssh://user@host/path`
+open a folder on another machine as Zed does: Marley runs its remote server there and edits,
+searches and runs terminals through it. Marley ships on Zed's `dev` channel, where Zed downloads
+no server, so the install builds one:
+
+- **What is staged.** Every `just install` builds `remote_server` from the same tree for Linux
+  x86_64 (static, musl), strips and gzips it, and stages it as
+  `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz`. The newest three are kept.
+  The build adds several minutes to an install, and more the first time.
+- **On the host.** Marley's server lives at `~/.zed_server/zed-remote-server-dev-<commit>`, the
+  full commit Marley was built from. Marley uses a server there only when its `version` answers
+  that commit, and otherwise uploads the staged one over SSH and unpacks it in its place. Each
+  Marley commit has its own server, and the server removes the others it finds idle when it
+  starts.
+- **When nothing is staged** for the host's platform and Marley's commit, the connection fails
+  with a message naming the platform, the commit and `script/install-marley
+  --remote-server-only`. Run that in the checkout at the commit Marley was built from.
+- **Hosts:** Linux x86_64 only for now. A macOS or aarch64 host gets the same message.
 
 ### Start it and update it
 
@@ -162,6 +187,10 @@ checkout". That panic comes after the installation id is written, so the next la
 existing install and Zed may write its editor layout into your `settings.json`; look at the file
 after such a failure. Send the debug build's stderr to a file, never to `/dev/null`, because a
 panic goes there and nowhere else.
+
+A debug build compiles the remote server with cargo when it connects to an SSH host; start it
+with `ZED_BUILD_REMOTE_SERVER=never` to use the staged server instead, which then has to be staged
+for the debug build's commit.
 
 ## The Marley layout and the rail
 
@@ -3139,6 +3168,7 @@ Environment variables and flags:
 | `ZED_LOG`, `RUST_LOG` | Marley | The log filter. It matches the crate a line is logged from: `ZED_LOG=marley_browser=debug` logs each input-to-frame time, and `marley_workbench::browser` names the Browser tab's own lines |
 | `XDG_DATA_HOME` | Marley, the bridge, the launcher | Where `marley/` data lives (default `~/.local/share`) |
 | `--user-data-dir DIR` | Marley | A separate profile: config in `DIR/config`, data in `DIR` |
+| `ZED_BUILD_REMOTE_SERVER` | A debug Marley | `never` uploads the staged remote server instead of compiling one when it connects to an SSH host (#445) |
 | `--prefix DIR` | `just install` | Where to install (default `~/.local`) |
 
 ## Where data lives

@@ -5159,3 +5159,17 @@ still selected. The template is Marley's while its first line is the marker. Rej
 into Omarchy's state folder (the watcher never sees the target change), a Marley watcher on that
 folder, rendering `colors.toml` inside Marley (a second renderer to keep in step with Omarchy),
 and drawing the theme over the setting at runtime (Zed's observers put the configured theme back).
+
+## AD-claude-445-marleys-remote-server-is-staged-by-the-install-and-matched-by-commit-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-437-marley-identity-is-app-name-and-the-dev-channel-001*
+
+Marley stays on Zed's `dev` channel and supplies its own remote server. `script/install-marley`
+builds `remote_server` for `x86_64-unknown-linux-musl` from the same tree, in its own cargo
+invocation, stripped and gzipped as `bundle-linux` does, into Zed's download-cache layout
+(`remote_servers/dev/linux-x86_64/<commit>.gz`, newest three kept). On `dev` the client names the
+host's server `zed-remote-server-dev-<commit>`, uses it only when `version` answers that commit,
+and otherwise uploads the staged one through Zed's packager seam
+(`download_remote_server_release`, with `get_remote_server_release_url` returning `Ok(None)`), for
+SSH hosts and dev containers alike. Rejected: keeping `-dev-build` and comparing only `version`
+(two Marleys on one host would swap servers at every connect), a protocol version on the wire,
+the upload written into each transport, and `build-remote-server-binary` in release.

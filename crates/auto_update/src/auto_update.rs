@@ -604,6 +604,11 @@ impl AutoUpdater {
         set_status: impl Fn(&str, &mut AsyncApp) + Send + 'static,
         cx: &mut AsyncApp,
     ) -> Result<PathBuf> {
+        // Marley: Marley ships on `dev`, whose server is the one `script/install-marley` staged
+        // for Marley's commit, never one from zed.dev (#445).
+        if release_channel == ReleaseChannel::Dev {
+            return staged_dev_remote_server(os, arch, cx).await;
+        }
         let this = cx.update(|cx| {
             cx.default_global::<GlobalAutoUpdate>()
                 .0
@@ -660,6 +665,10 @@ impl AutoUpdater {
         arch: &str,
         cx: &mut AsyncApp,
     ) -> Result<Option<String>> {
+        // Marley: no URL on `dev`, so the client uploads the staged server (#445).
+        if channel == ReleaseChannel::Dev {
+            return Ok(None);
+        }
         let this = cx.update(|cx| {
             cx.default_global::<GlobalAutoUpdate>()
                 .0
@@ -994,6 +1003,28 @@ impl AutoUpdater {
             Ok(kvp.read_kvp(SHOULD_SHOW_UPDATE_NOTIFICATION_KEY)?.is_some())
         })
     }
+}
+
+/// Marley: the server `script/install-marley` staged for Marley's commit and the host's platform,
+/// in the layout Zed's own downloads use (#445).
+async fn staged_dev_remote_server(os: &str, arch: &str, cx: &mut AsyncApp) -> Result<PathBuf> {
+    let commit = cx
+        .update(|cx| AppCommitSha::try_global(cx))
+        .context("this build of Marley has no commit, so no remote server can match it")?;
+    let path = remote_servers_dir()
+        .join(ReleaseChannel::Dev.dev_name())
+        .join(format!("{os}-{arch}"))
+        .join(format!("{}.gz", commit.full()));
+    if smol::fs::metadata(&path).await.is_ok() {
+        return Ok(path);
+    }
+    anyhow::bail!(
+        "no Marley remote server is staged for {os}-{arch} at commit {}: run \
+         `script/install-marley --remote-server-only` in Marley's tree at that commit \
+         (looked for {})",
+        commit.short(),
+        path.display()
+    )
 }
 
 async fn download_remote_server_binary(
