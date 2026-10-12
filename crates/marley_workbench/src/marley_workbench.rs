@@ -73,6 +73,7 @@ pub mod markdown_commands;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod mcp;
+pub mod mcp_server_form;
 pub mod mcp_servers;
 pub mod notifications;
 pub mod panel_tabs;

@@ -9,15 +9,16 @@
 //! No env or header value reaches a row: the CLIs' maps are read for their names alone. A command
 //! line shows with keys and tokens masked by the built-in redaction rules, and a URL with its
 //! secret-looking query values hidden, since an argument can carry a token as an env value can.
-//! The tab only shows: Zed's own MCP Servers page edits Zed's servers, and Configure in Settings
-//! opens it.
+//! Claude Code's and Codex's servers are added, changed and removed from the tab through
+//! `mcp_server_form` (#768); Zed's own MCP Servers page edits Zed's servers, and Configure in
+//! Settings opens it.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
-    Subscription, Task, Window, actions,
+    Subscription, Task, WeakEntity, Window, actions,
 };
 use marley_agent::AgentKind;
 use marley_agent::versions::{self, Found, integrations_of};
@@ -33,6 +34,7 @@ use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 
+use crate::mcp_server_form::{self, Kind, McpServerForm, Place, Stored, entry_hash};
 use crate::rusty::home_tab::muted;
 
 actions!(
@@ -62,7 +64,8 @@ pub(crate) fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
         page.update(cx, |page, cx| page.refresh(window, cx));
         return;
     }
-    let page = cx.new(|cx| McpServers::new(window, cx));
+    let handle = workspace.weak_handle();
+    let page = cx.new(|cx| McpServers::new(handle, window, cx));
     workspace.add_item_to_center(Box::new(page), window, cx);
 }
 
@@ -124,6 +127,8 @@ struct Row {
     state: State,
     /// Marley's own `marley` or `rusty`.
     marleys: bool,
+    /// What an edit starts from, for a server the tab can change (#768).
+    stored: Option<Stored>,
 }
 
 /// One CLI's rows, or why its file could not be read, and the file read.
@@ -140,9 +145,11 @@ struct Files {
     codex: Read,
 }
 
-/// The tab: the CLIs' files as last read, the reading under way, and the open projects' context
-/// server stores it redraws with.
+/// The tab: the CLIs' files as last read, the reading under way, the open projects' context
+/// server stores it redraws with, and their folders, where an added Claude Code server can go.
 pub struct McpServers {
+    workspace: WeakEntity<Workspace>,
+    folders: Vec<PathBuf>,
     focus_handle: FocusHandle,
     files: Option<Files>,
     reading: Task<()>,
@@ -160,8 +167,10 @@ impl std::fmt::Debug for McpServers {
 }
 
 impl McpServers {
-    fn new(window: &Window, cx: &Context<Self>) -> Self {
+    fn new(workspace: WeakEntity<Workspace>, window: &Window, cx: &Context<Self>) -> Self {
         let mut page = Self {
+            workspace,
+            folders: Vec::new(),
             focus_handle: cx.focus_handle(),
             files: None,
             reading: Task::ready(()),
@@ -175,7 +184,7 @@ impl McpServers {
     /// follows those projects' context server stores. The projects are looked up once the caller's
     /// update has ended: the action that opens the tab runs while its workspace is being updated,
     /// and reading it then would panic.
-    fn refresh(&mut self, window: &Window, cx: &Context<Self>) {
+    pub(crate) fn refresh(&mut self, window: &Window, cx: &Context<Self>) {
         let claude_json = claude_json();
         let codex_config = crate::agent_notify::codex_config();
         self.reading = cx.spawn_in(window, async move |page, cx| {
@@ -191,7 +200,8 @@ impl McpServers {
                             })
                         })
                         .collect();
-                    local_folders(&projects, cx)
+                    page.folders = local_folders(&projects, cx);
+                    page.folders.clone()
                 })
                 .log_err()
             else {
@@ -233,7 +243,15 @@ impl McpServers {
             .into_any_element()
     }
 
-    fn render_read(heading_text: &'static str, read: Option<&Read>, none: &str) -> AnyElement {
+    /// One CLI's section: its heading with Add Server for `places`, then its rows or why there are
+    /// none.
+    fn render_read(
+        heading_text: &'static str,
+        read: Option<&Read>,
+        none: &str,
+        places: Vec<Place>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
         let body = match read {
             None => muted("Reading…"),
             Some(Read {
@@ -254,15 +272,97 @@ impl McpServers {
             Some(Read { rows: Ok(rows), .. }) => v_flex()
                 .w_full()
                 .gap_1()
-                .children(rows.iter().map(render_row))
+                .children(rows.iter().map(|row| Self::render_row(row, cx)))
                 .into_any_element(),
         };
         v_flex()
             .w_full()
             .gap_1()
-            .child(heading(heading_text))
+            .child(
+                h_flex().gap_2().child(heading(heading_text)).child(
+                    Button::new(
+                        SharedString::from(format!("marley-mcp-add-{heading_text}")),
+                        "Add Server",
+                    )
+                    .start_icon(Icon::new(IconName::Plus).size(IconSize::XSmall))
+                    .style(ButtonStyle::Subtle)
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |page, _, window, cx| {
+                        page.open_form(None, places.clone(), window, cx);
+                    })),
+                ),
+            )
             .child(body)
             .into_any_element()
+    }
+
+    /// The form over the tab: a server added to one of `places`, or `editing` changed.
+    fn open_form(
+        &self,
+        editing: Option<(String, Stored)>,
+        places: Vec<Place>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let page = cx.entity().downgrade();
+        let workspace = self.workspace.clone();
+        self.workspace
+            .update(cx, |workspace_view, cx| {
+                workspace_view.toggle_modal(window, cx, move |window, cx| {
+                    McpServerForm::new(page, workspace, editing, places, window, cx)
+                });
+            })
+            .log_err();
+    }
+
+    /// Where an added Claude Code server can go: the user scope, then each open folder's local
+    /// scope and `.mcp.json`.
+    fn claude_places(&self) -> Vec<Place> {
+        std::iter::once(Place::ClaudeUser)
+            .chain(self.folders.iter().flat_map(|folder| {
+                [
+                    Place::ClaudeLocal(folder.clone()),
+                    Place::ClaudeProject(folder.clone()),
+                ]
+            }))
+            .collect()
+    }
+
+    fn render_row(row: &Row, cx: &Context<Self>) -> AnyElement {
+        let buttons = row.stored.clone().map(|stored| {
+            let id = |verb: &str| {
+                SharedString::from(format!("marley-mcp-{verb}-{}-{}", row.scope, row.name))
+            };
+            let name = row.name.clone();
+            let edit = (name.clone(), stored.clone());
+            h_flex()
+                .gap_1()
+                .child(
+                    Button::new(id("edit"), "Edit")
+                        .style(ButtonStyle::Subtle)
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(move |page, _, window, cx| {
+                            let places = vec![edit.1.place.clone()];
+                            page.open_form(Some(edit.clone()), places, window, cx);
+                        })),
+                )
+                .child(
+                    Button::new(id("remove"), "Remove")
+                        .style(ButtonStyle::Subtle)
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(move |page, _, window, cx| {
+                            mcp_server_form::remove(
+                                cx.entity().downgrade(),
+                                page.workspace.clone(),
+                                name.clone(),
+                                stored.clone(),
+                                window,
+                                cx,
+                            );
+                        })),
+                )
+        });
+        render_row(row, buttons)
     }
 }
 
@@ -313,11 +413,19 @@ impl Render for McpServers {
                 "CLAUDE CODE",
                 claude,
                 "No MCP servers for the open projects",
+                self.claude_places(),
+                cx,
             ))
             .child(muted(
                 "Claude Code's plugins add servers of their own, which claude mcp list shows.",
             ))
-            .child(Self::render_read("CODEX", codex, "No MCP servers"))
+            .child(Self::render_read(
+                "CODEX",
+                codex,
+                "No MCP servers",
+                vec![Place::Codex],
+                cx,
+            ))
             .child(
                 v_flex()
                     .w_full()
@@ -326,7 +434,7 @@ impl Render for McpServers {
                     .when(zed.is_empty(), |section| {
                         section.child(muted("No context servers."))
                     })
-                    .children(zed.iter().map(render_row)),
+                    .children(zed.iter().map(|row| render_row(row, None))),
             )
     }
 }
@@ -440,7 +548,7 @@ fn render_agent(kind: AgentKind, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn render_row(row: &Row) -> AnyElement {
+fn render_row(row: &Row, buttons: Option<Div>) -> AnyElement {
     let target = match &row.target {
         Target::Local(line) => line.clone(),
         Target::Remote(url) => url.clone(),
@@ -481,7 +589,8 @@ fn render_row(row: &Row) -> AnyElement {
                             .size(LabelSize::Small)
                             .color(Color::Accent),
                     )
-                }),
+                })
+                .when_some(buttons, ParentElement::child),
         )
         .child(
             Label::new(target)
@@ -580,6 +689,7 @@ fn zed_rows(projects: &[Entity<Project>], cx: &App) -> Vec<Row> {
                         header_names,
                         state: State::Off,
                         marleys,
+                        stored: None,
                     },
                     Vec::new(),
                 )
@@ -629,7 +739,7 @@ fn status_words(status: Option<ContextServerStatus>) -> String {
 
 /// Claude Code's global config: `.claude.json` in `CLAUDE_CONFIG_DIR` when that is set and not
 /// empty, else in the home folder (not in `~/.claude`), as Claude Code 2.1.296 places it.
-fn claude_json() -> PathBuf {
+pub(crate) fn claude_json() -> PathBuf {
     std::env::var_os("CLAUDE_CONFIG_DIR")
         .filter(|folder| !folder.is_empty())
         .map_or_else(|| util::paths::home_dir().clone(), PathBuf::from)
@@ -729,7 +839,7 @@ fn claude_rows_in(
     let mut rows: Vec<Row> = config
         .mcp_servers
         .iter()
-        .map(|(name, entry)| claude_row(name, "user", entry, &State::On, redactor))
+        .map(|(name, entry)| claude_row(name, &Place::ClaudeUser, entry, &State::On, redactor))
         .collect();
     for folder in folders {
         let key = folder.to_string_lossy();
@@ -740,14 +850,10 @@ fn claude_rows_in(
             .transpose()
             .map_err(|error| format!("{key}'s entry: {error}"))?
             .unwrap_or_default();
-        let name = folder.file_name().map_or_else(
-            || key.to_string(),
-            |name| name.to_string_lossy().into_owned(),
-        );
         rows.extend(project.servers.iter().map(|(server, entry)| {
             claude_row(
                 server,
-                &format!("local, {name}"),
+                &Place::ClaudeLocal(folder.clone()),
                 entry,
                 &State::On,
                 redactor,
@@ -767,27 +873,36 @@ fn claude_rows_in(
             } else {
                 State::NotAsked
             };
-            claude_row(server, &format!("project, {name}"), entry, &state, redactor)
+            claude_row(
+                server,
+                &Place::ClaudeProject(folder.clone()),
+                entry,
+                &state,
+                redactor,
+            )
         }));
     }
     Ok(rows)
 }
 
+/// A Claude Code entry as a row, with what an edit starts from. The entry's hash is taken over
+/// its JSON as parsed, which the form compares again before it writes.
 fn claude_row(
     name: &str,
-    scope: &str,
+    place: &Place,
     entry: &RawValue,
     state: &State,
     redactor: &Redactor,
 ) -> Row {
-    let row = |target, env_names, header_names| Row {
+    let row = |target, env_names, header_names, stored| Row {
         name: name.to_string(),
-        scope: scope.to_string(),
+        scope: place.words(),
         target,
         env_names,
         header_names,
         state: state.clone(),
         marleys: false,
+        stored,
     };
     let server: ClaudeServer = match serde_json::from_str(entry.get()) {
         Ok(server) => server,
@@ -796,19 +911,42 @@ fn claude_row(
                 Target::Other(format!("an entry Marley cannot read: {error}")),
                 Vec::new(),
                 Vec::new(),
+                None,
             );
         }
     };
+    let seen = serde_json::from_str::<serde_json::Value>(entry.get())
+        .map(|value| entry_hash(&value.to_string()))
+        .ok();
     let env_names = sorted(server.env.0);
     let header_names = sorted(server.headers.0);
-    let target = match (server.transport.as_deref(), server.command, server.url) {
-        (Some("http" | "sse"), _, Some(url)) | (None, None, Some(url)) => {
-            Target::Remote(marley_browser::observe::redact_url(&url))
-        }
-        (_, Some(command), _) => Target::Local(masked_command(&command, &server.args, redactor)),
-        _ => Target::Other("neither a command nor a URL".to_string()),
+    let (target, kind) = match (server.transport.as_deref(), server.command, server.url) {
+        (Some("http" | "sse"), _, Some(url)) | (None, None, Some(url)) => (
+            Target::Remote(marley_browser::observe::redact_url(&url)),
+            Some(Kind::Url { url }),
+        ),
+        (_, Some(command), _) => (
+            Target::Local(masked_command(&command, &server.args, redactor)),
+            Some(Kind::Command {
+                command,
+                args: server.args,
+            }),
+        ),
+        _ => (
+            Target::Other("neither a command nor a URL".to_string()),
+            None,
+        ),
     };
-    row(target, env_names, header_names)
+    let stored = kind.zip(seen).map(|(kind, seen)| Stored {
+        pairs: match kind {
+            Kind::Command { .. } => env_names.clone(),
+            Kind::Url { .. } => header_names.clone(),
+        },
+        place: place.clone(),
+        kind,
+        seen,
+    });
+    row(target, env_names, header_names, stored)
 }
 
 /// Codex's servers: `[mcp_servers.<name>]` in `config`, off where `enabled = false`. A missing
@@ -826,80 +964,106 @@ fn codex_rows_in(config: &Path, redactor: &Redactor) -> Result<Vec<Row>, String>
     };
     Ok(servers
         .iter()
-        .map(|(name, server)| {
-            let row = |target, env_names, header_names, state| Row {
-                name: name.to_string(),
-                scope: "user".to_string(),
-                target,
-                env_names,
-                header_names,
-                state,
-                marleys: false,
-            };
-            let Some(server) = server.as_table_like() else {
-                return row(
-                    Target::Other("not a table".to_string()),
-                    Vec::new(),
-                    Vec::new(),
-                    State::Off,
-                );
-            };
-            let text = |key: &str| {
-                server
-                    .get(key)
-                    .and_then(toml_edit::Item::as_str)
-                    .map(str::to_string)
-            };
-            let keys = |key: &str| {
-                server
-                    .get(key)
-                    .and_then(toml_edit::Item::as_table_like)
-                    .map(|table| {
-                        table
-                            .iter()
-                            .map(|(key, _)| key.to_string())
-                            .collect::<Vec<String>>()
-                    })
-                    .unwrap_or_default()
-            };
-            let strings = |key: &str| {
-                server
-                    .get(key)
-                    .and_then(toml_edit::Item::as_array)
-                    .map(|array| {
-                        array
-                            .iter()
-                            .filter_map(|value| value.as_str().map(str::to_string))
-                            .collect::<Vec<String>>()
-                    })
-                    .unwrap_or_default()
-            };
-            let mut env_names = keys("env");
-            env_names.extend(strings("env_vars"));
-            let mut header_names = keys("http_headers");
-            header_names.extend(keys("env_http_headers"));
-            if server.contains_key("bearer_token_env_var") {
-                header_names.push("Authorization".to_string());
-            }
-            let target = match (text("command"), text("url")) {
-                (Some(command), _) => {
-                    Target::Local(masked_command(&command, &strings("args"), redactor))
-                }
-                (None, Some(url)) => Target::Remote(marley_browser::observe::redact_url(&url)),
-                (None, None) => Target::Other("neither a command nor a URL".to_string()),
-            };
-            let enabled = server
-                .get("enabled")
-                .and_then(toml_edit::Item::as_bool)
-                .unwrap_or(true);
-            row(
-                target,
-                sorted(env_names),
-                sorted(header_names),
-                if enabled { State::On } else { State::Off },
-            )
-        })
+        .map(|(name, server)| codex_row(name, server, redactor))
         .collect())
+}
+
+/// One `[mcp_servers.<name>]` table as a row, with what an edit starts from.
+fn codex_row(name: &str, server: &toml_edit::Item, redactor: &Redactor) -> Row {
+    let row = |target, env_names, header_names, state, stored| Row {
+        name: name.to_string(),
+        scope: Place::Codex.words(),
+        target,
+        env_names,
+        header_names,
+        state,
+        marleys: false,
+        stored,
+    };
+    let seen = entry_hash(&server.to_string());
+    let Some(server) = server.as_table_like() else {
+        return row(
+            Target::Other("not a table".to_string()),
+            Vec::new(),
+            Vec::new(),
+            State::Off,
+            None,
+        );
+    };
+    let text = |key: &str| {
+        server
+            .get(key)
+            .and_then(toml_edit::Item::as_str)
+            .map(str::to_string)
+    };
+    let keys = |key: &str| {
+        server
+            .get(key)
+            .and_then(toml_edit::Item::as_table_like)
+            .map(|table| {
+                table
+                    .iter()
+                    .map(|(key, _)| key.to_string())
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default()
+    };
+    let strings = |key: &str| {
+        server
+            .get(key)
+            .and_then(toml_edit::Item::as_array)
+            .map(|array| {
+                array
+                    .iter()
+                    .filter_map(|value| value.as_str().map(str::to_string))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default()
+    };
+    // The form edits `env` and `http_headers`; the names the other keys list are shown.
+    let env_pairs = keys("env");
+    let header_pairs = keys("http_headers");
+    let mut env_names = env_pairs.clone();
+    env_names.extend(strings("env_vars"));
+    let mut header_names = header_pairs.clone();
+    header_names.extend(keys("env_http_headers"));
+    if server.contains_key("bearer_token_env_var") {
+        header_names.push("Authorization".to_string());
+    }
+    let (target, stored) = match (text("command"), text("url")) {
+        (Some(command), _) => {
+            let args = strings("args");
+            (
+                Target::Local(masked_command(&command, &args, redactor)),
+                Some((Kind::Command { command, args }, sorted(env_pairs))),
+            )
+        }
+        (None, Some(url)) => (
+            Target::Remote(marley_browser::observe::redact_url(&url)),
+            Some((Kind::Url { url }, sorted(header_pairs))),
+        ),
+        (None, None) => (
+            Target::Other("neither a command nor a URL".to_string()),
+            None,
+        ),
+    };
+    let stored = stored.map(|(kind, pairs)| Stored {
+        place: Place::Codex,
+        kind,
+        pairs,
+        seen,
+    });
+    let enabled = server
+        .get("enabled")
+        .and_then(toml_edit::Item::as_bool)
+        .unwrap_or(true);
+    row(
+        target,
+        sorted(env_names),
+        sorted(header_names),
+        if enabled { State::On } else { State::Off },
+        stored,
+    )
 }
 
 /// `path`'s text, `None` when there is no file.

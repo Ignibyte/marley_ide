@@ -5578,3 +5578,11 @@ variable is set and not empty, but `~/.claude.json` otherwise, not `~/.claude/.c
 `re` around the string `.claude.json` (`globalConfig: it(e||zt(), ".claude.json")`). A scenario
 that sets `CLAUDE_CONFIG_DIR` keeps the user's file out of the run.
 
+## L-claude-768-a-prompts-buttons-move-with-its-detail-001
+*category: e2e · topic: clicking Zed's prompt in a scenario · from: pipeline 768*
+
+Zed's in-window prompt (`window.prompt`) centres a box whose height follows its message and
+detail, so its buttons move when the text changes. #768 shortened the detail after calibrating,
+the click at the old Remove landed on Cancel, and the run failed only at the file check. Calibrate
+a prompt's buttons from a shot of the final text, after any rewording.
+

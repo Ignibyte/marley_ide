@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Edit each CLI's MCP servers** (#768, 2026-10-11). MCP Servers adds, changes and removes
+  Claude Code's servers (user scope, an open folder's local scope or its `.mcp.json`) and Codex's.
+  The form takes a name, a command and its arguments or a URL, and env variables or headers whose
+  values are typed into masked fields; a stored value is never shown and is kept unless replaced.
+  Each save changes only that entry, keeps a `.marley-backup` of the file, and refuses when the
+  entry changed since the tab read it. Remove asks first.
+
 - **MCP Servers, and a warning for an agent CLI too old** (#720, 2026-10-11). A tab
   (`marley: open mcp servers`, or MCP Servers on Home) lists every MCP server Claude Code (user,
   local and project scopes), Codex and Zed's agents see, with each one's scope, state, command or

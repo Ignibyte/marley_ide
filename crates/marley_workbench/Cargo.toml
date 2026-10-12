@@ -74,6 +74,7 @@ settings.workspace = true
 settings_json.workspace = true
 settings_ui.workspace = true
 sha2.workspace = true
+shlex.workspace = true
 sidebar.workspace = true
 smallvec.workspace = true
 smol.workspace = true

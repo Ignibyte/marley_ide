@@ -1185,7 +1185,7 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="mcp-servers">
-<h3>MCP Servers <span class="ticket">#720</span></h3>
+<h3>MCP Servers <span class="ticket">#720 · #768</span></h3>
 <p class="what"><strong>What it is.</strong> A tab listing every MCP server Claude Code, Codex and Zed's agents see, and what Marley needs of each agent CLI.</p>
 <h4>How to use it</h4>
 <ol class="steps">
@@ -1194,8 +1194,9 @@ th { background: var(--panel); font-weight: 650; }
 <li>Claude Code: the user scope and each open project's local scope from <code>.claude.json</code>, and each project's <code>.mcp.json</code>, marked approved, denied or not yet asked.</li>
 <li>Codex: the <code>[mcp_servers.&lt;name&gt;]</code> tables of its <code>config.toml</code>, off where <code>enabled = false</code>.</li>
 <li>Zed: the open projects' context servers with their status, Marley's own marked. Configure in Settings opens Zed's MCP Servers page to change them.</li>
+<li>To add a server to Claude Code or Codex, click Add Server beside its heading: a name, where it goes, a command and its arguments or a URL, and its env variables or headers. Edit on a row changes one; Remove asks, then removes it.</li>
 </ol>
-<p class="note">Rows show the names of env variables and headers, never their values, and keys and tokens in a command line or URL are hidden. Servers that Claude Code's plugins add are not listed: <code>claude mcp list</code> shows them.</p>
+<p class="note">Rows show the names of env variables and headers, never their values, and keys and tokens in a command line or URL are hidden. Editing keeps a stored value unless you type a new one. A save changes only that entry, keeps a <code>.marley-backup</code> of the file, and refuses if the entry changed since the tab read it. Each CLI reads its servers when it starts. Servers that Claude Code's plugins add are not listed: <code>claude mcp list</code> shows them.</p>
 </article>
 
 <article id="claude-plugin">

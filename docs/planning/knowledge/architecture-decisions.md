@@ -5095,3 +5095,17 @@ Rejected: a Settings page (Chad's tabs everywhere), `claude mcp list` (no JSON, 
 server to check it), showing values masked rather than not reading them, and a registry check for
 the newest release (it reaches outside the box).
 
+## AD-claude-768-cli-mcp-servers-are-written-one-entry-at-a-time-through-the-safe-write-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-720-mcp-servers-is-a-tab-over-each-clis-own-files-names-never-values-001, AD-claude-755-other-programs-files-are-replaced-through-one-checked-helper-001*
+
+The MCP Servers tab writes Claude Code's and Codex's servers itself, one entry per save, through
+`safe_write::replace_in` with a backup: `.claude.json` and `.mcp.json` as JSON keeping key order,
+two-space indentation and the final newline; `config.toml` through `toml_edit`, comments and other
+tables kept. The conflict check is the entry's hash as the tab read it, not the file's, because
+Claude Code rewrites `.claude.json` often while it runs; it saves read-modify-write under a lock
+(read from 2.1.296's binary), so an entry Marley writes between two of its saves survives. Values
+are write-only, and stored arguments and URLs show masked. Rejected: `claude mcp add-json` and
+`codex mcp add` (a value in a process's arguments, visible to `ps`), a whole-file check (it would
+refuse most writes while Claude Code runs), and creating a folder's `projects` entry for a local
+scope (Claude Code fills its keys itself).
+

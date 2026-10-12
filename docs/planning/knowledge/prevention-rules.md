@@ -2980,3 +2980,11 @@ release the same views, and on Linux the last window's close quits only after it
 released. Code that deletes something kept for a restore, on a release, needs both Marley not
 quitting (`on_app_quit`) and the view's window still in `cx.windows()`; gpui takes a closing window
 out of that list before its views go.
+
+## PR-claude-768-an-edit-form-masks-what-its-list-masks-001
+*severity: medium · prevents: F-claude-768-the-edit-form-showed-a-stored-argument-in-clear-001*
+
+A form that edits something a list shows masked (a command line, a URL, a value) shows it masked
+too. A field left as shown keeps the stored text; a field changed but still holding the mask is
+refused, never written with the mask in it. Read the stored text only where it is written.
+

@@ -3865,3 +3865,12 @@ called, and `open` runs inside the workspace's update (a `register_action` handl
 would have panicked on a double lease. Fixed before any run: `refresh` spawns with `spawn_in` and
 looks the projects up in `update_in`, after the action's update has ended.
 
+## F-claude-768-the-edit-form-showed-a-stored-argument-in-clear-001
+*severity: medium · found in: pipeline 768's Test, the first `768-03-edit-form` shot · class: an edit form re-showing what its list masks*
+
+MCP Servers masks a server's command line (#720's D8), but the first Edit form put the stored
+arguments into its Arguments field as stored, so `--api-key=not-a-real-key` showed in clear the
+moment the user pressed Edit, on the screen the tab had kept it off. Fixed in #768: the field shows
+the arguments through the same redaction rules (and a URL through `redact_url`); left as shown it
+keeps the stored arguments, and an edited field that still holds `[redacted: …]` is refused.
+

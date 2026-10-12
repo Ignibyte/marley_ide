@@ -1582,6 +1582,38 @@ alike.
   `context_servers`.
 - `mcp::window_workspaces(window, cx)` (moved from `turn_undo`, #714) is every workspace of
   Marley's windows from inside one window's update.
+- Since #768 a Claude Code or Codex row carries `stored: Option<Stored>` (its `Place`, the
+  command and raw arguments or the URL, the names of the env variables or headers the form edits,
+  and `seen`, the entry's hash as read: `entry_hash` of its compact JSON, or of its TOML item's
+  text), never a value. The tab keeps the open folders for Add Server's Where.
+
+## Editing a CLI's MCP servers (`src/mcp_server_form.rs`, #768)
+
+- `Place` (`ClaudeUser`, `ClaudeLocal(folder)`, `ClaudeProject(folder)`, `Codex`) names the file:
+  `.claude.json`, the folder's `.mcp.json`, Codex's `config.toml`.
+- `change_text(text, place, name, change, seen)` is the `edit` handed to
+  `safe_write::replace_in(file, backup: true, …)`. `check` compares the entry's hash now with
+  `seen`: a different one, a missing one for an edit, or a name already there for an add refuses
+  ("changed since the tab read it; Refresh and try again"). Only the entry is compared, since
+  Claude Code rewrites `.claude.json` read-modify-write while it runs.
+  - JSON (`claude_change`): the whole file as a `serde_json::Value` with `preserve_order`, the
+    entry changed in place (`shift_remove`, `insert` keeps a key's position), written with
+    `to_string_pretty` (two spaces) and the original final newline. A local scope needs the
+    folder's `projects` entry already there: Claude Code fills a new one's keys itself.
+  - TOML (`codex_change`): `toml_edit`, `[mcp_servers]` made implicit when missing, the entry's
+    table edited in place; `env` or `http_headers`, inline or a table, keeps its style and
+    order; `enabled`, `env_vars` and `bearer_token_env_var` stay.
+  - An edit starts from the stored entry, so keys the form does not know stay; a pair's `Keep`
+    copies the stored value inside the writer, the only place a value is read.
+- `McpServerForm`, a `ModalView` opened by `McpServers::open_form` through `toggle_modal`: name
+  and Where for an add, Command or URL, the pairs (a stored one is a label, a masked value editor
+  reading "set; type to replace", and Clear; a new one two editors), Save (`menu::Confirm`). The
+  arguments (`shlex::try_join`) and the URL show as the tab shows them, through the redaction
+  rules and `redact_url`; a field left as shown keeps what is stored, and an edited one that
+  still holds `[redacted: …]` or `…` is refused. Save writes in `background_spawn`, then
+  refreshes the tab, shows a toast and closes; a refusal stays in the form.
+- `remove(page, workspace, name, stored, window, cx)`: `window.prompt` (Remove, Cancel), then
+  the same writer with `Change::Remove`; an error goes to `show_error`.
 
 ## Codex's own App Server (`src/codex_server.rs`, #650)
 

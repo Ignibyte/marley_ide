@@ -1771,8 +1771,24 @@ the same tab forward and reads the files again; so does Refresh.
 Each row shows the server's name, its scope, its state, and its command line or URL, then the
 names of its env variables and headers. No env or header value is read into the tab. Keys and
 tokens in a command line are masked, and secret-looking values in a URL's query are hidden, so
-the tab can be shown on a shared screen. The tab only reads; editing each CLI's servers from it
-comes later.
+the tab can be shown on a shared screen.
+
+**Editing a CLI's servers** (#768). Add Server, beside the Claude Code and Codex headings, opens a
+form: a name, for Claude Code where it goes (your user scope, or an open folder's local scope or
+`.mcp.json`), then a command with its arguments (quoted as in a shell) or a URL, and the env
+variables or headers with their values, typed into fields that show dots. Edit on a row opens the
+same form with the command, arguments or URL as stored; each env variable or header is listed by
+name and keeps its value unless you type a new one, and Clear removes it. Remove asks first.
+
+- A save changes that one entry and keeps the rest of the file: Codex's comments and other
+  tables, `.claude.json`'s other keys and its layout. The file as it was stays beside it, with
+  `.marley-backup` added to its name.
+- If the entry changed since the tab read it, nothing is written and the form says so; Refresh,
+  then try again. Claude Code rewrites `.claude.json` often while it runs, and that alone does not
+  stop a save.
+- A local scope exists only for a folder Claude Code has run in.
+- Each CLI reads its servers when it starts, so restart a running one to pick up a change.
+- Zed's servers are changed on Zed's own page: Configure in Settings.
 
 ## The rustal-ste skill for Marley's agents
 
