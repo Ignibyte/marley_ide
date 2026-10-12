@@ -139,6 +139,10 @@ OR Apache-2.0, with the Marley crates' lint table.
   both Write with `thread.write` (`thread_schemas`). `dispatch` defers it.
 - Since #707 the `action` family is served: `action_list` (Read) and `action_run` (Write,
   `action.write`; `name`, `arguments`, `project`), with `action_schemas`. `dispatch` defers it.
+- Since #769 the `draft` family is served: `draft_message` (Write, `draft.write`; `to`, an object
+  naming a `terminal` id or a `thread` id, and `text`), with `draft_schemas`; it answers `draft`,
+  `to` and `opened`. `dispatch` defers it, and `INSTRUCTIONS` tells agents to draft to another
+  agent rather than type into it.
 
 ## Redaction (`redact.rs`, #516, #562)
 

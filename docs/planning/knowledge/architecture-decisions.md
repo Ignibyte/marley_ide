@@ -5238,3 +5238,16 @@ within 16,000 bytes, each whole, under a preamble that calls them history, prefi
 new thread tab in a split beside the old one. The whole conversation goes to a 0600 file the block
 names; both pass the agents' redaction. Rejected: Zed's from-summary (its own agent only, a model
 call), asking the new agent to summarise, auto-submit, and a pointer to `thread_read`.
+
+## AD-claude-769-an-agent-drafts-to-another-agent-and-the-person-sends-001
+*decided at: 2026-10-11 · status: shipped*
+
+An agent that wants to tell another agent something calls `draft_message`; it never types into
+the other agent. The message opens as a Draft tab in the target's window, naming both agents, with
+the text in an editor; Send delivers the editor's text by the person's own paths (`paste_then`
+with Enter at an agent CLI's prompt, `ThreadView::send` in a thread), and Drop closes it. The tool
+answers `opened` at once, since an app call has 30 seconds and a draft waits on the person. It is
+a family of its own (`draft`, grant `draft.write`) so a client's grants can leave it out, and
+nothing asks before it, since the tab is the review. Rejected: `terminal_type` into an agent CLI
+(refused on purpose), a tool that waits for the person's answer, and a notification card in place
+of a tab (no room to edit).

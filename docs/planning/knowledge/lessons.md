@@ -5684,3 +5684,11 @@ text gets its title from that text, so its first line is written to be a title.
 A tab's right-click menu holds Zed's Close, Close Others, Close Left and Right, Close Clean, Close
 All, Make Tab Read-Only and Pin Tab before an item's extra actions, so Marley's items come last and
 Home picks Close. A scenario clicks the item at its point.
+
+## L-claude-769-a-multi-line-editor-shows-a-code-gutter-001
+*category: gpui · topic: an editor for prose in a Marley view · from: pipeline 769*
+
+`Editor::multi_line` is a full editor: it draws a gutter with line numbers and does not wrap. A
+box for a message (the Draft tab) calls `set_show_gutter(false, cx)` and
+`set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx)` after making it, as `rich_input` and
+`block_filter` do.

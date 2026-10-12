@@ -328,7 +328,7 @@ fn terminal_views(workspace: &Workspace, cx: &App) -> Vec<(String, Entity<Termin
 }
 
 /// `view` as a target, when a known agent is its foreground program.
-fn target_of(project: String, view: Entity<TerminalView>, cx: &App) -> Option<Target> {
+pub(crate) fn target_of(project: String, view: Entity<TerminalView>, cx: &App) -> Option<Target> {
     let terminal = view.read(cx).terminal().read(cx);
     let kind = agent_in(terminal)?;
     let cwd = terminal.working_directory();

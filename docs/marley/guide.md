@@ -2068,6 +2068,14 @@ An agent can see and open Zed's editors through Marley's tools (#704):
 - `thread_answer` allows a thread's waiting tool call once, or rejects it. It asks every time
   unless Threads is Allow, and a sandbox escalation is never answered by an agent: only you
   answer that, in the Agent Panel.
+- `draft_message` puts a message to another agent in front of you instead of sending it (#769).
+  `to` names a terminal whose agent CLI runs (an id from `terminal_list`) or a thread (an id from
+  `thread_list`). A Draft tab opens in that window, naming the agent that wrote it and the one it
+  is for, with the text in an editor you can change. **Send** delivers what the editor holds, as
+  you would: typed at the agent CLI's prompt with Enter, or put in the thread's message box and
+  sent. **Drop** closes the tab and sends nothing. Nothing asks first, since the tab is the review.
+  An agent CLI that waits on a question, or a thread where you have a message typed, keeps the
+  draft open and says why.
 - `action_list` lists the palette actions an agent may run (#707). These are Marley's safe ones
   (docks and panels, splits, pane navigation, search, go-to, Format, folds and the finders) and
   any you name in `marley.agent_control.actions_allowed`. Settings → Marley → Agent Control →

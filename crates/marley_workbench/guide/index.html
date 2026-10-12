@@ -1700,6 +1700,11 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td><code>thread_post</code></td><td>Sends a message into a thread as you would; a running thread queues it, and it is refused while you have a message typed there and not sent</td></tr>
 <tr><td><code>thread_answer</code></td><td>Allows a thread's waiting tool call once, or rejects it; it asks you every time unless Threads is Allow, and never answers a sandbox escalation</td></tr>
 </table>
+<h4>Drafts</h4>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>draft_message</code></td><td>Puts a message to another agent in front of you instead of sending it: <code>to</code> names a terminal whose agent CLI runs or a thread, and a Draft tab opens with the text to edit, Send and Drop. Nothing is sent until you press Send</td></tr>
+</table>
 <h4>Palette actions</h4>
 <table>
 <tr><th>Tool</th><th>What it does</th></tr>

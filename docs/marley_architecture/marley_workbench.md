@@ -2159,6 +2159,25 @@ alike.
   `thread_tab::open_beside`: a `ThreadSpec` with `initial: Some(ContentBlock { auto_submit: false })`,
   added to the pane right of the active one, split off it when there is none.
 
+## Drafted messages (`src/drafts.rs`, #769)
+
+- `mcp::answer` routes `draft_message` to `drafts::answer`, past the Write gate (logged, and refused
+  while agent control is stopped). The tool answers once the tab opens: an app call has 30 seconds,
+  and a draft waits on the person.
+- A `terminal` target is `mcp::terminal_with_id` checked with `send_selection::target_of` (an agent
+  CLI must be its foreground program, else `not_an_agent`). A `thread` target is the first
+  `thread_tab::conversations_of` view, in any of `mcp::all_workspaces`, whose
+  `parent_id().to_key_string()` is the id, so a thread in a tab counts as well as a panel's.
+- `DraftView` is a center item in the target's workspace: a header naming `click_pause::Who`'s words
+  and the target, a multi-line `Editor` with the text, Send and Drop. Drop emits `CloseItem`.
+- Send reads the editor and checks the target again. A terminal goes through
+  `send_selection::send_text(…, submit: true, …)` unless its seat waits; a thread gets the text
+  inserted into its message editor and `ThreadView::send`, deferred, unless the person has text
+  there. A refusal stays on the tab as a note; a send shows a toast and closes the tab.
+- **The window being updated.** Send runs inside the draft's own window update, which
+  `browser::window_of` cannot see (`cx.windows()` leaves it out), so `window_holding` falls back to
+  that window's handle.
+
 ## A thread that starts in a tab (`src/thread_tab.rs`, `src/rail.rs`, Zed's `agent_ui`, #734)
 
 - `NewAgentThread { agent, folder }` (a data action read through `NewAgentThreadFields`, as

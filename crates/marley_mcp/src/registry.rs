@@ -42,6 +42,8 @@ pub enum Family {
     Keymap,
     /// Seats on the harness Marley follows, set up through its own command (#692).
     Seat,
+    /// Messages an agent drafts for the user to review and send (#769).
+    Draft,
 }
 
 impl Family {
@@ -63,6 +65,7 @@ impl Family {
             Self::Actions => "actions",
             Self::Keymap => "keymap",
             Self::Seat => "seat",
+            Self::Draft => "draft",
         }
     }
 
@@ -83,6 +86,7 @@ impl Family {
                 | Self::Actions
                 | Self::Keymap
                 | Self::Seat
+                | Self::Draft
         )
     }
 }
@@ -701,6 +705,19 @@ const REGISTRY: &[ToolSpec] = &[
                       `no_answer`.",
     },
     ToolSpec {
+        family: Family::Draft,
+        verb: "message",
+        tier: Tier::Write,
+        grant_class: "draft.write",
+        description: "Draft a message to another agent for the user to review: `to` names an \
+                      agent CLI's terminal (`{\"terminal\": <id from terminal_list>}`) or a \
+                      thread (`{\"thread\": \"<id from thread_list>\"}`). Marley opens the \
+                      draft in a tab of the user's, who may edit it, then Send or Drop it. It \
+                      answers `opened` at once and sends nothing itself. Refused `no_terminal`, \
+                      `not_an_agent` for a terminal running no agent CLI, `no_thread`, or \
+                      `bad_argument`.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -886,6 +903,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Actions => actions_list_schemas(),
         Family::Keymap => keymap_change_schemas(),
         Family::Seat => seat_schemas(spec.verb),
+        Family::Draft => draft_schemas(),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -900,6 +918,44 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
             receipt_schema(),
         ),
     }
+}
+
+/// The schemas of `draft_message` (#769): the target and the text; the answer says it opened.
+fn draft_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "to": {
+                    "type": "object",
+                    "description": "Who the message is for: an agent CLI's terminal or a thread.",
+                    "properties": {
+                        "terminal": {
+                            "type": "integer",
+                            "description": "A terminal's id from terminal_list, running an agent CLI."
+                        },
+                        "thread": {
+                            "type": "string",
+                            "description": "A thread's id from thread_list."
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "text": { "type": "string", "minLength": 1, "description": "The message." }
+            },
+            "required": ["to", "text"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "draft": { "type": "string" },
+                "to": { "type": "string" },
+                "opened": { "type": "boolean" }
+            },
+            "required": ["draft", "to", "opened"]
+        }),
+    )
 }
 
 /// The JSON Schema for a `FleetSnapshot` (the #367 shape — one seam, three consumers, D2). Kept in step
@@ -3041,10 +3097,11 @@ mod tests {
                 "seat_add",
                 "seat_stop",
                 "seat_remove",
+                "draft_message",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 66);
+        assert_eq!(registry().len(), 67);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

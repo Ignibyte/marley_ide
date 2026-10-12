@@ -3946,3 +3946,13 @@ xdg-utils' generic mode, which `xdg-open` takes under Hyprland, reads the first 
 it stands, quotes included, so `command -v '"…/marley"'` failed, and it fell back to a web browser:
 the run's `xdg-open marley://settings` started Chromium with the link instead of Marley. Fixed in
 #762: the program is quoted only when its path holds a space.
+
+## F-claude-769-send-looked-for-the-draft-tabs-own-window-and-found-it-gone-001
+*severity: medium · found in: pipeline 769's Code, the review of the diff · class: a cross-window lookup inside that window's update (PR-claude-596-look-up-across-windows-before-updating-one-001)*
+
+The Draft tab's Send first found the target's window with `browser::window_of` (and, for a
+thread, `mcp::all_workspaces`), both of which walk `cx.windows()`. Send runs in a click listener,
+inside the update of the draft's own window, which is the target's window in the usual case, so
+the lookup would have read it as gone and every Send would have answered "the window is gone".
+Fixed before it ran: the click listener passes `window.window_handle()`, and `window_holding` uses
+it when no other window holds the target's workspace; the thread target carries its workspace.

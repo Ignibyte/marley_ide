@@ -127,7 +127,8 @@ of a block by meaning.
 
 Use terminal_run for a command the user should see run in their terminal, not for your own \
 scratch work. To answer a program waiting for input (a REPL, a debugger), read it with \
-terminal_screen, then write with terminal_type; never type into another agent.
+terminal_screen, then write with terminal_type; never type into another agent: draft_message puts a message to one \
+before the user, who sends it.
 
 For a web page, use Marley's Browser tab: browser_tabs, then browser_snapshot or browser_look, \
 before you drive the page. Do not start Playwright or another browser for a page the user has \
@@ -251,7 +252,8 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Settings
         | Family::Actions
         | Family::Keymap
-        | Family::Seat => Handled {
+        | Family::Seat
+        | Family::Draft => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

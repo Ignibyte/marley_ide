@@ -113,6 +113,7 @@ pub fn start(cx: &mut App) {
                 "harness.write",
                 "thread.write",
                 "action.write",
+                "draft.write",
             ]),
             ..transport::ServerData::default()
         }),
@@ -559,6 +560,10 @@ fn answer(mut call: AppCall, cx: &mut App) {
         crate::action_tools::answer(call, cx);
         return;
     }
+    if call.tool == "draft_message" {
+        crate::drafts::answer(call, cx);
+        return;
+    }
     if call.tool == "ports_list" {
         ports_list(call, cx);
         return;
@@ -875,7 +880,7 @@ pub(crate) fn terminals_of(
 
 /// The terminal whose id (its view's entity id, as the rail's) is `id`; refused with the ids there
 /// are when none has it.
-fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, Refusal> {
+pub(crate) fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>, Refusal> {
     let views: Vec<Entity<TerminalView>> =
         terminals(cx).into_iter().map(|(_, view)| view).collect();
     if let Some(view) = views.iter().find(|view| view.entity_id().as_u64() == id) {

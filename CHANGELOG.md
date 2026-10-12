@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Drafted messages between agents** (#769, 2026-10-11). An agent that wants to tell another agent
+  something calls `draft_message` instead of typing into it. A Draft tab opens in the target's window,
+  naming who wrote it and who it is for, with the text in an editor. Send delivers what the editor
+  holds, as you would, to an agent CLI's prompt or a thread's message box; Drop throws it away.
+  Nothing reaches the other agent until you press Send.
+
 - **New Thread with Context** (#717, 2026-10-11). From an open thread's tab menu or the palette,
   start a thread on another agent (or the same) in a split beside it, with the old thread's history
   in its message box, unsent: your requests, the answers and the tool calls, the newest first

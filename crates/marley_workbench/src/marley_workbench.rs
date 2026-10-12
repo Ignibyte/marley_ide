@@ -52,6 +52,7 @@ pub mod codex_server;
 pub mod command_watch;
 pub mod commands;
 pub mod docs_tools;
+pub mod drafts;
 pub mod editor_tools;
 pub mod english;
 pub mod failures;

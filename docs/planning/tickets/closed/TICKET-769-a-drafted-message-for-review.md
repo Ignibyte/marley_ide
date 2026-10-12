@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #769 (feature, the finish line)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** not started; the design is drafted in [716's spec, Out](../../pipeline/queued/716-delegation-tools.spec.md)
+- **Pipeline doc:** [769-a-drafted-message-for-review.spec.md](../../pipeline/completed/769-a-drafted-message-for-review.spec.md)
 - **Source ticket:** split from #716 (agents that start agents) on 2026-10-11, when Chad asked to "spec all" of the survey list. Plan: [finish-line shelf](../../design-notes/finish-line-2026-10-11.md).
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 An agent drafts a message to another agent or a person through Marley's MCP server; Marley holds it in a tab for the user to edit, send or drop, as MonoCode's operator does.
