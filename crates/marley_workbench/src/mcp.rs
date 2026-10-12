@@ -21,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
-use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global};
+use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Entity, Global, Window};
 use marley_fleet::FleetSnapshot;
 use marley_mcp::redact::{Redacted, Redactor};
 use marley_mcp::{
@@ -823,6 +823,24 @@ pub(crate) fn all_workspaces(cx: &App) -> Vec<Entity<Workspace>> {
     cx.windows()
         .into_iter()
         .filter_map(|window| window.downcast::<MultiWorkspace>()?.read(cx).ok())
+        .flat_map(|multi_workspace| multi_workspace.workspaces().cloned().collect::<Vec<_>>())
+        .collect()
+}
+
+/// Every workspace of Marley's windows, from inside `window`'s update: gpui takes that window out of
+/// the app for the update, so its handle reads as gone and its root is reached through it instead
+/// (#714).
+pub(crate) fn window_workspaces(window: &Window, cx: &App) -> Vec<Entity<Workspace>> {
+    let others = cx
+        .windows()
+        .into_iter()
+        .filter_map(|handle| handle.downcast::<MultiWorkspace>()?.read(cx).ok());
+    window
+        .root::<MultiWorkspace>()
+        .flatten()
+        .iter()
+        .map(|root| root.read(cx))
+        .chain(others)
         .flat_map(|multi_workspace| multi_workspace.workspaces().cloned().collect::<Vec<_>>())
         .collect()
 }

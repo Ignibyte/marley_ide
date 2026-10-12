@@ -7,13 +7,18 @@
 //! canonical path, size or modification time), as `agent_notify` re-reads its files; nothing
 //! polls. `marley_agent::versions` judges each integration; the agent bar's chip says why one is
 //! off, and its click opens the setting that turns it on anyway.
+//!
+//! A version older than an integration the user wants also gets a notification, once per program
+//! and version, with Open MCP Servers (#720): an update turns that integration on, where a newer
+//! untested version can only wait for Marley.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use gpui::{AnyElement, App, Global, Subscription};
+use db::kvp::KeyValueStore;
+use gpui::{AnyElement, App, AppContext as _, Global, SharedString, Subscription};
 use marley_agent::AgentKind;
 use marley_agent::claude_events::PromptReading;
 use marley_agent::versions::{
@@ -23,6 +28,9 @@ use settings::{Settings as _, SettingsStore};
 use terminal::Terminal;
 use terminal_view::MarleyFooterContext;
 use ui::{Button, Icon, IconName, IconSize, LabelSize, Tooltip, prelude::*};
+use util::ResultExt as _;
+use workspace::notifications::simple_message_notification::MessageNotification;
+use workspace::notifications::{NotificationId, show_app_notification};
 
 use crate::MarleySettings;
 
@@ -34,6 +42,9 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// How much of what `--version` prints is read.
 const VERSION_OUTPUT: usize = 4_096;
+
+/// The key-value store's scope for the programs and versions already warned of (#720).
+const WARNED_SCOPE: &str = "marley-agent-versions";
 
 /// What identifies the file found, so an unchanged one is not run again.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,13 +65,14 @@ struct Check {
     running: bool,
 }
 
-/// The two agents' checks, and the allowed rows last seen, so a settings change that moves a
-/// verdict redraws the bars.
+/// The two agents' checks, the allowed rows last seen, so a settings change that moves a verdict
+/// redraws the bars, and the versions this session warned of or found warned of (#720).
 #[derive(Default)]
 struct AgentVersions {
     claude: Check,
     codex: Check,
     allowed: Vec<String>,
+    warned: HashSet<String>,
 }
 
 impl Global for AgentVersions {}
@@ -97,6 +109,9 @@ pub fn init(cx: &mut App) {
             cx.global_mut::<AgentVersions>().allowed = allowed;
             cx.refresh_windows();
         }
+        // An integration turned on can make a version already found too old for it.
+        warn_if_outdated(AgentKind::Claude, cx);
+        warn_if_outdated(AgentKind::Codex, cx);
     })
     .detach();
 }
@@ -282,6 +297,107 @@ fn store(kind: AgentKind, read: Option<(Option<PathBuf>, Option<Identity>, Found
     if verdicts(kind, cx) != before {
         cx.refresh_windows();
     }
+    warn_if_outdated(kind, cx);
+}
+
+/// The integrations the user wants that `kind`'s version is older than (#720), in the table's
+/// order; none while the version is unknown.
+pub(crate) fn outdated(kind: AgentKind, cx: &App) -> Vec<&'static Integration> {
+    let Some(Found::Version(version)) = found(kind, cx) else {
+        return Vec::new();
+    };
+    integrations_of(kind)
+        .filter(|integration| integration.tested.older(&version) && wanted(integration, cx))
+        .collect()
+}
+
+/// The notification that `kind`'s version is older than integrations the user wants (#720),
+/// shown once per program and version: this session's set first, then the key-value store.
+fn warn_if_outdated(kind: AgentKind, cx: &mut App) {
+    let Some(Found::Version(version)) = found(kind, cx) else {
+        return;
+    };
+    let outdated = outdated(kind, cx);
+    if outdated.is_empty() {
+        return;
+    }
+    let key = format!("{}-{version}", kind.program());
+    if !cx.global_mut::<AgentVersions>().warned.insert(key.clone()) {
+        return;
+    }
+    let store = KeyValueStore::global(cx);
+    if store
+        .scoped(WARNED_SCOPE)
+        .read(&key)
+        .log_err()
+        .flatten()
+        .is_some()
+    {
+        return;
+    }
+    cx.background_spawn({
+        let key = key.clone();
+        async move {
+            store
+                .scoped(WARNED_SCOPE)
+                .write(key, "warned".to_string())
+                .await
+                .log_err();
+        }
+    })
+    .detach();
+    let headline = SharedString::from(format!(
+        "{} {version} is too old for parts of Marley you use",
+        kind.display_name()
+    ));
+    let mut lines: Vec<SharedString> = outdated
+        .iter()
+        .map(|integration| {
+            format!(
+                "{}: {} or later",
+                capitalized(integration.name),
+                integration.tested.from
+            )
+            .into()
+        })
+        .collect();
+    if let Some(command) = versions::update_command(kind) {
+        lines.push(format!("Run {command} to update it.").into());
+    }
+    log::info!("agent versions: {headline}");
+    show_app_notification(
+        NotificationId::composite::<AgentVersions>(key),
+        cx,
+        move |cx| {
+            let headline = headline.clone();
+            let lines = lines.clone();
+            cx.new(|cx| {
+                MessageNotification::new_from_builder(cx, move |_, _| {
+                    v_flex()
+                        .gap_1()
+                        .child(Label::new(headline.clone()))
+                        .children(lines.iter().map(|line| {
+                            Label::new(line.clone())
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                        }))
+                        .into_any_element()
+                })
+                .primary_message("Open MCP Servers")
+                .primary_on_click(|window, cx| {
+                    window.dispatch_action(Box::new(crate::mcp_servers::OpenMcpServers), cx);
+                })
+            })
+        },
+    );
+}
+
+/// `text` with its first letter upper case: an integration's name starts a line.
+pub(crate) fn capitalized(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 /// A check for `kind` when none runs and the last ended [`FRESH`] ago or more.
@@ -341,7 +457,7 @@ pub(crate) fn observe(cx: &mut App, changed: impl FnMut(&mut App) + 'static) -> 
 /// only while `marley.codex_app_server` is on, Claude Code's IDE link only while
 /// `marley.claude_code_ide` is (#653), the shared plugin only while
 /// `marley.claude_code_shared_plugin` is (#709).
-fn wanted(integration: &Integration, cx: &App) -> bool {
+pub(crate) fn wanted(integration: &Integration, cx: &App) -> bool {
     let settings = MarleySettings::get_global(cx);
     if integration.id == CODEX_APP_SERVER.id {
         settings.codex_app_server == crate::codex_server::CodexAppServer::On

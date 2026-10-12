@@ -73,6 +73,7 @@ pub mod markdown_commands;
 #[cfg(test)]
 pub mod marley_workbench_tests;
 pub mod mcp;
+pub mod mcp_servers;
 pub mod notifications;
 pub mod panel_tabs;
 pub mod playwright_scripts;
@@ -1005,6 +1006,7 @@ pub fn init(cx: &mut App) {
     assistant::init(cx);
     thread_tab::init(cx);
     threads_page::init(cx);
+    mcp_servers::init(cx);
     status_buttons::init(cx);
     panel_tabs::init(cx);
     rich_input::init(cx);

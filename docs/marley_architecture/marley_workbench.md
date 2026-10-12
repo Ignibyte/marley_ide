@@ -1544,6 +1544,44 @@ alike.
 - Since #650 `is_on(integration, cx)` and `program(kind, cx)` (the path the check found) serve
   `codex_server`, and the chip lists `codex_app_server` only while `marley.codex_app_server` is
   on.
+- Since #720 `outdated(kind, cx)` lists the integrations `wanted` (now `pub(crate)`) that the
+  found version is older than (`Range::older`: the release below the range's `from`; a newer
+  untested version is not older). `warn_if_outdated` runs after each stored check and on every
+  settings change (turning a part on can make the version too old for it): once per program and
+  version, kept in `AgentVersions::warned` for the session and in the key-value store's
+  `marley-agent-versions` scope (`claude-2.1.280`), an app notification names the version, each
+  part with the version it needs, and `versions::update_command` (`claude update`,
+  `codex update`), with Open MCP Servers. `show_app_notification` keeps it for windows opened
+  later, so a check that ends before the first window still shows.
+
+## MCP Servers (`src/mcp_servers.rs`, #720)
+
+- `marley::OpenMcpServers` and Home's MCP Servers button open the tab, one per group: `open`
+  brings the group's tab forward and refreshes it, else adds one to the center.
+- `refresh` looks up the open projects once the caller's update has ended (`spawn_in`, then
+  `update_in`; the action runs while its workspace is updated, and `window_workspaces` reads every
+  workspace), subscribes to each project's `ContextServerStore` for `ServerStatusChangedEvent`,
+  and reads the CLIs' files in `background_spawn`: `claude_rows_in(.claude.json, folders)` and
+  `codex_rows_in(config.toml)`.
+  - `.claude.json` is in `CLAUDE_CONFIG_DIR` when set and not empty, else in the home folder (as
+    Claude Code 2.1.296 places it). Only `mcpServers` and `projects` are deserialized, each entry
+    as a borrowed `RawValue`; a folder's entry is parsed only for an open folder, and each server
+    on its own, so an entry Marley cannot read becomes a row saying so. `.mcp.json` servers are
+    approved or denied by the folder's `enabledMcpjsonServers` and `disabledMcpjsonServers`.
+  - Codex's `[mcp_servers.<name>]` tables through `toml_edit`: `command` and `args` or `url`,
+    `enabled`, the names of `env`, `env_vars`, `http_headers`, `env_http_headers`, and
+    `Authorization` for `bearer_token_env_var`.
+  - Env and header maps are read as `Names`, a map visitor that keeps the keys and skips each value
+    with `IgnoredAny`, so no value is held in a row. A command line goes through
+    `Redactor::new(&[])` (the built-in rules) and a URL through `redact_url`.
+- `render` draws Agent CLIs from `agent_versions` (program, version, each integration's state:
+  needs a newer version, not turned on, on, or off on this version, with `Range::words`), the two
+  CLIs' rows, and Zed's rows from the stores (`server_ids`, `is_server_enabled`,
+  `status_for_server`, `settings_for_server`), one per name with each project's status, `marley`
+  and `rusty` marked Marley's. Configure in Settings dispatches `OpenSettingsAt` at
+  `context_servers`.
+- `mcp::window_workspaces(window, cx)` (moved from `turn_undo`, #714) is every workspace of
+  Marley's windows from inside one window's update.
 
 ## Codex's own App Server (`src/codex_server.rs`, #650)
 

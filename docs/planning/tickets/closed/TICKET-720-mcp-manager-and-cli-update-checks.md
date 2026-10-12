@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #720 (feature; size medium, the first of two slices)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** [720-mcp-manager-and-cli-update-checks.spec.md](../../pipeline/queued/720-mcp-manager-and-cli-update-checks.spec.md)
+- **Pipeline doc:** [720-mcp-manager-and-cli-update-checks.spec.md](../../pipeline/completed/720-mcp-manager-and-cli-update-checks.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 7; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; Chad, 2026-10-11: "17.) build now if we can"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A center tab, MCP Servers, that shows in one place every MCP server each agent sees: Claude

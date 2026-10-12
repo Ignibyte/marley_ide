@@ -15,9 +15,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use git::repository::GitRepositoryCheckpoint;
-use gpui::{App, AppContext as _, AsyncWindowContext, Entity, Global, PromptLevel, Window};
+use gpui::{App, AppContext as _, AsyncWindowContext, Global, PromptLevel, Window};
 use marley_agent::claude_events::CWD_LABEL;
-use workspace::{MultiWorkspace, Workspace};
 
 use crate::launch::verbatim;
 use crate::turn_git::{self, PathChange, UndoMerge, UndoWrite};
@@ -224,7 +223,7 @@ fn busy_message(agent: &str, folder: &Path) -> String {
 /// generating. The turn's own agent counts: its open turn would take the undo as its change.
 fn agent_at_work(checkout: &Path, window: &Window, cx: &App) -> Option<(String, PathBuf)> {
     let overlaps = |folder: &Path| folder.starts_with(checkout) || checkout.starts_with(folder);
-    let workspaces = workspaces(window, cx);
+    let workspaces = crate::mcp::window_workspaces(window, cx);
     for (_, view) in crate::mcp::terminals_of(workspaces.clone(), cx) {
         let terminal = view.read(cx).terminal().read(cx);
         let Some(kind) = crate::agent_bar::agent_in(terminal) else {
@@ -273,7 +272,7 @@ fn unsaved_among(
     window: &Window,
     cx: &App,
 ) -> Vec<String> {
-    let projects: Vec<_> = workspaces(window, cx)
+    let projects: Vec<_> = crate::mcp::window_workspaces(window, cx)
         .iter()
         .map(|workspace| workspace.read(cx).project().clone())
         .collect();
@@ -293,21 +292,4 @@ fn unsaved_among(
         }
     }
     unsaved
-}
-
-/// Every workspace of Marley's windows. `window` is the one being updated: gpui takes it out of the
-/// app for the update, so its handle reads as gone and its root is reached through it instead.
-fn workspaces(window: &Window, cx: &App) -> Vec<Entity<Workspace>> {
-    let others = cx
-        .windows()
-        .into_iter()
-        .filter_map(|handle| handle.downcast::<MultiWorkspace>()?.read(cx).ok());
-    window
-        .root::<MultiWorkspace>()
-        .flatten()
-        .iter()
-        .map(|root| root.read(cx))
-        .chain(others)
-        .flat_map(|multi_workspace| multi_workspace.workspaces().cloned().collect::<Vec<_>>())
-        .collect()
 }

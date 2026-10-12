@@ -402,7 +402,7 @@ impl MarleyHome {
     }
 
     fn render_configure(&self) -> impl IntoElement {
-        let entries: [(&'static str, &'static str, IconName); 5] = [
+        let entries: [(&'static str, &'static str, IconName); 6] = [
             ("marley-home-settings", "Settings", IconName::Settings),
             (
                 "marley-home-marley-settings",
@@ -411,6 +411,11 @@ impl MarleyHome {
             ),
             ("marley-home-keymap", "Keymap", IconName::Keyboard),
             ("marley-home-extensions", "Extensions", IconName::Blocks),
+            (
+                "marley-home-mcp-servers",
+                "MCP Servers",
+                IconName::ToolHammer,
+            ),
             ("marley-home-guide", "Marley Guide", IconName::Book),
         ];
         h_flex()
@@ -438,6 +443,9 @@ impl MarleyHome {
                         }
                         "marley-home-extensions" => {
                             focus.dispatch_action(&zed_actions::Extensions::default(), window, cx);
+                        }
+                        "marley-home-mcp-servers" => {
+                            focus.dispatch_action(&crate::mcp_servers::OpenMcpServers, window, cx);
                         }
                         _ => focus.dispatch_action(&OpenGuide, window, cx),
                     })

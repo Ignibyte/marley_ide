@@ -2,7 +2,7 @@
 
 - **Ticket:** LOCAL #768 (feature, the finish line)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** not started; the design is drafted in [720's notes](../../pipeline/queued/720-mcp-manager-and-cli-update-checks.notes.md)
+- **Pipeline doc:** [768-edit-cli-mcp-servers.spec.md](../../pipeline/queued/768-edit-cli-mcp-servers.spec.md) (queued; drafted from [720's notes](../../pipeline/completed/720-mcp-manager-and-cli-update-checks.notes.md))
 - **Source ticket:** split from #720 (the MCP manager, slice 2) on 2026-10-11, when Chad asked to "spec all" of the survey list. Plan: [finish-line shelf](../../design-notes/finish-line-2026-10-11.md).
 - **Status:** open
 

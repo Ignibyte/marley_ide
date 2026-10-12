@@ -5081,3 +5081,17 @@ Zed's `Fs::atomic_write` (it replaces a symlink with a file, writes mode 0600 an
 the `tempfile` crate (a dev-dependency only here, and `create_new` with a uuid name does the same),
 and a before-and-after card (the setup stays one click; #720's edits are where a preview belongs).
 
+## AD-claude-720-mcp-servers-is-a-tab-over-each-clis-own-files-names-never-values-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-648-marley-turns-off-only-what-rests-on-an-untested-agent-surface-001*
+
+One center tab, one per group, shows the MCP servers each agent sees, read from each CLI's own
+files (`.claude.json`'s user and local scopes, each open folder's `.mcp.json` with its approval,
+Codex's `config.toml`) and from Zed's context server stores, plus each CLI's version against the
+parts of Marley that rest on it. Env and header maps are read for their keys only, and command
+lines and URLs go through the built-in redaction, since an argument or a query can carry a token.
+A CLI older than a part the user turned on needs gets a notification once per program and version;
+a newer untested one keeps #648's chip alone. The tab only reads; Zed's page edits Zed's servers.
+Rejected: a Settings page (Chad's tabs everywhere), `claude mcp list` (no JSON, and it starts every
+server to check it), showing values masked rather than not reading them, and a registry check for
+the newest release (it reaches outside the box).
+

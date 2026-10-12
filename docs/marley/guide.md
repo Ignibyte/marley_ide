@@ -720,6 +720,13 @@ checked; a click opens the Settings window at Prompt Tags on Untested Claude Cod
 them on anyway. A remote terminal's Claude Code is the host's, so its prompts are read with the
 tags and no chip shows.
 
+When the version found is older than a part you use needs (#720), say Claude Code 2.1.280 while
+the shared plugin wants 2.1.287, a notification names the program, its version, each part with
+the version it needs, and the update command (`claude update`, `codex update`), with Open MCP
+Servers. It shows once per program and version, so staying on an old version does not bring it
+back at every start. A version newer than the tested range gets no notification: only Marley can
+change that, so the chip stays the only sign.
+
 ### Rich input
 
 While an agent CLI runs, Ctrl+G or the pencil opens a Zed editor above the bar for the agent's
@@ -1738,6 +1745,34 @@ one Decisions tab per window. System One's log is another tab, System One calls.
     sets the status and the days, and the tab reads again. If Rusty refuses, a day that is not a
     date for one, its words show in the form and nothing is written. Escape, or a click outside,
     closes the form without recording.
+
+## MCP Servers
+
+`marley: open mcp servers`, or MCP Servers on Home's Configure card, opens a tab listing every
+MCP server your agents see, and what Marley needs of each agent CLI (#720). A second open brings
+the same tab forward and reads the files again; so does Refresh.
+
+- **Agent CLIs.** For Claude Code and Codex: the program Marley runs and its version, then each
+  part of Marley that rests on it, with the versions it was tested on and whether it is on, not
+  turned on, or off on this version. A part that needs a newer version than the one found shows
+  in the warning colour, with the update command.
+- **Claude Code.** The user scope (`mcpServers` in `.claude.json`, which sits in
+  `$CLAUDE_CONFIG_DIR` when that is set, else in your home folder), the local scope of each open
+  project's folder (that folder's entry in the same file), and each open project's `.mcp.json`,
+  marked approved, denied or not yet asked in that folder. Servers that Claude Code's plugins add
+  are not listed; `claude mcp list` shows them.
+- **Codex.** Each `[mcp_servers.<name>]` in `$CODEX_HOME/config.toml` (else
+  `~/.codex/config.toml`), off where it says `enabled = false`.
+- **Zed.** The context servers of the open projects, with each project's status (running,
+  starting, stopped, off, or the error), Marley's own `marley` and `rusty` marked Marley's.
+  Configure in Settings opens Zed's MCP Servers page, where Zed's servers are added, changed and
+  turned off.
+
+Each row shows the server's name, its scope, its state, and its command line or URL, then the
+names of its env variables and headers. No env or header value is read into the tab. Keys and
+tokens in a command line are masked, and secret-looking values in a URL's query are hidden, so
+the tab can be shown on a shared screen. The tab only reads; editing each CLI's servers from it
+comes later.
 
 ## The rustal-ste skill for Marley's agents
 

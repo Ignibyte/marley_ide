@@ -1,7 +1,7 @@
 ---
 pipeline_id: 08c4f17a-cba0-4377-9bb2-b38829a5a491
-ticket: docs/planning/tickets/open/TICKET-720-mcp-manager-and-cli-update-checks.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-720-mcp-manager-and-cli-update-checks.md
+status: Phase 4 — Complete PASS
 title: An MCP manager and agent CLI update checks
 type: feature
 slice: agents on their own tools; MonoCode findings item 7 (docs/planning/intake/monocode-findings.md), the first of two slices
@@ -112,8 +112,9 @@ user's is read:
   `codex-cli 0.157.0`.
 
 Shots:
-- `720-01-notice`: after start, the notification naming Claude Code 2.1.280 and the shared
-  plugin's 2.1.287, with Open MCP Servers.
+- `720-01-notice`: after start, the notification naming Claude Code 2.1.280, prompt tags'
+  2.1.283 and the shared plugin's 2.1.287, and `claude update`, with Open MCP Servers; the run's
+  log checks that the version is remembered in the key-value store.
 - `720-02-tab`: the tab from that button: Agent CLIs with Claude Code's warning row and Codex's
   rows; Claude Code's three scopes; Codex's two servers, one off; Zed's servers with the stand-in
   running and `marley` marked Marley's; env and header names, no values.
@@ -138,6 +139,8 @@ Shots:
 - **D7:** Zed's servers are read from the merged settings and the stores, and edited on Zed's
   page. Rejected: a second editor for Zed's settings; a Zed hunk to open `open_mcp_server_form`
   for one server.
+- **D8:** a command line is shown masked by the built-in redaction rules, and a URL through
+  `redact_url`, since an argument or a query value can hold a token as an env value can.
 
 ## Acceptance Criteria (EARS)
 | # | EARS requirement (`shall`) | Verify |

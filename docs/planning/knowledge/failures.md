@@ -3855,3 +3855,13 @@ every archived conversation showed twice under ARCHIVED and in its count. Beside
 Thread… and the rail's Threads view listed archived ones. Both passed their scenarios, whose
 profiles held no archived thread they looked for. Fixed in #754: `sections` reads `entries()` once
 and buckets by `archived`; `conversations` leaves archived ones out.
+
+## F-claude-720-a-tab-read-its-workspace-inside-the-action-that-opened-it-001
+*severity: medium · found in: pipeline 720's review of the diff, before the first run · class: an entity read inside its own update · prevented by: PR-claude-a-callback-zed-calls-mid-update-defers-its-entity-work-001*
+
+The MCP Servers tab's first draft looked up the open projects' folders in `refresh`, which `new`
+called, and `open` runs inside the workspace's update (a `register_action` handler).
+`window_workspaces` reads every workspace of the window, that one included, so the first open
+would have panicked on a double lease. Fixed before any run: `refresh` spawns with `spawn_in` and
+looks the projects up in `update_in`, after the action's update has ended.
+

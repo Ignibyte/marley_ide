@@ -37,6 +37,13 @@ impl Range {
         release >= self.from && self.before.as_ref().is_none_or(|before| release < *before)
     }
 
+    /// Whether `version` is older than the range, a prerelease counting as its release (#720). A
+    /// range that holds no version starts at 0.0.0, so nothing is older than it.
+    #[must_use]
+    pub fn older(&self, version: &Version) -> bool {
+        Version::new(version.major, version.minor, version.patch) < self.from
+    }
+
     /// The range in words: "2.1.283 and later 2.1 releases", "2.1.287 and later", "0.155.0 up to
     /// 0.159.0".
     #[must_use]
@@ -301,6 +308,16 @@ pub fn chip_label(agent: AgentKind, off: &Off) -> String {
         Off::Unreadable(_) => format!("{name} version unknown"),
         Off::Missing(_) => format!("{name} not on Marley's PATH"),
         Off::NotChecked => format!("{name} not checked yet"),
+    }
+}
+
+/// The command that updates `agent` where it is installed (#720), for the agents Marley checks.
+#[must_use]
+pub const fn update_command(agent: AgentKind) -> Option<&'static str> {
+    match agent {
+        AgentKind::Claude => Some("claude update"),
+        AgentKind::Codex => Some("codex update"),
+        AgentKind::Gemini | AgentKind::OpenCode => None,
     }
 }
 

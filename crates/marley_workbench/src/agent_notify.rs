@@ -63,7 +63,7 @@ pub fn init(cx: &mut App) {
 }
 
 /// Where Codex keeps its config.
-fn codex_config() -> PathBuf {
+pub(crate) fn codex_config() -> PathBuf {
     let home = std::env::var_os("CODEX_HOME")
         .map_or_else(|| util::paths::home_dir().join(".codex"), PathBuf::from);
     home.join("config.toml")

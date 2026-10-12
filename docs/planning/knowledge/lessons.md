@@ -5568,3 +5568,13 @@ L-claude-565-a-poll-in-setup-dies-under-set-e-001), and the first through the fi
 only inside a substitution. The fixture's poll now ends with `|| true`, so `serve_site` is safe in
 any context; the trap stays for a scenario's own wait loops.
 
+## L-claude-720-claude-json-sits-in-the-home-folder-unless-claude-config-dir-001
+*category: protocol · topic: where Claude Code keeps its global config · from: pipeline 720*
+
+Claude Code 2.1.296's global config, where `mcpServers` and the per-folder `projects` entries
+live, is `join(CLAUDE_CONFIG_DIR || homedir(), ".claude.json")`: inside the config folder when the
+variable is set and not empty, but `~/.claude.json` otherwise, not `~/.claude/.claude.json`, while
+`settings.json` goes to `~/.claude/` in that case. Read from the installed binary with Python's
+`re` around the string `.claude.json` (`globalConfig: it(e||zt(), ".claude.json")`). A scenario
+that sets `CLAUDE_CONFIG_DIR` keeps the user's file out of the run.
+

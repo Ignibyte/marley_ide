@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **MCP Servers, and a warning for an agent CLI too old** (#720, 2026-10-11). A tab
+  (`marley: open mcp servers`, or MCP Servers on Home) lists every MCP server Claude Code (user,
+  local and project scopes), Codex and Zed's agents see, with each one's scope, state, command or
+  URL, and the names of its env variables and headers, never their values; keys and tokens in a
+  command line or URL are hidden. Its Agent CLIs section shows the `claude` and `codex` Marley
+  runs and each part of Marley that rests on them. When a CLI is older than a part you turned on
+  needs, a notification says so once per version, with the update command and Open MCP Servers.
+
 - **Language server tools for agents** (#712, 2026-10-11). Through Marley's tools an agent asks
   Zed's language servers for a file's or a project's diagnostics, where a symbol is defined, where
   it is used, and its hover text, naming a file, a line and the symbol on it. A file no tab shows

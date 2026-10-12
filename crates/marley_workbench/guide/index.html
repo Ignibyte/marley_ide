@@ -210,6 +210,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#agent-clis">Agent CLIs, recognized anywhere</a></li>
 <li><a href="#agent-bar">The agent bar</a></li>
 <li><a href="#agent-versions">Agent versions</a></li>
+<li><a href="#mcp-servers">MCP Servers</a></li>
 <li><a href="#claude-plugin">Connect Claude Code to Marley</a></li>
 <li><a href="#shared-claude-plugin">The shared Claude Code plugin, and agents&#x27; own reports</a></li>
 <li><a href="#other-agent-notifications">Codex and OpenCode notifications</a></li>
@@ -1164,13 +1165,14 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="agent-versions">
-<h3>Agent versions <span class="ticket">#648 · #709</span></h3>
+<h3>Agent versions <span class="ticket">#648 · #709 · #720</span></h3>
 <p class="what"><strong>What it is.</strong> Some of what Marley does with Claude Code and Codex rests on behaviour they do not document. Marley reads the version of the <code>claude</code> and <code>codex</code> it runs, keeps each such part off on a version it was not tested on, and says so in the agent bar.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Marley runs the program <code>MARLEY_CLAUDE</code> or <code>MARLEY_CODEX</code> names, else the first on its PATH. It reads its <code>--version</code> at start, and again when the program's file changes.</li>
 <li>When a part is off, the agent bar shows a chip: <code>Untested Claude Code 2.2.0</code>, <code>Claude Code version unknown</code> or <code>Claude Code not on Marley's PATH</code>. Point at it for what is off, the version found and the versions tested.</li>
 <li>Click the chip. The Settings window opens at the switch in the Marley page's Agent Versions section that turns that part on anyway.</li>
+<li>When the version is older than a part you use needs, a notification says so once per version, with the update command (<code>claude update</code>, <code>codex update</code>) and Open MCP Servers.</li>
 </ol>
 <table>
 <tr><th>Agent Versions switch</th><th>The part it covers</th><th>Tested on</th></tr>
@@ -1180,6 +1182,20 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td>Shared Plugin on Untested Claude Code</td><td><a href="#shared-claude-plugin">The shared Claude Code plugin</a></td><td>Claude Code 2.1.287 and later</td></tr>
 </table>
 <p class="note">The chips for the IDE link and the shared plugin show only while their setting is on. A remote terminal's Claude Code is the host's: Marley reads its prompts with the tags, and no chip shows.</p>
+</article>
+
+<article id="mcp-servers">
+<h3>MCP Servers <span class="ticket">#720</span></h3>
+<p class="what"><strong>What it is.</strong> A tab listing every MCP server Claude Code, Codex and Zed's agents see, and what Marley needs of each agent CLI.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>Run <code>marley: open mcp servers</code>, or click MCP Servers on Home's Configure card. Opening it again brings the same tab forward and reads the files again; so does Refresh.</li>
+<li>Agent CLIs: the <code>claude</code> and <code>codex</code> Marley runs, their versions, and each part of Marley that rests on them. A part that needs a newer version shows in the warning colour, with the update command.</li>
+<li>Claude Code: the user scope and each open project's local scope from <code>.claude.json</code>, and each project's <code>.mcp.json</code>, marked approved, denied or not yet asked.</li>
+<li>Codex: the <code>[mcp_servers.&lt;name&gt;]</code> tables of its <code>config.toml</code>, off where <code>enabled = false</code>.</li>
+<li>Zed: the open projects' context servers with their status, Marley's own marked. Configure in Settings opens Zed's MCP Servers page to change them.</li>
+</ol>
+<p class="note">Rows show the names of env variables and headers, never their values, and keys and tokens in a command line or URL are hidden. Servers that Claude Code's plugins add are not listed: <code>claude mcp list</code> shows them.</p>
 </article>
 
 <article id="claude-plugin">

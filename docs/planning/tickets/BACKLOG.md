@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-720](open/TICKET-720-mcp-manager-and-cli-update-checks.md) | feature | a tab of every CLI's MCP servers, and warnings for CLIs too old |
 | [TICKET-768](open/TICKET-768-edit-cli-mcp-servers.md) | feature | edit each CLI's MCP servers from #720's tab |
 | [TICKET-756](open/TICKET-756-the-browser-tools-agents-lack.md) | feature | the browser tools agents lack: wait, hover, select, drag, upload, dialogs, device sizes, colour scheme |
 | [TICKET-766](open/TICKET-766-mcp-annotations.md) | chore | MCP annotations on every Marley tool; the guide's tool tables caught up |
