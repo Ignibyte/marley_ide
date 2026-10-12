@@ -419,6 +419,49 @@ struct PageState {
     held_buttons: u32,
     /// When the oldest input that no frame has shown yet was sent.
     input_at: Option<Instant>,
+    /// A device size an agent laid the page out at (#756), which holds until Fill or Reset.
+    emulated: Option<Emulated>,
+    /// The `prefers-color-scheme` an agent forced (#756).
+    scheme: Option<Scheme>,
+    /// The tab's size in device pixels, which an emulated page's stream fits within (#756).
+    tab_pixels: Option<(u32, u32)>,
+    /// Where an agent's drag waits for Chromium to intercept the page's HTML drag (#756).
+    drag: Option<oneshot::Sender<Value>>,
+}
+
+/// A device size an agent laid a page out at (#756).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Emulated {
+    /// The preset's name; none for a size the agent gave.
+    pub preset: Option<&'static str>,
+    /// The viewport's width in CSS pixels.
+    pub width: u32,
+    /// The viewport's height in CSS pixels.
+    pub height: u32,
+    /// Device pixels to the CSS pixel.
+    pub scale: f64,
+    /// A phone or tablet, whose mobile layout rules apply.
+    pub mobile: bool,
+}
+
+/// A `prefers-color-scheme` an agent forced on a page (#756).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scheme {
+    /// `prefers-color-scheme: dark`.
+    Dark,
+    /// `prefers-color-scheme: light`.
+    Light,
+}
+
+impl Scheme {
+    /// The scheme as CSS names it.
+    #[must_use]
+    pub const fn css(self) -> &'static str {
+        match self {
+            Self::Dark => "dark",
+            Self::Light => "light",
+        }
+    }
 }
 
 /// A page's screencast, as the hub asked Chromium for it.
@@ -474,6 +517,10 @@ impl PageState {
             restarts: 0,
             held_buttons: 0,
             input_at: None,
+            emulated: None,
+            scheme: None,
+            tab_pixels: None,
+            drag: None,
             favicon: None,
             pause: None,
             agent_unseen: None,
@@ -2846,7 +2893,165 @@ impl BrowserHub {
             height: whole_pixels(size.height),
             scale,
         };
+        let tab_pixels = (
+            whole_pixels(size.width * scale),
+            whole_pixels(size.height * scale),
+        );
+        let Some(page) = self.page_state_mut(target) else {
+            return;
+        };
+        let moved = page.tab_pixels != Some(tab_pixels);
+        page.tab_pixels = Some(tab_pixels);
+        // A device size an agent set holds until Fill or Reset (#756); its stream still fits the
+        // tab.
+        if page.emulated.is_some() {
+            if moved {
+                self.restream(target, cx);
+            }
+            return;
+        }
         self.lay_out(target, viewport, cx);
+    }
+
+    /// Starts the stream of `target` again, fitted to its tab while a device size holds, else at
+    /// the page's own size (#756).
+    fn restream(&self, target: &str, cx: &Context<Self>) {
+        let Some(page) = self.page_state(target) else {
+            return;
+        };
+        if page.stream == Stream::Off {
+            return;
+        }
+        let within = stream_within(page);
+        let session = page.page.clone();
+        cx.spawn(async move |_, _| {
+            session.stop_screencast().await.log_err();
+            session.start_screencast(within).await.log_err();
+        })
+        .detach();
+    }
+
+    /// Lays the page `target` out as `emulated` (#756) until Fill or Reset; its stream is fitted
+    /// to the tab, so a device larger than the tab draws scaled down.
+    pub fn emulate(
+        &mut self,
+        target: &str,
+        emulated: Emulated,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(), String>> {
+        let Some(page) = self.page_state_mut(target) else {
+            return Task::ready(Err(format!("no page {target}")));
+        };
+        page.emulated = Some(emulated);
+        let session = page.page.clone();
+        let streaming = page.stream != Stream::Off;
+        let within = stream_within(page);
+        cx.notify();
+        cx.spawn(async move |_, _| {
+            session
+                .emulate_device(
+                    emulated.width,
+                    emulated.height,
+                    emulated.scale,
+                    emulated.mobile,
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            if streaming {
+                session.stop_screencast().await.log_err();
+                session
+                    .start_screencast(within)
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Puts the page `target` back at its tab's size (#756): the tab's next paint lays it out.
+    pub fn fill(&mut self, target: &str, cx: &mut Context<Self>) {
+        let Some(page) = self.page_state_mut(target) else {
+            return;
+        };
+        if page.emulated.take().is_none() {
+            return;
+        }
+        page.viewport = None;
+        self.restream(target, cx);
+        cx.notify();
+    }
+
+    /// Forces the page's `prefers-color-scheme`, or follows the system again with `None` (#756).
+    pub fn set_scheme(
+        &mut self,
+        target: &str,
+        scheme: Option<Scheme>,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<(), String>> {
+        let Some(page) = self.page_state_mut(target) else {
+            return Task::ready(Err(format!("no page {target}")));
+        };
+        page.scheme = scheme;
+        let session = page.page.clone();
+        cx.notify();
+        cx.spawn(async move |_, _| {
+            session
+                .set_color_scheme(scheme.map(Scheme::css))
+                .await
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    /// The tab's size and the system's scheme again (#756): the toolbar chip's Reset.
+    pub fn reset_emulation(&mut self, target: &str, cx: &mut Context<Self>) {
+        self.fill(target, cx);
+        let scheme = self.set_scheme(target, None, cx);
+        cx.spawn(async move |_, _| {
+            scheme.await.log_err();
+        })
+        .detach();
+    }
+
+    /// The device size and the scheme an agent set on `target` (#756).
+    #[must_use]
+    pub fn emulation(&self, target: &str) -> (Option<Emulated>, Option<Scheme>) {
+        self.page_state(target)
+            .map(|page| (page.emulated, page.scheme))
+            .unwrap_or_default()
+    }
+
+    /// The toolbar chip's words for what an agent set on `target` (#756): "iPhone 15 Pro ·
+    /// 393×852 · dark"; none while the page is as the tab and the system make it.
+    fn emulation_label(&self, target: &str) -> Option<SharedString> {
+        let page = self.page_state(target)?;
+        let mut parts = Vec::new();
+        if let Some(emulated) = &page.emulated {
+            parts.extend(emulated.preset.map(str::to_string));
+            parts.push(format!("{}×{}", emulated.width, emulated.height));
+        }
+        if let Some(scheme) = page.scheme {
+            parts.push(scheme.css().to_string());
+        }
+        (!parts.is_empty()).then(|| parts.join(" · ").into())
+    }
+
+    /// Where an agent's drag in `target` hears of an HTML drag Chromium intercepted (#756).
+    pub fn watch_drag(&mut self, target: &str) -> oneshot::Receiver<Value> {
+        let (sender, receiver) = oneshot::channel();
+        if let Some(page) = self.page_state_mut(target) {
+            page.drag = Some(sender);
+        }
+        receiver
+    }
+
+    fn drag_intercepted(&mut self, target: &str, data: Value) {
+        if let Some(sender) = self
+            .page_state_mut(target)
+            .and_then(|page| page.drag.take())
+            && sender.send(data).is_err()
+        {
+            log::debug!("browser: a drag in {target} was intercepted after its tool ended");
+        }
     }
 
     /// Lays the page `target` out at `viewport`, unless it is laid out so already.
@@ -2910,10 +3115,11 @@ impl BrowserHub {
             if wanted { "starting" } else { "stopping" }
         );
         let session = page.page.clone();
+        let within = stream_within(page);
         let target = target.to_string();
         cx.spawn(async move |this, cx| {
             let result = if wanted {
-                session.start_screencast().await
+                session.start_screencast(within).await
             } else {
                 session.stop_screencast().await
             };
@@ -3245,6 +3451,11 @@ const fn window_pixels(length: f64) -> Pixels {
 }
 
 /// Rounds a length to the whole CSS pixels CDP takes, between 1 and 16,384.
+/// The size an emulated page's stream fits within: its tab's, in device pixels (#756).
+fn stream_within(page: &PageState) -> Option<(u32, u32)> {
+    page.emulated.as_ref().and(page.tab_pixels)
+}
+
 fn whole_pixels(length: Pixels) -> u32 {
     let clamped = f32::from(length).round().clamp(1.0, 16_384.0);
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to 1..=16384
@@ -3666,6 +3877,12 @@ async fn follow_navigation(
                 Err(error) => log::warn!("browser: a dialog the page opened: {error}"),
             }
         }
+        // An agent's drag started the page's HTML drag, which Chromium holds for it (#756).
+        "Input.dragIntercepted" => {
+            let data = event.params.get("data").cloned().unwrap_or_default();
+            this.update(cx, |this, _| this.drag_intercepted(&target, data))
+                .ok();
+        }
         "Page.javascriptDialogClosed" => {
             this.update(cx, |this, cx| this.dialog_closed(generation, &target, cx))
                 .ok();
@@ -3945,7 +4162,7 @@ async fn refresh_history(
         }
         if streaming {
             page.stop_screencast().await.log_err();
-            page.start_screencast().await.log_err();
+            page.start_screencast(None).await.log_err();
         }
     }
     let history = page.history().await.log_err();
@@ -5986,24 +6203,11 @@ impl BrowserView {
             })
             // What an agent does in the page, while it does it and a moment after (#492).
             .when_some(hub.agent_chip(target), |this, (who, action)| {
-                this.child(
-                    h_flex()
-                        .flex_none()
-                        .max_w(rems(24.))
-                        .gap_1()
-                        .child(
-                            Chip::new(who)
-                                .icon(IconName::Sparkle)
-                                .icon_color(Color::Accent)
-                                .label_color(Color::Accent),
-                        )
-                        .child(
-                            Label::new(action)
-                                .size(LabelSize::Small)
-                                .color(Color::Muted)
-                                .truncate(),
-                        ),
-                )
+                this.child(Self::render_agent_chip(who, action))
+            })
+            // A device size or scheme an agent set, and the way back (#756).
+            .when_some(hub.emulation_label(target), |this, label| {
+                this.child(Self::render_emulation(label, cx))
             })
             // Over the toolbar's edge, so a load never moves the page.
             .when(loading, |this| {
@@ -6017,6 +6221,48 @@ impl BrowserView {
                         .bg(colors.text_accent),
                 )
             })
+    }
+
+    /// The Agent chip: who acts in the page and what it does (#492).
+    fn render_agent_chip(who: SharedString, action: SharedString) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .max_w(rems(24.))
+            .gap_1()
+            .child(
+                Chip::new(who)
+                    .icon(IconName::Sparkle)
+                    .icon_color(Color::Accent)
+                    .label_color(Color::Accent),
+            )
+            .child(
+                Label::new(action)
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .truncate(),
+            )
+    }
+
+    /// The chip naming the device size and scheme an agent set, with Reset (#756).
+    fn render_emulation(label: SharedString, cx: &Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .child(Chip::new(label).label_color(Color::Accent))
+            .child(
+                Button::new("browser-reset-emulation", "Reset")
+                    .style(ButtonStyle::Subtle)
+                    .label_size(LabelSize::Small)
+                    .tooltip(Tooltip::text(
+                        "Back to the tab's size and the system's colours",
+                    ))
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        if let Some(target) = view.target.clone() {
+                            view.hub
+                                .update(cx, |hub, cx| hub.reset_emulation(&target, cx));
+                        }
+                    })),
+            )
     }
 
     /// The toolbar's Playwright scripts button (#523), lit while the tray is open.

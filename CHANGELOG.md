@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The browser tools agents lacked** (#756, 2026-10-11). Agents can hover, choose in a select
+  list, drag (HTML drag and drop included), upload a file from an open project, answer a page's
+  dialog, wait for text, an element or a URL, lay the page out as a phone or tablet or at a size,
+  and force its dark or light scheme. While a device size or scheme holds, the Browser tab draws
+  the page at that size, scaled to fit, and a toolbar chip names it with Reset. The new tools
+  refuse with codes such as `no_option`, `outside_projects`, `secret_file`, `no_dialog` and
+  `not_met`.
+
 - **Edit each CLI's MCP servers** (#768, 2026-10-11). MCP Servers adds, changes and removes
   Claude Code's servers (user scope, an open folder's local scope or its `.mcp.json`) and Codex's.
   The form takes a name, a command and its arguments or a URL, and env variables or headers whose
@@ -1304,6 +1312,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **An agent's click that opens a dialog answers at once** (#756). Chromium held the answer to the
+  click until the dialog closed, so the tool waited 15 seconds and failed; it now answers when
+  the dialog shows, naming it, and the agent answers it with `browser_dialog`.
 
 - **Three hardening fixes** (#755, 2026-10-11).
   - Turn on Codex notifications and Connect OpenCode to Marley write their files the way another

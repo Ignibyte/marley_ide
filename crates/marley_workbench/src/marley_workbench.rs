@@ -40,6 +40,7 @@ pub mod block_headers;
 pub mod blocks;
 pub mod bookmarks;
 pub mod browser;
+pub mod browser_actions;
 pub mod browser_tools;
 pub mod claude_ide;
 pub mod claude_plugin;

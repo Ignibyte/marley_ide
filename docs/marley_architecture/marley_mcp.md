@@ -87,7 +87,15 @@ OR Apache-2.0, with the Marley crates' lint table.
   acts in a page takes `tab`, a page's id from `browser_tabs` (`browser_arguments` adds it to
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
   Since #574 the `tab` argument's and the tools' descriptions say that a call naming none acts in
-  the project the agent runs in, and `browser_tabs`' output adds `project` and `default`. Since
+  the project the agent runs in, and `browser_tabs`' output adds `project` and `default`.
+- Since #756 eight more: seven writes (`browser_hover`, `browser_select`, `browser_drag`,
+  `browser_upload`, `browser_dialog`, `browser_resize`, `browser_color_scheme`, their arguments
+  in `acting_arguments`, the write tools' shared output gaining `dialog`) and one read,
+  `browser_wait` (`wait_schemas`: `held` and `waited_ms`), for 66 tools. Outside clients' lists
+  (`CLIENT_READ_TOOLS`, `CLIENT_WRITE_TOOLS`) name none of them. The browser tools' errors are
+  `Refusal`s since then, so the new tools' refusals carry codes (`no_option`, `not_a_select`,
+  `not_multiple`, `not_a_file_input`, `outside_projects`, `no_file`, `secret_file`, `no_dialog`,
+  `no_preset`, `not_met`, `bad_argument`), and the older tools' strings stay `refused`. Since
   #507 `browser_tabs`' description says it lists every project's browser, each project with a
   Chromium and a profile of its own, and `browser_navigate`'s that a new tab opens in the
   caller's project's browser, with that project's cookies and logins.

@@ -1,7 +1,7 @@
 ---
 pipeline_id: a8f7f9d7-698c-48f7-b8ae-cf480baf7bc0
-ticket: docs/planning/tickets/open/TICKET-756-the-browser-tools-agents-lack.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-756-the-browser-tools-agents-lack.md
+status: Phase 4 — Complete PASS
 title: The browser tools agents lack
 type: feature
 slice: prong 3 (the Browser tab), the first of three slices; T3 Code survey item 10, Orca report 03 item 11
@@ -119,16 +119,20 @@ project folder holds `notes.txt` to upload.
 
 Shots:
 - `756-01-hover`: the button reads "hovered"; the Agent chip names the hover.
-- `756-02-select`: "blue" chosen and shown; no Marley list open.
-- `756-03-drag`: the card moved to the second list, the order line changed.
+- `756-02-select`: "Blue" chosen and "Chose: blue" shown; no Marley list open.
+- `756-03-drag`: card A moved to Done, "Done: Card A".
 - `756-04-upload`: the input lists `notes.txt`.
-- `756-05-dialog`: Confirm pressed by the agent; the card shown, then answered by
-  `browser_dialog`: the outcome reads "confirmed", the card gone.
+- `756-05a-dialog-card`, `756-05-dialog`: the agent's click on Confirm answered at once, naming
+  the dialog, the card over the page; then `browser_dialog` answered it: "Outcome: confirmed", the
+  card gone.
 - `756-06-wait`: "Ready" on the page after `browser_wait` returned.
-- `756-07-resize`: the page at iPhone 15 Pro, centred in the tab, its size line 393×852, the chip
-  in the toolbar.
-- `756-08-scheme`: the scheme block reads "dark", the chip names it.
-- `756-09-reset`: after Reset, the page at the tab's size and the block "light".
+- `756-07-resize`: the browser pane zoomed; the page at iPhone 15 Pro, drawn scaled to fit from
+  the tab's top left, its size line "393x852", the chip in the toolbar with Reset.
+- `756-08-scheme`: the page's scheme forced to the other one than the system's (light, on a dark
+  desktop), the chip naming it.
+- `756-09-reset`: after Reset, the page at the tab's size and the system's scheme, no chip.
+The refusals (`no_option`, `outside_projects`, `secret_file`, `no_dialog`, `not_met`) and the tool
+list are checked in the run's log.
 
 ## Locked-In Decisions
 - **D1:** this ticket is the tools; annotations and choosers, downloads and Take Over follow as
@@ -160,11 +164,11 @@ Shots:
 | REQ-003 | WHEN an agent calls `browser_drag` from one element to another, the system shall complete the page's drag and drop there. | Shot 756-03 |
 | REQ-004 | WHEN an agent calls `browser_upload` with a file inside an open project, the system shall set it on the file input. | Shot 756-04 |
 | REQ-005 | IF an upload path lies outside every open project or matches a secret glob, THEN the system shall refuse with `outside_projects` or `secret_file` and set nothing. | The client's reply (checked) |
-| REQ-006 | WHEN an agent calls `browser_dialog` while its tab shows a dialog, the system shall answer it and close the card. | Shot 756-05 |
+| REQ-006 | WHEN an agent calls `browser_dialog` while its tab shows a dialog, the system shall answer it and close the card. | Shots 756-05a, 756-05 |
 | REQ-007 | WHEN an agent calls `browser_wait` for text that appears within its timeout, the system shall answer once the text is on the page. | Shot 756-06 |
 | REQ-008 | IF a wait's conditions do not hold within its timeout, THEN the system shall refuse with `not_met` and what did not hold. | The client's reply (checked) |
 | REQ-009 | WHEN an agent calls `browser_resize` with a preset, the system shall draw the page at that size in the tab and show the chip. | Shot 756-07 |
-| REQ-010 | WHEN an agent calls `browser_color_scheme` with `dark`, the system shall make the page's `prefers-color-scheme` dark and name it on the chip. | Shot 756-08 |
+| REQ-010 | WHEN an agent calls `browser_color_scheme` with `dark` or `light`, the system shall make the page's `prefers-color-scheme` that scheme and name it on the chip. | Shot 756-08 |
 | REQ-011 | WHEN the user presses the chip's Reset, the system shall put the page back to the tab's size and the system's scheme. | Shot 756-09 |
 | REQ-012 | `tools/list` shall list the eight tools with input and output schemas. | The client's `tools` reply (checked) |
 | REQ-013 | The gate shall pass. | `script/gates.sh --diff` exit 0 |

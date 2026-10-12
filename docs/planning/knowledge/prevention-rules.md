@@ -2988,3 +2988,11 @@ A form that edits something a list shows masked (a command line, a URL, a value)
 too. A field left as shown keeps the stored text; a field changed but still holding the mask is
 refused, never written with the mask in it. Read the stored text only where it is written.
 
+## PR-claude-756-race-page-input-against-the-pages-dialog-001
+*severity: medium · prevents: F-claude-756-an-agents-click-that-opened-a-dialog-waited-out-cdps-15-seconds-001*
+
+A CDP call that runs the page's handlers (`Input.dispatchMouseEvent`, `Input.dispatchKeyEvent`,
+`Input.dispatchDragEvent`) can stay unanswered while a handler sits in `alert`, `confirm` or
+`prompt`. Run browser actions through `browser_tools::acting`, which races them against the tab
+showing a dialog; never await such a call bare in a tool's answer path.
+

@@ -123,6 +123,23 @@ for.
   `Drawing`) has its stream stopped and started again, at most three times until a frame draws,
   with an info line in the log. `target_info` reads the page's title: Chromium reports a new
   URL as a target change, with the URL as the title, but never the title the document sets.
+- Since #756 an agent can lay a page out as a device: `emulate_device` sends
+  `setDeviceMetricsOverride` with the device's size, scale and `mobile` flag (a page without
+  `<meta name="viewport">` then lays out 980 pixels wide, as a phone does), and `devices.rs`
+  holds the presets. The hub keeps the device in the page's state, so the tab's next paint does
+  not undo it, and restarts the screencast with `maxWidth` and `maxHeight` at the tab's size in
+  device pixels: Chromium scales the frames down to fit, and the click mapping and annotation
+  placement, which scale by the frame's own size, need no change. Fill or Reset clears it and
+  the tab lays the page out at its size again. `set_color_scheme` sends
+  `Emulation.setEmulatedMedia` for `prefers-color-scheme`.
+- Also #756: `select_options` and `page_text` run fixed functions in the isolated world
+  (`call_on_node`, which `node_facts` shares), `set_file_input` sends `DOM.setFileInputFiles`,
+  and `has_element` asks `Accessibility.queryAXTree` on the document. A drag turns on
+  `Input.setInterceptDrags`, presses and moves in ten steps; when Chromium reports
+  `Input.dragIntercepted` (routed by the hub's event loop to the drag's one-shot), it finishes with
+  `Input.dispatchDragEvent` `dragEnter`, `dragOver` and `drop` at the end point, as Playwright's
+  Chromium driver does, since headless Chromium never completes a native drag; otherwise it
+  releases the mouse there.
 - `frame::decode` turns a frame's base64 JPEG into a BGRA `RenderImage`.
 
 ## Input (`src/input.rs`, #489)

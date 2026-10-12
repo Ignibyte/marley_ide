@@ -3874,3 +3874,14 @@ moment the user pressed Edit, on the screen the tab had kept it off. Fixed in #7
 the arguments through the same redaction rules (and a URL through `redact_url`); left as shown it
 keeps the stored arguments, and an edited field that still holds `[redacted: …]` is refused.
 
+## F-claude-756-an-agents-click-that-opened-a-dialog-waited-out-cdps-15-seconds-001
+*severity: medium · found in: pipeline 756's Code, a probe scenario before any code · class: an awaited CDP call the page can block*
+
+An agent's `browser_click` on a button whose handler calls `confirm()` awaited
+`Input.dispatchMouseEvent`'s answer, which Chromium holds while the page's script is blocked in
+the dialog. The tool failed after CDP's 15 seconds ("got no answer within 15 seconds") and the
+chip said "failed", while the dialog card waited for the user. Nothing tied
+`Page.javascriptDialogOpening` to the pending call, and no scenario had an agent's click open a
+dialog. Fixed in #756: `acting` races every action against the tab showing a dialog and answers
+when one shows, naming it.
+

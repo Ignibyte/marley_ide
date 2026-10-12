@@ -5586,3 +5586,18 @@ detail, so its buttons move when the text changes. #768 shortened the detail aft
 the click at the old Remove landed on Cancel, and the run failed only at the file check. Calibrate
 a prompt's buttons from a shot of the final text, after any rewording.
 
+## L-claude-756-a-phone-lays-a-page-without-a-viewport-meta-out-980-wide-001
+*category: protocol · topic: mobile emulation in Chromium · from: pipeline 756*
+
+`Emulation.setDeviceMetricsOverride` with `mobile: true` lays out a page that has no
+`<meta name="viewport" content="width=device-width">` at 980 CSS pixels, zoomed out to the device's
+width, as a phone does: #756's fixture read "Size: 980x2125" at iPhone 15 Pro's 393×852. A
+scenario page meant to show a device's width carries the meta tag.
+
+## L-claude-756-headless-chromium-follows-the-systems-dark-scheme-001
+*category: e2e · topic: prefers-color-scheme in scenarios · from: pipeline 756*
+
+Marley's headless Chromium reports the desktop's colour scheme to pages: on this box
+`prefers-color-scheme` is dark before anything forces it. A scenario that shows a forced scheme
+reads the page's starting one and forces the other, rather than assuming light.
+

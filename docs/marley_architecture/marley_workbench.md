@@ -4005,6 +4005,19 @@ below describe what #743 retired.
   for a load (fired when the main frame stops loading or moves within its document) and the
   agent's last action. The toolbar's Agent chip shows that action while it runs and for five
   seconds after it ends; a typed text shows as its length, never itself.
+- Since #756 `run` answers with a `Refusal`: the older tools' strings become `refused`, and the
+  eight tools in `browser_actions.rs` refuse with codes. `acting` is generic over its error and
+  races its action against the tab showing a dialog (`dialog_opening`, polling the hub every
+  100 ms): Chromium holds the answer to the click or key whose handler opened `confirm()` until
+  the dialog closes, so the tool answers once the dialog shows, its `did` saying so and its
+  answer carrying `dialog` (kind, message masked). `browser_dialog` answers it through the hub's
+  `answer_dialog`. `browser_tabs` and `browser_look` add `dialog` and `emulation` (preset, size,
+  scheme) when a page has them. An upload's paths are made real in the background (a link inside
+  a project can point anywhere), then checked with `editor_tools::project_holding` and
+  `not_secret`.
+- `browser.rs` keeps `emulated`, `scheme`, `tab_pixels` and the drag's one-shot in `PageState`;
+  `resize` leaves an emulated page's layout alone and only refits its stream; the toolbar's
+  emulation chip (`render_emulation`) has Reset, `reset_emulation`.
 
 ## Outside clients (`src/clients.rs`, #524)
 

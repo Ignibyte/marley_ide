@@ -1,6 +1,6 @@
 # The browser tools agents lack — Notes
 
-- **Local ticket doc:** docs/planning/tickets/open/TICKET-756-the-browser-tools-agents-lack.md
+- **Local ticket doc:** docs/planning/tickets/closed/TICKET-756-the-browser-tools-agents-lack.md
 - **Pipeline spec:** 756-the-browser-tools-agents-lack.spec.md
 
 ## Phase 1 — Plan (queued by /spec, 2026-10-11)
@@ -76,6 +76,41 @@
   the crate root's module line); `marley_workbench` (`browser_tools.rs`, `browser.rs`); the
   guide, the HTML guide, two architecture notes; the scenario and its fixture page. No Zed path.
 
+### Promotion (2026-10-11)
+- Moved from `queued/` to `active/` at `a010517658`; the BACKLOG row removed; the ticket in
+  progress. Brain: consultation 3264c06b6b2d4128aea3e20f9ffbac23, nothing on this seam. The two
+  drafted slices are tickets now: #766 (annotations) and #767 (choosers, downloads, Take Over).
+- **Seams checked again** (an Explore pass). What moved or differs:
+  - `registry.rs`: `REGISTRY` 125-666, browser rows 236-384 (a new row goes before the `Ports`
+    rows at 385); `browser_read` 669-677, `browser_write` 681-689; `tools_list_for` 731-749;
+    `browser_schemas` 814-831; `browser_arguments` 869-882; `browser_write_schemas` 1492-1572; the
+    pinning test `registry_is_exactly_the_l1_set_with_correct_tiers` 2748-2826 with **58** tools
+    (2817), so 66 after this ticket. Outside clients' counts (`524-…:113,117`, `584-…:241`) must
+    not move.
+  - `browser_tools.rs`: `run` 265-324, `page_of` 418-459, `click` 1339-1380, `type_text` (was
+    `type`) 1382-1432, `ref_target` 1535-1543, `place` 1603-1616, `ref_origin` 1650-1685,
+    `click_at` 1767-1792, `acting` 1236-1256, `tabs` 472-518, `look` 520-564 (`Look` 990-998).
+  - **Refusals:** the browser tools return `Result<ToolAnswer, String>`, so every one is coded
+    `refused`. The new codes need `run` to carry `marley_mcp::Refusal` (`marley_mcp.rs:277-319`,
+    `From<String>` gives `refused`), the old arms mapped through it.
+  - `page.rs`: `set_viewport` 536-552 (`mobile: false` fixed), `answer_dialog` 718-730,
+    `node_facts` 1069-1162 (`isolated_context_in`, `DOM.resolveNode`, `Runtime.callFunctionOn`,
+    `Runtime.releaseObject`), `call` 524-528; `input.rs` `mouse_event` 306-324; `cdp.rs` `call`
+    256-295 (15 s).
+  - `browser.rs`: `PageState` 360-422 (`viewport: Option<Viewport>`, `dialog`), the hub's
+    `dialog` 1021, `answer_dialog` 1667-1686, `dialog_opened` 1702-1719, `resize` 2843-2850,
+    `lay_out` 2853-2875, the toolbar 5914-6020 (Agent chip 5987-6007), `PageElement::prepaint`
+    7211-7227, `PageMapping` 7271-7319 (scale from the frame's metadata).
+  - `editor_tools.rs`: `project_holding` 571-592, `not_secret` 197-210 (code `secret_file`).
+  - `browser-fixture.sh`: `mcp_agent tool <name> <json>` and `refusal <tool> <json>`; `tab` goes in
+    the JSON.
+  - The guide's anchors moved by about 250 lines (`### Select lists and dialogs` 2308, `### What
+    agents can do in the tab` 2322, `### Limits of the Browser tab` 2387; the acting table
+    2138-2148); the HTML guide's browser table 1720-1733.
+- **The dialog risk is open:** nothing ties `Page.javascriptDialogOpening` to a pending
+  `Input.dispatchMouseEvent`, and no scenario has an agent click open a dialog. Phase 2 checks it
+  first.
+
 ### Visual check plan
 | REQ | The scenario does | The shot |
 |---|---|---|
@@ -148,3 +183,77 @@
   click, Hand Back.
 - **Acceptance:** a page's upload control works for a person and an agent; a download lands with
   a toast; a taken tab refuses agents until handed back.
+
+## Phase 2 — Code (2026-10-11)
+- **First, the dialog risk:** a probe scenario (an agent's `browser_click` on a button calling
+  `confirm()`) on the build before any change: the click failed after 15 s, "Input.dispatchMouseEvent
+  got no answer within 15 seconds" (F-claude-756-…). `acting` now races every action against the
+  tab showing a dialog.
+- **Built:**
+  - `marley_mcp::registry`: eight rows after `browser_scroll`, `acting_arguments` (split out of
+    `browser_write_schemas` for length), `wait_schemas`, the write output's `dialog`, the pinned
+    list at 66.
+  - `marley_browser`: `devices.rs` (eleven presets); `page.rs`: `call_on_node` (shared with
+    `node_facts`), `select_options` (`SELECT_OPTIONS`), `set_file_input`, `emulate_device`,
+    `set_color_scheme`, `page_text` (`PAGE_TEXT`), `has_element`, and `start_screencast(within)`.
+  - `marley_workbench`: `browser_actions.rs` (new, the eight tools); `browser_tools.rs` (`run` on
+    `Refusal`, `acting` generic with the dialog race, `dialog_json`, `WRITES`, `tabs` and `look`
+    extras, helpers made `pub(crate)`); `browser.rs` (`Emulated`, `Scheme`, the page state,
+    `emulate`, `fill`, `set_scheme`, `reset_emulation`, `restream`, the drag one-shot and the
+    `Input.dragIntercepted` arm, the chip with Reset, the Agent chip moved into
+    `render_agent_chip` for length).
+- **Deviations from the design:**
+  - The frame is fitted by the screencast's `maxWidth` and `maxHeight` rather than scaled in
+    paint, and drawn from the tab's top left, not centred: the click mapping and the annotation
+    placement scale by the frame's own size, so they need no second mapping (AD-claude-756-…).
+  - `browser_dialog` and `browser_resize {fill}` end the chip without `acting`, as their work is
+    one hub call with no await.
+  - Refusal codes beyond the spec's: `not_a_select`, `not_multiple`, `no_preset`,
+    `bad_argument`.
+- **The review:** the upload's paths are canonicalised in the background before the project and
+  secret checks (a link inside a project can point outside); `acting`'s watcher is a clone of the
+  `AsyncApp`, so the race borrows nothing twice; a dialog already open before an action skips the
+  race; the drag turns interception off whatever happened.
+- **Clippy found and fixed:** `needless_pass_by_value` (`Emulated` made `Copy`),
+  `too_many_lines` (twice), `too_long_first_doc_paragraph`, `option_if_let_else` (twice), missing
+  docs, `doc_markdown`. `cargo fmt`, then clippy again, clean.
+- **The gate:** `script/gates.sh --diff` green on its first run, 17 of 17.
+
+## Phase 3 — Test (2026-10-11)
+- **The scenario:** `script/e2e/756-the-browser-tools-agents-lack.sh`, under `compositor sway`,
+  exit 0, 25 checks passing. Shots read:
+  - `756-01-hover`: "hovered" beside the button; chip "hovered over button “Hover me”".
+  - `756-02-select`: the select on Blue, "Chose: blue", no list open.
+  - `756-03-drag`: Card A under Done, "Done: Card A"; chip "dragged listitem “Card A” to list
+    “Done”".
+  - `756-04-upload`: "notes.txt" in the input and "Files: notes.txt".
+  - `756-05a-dialog-card`: the card "127.0.0.1:… says / Delete the draft? / Cancel OK" over the
+    page; chip "clicked button “Confirm”; the page opened a confirm dialog"; the click answered
+    in 0 s with `"dialog": {"kind": "confirm", …}`.
+  - `756-05-dialog`: "Outcome: confirmed", the card gone.
+  - `756-06-wait`: "Ready" beside Start.
+  - `756-07-resize`: the zoomed pane, the page phone-shaped at the top left, "Size: 393x852", the
+    chip "iPhone 15 Pro · 393×852" and Reset.
+  - `756-08-scheme`: the page light on a dark desktop, "Scheme: light", the chip "… · light".
+  - `756-09-reset`: "Size: 1322x842 · Scheme: dark", no chip.
+- **Fixes to the scenario:** the cards named with `aria-label` (unnamed list items have no name
+  in the snapshot); a charset for `·`; the viewport meta (L-claude-756-a-phone-…); the forced
+  scheme chosen against the system's (L-claude-756-headless-…); the pane zoomed so the toolbar
+  has room for the chip and Reset.
+- **The last run** was on the build of the gated code (only docs changed after it): exit 0, 25
+  checks.
+
+## Phase 4 — Complete (2026-10-11)
+- **Documented:** `CHANGELOG.md` (Added, and Fixed for the dialog wait); the guide (the browser
+  tables, "Select lists and dialogs", "What agents can do in the tab", "Limits of the Browser
+  tab") and the in-app guide's browser table; `marley_mcp.md`, `marley_browser.md` and
+  `marley_workbench.md`. No Zed path.
+- **Knowledge appended:**
+  - AD-claude-756-agents-answer-dialogs-and-lay-pages-out-as-devices-001;
+  - F-claude-756-an-agents-click-that-opened-a-dialog-waited-out-cdps-15-seconds-001 with
+    PR-claude-756-race-page-input-against-the-pages-dialog-001;
+  - L-claude-756-a-phone-lays-a-page-without-a-viewport-meta-out-980-wide-001;
+  - L-claude-756-headless-chromium-follows-the-systems-dark-scheme-001.
+- **Brain:** consultation 3264c06b6b2d4128aea3e20f9ffbac23 closed with a decision.
+- **Closed:** the ticket moved to `closed/`, the pipeline archived, committed; #766's spec queued.
+

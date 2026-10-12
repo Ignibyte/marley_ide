@@ -41,6 +41,7 @@ pub mod address;
 pub mod cdp;
 pub mod consequence;
 pub mod containers;
+pub mod devices;
 pub mod favicon;
 pub mod frame;
 pub mod input;

@@ -30,6 +30,29 @@ const DESCRIBE_ELEMENT: &str = "function () { return { tag: this.tagName.toLower
 kind: typeof this.type === 'string' ? this.type : null, \
 value: this.type === 'password' || typeof this.value !== 'string' ? null : this.value }; }";
 
+/// Chooses the options of a `<select>` (#756), run on the select in an isolated world: `byLabels`
+/// picks by the text shown, else by value. It reads and sets through the DOM's own prototypes, so
+/// the page's scripts cannot change what it finds, and the page gets bubbling `input` and
+/// `change`. At most 50 options are named when one asked for is not there.
+const SELECT_OPTIONS: &str = "function (byLabels, wanted) { \
+const tag = String(this.tagName || '').toLowerCase(); \
+if (tag !== 'select') { return { error: 'not_a_select' }; } \
+const options = Array.from(Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'options').get.call(this)); \
+const label = (option) => String(option.label || option.text || '').trim(); \
+const key = (option) => (byLabels ? label(option) : option.value); \
+const missing = wanted.filter((one) => !options.some((option) => key(option) === one)); \
+if (missing.length) { return { error: 'no_option', missing, options: options.slice(0, 50).map((option) => ({ value: option.value, label: label(option) })) }; } \
+if (!this.multiple && wanted.length > 1) { return { error: 'not_multiple' }; } \
+for (const option of options) { option.selected = wanted.includes(key(option)); } \
+this.dispatchEvent(new Event('input', { bubbles: true })); \
+this.dispatchEvent(new Event('change', { bubbles: true })); \
+return { chosen: options.filter((option) => option.selected).map(label) }; }";
+
+/// The text a page's main frame shows (#756), read through the DOM's own prototypes.
+const PAGE_TEXT: &str = "function () { \
+const body = Object.getOwnPropertyDescriptor(Document.prototype, 'body').get.call(document); \
+return body ? Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText').get.call(body) : ''; }";
+
 /// What an element an agent is about to click says of its form, its link and the text around it
 /// (#571). The node may be the text or the span inside a button, as a point's is, so it climbs to
 /// the element a click commits: its role and name come from there when no snapshot gave them. It
@@ -575,18 +598,19 @@ impl Page {
             .map(drop)
     }
 
-    /// Starts streaming the page as JPEG frames.
+    /// Starts streaming the page as JPEG frames, scaled down by Chromium to fit `within`, a width
+    /// and height in device pixels, when given (#756).
     ///
     /// # Errors
     ///
     /// As [`Connection::call`].
-    pub async fn start_screencast(&self) -> Result<(), CdpError> {
-        self.call(
-            "Page.startScreencast",
-            json!({ "format": "jpeg", "quality": SCREENCAST_QUALITY }),
-        )
-        .await
-        .map(drop)
+    pub async fn start_screencast(&self, within: Option<(u32, u32)>) -> Result<(), CdpError> {
+        let mut params = json!({ "format": "jpeg", "quality": SCREENCAST_QUALITY });
+        if let Some((width, height)) = within {
+            params["maxWidth"] = json!(width);
+            params["maxHeight"] = json!(height);
+        }
+        self.call("Page.startScreencast", params).await.map(drop)
     }
 
     /// Stops the stream.
@@ -1071,52 +1095,9 @@ impl Page {
         session: &str,
         backend_node_id: i64,
     ) -> Result<NodeFacts, CdpError> {
-        let isolated = match self.isolated_context_in(session).await {
-            Ok(context) => self
-                .call_in(
-                    session,
-                    "DOM.resolveNode",
-                    json!({ "backendNodeId": backend_node_id, "executionContextId": context }),
-                )
-                .await
-                .ok(),
-            Err(_) => None,
-        };
-        let resolved = match isolated {
-            Some(resolved) => resolved,
-            None => {
-                self.call_in(
-                    session,
-                    "DOM.resolveNode",
-                    json!({ "backendNodeId": backend_node_id }),
-                )
-                .await?
-            }
-        };
-        let object = resolved
-            .pointer("/object/objectId")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .ok_or_else(|| CdpError::Unexpected("the node resolved to no object".to_string()))?;
-        let read = self
-            .call_in(
-                session,
-                "Runtime.callFunctionOn",
-                json!({
-                    "objectId": object,
-                    "functionDeclaration": CLICK_FACTS,
-                    "returnByValue": true,
-                }),
-            )
-            .await;
-        self.call_in(
-            session,
-            "Runtime.releaseObject",
-            json!({ "objectId": object }),
-        )
-        .await?;
-        let read = read?;
-        let fields = read.pointer("/result/value").cloned().unwrap_or_default();
+        let fields = self
+            .call_on_node(session, backend_node_id, CLICK_FACTS, Vec::new())
+            .await?;
         let text = |name: &str| {
             fields
                 .get(name)
@@ -1159,6 +1140,211 @@ impl Page {
                 .map(str::to_string),
             context: text("context"),
         })
+    }
+
+    /// What the fixed `function` returns, run on the DOM node `backend_node_id` of `session` with
+    /// `arguments`: in an isolated world of the session's main frame, or in the node's own
+    /// frame's world when the node is in another frame of the session.
+    async fn call_on_node(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+        function: &str,
+        arguments: Vec<Value>,
+    ) -> Result<Value, CdpError> {
+        let isolated = match self.isolated_context_in(session).await {
+            Ok(context) => self
+                .call_in(
+                    session,
+                    "DOM.resolveNode",
+                    json!({ "backendNodeId": backend_node_id, "executionContextId": context }),
+                )
+                .await
+                .ok(),
+            Err(_) => None,
+        };
+        let resolved = match isolated {
+            Some(resolved) => resolved,
+            None => {
+                self.call_in(
+                    session,
+                    "DOM.resolveNode",
+                    json!({ "backendNodeId": backend_node_id }),
+                )
+                .await?
+            }
+        };
+        let object = resolved
+            .pointer("/object/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| CdpError::Unexpected("the node resolved to no object".to_string()))?;
+        let arguments: Vec<Value> = arguments
+            .into_iter()
+            .map(|value| json!({ "value": value }))
+            .collect();
+        let read = self
+            .call_in(
+                session,
+                "Runtime.callFunctionOn",
+                json!({
+                    "objectId": object,
+                    "functionDeclaration": function,
+                    "arguments": arguments,
+                    "returnByValue": true,
+                }),
+            )
+            .await;
+        self.call_in(
+            session,
+            "Runtime.releaseObject",
+            json!({ "objectId": object }),
+        )
+        .await?;
+        Ok(read?.pointer("/result/value").cloned().unwrap_or_default())
+    }
+
+    /// Chooses options of the `<select>` that is the node `backend_node_id` of `session` (#756):
+    /// `wanted` by their labels with `by_labels`, else by their values. The page gets `input` and
+    /// `change` as from the user's choice. The answer is the fixed function's: `chosen`, or an
+    /// `error` (`not_a_select`, `no_option` with `missing` and the `options` there, or
+    /// `not_multiple`).
+    ///
+    /// # Errors
+    ///
+    /// When a call fails, as it does for a node that is gone.
+    pub async fn select_options(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+        by_labels: bool,
+        wanted: &[String],
+    ) -> Result<Value, CdpError> {
+        self.call_on_node(
+            session,
+            backend_node_id,
+            SELECT_OPTIONS,
+            vec![json!(by_labels), json!(wanted)],
+        )
+        .await
+    }
+
+    /// Sets the files of the file input that is the node `backend_node_id` of `session` (#756).
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`]; Chromium refuses a node that is not a file input.
+    pub async fn set_file_input(
+        &self,
+        session: &str,
+        backend_node_id: i64,
+        paths: &[String],
+    ) -> Result<(), CdpError> {
+        self.call_in(
+            session,
+            "DOM.setFileInputFiles",
+            json!({ "files": paths, "backendNodeId": backend_node_id }),
+        )
+        .await
+        .map(drop)
+    }
+
+    /// Lays the page out as a device (#756): `width` by `height` CSS pixels at `scale` device
+    /// pixels to the CSS pixel, as a phone or tablet with `mobile`. The user agent stays.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`]; the layout is set even when the window could not be sized.
+    pub async fn emulate_device(
+        &self,
+        width: u32,
+        height: u32,
+        scale: f64,
+        mobile: bool,
+    ) -> Result<(), CdpError> {
+        let window = self.fit_window(width, height).await;
+        self.call(
+            "Emulation.setDeviceMetricsOverride",
+            json!({
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": scale,
+                "mobile": mobile,
+                "screenWidth": width,
+                "screenHeight": height,
+            }),
+        )
+        .await?;
+        window
+    }
+
+    /// Makes the page's `prefers-color-scheme` `scheme`, or the system's again with `None` (#756).
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::call`].
+    pub async fn set_color_scheme(&self, scheme: Option<&str>) -> Result<(), CdpError> {
+        self.call(
+            "Emulation.setEmulatedMedia",
+            json!({ "features": [{ "name": "prefers-color-scheme", "value": scheme.unwrap_or("") }] }),
+        )
+        .await
+        .map(drop)
+    }
+
+    /// The text the page's main frame shows, read in an isolated world through the DOM's own
+    /// prototypes, so the page's scripts cannot change what a wait finds (#756).
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn page_text(&self) -> Result<String, CdpError> {
+        let context = self.isolated_context().await?;
+        let read = self
+            .call(
+                "Runtime.callFunctionOn",
+                json!({
+                    "executionContextId": context,
+                    "functionDeclaration": PAGE_TEXT,
+                    "returnByValue": true,
+                }),
+            )
+            .await?;
+        Ok(read
+            .pointer("/result/value")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string())
+    }
+
+    /// Whether the page's accessibility tree has an element of `role`, named `name` when one is
+    /// given (#756), that is not ignored.
+    ///
+    /// # Errors
+    ///
+    /// When a call fails.
+    pub async fn has_element(&self, role: &str, name: Option<&str>) -> Result<bool, CdpError> {
+        let document = self.call("DOM.getDocument", json!({ "depth": 0 })).await?;
+        let node_id = document
+            .pointer("/root/nodeId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| CdpError::Unexpected("the page has no document".to_string()))?;
+        let mut query = json!({ "nodeId": node_id, "role": role });
+        if let Some(name) = name {
+            query["accessibleName"] = json!(name);
+        }
+        let found = self.call("Accessibility.queryAXTree", query).await?;
+        Ok(found
+            .get("nodes")
+            .and_then(Value::as_array)
+            .is_some_and(|nodes| {
+                nodes.iter().any(|node| {
+                    !node
+                        .get("ignored")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                })
+            }))
     }
 
     /// The DOM node at the point `x`, `y` of the page's viewport, as its backend node id (#571).

@@ -2134,6 +2134,7 @@ The browser family, reading:
 | `browser_annotations` | The boxes over a page: each one's id, box in page coordinates, note, who drew it and when |
 | `browser_recordings` | The recordings you saved: id, tab, URL, title, when, how many seconds, frames and entries |
 | `browser_recording` | One recording's timeline; `frame` gives one frame, counted from 1, as an image |
+| `browser_wait` | Waits until the page shows `text`, stops showing `text_gone`, has an element of `role` (and `name`), or is at a URL holding `url`: every condition given, looked for every 250 ms for up to `timeout_ms` (10 s by default, 20 s at most). Refused `not_met`, with what did not hold, when time runs out (#756) |
 
 The browser family, acting. These need the `browser.write` grant:
 
@@ -2146,6 +2147,13 @@ The browser family, acting. These need the `browser.write` grant:
 | `browser_press` | Presses a key or a chord: Enter, Tab, Escape, ArrowDown, Ctrl+A, Shift+Tab |
 | `browser_scroll` | Scrolls by pixels (`dy` down, `dx` right), or an element into view |
 | `browser_annotate` | Draws a box with a note around an element or over an area, marked as the agent's; `clear` removes the agent's own boxes |
+| `browser_hover` | Moves your mouse onto an element by its ref, or a point, and leaves it there (#756) |
+| `browser_select` | Chooses options of a select list by `values` or `labels`; the page gets its input and change events, and Marley's list stays shut. An option not there is refused `no_option`, naming the options there |
+| `browser_drag` | Drags from one element or point to another; a page's HTML drag and drop is finished with its drop events |
+| `browser_upload` | Sets a file input's files: `paths` inside an open project, never a file a secret glob matches (`outside_projects`, `no_file`, `secret_file`) |
+| `browser_dialog` | Answers the tab's open alert, confirm, prompt or leave-page dialog: `accept`, and `text` for a prompt (`no_dialog` when none is open) |
+| `browser_resize` | Lays the page out as a device (`preset`: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24, iPad Mini, iPad Air, iPad Pro 13, Surface Pro 7, Laptop, Desktop), at `width` and `height`, or back at the tab's size with `fill` |
+| `browser_color_scheme` | Makes the page's `prefers-color-scheme` `dark` or `light`, or the system's again with `system` |
 
 The tools that read or act in one page take `tab`, an id from `browser_tabs`, and without it act
 on the tab you focused last. Every answer from a page names its tab.
@@ -2317,7 +2325,9 @@ the tab. Escape reaches the page.
 - **Dialogs (#490).** A page's `alert`, `confirm` or `prompt` opens as a card over the page that
   names the site asking ("`<host>` says"), with a field for a prompt's answer. Enter answers OK
   and Escape Cancel. A page that asks before you leave reads "Leave this page?" with a Leave button.
-  Navigating, going back or forward, or reloading answers an open dialog with Cancel first.
+  Navigating, going back or forward, or reloading answers an open dialog with Cancel first. An
+  agent's click or key that opens a dialog ends there: the tool's answer names the dialog, and the
+  agent answers it with `browser_dialog`, as you would with the card's buttons (#756).
 
 ### What agents can do in the tab
 
@@ -2326,6 +2336,14 @@ console and the network) and acts with the same events your mouse and keys send 
 call first brings its page's tab to the front of its pane, unless that pane has your focus. The
 Agent chip in the toolbar names each action while it runs and for five seconds after; typed text
 shows as its length, never itself.
+
+Since #756 an agent can also hover, choose in a select list, drag, upload a file from an open
+project, answer a dialog, and wait for the page. It can lay the page out as a phone or tablet, or
+at a size, and force the page's dark or light scheme. While it does, a chip in the toolbar names
+the device, the size and the scheme ("iPhone 15 Pro · 393×852 · light"), and the tab draws the page
+at that size, scaled down to fit, from its top left. Reset, beside the chip, puts the page back at
+the tab's size and the system's scheme. A page without `<meta name="viewport">` lays out 980 pixels
+wide on a phone, as a real phone does.
 
 ### The element picker and the pick tray
 
@@ -2387,7 +2405,8 @@ with browser_recording." An agent you tell "it broke just now" can list the reco
 ### Limits of the Browser tab
 
 - Headless Chromium draws no browser UI. Marley draws dialogs and select lists, but not file
-  choosers, downloads, context menus or the page's cursor shape.
+  choosers, downloads, context menus or the page's cursor shape. An agent sets a file input's
+  files with `browser_upload`; a person cannot choose files yet.
 - On a screen scaled above 1, pages look soft: Chromium's frames stay at 1×.
 - Japanese and Chinese through a live input method are untested.
 - A title a single-page app sets later, with no navigation, does not reach the tab.

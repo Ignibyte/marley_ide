@@ -5109,3 +5109,19 @@ are write-only, and stored arguments and URLs show masked. Rejected: `claude mcp
 refuse most writes while Claude Code runs), and creating a folder's `projects` entry for a local
 scope (Claude Code fills its keys itself).
 
+## AD-claude-756-agents-answer-dialogs-and-lay-pages-out-as-devices-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-571-a-consequential-click-waits-in-the-tab-for-callers-with-no-prompt-001*
+
+The browser family gains seven acting tools and a wait. An agent may answer a page's dialog: the
+click that opened a confirm already passed the click consequence, so the answer adds no pause.
+This ends "the dialog card is answered by the user only". A device size or scheme an agent sets is kept in the
+page's state, so the tab's resizing does not undo it until Fill or Reset; the stream restarts with
+`maxWidth` and `maxHeight` at the tab's size, so Chromium fits the frames and the click mapping
+and annotation placement, which scale by the frame's own size, stay as they are. The page draws
+from the tab's top left rather than centred, for the same reason. The user agent never changes.
+Select lists are set through a fixed function, so Marley's list stays shut (#495); uploads take
+files from open projects only, made real first, never a secret glob's. `browser_wait` is a read
+tool and stays inside the server's 30 seconds. Rejected: an agent script tool (no agent script
+runs in a page), centring the frame (annotations and clicks would need a second mapping), and
+emulating touch.
+

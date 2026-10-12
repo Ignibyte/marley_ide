@@ -382,6 +382,52 @@ const REGISTRY: &[ToolSpec] = &[
         "scroll",
         "Scroll the page by pixels (dy down, dx right), or an element by its ref into view.",
     ),
+    browser_write(
+        "hover",
+        "Move the user's mouse onto an element by its ref, or to a point of the viewport, and \
+         leave it there, so the page shows what it shows on hover (#756).",
+    ),
+    browser_write(
+        "select",
+        "Choose options of a select list by its ref: `values` by their value, or `labels` by \
+         the text shown, several for a list that takes several. The page gets input and change \
+         as from the user's choice. An option not there is refused with the options there.",
+    ),
+    browser_write(
+        "drag",
+        "Drag from an element by its ref (`from_ref`) or a point (`from_x`, `from_y`) to another \
+         (`to_ref`, or `to_x` and `to_y`), as the user's mouse does: press, move, release. A \
+         drag the page starts with HTML drag and drop is finished with its drop events.",
+    ),
+    browser_write(
+        "upload",
+        "Set the files of a file input by its ref: `paths`, absolute paths of files inside one \
+         of the user's open projects; a file a secret glob matches is refused.",
+    ),
+    browser_write(
+        "dialog",
+        "Answer the alert, confirm, prompt or leave-page dialog open in a Browser tab: `accept` \
+         as OK, or not as Cancel, with `text` for a prompt. A tool whose action opened a dialog \
+         says so in its answer.",
+    ),
+    browser_write(
+        "resize",
+        "Lay the page out at a device's size (`preset`, such as \"iPhone 15 Pro\" or \"iPad \
+         Air\"), at `width` and `height` in CSS pixels, or back at the tab's own size with \
+         `fill`. The tab draws the page at that size, scaled to fit; the user agent stays.",
+    ),
+    browser_write(
+        "color_scheme",
+        "Make the page's prefers-color-scheme `dark` or `light`, or follow the system again \
+         with `system`.",
+    ),
+    browser_read(
+        "wait",
+        "Wait until a page shows `text`, stops showing `text_gone`, has an element of `role` \
+         (with `name`), or is at a URL holding `url`: every condition given, looked for every \
+         250 ms for up to `timeout_ms` (10000 by default, 20000 at most). Answers what held and \
+         how long it took; refused `not_met` with what did not hold.",
+    ),
     ToolSpec {
         family: Family::Ports,
         verb: "list",
@@ -826,8 +872,35 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "pick" => pick_schemas(),
         "check_pick" => check_pick_schemas(),
         "open_url" => open_url_schemas(),
+        "wait" => wait_schemas(),
         _ => browser_write_schemas(verb),
     }
+}
+
+/// `browser_wait` (#756): the conditions and the time allowed; what held and how long it took.
+fn wait_schemas() -> (Value, Value) {
+    (
+        browser_arguments(
+            json!({
+                "text": { "type": "string", "description": "Text the page shows." },
+                "text_gone": { "type": "string", "description": "Text the page no longer shows." },
+                "role": { "type": "string", "description": "An element's role, as browser_snapshot names roles." },
+                "name": { "type": "string", "description": "The accessible name of the element of `role`." },
+                "url": { "type": "string", "description": "Text the page's URL holds." },
+                "timeout_ms": { "type": "integer", "minimum": 0, "maximum": 20000 }
+            }),
+            &[],
+        ),
+        json!({
+            "type": "object",
+            "properties": {
+                "tab": { "type": "string" },
+                "held": { "type": "array", "items": { "type": "string" } },
+                "waited_ms": { "type": "integer" }
+            },
+            "required": ["tab", "held", "waited_ms"]
+        }),
+    )
 }
 
 /// `browser_open_url` (#561): the URL and the program's folder; whether a tab opened, and in
@@ -1498,7 +1571,15 @@ fn browser_write_schemas(verb: &str) -> (Value, Value) {
             "did": { "type": "string", "description": "What the tool did, as the Agent chip says it." },
             "tab": { "type": "string" },
             "url": { "type": "string" },
-            "title": { "type": "string" }
+            "title": { "type": "string" },
+            "dialog": {
+                "type": "object",
+                "description": "The dialog the action opened, which browser_dialog answers (#756).",
+                "properties": {
+                    "kind": { "type": "string", "enum": ["alert", "confirm", "prompt", "beforeunload"] },
+                    "message": { "type": "string" }
+                }
+            }
         },
         "required": ["did", "tab"]
     });
@@ -1565,10 +1646,77 @@ fn browser_write_schemas(verb: &str) -> (Value, Value) {
             }),
             &[],
         ),
+        "hover" | "select" | "drag" | "upload" | "dialog" | "resize" | "color_scheme" => {
+            acting_arguments(verb, &element)
+        }
         // `back`.
         _ => browser_arguments(json!({}), &[]),
     };
     (arguments, done)
+}
+
+/// The arguments of the acting tools #756 added: `hover`, `select`, `drag`, `upload`, `dialog`,
+/// `resize` and `color_scheme`.
+fn acting_arguments(verb: &str, element: &Value) -> Value {
+    match verb {
+        "hover" => browser_arguments(
+            json!({
+                "ref": element.clone(),
+                "x": { "type": "number", "description": "A point of the viewport, in CSS pixels, with y." },
+                "y": { "type": "number" }
+            }),
+            &[],
+        ),
+        "select" => browser_arguments(
+            json!({
+                "ref": element.clone(),
+                "values": { "type": "array", "items": { "type": "string" }, "description": "Options by their value." },
+                "labels": { "type": "array", "items": { "type": "string" }, "description": "Options by the text shown." }
+            }),
+            &["ref"],
+        ),
+        "drag" => browser_arguments(
+            json!({
+                "from_ref": element.clone(),
+                "from_x": { "type": "number", "description": "The start, in CSS pixels, with from_y." },
+                "from_y": { "type": "number" },
+                "to_ref": element.clone(),
+                "to_x": { "type": "number", "description": "The end, in CSS pixels, with to_y." },
+                "to_y": { "type": "number" }
+            }),
+            &[],
+        ),
+        "upload" => browser_arguments(
+            json!({
+                "ref": element.clone(),
+                "paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths of files in an open project." }
+            }),
+            &["ref", "paths"],
+        ),
+        "dialog" => browser_arguments(
+            json!({
+                "accept": { "type": "boolean", "description": "OK; false is Cancel." },
+                "text": { "type": "string", "description": "What a prompt dialog answers." }
+            }),
+            &["accept"],
+        ),
+        "resize" => browser_arguments(
+            json!({
+                "preset": { "type": "string", "description": "A device: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24, iPad Mini, iPad Air, iPad Pro 13, Surface Pro 7, Laptop, Desktop." },
+                "width": { "type": "integer", "minimum": 320, "maximum": 3840 },
+                "height": { "type": "integer", "minimum": 240, "maximum": 2160 },
+                "fill": { "type": "boolean", "description": "Back at the tab's own size." }
+            }),
+            &[],
+        ),
+        "color_scheme" => browser_arguments(
+            json!({
+                "scheme": { "type": "string", "enum": ["dark", "light", "system"] }
+            }),
+            &["scheme"],
+        ),
+        _ => browser_arguments(json!({}), &[]),
+    }
 }
 
 /// The input and output schemas of the terminal family's tools (#491).
@@ -2784,6 +2932,14 @@ mod tests {
                 "browser_type",
                 "browser_press",
                 "browser_scroll",
+                "browser_hover",
+                "browser_select",
+                "browser_drag",
+                "browser_upload",
+                "browser_dialog",
+                "browser_resize",
+                "browser_color_scheme",
+                "browser_wait",
                 "ports_list",
                 "prompt_open",
                 "prompt_wait",
@@ -2814,7 +2970,7 @@ mod tests {
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 58);
+        assert_eq!(registry().len(), 66);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

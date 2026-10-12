@@ -25,13 +25,13 @@ use marley_browser::address;
 use marley_browser::cdp::CdpError;
 use marley_browser::input::{self, KeyPress};
 use marley_browser::observe::redact_url;
-use marley_browser::page::Page;
+use marley_browser::page::{DialogKind, JavaScriptDialog, Page};
 use marley_browser::pick::{self, PageBox, PickBundle};
 use marley_browser::playwright;
 use marley_browser::recorder;
 use marley_browser::snapshot::{self, FrameTree, RefTarget, Snapshot};
 use marley_mcp::redact::Redactor;
-use marley_mcp::{AppCall, Caller, ToolAnswer, ToolImage};
+use marley_mcp::{AppCall, Caller, Refusal, ToolAnswer, ToolImage};
 use serde::Serialize;
 use serde_json::{Value, json};
 use ui::SharedString;
@@ -71,6 +71,13 @@ const WRITES: &[&str] = &[
     "browser_type",
     "browser_press",
     "browser_scroll",
+    "browser_hover",
+    "browser_select",
+    "browser_drag",
+    "browser_upload",
+    "browser_dialog",
+    "browser_resize",
+    "browser_color_scheme",
 ];
 
 /// The project a call comes from (#574), as the rail groups projects: a call that names no tab
@@ -269,15 +276,15 @@ async fn run(
     (by, who): (Option<&SharedString>, &Who),
     hub: &Entity<BrowserHub>,
     cx: &mut AsyncApp,
-) -> Result<ToolAnswer, String> {
+) -> Result<ToolAnswer, Refusal> {
     still_allowed(by, cx)?;
     // Picks are Marley's, kept while the browser restarts, and recordings are files.
     match tool {
         "browser_picks" => return Ok(picks(hub, cx)),
-        "browser_pick" => return pick(arguments, hub, cx),
-        "browser_recordings" => return recordings(cx).await,
-        "browser_recording" => return recording(arguments, cx).await,
-        "browser_draft_test" => return draft_test(arguments, cx).await,
+        "browser_pick" => return pick(arguments, hub, cx).map_err(Refusal::from),
+        "browser_recordings" => return recordings(cx).await.map_err(Refusal::from),
+        "browser_recording" => return recording(arguments, cx).await.map_err(Refusal::from),
+        "browser_draft_test" => return draft_test(arguments, cx).await.map_err(Refusal::from),
         // Before the browser is up: a new tab waits for it by itself.
         "browser_open_url" => return Ok(open_url(arguments, cx).await),
         _ => {}
@@ -287,9 +294,17 @@ async fn run(
     still_allowed(by, cx)?;
     let named_tab = arguments.get("tab").and_then(Value::as_str);
     match tool {
-        "browser_tabs" => return tabs(hub, scope, cx).await,
-        "browser_navigate" => return navigate(arguments, named_tab, scope, hub, by, cx).await,
-        "browser_check_pick" => return check_pick(arguments, hub, by, cx).await,
+        "browser_tabs" => return tabs(hub, scope, cx).await.map_err(Refusal::from),
+        "browser_navigate" => {
+            return navigate(arguments, named_tab, scope, hub, by, cx)
+                .await
+                .map_err(Refusal::from);
+        }
+        "browser_check_pick" => {
+            return check_pick(arguments, hub, by, cx)
+                .await
+                .map_err(Refusal::from);
+        }
         _ => {}
     }
     let (tab, page) = page_of(hub, named_tab, scope, cx).await?;
@@ -297,7 +312,12 @@ async fn run(
         not_paused(&tab, hub, cx)?;
         cx.update(|cx| show_for_agent(&tab, cx));
     }
-    match tool {
+    if let Some(answer) =
+        crate::browser_actions::run(tool, &page, &tab, arguments, hub, by, cx).await
+    {
+        return answer;
+    }
+    let answered = match tool {
         "browser_look" => look(&page, &tab, hub, cx).await,
         "browser_snapshot" => take_snapshot(&page, &tab, arguments, hub, cx).await,
         "browser_find" => find_element(&page, &tab, arguments, hub, cx).await,
@@ -320,7 +340,8 @@ async fn run(
         "browser_press" => press(&page, &tab, arguments, hub, by, cx).await,
         "browser_scroll" => scroll(&page, &tab, arguments, hub, by, cx).await,
         other => Err(format!("Marley answers no tool named {other}")),
-    }
+    };
+    answered.map_err(Refusal::from)
 }
 
 /// `browser_open_url` (#561): a URL a program in `directory` asked its opener to open, in a
@@ -466,6 +487,12 @@ struct TabRow {
     summary: TabSummary,
     project: Option<String>,
     default: bool,
+    /// The dialog the page shows, which `browser_dialog` answers (#756).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dialog: Option<Value>,
+    /// The device size and scheme an agent set (#756).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    emulation: Option<Value>,
 }
 
 /// `browser_tabs`: every page, once the pages being attached are.
@@ -501,9 +528,12 @@ async fn tabs(
                             .project_of(&summary.id)
                             .map(|project| project.name.to_string())
                     });
+                let (dialog, emulation) = page_extras(hub, &summary.id, cx);
                 TabRow {
                     default: default.as_deref() == Some(summary.id.as_str()),
                     project,
+                    dialog,
+                    emulation,
                     summary,
                 }
             })
@@ -515,6 +545,23 @@ async fn tabs(
         text: None,
         image: None,
     })
+}
+
+/// What `browser_tabs` and `browser_look` add of a page (#756): the dialog it shows, and the device
+/// size and scheme an agent set on it.
+fn page_extras(hub: &Entity<BrowserHub>, tab: &str, cx: &App) -> (Option<Value>, Option<Value>) {
+    let hub = hub.read(cx);
+    let (emulated, scheme) = hub.emulation(tab);
+    let emulation = (emulated.is_some() || scheme.is_some()).then(|| {
+        json!({
+            "preset": emulated.as_ref().and_then(|emulated| emulated.preset),
+            "width": emulated.as_ref().map(|emulated| emulated.width),
+            "height": emulated.as_ref().map(|emulated| emulated.height),
+            "color_scheme": scheme.map(crate::browser::Scheme::css),
+        })
+    });
+    let dialog = hub.dialog(tab).map(|dialog| dialog_value(dialog, cx));
+    (dialog, emulation)
 }
 
 async fn look(
@@ -543,6 +590,8 @@ async fn look(
             .map_err(|error| error.to_string())?
     };
     let image = page.screenshot().await.map_err(|error| error.to_string())?;
+    let (_, emulation) = cx.update(|cx| page_extras(hub, tab, cx));
+    let open_dialog = hub.read_with(cx, |hub, _| hub.dialog(tab).cloned());
     let structured = serde_json::to_value(Look {
         tab: tab.to_string(),
         url: url.map(|url| redact_url(&url)).unwrap_or_default(),
@@ -551,6 +600,8 @@ async fn look(
         viewport,
         focused,
         selection,
+        dialog: open_dialog.map(|dialog| dialog_json(&dialog, cx)),
+        emulation,
     })
     .map_err(|error| error.to_string())?;
     Ok(ToolAnswer {
@@ -995,6 +1046,12 @@ struct Look {
     viewport: marley_browser::page::Viewport,
     focused: Option<marley_browser::page::FocusedElement>,
     selection: String,
+    /// The dialog the page shows (#756).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dialog: Option<Value>,
+    /// The device size and scheme an agent set (#756).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    emulation: Option<Value>,
 }
 
 async fn take_snapshot(
@@ -1217,7 +1274,7 @@ fn entries<T: Serialize>(tab: &str, entries: Vec<T>) -> Result<ToolAnswer, Strin
 }
 
 /// A write tool's answer: what it did, in which tab, and where the page is now.
-fn done(did: &str, tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
+pub(crate) fn done(did: &str, tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAnswer {
     let (url, title) = hub.read_with(cx, |hub, _| (hub.url(tab), hub.title(tab)));
     ToolAnswer {
         structured: json!({
@@ -1233,17 +1290,39 @@ fn done(did: &str, tab: &str, hub: &Entity<BrowserHub>, cx: &AsyncApp) -> ToolAn
 
 /// Shows `doing` in the tab's Agent chip, runs `action`, and shows `did`, or that it failed; the
 /// chip names the outside client `by` when there is one (#524).
-async fn acting<T>(
+///
+/// An action that opens a JavaScript dialog ends there (#756): the page holds the browser's
+/// answer to the click or key until the dialog closes, so the tool answers once the dialog shows,
+/// naming it, and the agent answers it with `browser_dialog`.
+pub(crate) async fn acting<T, E>(
     hub: &Entity<BrowserHub>,
     tab: &str,
     doing: String,
     did: String,
     by: Option<&SharedString>,
     cx: &mut AsyncApp,
-    action: impl AsyncFnOnce(&mut AsyncApp) -> Result<T, String>,
-) -> Result<ToolAnswer, String> {
+    action: impl AsyncFnOnce(&mut AsyncApp) -> Result<T, E>,
+) -> Result<ToolAnswer, E> {
     hub.update(cx, |hub, cx| hub.agent_started(tab, doing, by.cloned(), cx));
-    let result = action(cx).await;
+    let watcher = cx.clone();
+    let open_before = hub.read_with(cx, |hub, _| hub.dialog(tab).is_some());
+    let acted = action(cx);
+    let (result, opened) = if open_before {
+        (acted.await.map(drop), None)
+    } else {
+        let opening = dialog_opening(hub, tab, &watcher);
+        match futures::future::select(std::pin::pin!(acted), std::pin::pin!(opening)).await {
+            futures::future::Either::Left((result, _)) => (result.map(drop), None),
+            futures::future::Either::Right((dialog, _)) => (Ok(()), Some(dialog)),
+        }
+    };
+    let did = match &opened {
+        Some(dialog) => format!(
+            "{did}; the page opened a {} dialog",
+            dialog["kind"].as_str().unwrap_or("JavaScript")
+        ),
+        None => did,
+    };
     let shown = if result.is_ok() {
         did.clone()
     } else {
@@ -1252,7 +1331,45 @@ async fn acting<T>(
     hub.update(cx, |hub, cx| {
         hub.agent_ended(tab, SharedString::from(shown), by.cloned(), cx);
     });
-    result.map(|_| done(&did, tab, hub, cx))
+    result.map(|()| {
+        let mut answer = done(&did, tab, hub, cx);
+        if let Some(dialog) = opened {
+            answer.structured["dialog"] = dialog;
+        }
+        answer
+    })
+}
+
+/// The dialog `tab` shows once it shows one, as an answer gives it (#756).
+async fn dialog_opening(hub: &Entity<BrowserHub>, tab: &str, cx: &AsyncApp) -> Value {
+    loop {
+        let open = hub.read_with(cx, |hub, _| hub.dialog(tab).cloned());
+        if let Some(dialog) = open {
+            return dialog_json(&dialog, cx);
+        }
+        cx.background_executor().timer(POLL).await;
+    }
+}
+
+/// A dialog as the tools give it (#756), from a task.
+pub(crate) fn dialog_json(dialog: &JavaScriptDialog, cx: &AsyncApp) -> Value {
+    cx.update(|cx| dialog_value(dialog, cx))
+}
+
+/// A dialog as the tools give it (#756): its kind and its message, keys and tokens masked while
+/// agents' redaction is on.
+fn dialog_value(dialog: &JavaScriptDialog, cx: &App) -> Value {
+    let kind = match dialog.kind {
+        DialogKind::Alert => "alert",
+        DialogKind::Confirm => "confirm",
+        DialogKind::Prompt => "prompt",
+        DialogKind::BeforeUnload => "beforeunload",
+    };
+    let message = crate::mcp::agent_redactor(cx).map_or_else(
+        || dialog.message.clone(),
+        |redactor| redactor.redact(&dialog.message).text,
+    );
+    json!({ "kind": kind, "message": message })
 }
 
 /// `browser_navigate`: in the tab named, else in the tab a call that names no tab acts on; in a
@@ -1532,7 +1649,7 @@ fn scroll_words(delta_x: f64, delta_y: f64) -> String {
     }
 }
 
-fn ref_target(
+pub(crate) fn ref_target(
     tab: &str,
     reference: &str,
     hub: &Entity<BrowserHub>,
@@ -1577,7 +1694,7 @@ async fn paused_point(
 
 /// Where a click goes, in the page's viewport, and what the chip calls it: a ref's element,
 /// scrolled into view, or the point `x`, `y`.
-async fn target_point(
+pub(crate) async fn target_point(
     page: &Page,
     tab: &str,
     arguments: &Value,
@@ -1647,7 +1764,7 @@ fn gone(target: &RefTarget) -> String {
 
 /// A ref's element scrolled into view: the session that holds it, and where its frame's viewport
 /// sits in the page's, through a cross-site iframe's owner element.
-async fn ref_origin(
+pub(crate) async fn ref_origin(
     page: &Page,
     tab: &str,
     target: &RefTarget,
