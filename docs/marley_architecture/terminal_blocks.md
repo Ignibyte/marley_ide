@@ -298,6 +298,14 @@ real, reusable session. The Block model is the unit the **brain** later observes
   `agent_environment(env, program, named)` gives it to a terminal that got an id and an empty
   value to every other, emptied rather than removed so a Marley started from a Marley terminal
   never hands its parent's on.
+- Since #755 `TOKEN_VARIABLE` (`MARLEY_TERMINAL_TOKEN`) proves the id to Marley's MCP server:
+  `terminal_token(id)` mints a v4 UUID's 32 hex digits the first time an id is asked for and keeps
+  it in a process-wide map for the run (a restored terminal keeps its id and gets a new token),
+  and `token_matches(id, token)` compares in constant time, false for an id with no token. Zed's
+  terminal builder sets the token beside the id and empties it wherever it empties the id (a
+  task, a remote terminal); the context server for Zed's agents blanks it too. A process of the
+  same user can still read another terminal's token from `/proc/<pid>/environ`: the token stops
+  one terminal's agent claiming another's id, not a hostile program running as the user.
 - `ports.rs` (#590): `PORT_OFFSET_VARIABLE` (`MARLEY_PORT_OFFSET`), `PORT_VARIABLE`, `PORT_BASE`
   3000 and `PORT_STEP` 10; a process-wide `SlotReader` the workbench sets (`set_slot_reader`,
   `slot_reader` to box an async function); `variables(folder)`, awaited by both of Zed's terminal

@@ -121,36 +121,40 @@ pub fn start(cx: &mut App) {
     let published = Arc::clone(&shared);
     let for_clients = Arc::clone(&shared);
     let for_tools = Arc::clone(&shared);
-    let (failure, snapshots, enabled) = match transport::spawn(shared, effects, caller) {
-        Ok(handle) => {
-            write_endpoint(
-                data_dir.clone(),
-                transport::discovery_json(handle.url(), handle.bearer()),
-                cx,
-            );
-            crate::clients::start(
-                data_dir.clone(),
-                handle.url().to_string(),
-                for_clients,
-                Arc::clone(handle.clients()),
-                cx,
-            );
-            offer_to_zeds_agents(data_dir.clone(), cx);
-            offer_browser_opener(data_dir.clone(), cx);
-            offer_agent_editor(data_dir.clone(), cx);
-            crate::agent_reports::start(data_dir.clone(), cx);
-            (
+    // A call names its terminal only with that terminal's token (#755).
+    let terminal_check: transport::TerminalCheck =
+        Arc::new(marley_terminal::identity::token_matches);
+    let (failure, snapshots, enabled) =
+        match transport::spawn(shared, effects, caller, terminal_check) {
+            Ok(handle) => {
+                write_endpoint(
+                    data_dir.clone(),
+                    transport::discovery_json(handle.url(), handle.bearer()),
+                    cx,
+                );
+                crate::clients::start(
+                    data_dir.clone(),
+                    handle.url().to_string(),
+                    for_clients,
+                    Arc::clone(handle.clients()),
+                    cx,
+                );
+                offer_to_zeds_agents(data_dir.clone(), cx);
+                offer_browser_opener(data_dir.clone(), cx);
+                offer_agent_editor(data_dir.clone(), cx);
+                crate::agent_reports::start(data_dir.clone(), cx);
+                (
+                    None,
+                    Some(publisher(published, cx)),
+                    Some(enabler(for_tools, cx)),
+                )
+            }
+            Err(error) => (
+                Some(format!("Marley's MCP server did not start: {error}")),
                 None,
-                Some(publisher(published, cx)),
-                Some(enabler(for_tools, cx)),
-            )
-        }
-        Err(error) => (
-            Some(format!("Marley's MCP server did not start: {error}")),
-            None,
-            None,
-        ),
-    };
+                None,
+            ),
+        };
     if let Some(failure) = &failure {
         log::error!("mcp: {failure}");
     }
@@ -287,7 +291,8 @@ fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
                 path: bridge,
                 args: Vec::new(),
                 // A Marley started from a Marley terminal would hand its parent's identity to its
-                // own agents' bridge, so both are blank there (#520).
+                // own agents' bridge, so the id, its token and the project are blank there (#520,
+                // #755).
                 env: Some(
                     [
                         (
@@ -296,6 +301,10 @@ fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
                         ),
                         (
                             marley_terminal::identity::TERMINAL_ID_VARIABLE.to_string(),
+                            String::new(),
+                        ),
+                        (
+                            marley_terminal::identity::TOKEN_VARIABLE.to_string(),
                             String::new(),
                         ),
                         (

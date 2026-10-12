@@ -183,6 +183,7 @@ pub fn spawn(
     shared: Shared,
     effects: Sender<Effect>,
     caller: AppCaller,
+    terminal_check: TerminalCheck,
 ) -> std::io::Result<ServerHandle> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
@@ -195,6 +196,7 @@ pub fn spawn(
         effects,
         caller,
         bearer: bearer.clone(),
+        terminal_check,
     };
     // The accept loop runs for the life of the process; dropping its handle detaches it.
     drop(
@@ -209,8 +211,11 @@ pub fn spawn(
     })
 }
 
-/// What every connection's thread shares: the state, the clients, the app's channels and the
-/// per-boot bearer. Cloning it clones the handles, never the state.
+/// Whether a terminal id's token is that terminal's, as the app minted it (#755): `(id, token)`.
+pub type TerminalCheck = Arc<dyn Fn(&str, &str) -> bool + Send + Sync>;
+
+/// What every connection's thread shares: the state, the clients, the app's channels, the
+/// per-boot bearer and the terminal check. Cloning it clones the handles, never the state.
 #[derive(Clone)]
 struct Server {
     shared: Shared,
@@ -218,6 +223,7 @@ struct Server {
     effects: Sender<Effect>,
     caller: AppCaller,
     bearer: String,
+    terminal_check: TerminalCheck,
 }
 
 /// Accept connections, one thread per connection (blocking IO — the search/syntax-worker idiom).
@@ -246,6 +252,7 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
         shared,
         clients,
         bearer,
+        terminal_check,
         ..
     } = server;
     let mut reader = BufReader::new(Deadlined {
@@ -284,6 +291,21 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
         // A client gets no standing stream: the fleet's pushes are not its to see.
         if request.method == "GET" {
             return write_status(&mut stream, 405, "Method Not Allowed");
+        }
+    }
+    // A terminal is the caller only with its own token; without it the call runs as one from no
+    // terminal, as a malformed id does (#755).
+    if let Some(terminal) = request.caller.terminal.as_deref() {
+        let proven = request
+            .terminal_token
+            .as_deref()
+            .is_some_and(|token| terminal_check(terminal, token));
+        if !proven {
+            log::info!(
+                "marley_mcp: a call named terminal {terminal} without its token; taken as from no \
+                 terminal"
+            );
+            request.caller.terminal = None;
         }
     }
     // Session gate (#375, MCP §Session Management) — POST-auth: [`gate`].
@@ -576,6 +598,8 @@ struct HttpRequest {
     session: Option<String>,
     /// Who is calling, from the bridge's `Marley-*` headers (#520).
     caller: Caller,
+    /// The `Marley-Terminal-Token` that proves the caller's terminal (#755).
+    terminal_token: Option<String>,
     body: String,
 }
 
@@ -693,6 +717,7 @@ fn read_http_request<R: Read>(
         .to_string();
     let (mut origin, mut bearer, mut session, mut content_length) = (None, None, None, 0usize);
     let mut caller = Caller::default();
+    let mut terminal_token = None;
     let mut header_lines = 0;
     loop {
         let mut line = String::new();
@@ -715,6 +740,8 @@ fn read_http_request<R: Read>(
             session = Some(value.to_string());
         } else if let Some(value) = header_value(line, "marley-terminal") {
             caller.terminal = caller_terminal(value);
+        } else if let Some(value) = header_value(line, "marley-terminal-token") {
+            terminal_token = Some(value.to_string());
         } else if let Some(value) = header_value(line, "marley-project") {
             caller.project = caller_path(value);
         } else if let Some(value) = header_value(line, "marley-cwd") {
@@ -735,6 +762,7 @@ fn read_http_request<R: Read>(
         bearer,
         session,
         caller,
+        terminal_token,
         body: String::from_utf8_lossy(&body).into_owned(),
     }))
 }
@@ -849,8 +877,9 @@ mod tests {
         let (sender, effects) = mpsc::channel();
         // No app answers here: a deferred call's answer channel closes as the call is dropped.
         let caller: AppCaller = Arc::new(drop);
-        let handle =
-            spawn(Arc::clone(&shared), sender, caller).expect("the loopback server starts");
+        let terminal_check: TerminalCheck = Arc::new(|_, _| false);
+        let handle = spawn(Arc::clone(&shared), sender, caller, terminal_check)
+            .expect("the loopback server starts");
         Server {
             handle,
             shared,

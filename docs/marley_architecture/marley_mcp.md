@@ -169,7 +169,7 @@ OR Apache-2.0, with the Marley crates' lint table.
 
 ## The transport (`transport.rs`, `session.rs`, `auth.rs`, `discovery.rs`, `secret.rs`)
 
-- `spawn(shared, effects, caller)` binds `127.0.0.1:0`, mints a 32-hex bearer from
+- `spawn(shared, effects, caller, terminal_check)` binds `127.0.0.1:0`, mints a 32-hex bearer from
   `/dev/urandom`, and runs an accept thread for the life of the process; each connection gets a
   thread and one request. Before dispatch (#524 bounds the first three): the request line and
   each header line at 8 KiB and at most 100 header lines (431, the rest drained for a second so
@@ -191,8 +191,14 @@ OR Apache-2.0, with the Marley crates' lint table.
   `Marley-Terminal` (kept only with a UUID's shape), `Marley-Project` and `Marley-Cwd`
   (percent-decoded, absolute, at most 4,096 bytes). They make a `Caller`, which `ask_app` hands
   the app on each `AppCall` (`AppCall::caller`). A malformed value names nothing and never refuses
-  a call; the caller is a default for what a call that names no terminal acts on, never an
-  authority, since the bearer gates every call.
+  a call; the caller is a default for what a call that names no terminal acts on.
+- Since #755 the terminal is proven. #704 keyed the editors area's approvals on it, so a shell
+  that set another terminal's `MARLEY_TERMINAL_ID` could use that terminal's approvals. The bridge
+  and `marley-edit` send `Marley-Terminal-Token` beside `Marley-Terminal`, and `serve_connection`
+  asks the `TerminalCheck` the app handed `spawn` (`marley_terminal::identity::token_matches`, so
+  `marley_mcp` gains no dependency) whether the token is that terminal's. A missing or wrong token
+  drops the terminal (`Caller::terminal` to `None`, logged at info) and keeps the project and the
+  folder; the call itself runs, as one from no terminal.
 - Since #571 a session keeps the name its client gave at `initialize` (`client_name_of`,
   `clientInfo.name`, printable ASCII, at most `MAX_CLIENT_NAME` characters): the session gate
   (`gate`) names it on the new session (`SessionRegistry::name_client`), and `serve_post` reads it

@@ -9,15 +9,18 @@ for.
 
 ## The service (`src/service.rs`)
 
-- Each project's Chromium is a transient user unit, `marley-browser-<id>`, where `<id>` is the
-  first twelve hex digits of the SHA-256 of its profile's path, so each project in each Marley
-  data directory (an e2e run's included) has its own (#507). `systemd-run --user --quiet
-  --collect --service-type=exec` starts it, with `KillMode=mixed` and a ten-second stop
-  timeout; the unit outlives the tab, the window and Marley, and ends at logout or when its
-  project is removed (plan D16). Since #583 the unit's main process is Marley's relay
-  (`relay_command`: Marley's executable, `--browser-relay`, the relay's socket and endpoint file,
-  `--`, then Chromium's command), which a stop's SIGTERM reaches alone; the relay closes Chromium
-  over its pipe before it exits.
+- Each project's Chromium is a transient user unit, `marley-browser-<id>`, where `<id>` is the first
+  twelve hex digits of the SHA-256 of its profile's path, so each project in each Marley data
+  directory (an e2e run's included) has its own (#507). `systemd-run --user --quiet --collect
+  --service-type=exec` starts it, with `KillMode=mixed`, a ten-second stop timeout and, since #755,
+  `OOMPolicy=continue`: a renderer the kernel kills for memory leaves the unit running (systemd's
+  default, `stop`, would end the whole unit and close every tab of the project), and
+  `Target.targetCrashed` closes that page's tab alone. systemd-oomd, where it runs, kills a whole
+  cgroup at once, which no policy keeps running. The unit outlives the tab, the window and Marley,
+  and ends at logout or when its project is removed (plan D16). Since #583 the unit's main process
+  is Marley's relay (`relay_command`: Marley's executable, `--browser-relay`, the relay's socket and
+  endpoint file, `--`, then Chromium's command), which a stop's SIGTERM reaches alone; the relay
+  closes Chromium over its pipe before it exits.
 - A project's folder is `<data dir>/browser/projects/<key>/` (`project_dir_in`), its profile
   `profile/` in it (`profile_in`). `project_key` is the first sixteen hex digits of the SHA-256
   of the project's main worktree paths, sorted, each followed by a newline, then of the host

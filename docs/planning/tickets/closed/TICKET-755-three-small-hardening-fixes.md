@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #755 (chore, Marley's MCP server and the agent bar; from the T3 Code survey)
 - **Owner:** 5b7350d2-26f7-4126-a833-9a692beba9e2
-- **Pipeline doc:** [755-three-small-hardening-fixes.spec.md](../../pipeline/queued/755-three-small-hardening-fixes.spec.md)
+- **Pipeline doc:** [755-three-small-hardening-fixes.spec.md](../../pipeline/completed/755-three-small-hardening-fixes.spec.md)
 - **Source ticket:** [the T3 Code survey](../../../t3code_architecture/README.md), "Facts about Marley
   the survey turned up" and "Smaller things"; report 05 item 6, report 04 item 3. Chad,
   2026-10-11: "8.) yes to all".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 - **Safe config writes.** The agent bar's setup rewrites Codex's `config.toml` with a plain write

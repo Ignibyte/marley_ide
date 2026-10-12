@@ -1,7 +1,7 @@
 ---
 pipeline_id: e1e3695c-c5a6-4204-9a02-24b6f23464e9
-ticket: docs/planning/tickets/open/TICKET-755-three-small-hardening-fixes.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-755-three-small-hardening-fixes.md
+status: Phase 4 — Complete PASS
 title: Three small hardening fixes
 type: chore
 slice: Marley's MCP server and the agent bar; the T3 Code survey's facts and smaller things (docs/t3code_architecture/README.md)
@@ -106,25 +106,27 @@ Code's, read from the survey: `CaptureShortcutConfig.ts:225-297` for the checked
 ## UI proof
 `script/e2e/755-three-small-hardening-fixes.sh`, under `compositor sway`, with #552's set-up
 (`CODEX_HOME` and `XDG_CONFIG_HOME` in the run's folders, stand-in `codex` and `opencode`) and the
-browser fixture (`offline_chromium`, `serve_site`, `mcp_agent`). Each check prints into a Marley
-terminal, so the shot shows it.
+browser fixture (`offline_chromium`, `serve_site`, `browser_unit`). The file and MCP checks print
+into a Marley terminal, so the shot shows them; the unit's properties and journal lines print in
+the run's log beside the shots.
 
 Shots:
 - `755-01-codex-written`: after Turn on Codex notifications, with `config.toml` a symlink into a
-  dotfiles folder at mode 0600: the toast, and the terminal's listing: still a link, the target
-  holds the three keys and its comment, mode 600, `config.toml.marley-backup` holds the old text,
-  no temp file left.
-- `755-02-plugin-written`: after Connect OpenCode to Marley: the plugin in place at 644, no backup
-  and no temp file beside it.
-- `755-03-honest`: two terminals side by side; the left one's client lists the terminals and its
-  own row is marked `self`.
-- `755-04-spoofed`: the right terminal's client, its `MARLEY_TERMINAL_ID` set to the left's id:
-  no row marked `self`, and `terminal_read` with no terminal refused.
-- `755-05-oom-policy`: a project's Browser tab, and the terminal printing the unit's
-  `OOMPolicy=continue`.
-- `755-06-after-oom`: a page that eats memory in one tab, the unit's `MemoryMax` lowered at run
-  time until the kernel kills that renderer: the project's other tab still draws, and the
-  terminal prints the unit `active` and the journal's OOM line.
+  dotfiles folder at mode 0600: the toast, and the terminal's listing: still a link, the backup at
+  600, the target at 600 holding the three keys and its comment, no temp file left, and the
+  backup's first lines (REQ-001 to REQ-003).
+- `755-02-plugin-written`: after Connect OpenCode to Marley: `marley.js` alone in its folder at
+  644, no backup and no temp file (REQ-003).
+- `755-03-honest`: two terminals side by side; the right one's environment holds a 32-hex
+  `MARLEY_TERMINAL_TOKEN`, and its client's own row is marked `self` (REQ-005, REQ-006).
+- `755-04-spoofed`: the right terminal's client with `MARLEY_TERMINAL_ID` set to the left
+  terminal's id and its own token: no row marked `self` (REQ-007).
+- `755-05a-calm`: a project's Browser tab on a calm page; the log shows the unit's
+  `OOMPolicy=continue` (REQ-008).
+- `755-05b-hungry`: a second tab on a page that eats memory, the unit's `MemoryMax` lowered at
+  run time to its use plus 400 MiB and swap off.
+- `755-06-after-oom`: the kernel has killed that renderer and Marley closed its tab: the calm tab
+  still draws, and the log shows the unit `active` and the journal's OOM line (REQ-009).
 
 ## Locked-In Decisions
 - **D1:** one helper for writes into other programs' files, in `marley_workbench`, used by both
@@ -161,8 +163,8 @@ Shots:
 | REQ-005 | WHEN Marley opens a local interactive terminal, its environment shall hold a `MARLEY_TERMINAL_TOKEN` beside `MARLEY_TERMINAL_ID`; a task, a remote terminal and Zed's agents' bridge shall get it empty. | Shot 755-03; the review of the diff |
 | REQ-006 | WHEN a call names a terminal with its own token, the system shall take that terminal as the caller. | Shot 755-03 |
 | REQ-007 | WHEN a call names a terminal without that terminal's token, the system shall treat the call as having no terminal. | Shot 755-04 |
-| REQ-008 | WHEN Marley starts a project's Chromium, its unit shall carry `OOMPolicy=continue`. | Shot 755-05 |
-| REQ-009 | WHEN the kernel kills one renderer of a project's Chromium for memory, the system shall keep the unit running and the project's other Browser tabs drawing. | Shot 755-06 |
+| REQ-008 | WHEN Marley starts a project's Chromium, its unit shall carry `OOMPolicy=continue`. | Shot 755-05a and the run's log |
+| REQ-009 | WHEN the kernel kills one renderer of a project's Chromium for memory, the system shall keep the unit running and the project's other Browser tabs drawing. | Shots 755-05b, 755-06 and the run's log |
 | REQ-010 | The gate shall pass. | `script/gates.sh --diff` exit 0 |
 
 ## Phase Plan

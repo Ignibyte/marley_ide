@@ -1,14 +1,16 @@
 //! A terminal's identity, as its programs see it (#520).
 //!
 //! Each local interactive terminal starts with its own [`TERMINAL_ID_VARIABLE`], a UUID Zed's
-//! terminal builder mints, and [`PROJECT_VARIABLE`], its project's folder. The Claude Code
-//! plugin's MCP bridge sends both on each request, so Marley's tools know which terminal called
-//! them. The id scopes what a tool does by default; it is no authority, since the MCP bearer
-//! gates every call. A terminal Zed restores at a launch keeps the id it had (#575): the restore
-//! hands the saved id to the builder under [`RESTORED_ID_VARIABLE`]. Beside the id, a local
-//! interactive terminal names Marley's `marley-agent` program as [`BIN_VARIABLE`], through which
-//! an agent reports its state to Marley (#652), and, while it is wanted, the Claude Code plugin
-//! Marley shares with rustal-harness first in [`PLUGIN_DIRS_VARIABLE`] (#709), then the `rustal-ste`
+//! terminal builder mints, and [`PROJECT_VARIABLE`], its project's folder. The Claude Code plugin's
+//! MCP bridge sends both on each request, so Marley's tools know which terminal called them. The id
+//! scopes what a tool does by default, and since #704 keys the editors area's approvals too, so it
+//! is proven: beside it each terminal holds [`TOKEN_VARIABLE`], a token minted for its id and kept
+//! for the run, which the bridge sends with the id; a call whose token does not match is taken as
+//! one from no terminal (#755). A terminal Zed restores at a launch keeps the id it had (#575): the
+//! restore hands the saved id to the builder under [`RESTORED_ID_VARIABLE`]. Beside the id, a local
+//! interactive terminal names Marley's `marley-agent` program as [`BIN_VARIABLE`], through which an
+//! agent reports its state to Marley (#652), and, while it is wanted, the Claude Code plugin Marley
+//! shares with rustal-harness first in [`PLUGIN_DIRS_VARIABLE`] (#709), then the `rustal-ste`
 //! skill's plugin folder (#725), and, for a Marley on a data directory of its own, that directory
 //! in [`DATA_DIR_VARIABLE`], so `marley <command>` typed there reaches that Marley (#749).
 
@@ -23,6 +25,51 @@ pub const PROJECT_VARIABLE: &str = "MARLEY_PROJECT";
 /// The builder takes the value and leaves the key empty before anything else reads the
 /// environment, so no program sees an id under it.
 pub const RESTORED_ID_VARIABLE: &str = "MARLEY_RESTORED_TERMINAL_ID";
+
+/// The variable holding a terminal's token, which proves its id to Marley's MCP server (#755).
+pub const TOKEN_VARIABLE: &str = "MARLEY_TERMINAL_TOKEN";
+
+/// The token of each terminal id this run, minted on first ask.
+static TOKENS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// The token of the terminal `id`, minted the first time it is asked for: a version 4 UUID's 122
+/// random bits. A restored terminal keeps its id and gets a new token each run.
+#[must_use]
+pub fn terminal_token(id: &str) -> String {
+    let mut tokens = TOKENS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    tokens
+        .entry(id.to_string())
+        .or_insert_with(|| uuid::Uuid::new_v4().simple().to_string())
+        .clone()
+}
+
+/// Whether `token` is the terminal `id`'s, compared in constant time; false for an id this run
+/// minted no token for.
+#[must_use]
+pub fn token_matches(id: &str, token: &str) -> bool {
+    let expected = TOKENS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(id)
+        .cloned();
+    let Some(expected) = expected else {
+        return false;
+    };
+    let (expected, token) = (expected.as_bytes(), token.as_bytes());
+    if expected.len() != token.len() {
+        return false;
+    }
+    expected
+        .iter()
+        .zip(token)
+        .fold(0_u8, |difference, (left, right)| {
+            difference | (left ^ right)
+        })
+        == 0
+}
 
 /// A new terminal id: a version 4 UUID.
 #[must_use]

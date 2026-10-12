@@ -948,13 +948,13 @@ th { background: var(--panel); font-weight: 650; }
 <p class="area-intro">Marley's terminals turn each command into a block you can see, select, copy, rerun, filter, bookmark and hand to an agent.</p>
 
 <article id="shell-integration">
-<h3>Shell integration: where blocks come from <span class="ticket">#463 · #465 · #520</span></h3>
+<h3>Shell integration: where blocks come from <span class="ticket">#463 · #465 · #520 · #755</span></h3>
 <p class="what"><strong>What it is.</strong> Blocks come from your shell, which reports each prompt and command to the terminal. Marley loads a small integration into every interactive bash and zsh it starts, after your own startup files.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Nothing to install. To check a terminal, run <code>echo $MARLEY_SHELL_INTEGRATION</code>: it prints <code>1</code> in an integrated shell.</li>
 <li>Your <code>.bashrc</code>, and zsh's startup files, still run as before.</li>
-<li>Each local terminal also gets <code>MARLEY_TERMINAL_ID</code> (its own id, kept across restarts) and <code>MARLEY_PROJECT</code> (its project's folder), which Marley's tools use to know which terminal is calling.</li>
+<li>Each local terminal also gets <code>MARLEY_TERMINAL_ID</code> (its own id, kept across restarts), <code>MARLEY_TERMINAL_TOKEN</code> (a secret for the run that proves the id) and <code>MARLEY_PROJECT</code> (its project's folder), which Marley's tools use to know which terminal is calling. A call that names a terminal without its token counts as from no terminal.</li>
 </ol>
 <p class="note">Tasks, a shell configured with arguments of its own, and fish (for now) run without the integration and make no blocks.</p>
 </article>
@@ -1215,7 +1215,7 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="other-agent-notifications">
-<h3>Codex and OpenCode notifications <span class="ticket">#552</span></h3>
+<h3>Codex and OpenCode notifications <span class="ticket">#552 · #755</span></h3>
 <p class="what"><strong>What it is.</strong> One click sets up desktop notifications for Codex and OpenCode, as the plugin does for Claude Code.</p>
 <h4>How to use it</h4>
 <ul class="points">
@@ -1223,6 +1223,7 @@ th { background: var(--panel); font-weight: 650; }
 <li>Under OpenCode, click <strong>Connect OpenCode to Marley</strong>: Marley writes its plugin to OpenCode's plugin folder (and offers Update when an older one is there).</li>
 <li>Both then notify when a turn ends, when they need you, or when they fail, from a terminal you are not looking at.</li>
 </ul>
+<p class="note">A <code>config.toml</code> that is a symlink stays one, and Marley writes its target. The file keeps its mode, the old text stays in <code>config.toml.marley-backup</code> beside it, and if the file changed while Marley wrote it, nothing is written and Marley says so.</p>
 </article>
 
 <article id="claude-ide-link">
@@ -1803,13 +1804,14 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="browser-per-project">
-<h3>A Chromium per project <span class="ticket">#507 · #583 · #581</span></h3>
+<h3>A Chromium per project <span class="ticket">#507 · #583 · #581 · #755</span></h3>
 <p class="what"><strong>What it is.</strong> Each project gets its own Chromium and profile, so a login in one project is not a login in another, and each project's cookies and storage survive restarts.</p>
 <h4>How to use it</h4>
 <ul class="points">
 <li>A project's Chromium starts with its first Browser tab and keeps running after Marley quits (so restored tabs find their pages) until you log out or remove the project.</li>
 <li>To sign a project out of every site, right-click its header and choose Clear Browser Data…, or run <code>marley: clear project browser data</code>.</li>
 <li>To see or stop the Chromium units: <code>systemctl --user list-units 'marley-browser-*'</code>, then <code>systemctl --user stop &lt;unit&gt;</code>.</li>
+<li>If the kernel kills a page for memory, only that page's tab closes: the project's Chromium and its other tabs keep running.</li>
 </ul>
 <p class="note">Chromium listens on no network port: it talks only to Marley's relay, through files only you can read.</p>
 </article>
@@ -2283,7 +2285,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>MARLEY_CLAUDE</code></td><td>The <code>claude</code> Marley runs for its plugin</td></tr>
 <tr><td><code>CLAUDE_CONFIG_DIR</code></td><td>Where Marley looks for Claude Code's installed plugins</td></tr>
 <tr><td><code>ZED_LOG</code></td><td>The log filter, such as <code>marley_browser=debug</code></td></tr>
-<tr><td>In terminals: <code>MARLEY_TERMINAL_ID</code>, <code>MARLEY_PROJECT</code>, <code>MARLEY_SHELL_INTEGRATION</code>, <code>PORT</code>, <code>MARLEY_PORT_OFFSET</code></td><td>Set by Marley for the shell and programs in it</td></tr>
+<tr><td>In terminals: <code>MARLEY_TERMINAL_ID</code>, <code>MARLEY_TERMINAL_TOKEN</code>, <code>MARLEY_PROJECT</code>, <code>MARLEY_SHELL_INTEGRATION</code>, <code>PORT</code>, <code>MARLEY_PORT_OFFSET</code></td><td>Set by Marley for the shell and programs in it</td></tr>
 </table>
 </article>
 

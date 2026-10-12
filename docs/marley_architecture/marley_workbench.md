@@ -1643,7 +1643,18 @@ alike.
 - `chip` gives the bar Turn on Codex notifications, Connect OpenCode to Marley or Update Marley's
   plugin for OpenCode; a click writes off the main thread (`configure_codex` with `toml_edit`,
   every other key and comment kept, a list of events for `notifications` left as it is; the plugin
-  whole, 0644) and shows a toast or the error.
+  whole) and shows a toast or the error.
+- Since #755 both writes go through `safe_write::replace_in(path, backup, edit)`, the helper for a
+  file another program reads. It follows a symlink to the real file (a dangling one names the
+  file to create), reads the bytes and the identity (device, inode, mode, length, modification
+  time), and makes the new text; equal text writes nothing (`Replaced::Unchanged`). The new text
+  goes to `.<name>.marley-<uuid>.tmp` beside the real file (`create_new`, the original's mode or
+  0644 for a new file, synced). With `backup` (Codex's config, not OpenCode's plugin, which is
+  Marley's whole file) the old bytes go to `<path>.marley-backup` beside the path as named. The
+  file is read again, and a change in bytes or identity refuses the write ("changed while Marley
+  wrote it; nothing was written"); otherwise the temp is renamed into place and the folder synced.
+  A failure removes the temp. Marley's own files (`tasks.json`, the programs `mcp.rs` writes, the
+  fixed-name temps in `clients.rs`, `service.rs` and `relay.rs`) do not use it yet.
 - `agent_plugins/opencode/marley.js` writes an OSC 777 notify to `/dev/tty` on `session.idle`,
   `permission.asked` and `session.error` while `TERM_PROGRAM` is `zed`, so it reaches the terminal
   whatever the process's stdout is, and never throws; #478's path shows it.

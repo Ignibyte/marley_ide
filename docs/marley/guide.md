@@ -685,6 +685,13 @@ To try it, run this and click another pane within five seconds:
 sleep 5; printf '\e]777;notify;Build;finished\a'
 ```
 
+**Codex and OpenCode** (#552). While Codex runs, its agent bar offers Turn on Codex notifications,
+which sets three keys under `[tui]` in Codex's `config.toml`; while OpenCode runs, Connect OpenCode
+to Marley writes Marley's plugin into OpenCode's plugin folder. Marley writes these files the way
+another program's files should be written (#755): a `config.toml` that is a symlink stays one and
+its target is written, the file keeps its mode, the old text stays in `config.toml.marley-backup`
+beside it, and when the file changed while Marley wrote it, nothing is written and Marley says so.
+
 ### The footer and the agent bar
 
 Below its grid a terminal has a footer, empty until an agent CLI runs in the terminal's
@@ -1087,7 +1094,7 @@ directory (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), read when Marley starts, and
 `claude` it found on the PATH then. With no `claude` there, the install fails with "`claude` is not
 on the PATH".
 
-The plugin, `marley` 1.6.0, brings three things:
+The plugin, `marley` 1.7.0, brings three things:
 
 - **Notifications.** Its hooks run when Claude Code needs your permission, when it waits for you,
   and when it finishes, and ask Claude Code to write an OSC 777 notify to its terminal. You get a
@@ -1997,6 +2004,10 @@ alias, a tailnet name), change the host in the line.
 - It reads the endpoint file named by `$MARLEY_MCP_ENDPOINT`, else
   `${XDG_DATA_HOME:-~/.local/share}/marley/mcp-endpoint.json`.
 - It sends the token only to an `http` URL on a loopback address, and never prints it.
+- In a Marley terminal it names that terminal with `MARLEY_TERMINAL_ID` and proves it with
+  `MARLEY_TERMINAL_TOKEN`, a secret Marley gives each terminal for the run (#755). A call that
+  names a terminal without that terminal's token counts as from no terminal, so an agent in one
+  terminal cannot pass for another's, nor use the approvals given there.
 - It opens a session of its own with Marley, replays the client's `initialize` when Marley starts
   over, and closes its session when its input ends.
 - With no Marley running, it answers `initialize` itself and lists no tools, and a tool call
@@ -2187,6 +2198,8 @@ The first Browser tab starts Chromium in the background as a transient systemd u
   the PATH.
 - It keeps running when a tab, a window or Marley closes, and ends when you log out. Closing the
   last Browser tab leaves it running with no page.
+- When the kernel kills one of its pages for memory, the unit keeps running
+  (`OOMPolicy=continue`, #755): that page's tab closes, and the project's other tabs carry on.
 
 Any tool that speaks the Chrome DevTools Protocol can attach to the same Chromium through the
 relay: `relay.json` beside the project's profile holds its WebSocket address and a token, new at

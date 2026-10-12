@@ -123,7 +123,9 @@ serve_site() {
   python3 -u "$E2E_WORK/serve.py" "$E2E_WORK/$site" >"$E2E_WORK/$site.log" 2>&1 &
   echo "$!" >>"$E2E_WORK/servers"
   for _ in $(seq 50); do
-    port=$(grep -oE 'port [0-9]+' "$E2E_WORK/$site.log" | head -1 | cut -d' ' -f2)
+    # `|| true`: the first polls find no port, which under `set -e` would end a scenario that calls
+    # `serve_site` outside a command substitution.
+    port=$(grep -oE 'port [0-9]+' "$E2E_WORK/$site.log" | head -1 | cut -d' ' -f2 || true)
     [[ -n $port ]] && break
     sleep 0.1
   done

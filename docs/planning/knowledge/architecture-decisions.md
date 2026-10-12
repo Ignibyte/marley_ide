@@ -2212,7 +2212,7 @@ alone (a quit or a window with agents in two projects would ask twice); holding 
 without its view (the view carries the scrollback's rendering and the seat's key).
 
 ## AD-claude-520-each-terminal-names-itself-and-the-bridge-names-the-caller-001
-*decided at: 2026-09-26 · status: shipped (slice 1; #574 and #575 follow)*
+*decided at: 2026-09-26 · status: shipped (slice 1; #574 and #575 follow) · its "no authority" clause superseded by AD-claude-755-a-terminal-proves-its-id-with-a-token-for-the-run-001*
 
 Each local interactive terminal starts with `MARLEY_TERMINAL_ID`, a UUID Zed's terminal builder
 mints beside #474's nonce (so a split, rebuilt through the builder, gets its own), and
@@ -5049,3 +5049,35 @@ file]` for a secret one, and lists page at 200 entries or 12,000 bytes. Marley's
 diagnostics are left out. Rejected: a new `lsp_*` family with its own mode, open editors only (the
 agent would need `editor_open`, which takes the user's tab), LSP's 0-based UTF-16 positions, and
 sharing #653's IDE diagnostics (its units are the IDE protocol's).
+
+## AD-claude-755-a-terminal-proves-its-id-with-a-token-for-the-run-001
+*decided at: 2026-10-11 · status: shipped · supersedes: the "no authority" clause of AD-claude-520-each-terminal-names-itself-and-the-bridge-names-the-caller-001*
+
+#520 let the caller's terminal id be a bare claim because it only scoped defaults; #704 then keyed
+the editors area's session approvals on it, so a shell that exported another terminal's
+`MARLEY_TERMINAL_ID` could use that terminal's approvals. Each local interactive terminal now also
+gets `MARLEY_TERMINAL_TOKEN`, a v4 UUID's 32 hex digits minted per id on first ask and kept in
+`marley_terminal::identity`'s process-wide map for the run, set and emptied with the id. The bridge
+and `marley-edit` send it as `Marley-Terminal-Token`, and the transport drops the caller's terminal
+when the token is missing or is not that id's (`token_matches`, constant time), keeping the call,
+its project and its folder. The check reaches `marley_mcp` as a function handed to `spawn`, so the
+crate gains no dependency. Out of scope: a process of the same user reading another terminal's
+environment from `/proc`. Rejected: `SO_PEERCRED` (the MCP server speaks TCP, where none arrives;
+`marley-agent`'s socket keeps it), refusing the call (an old bridge in Claude Code's cache would
+break until the plugin updates; it loses only the terminal), and a credential per MCP session, as
+T3 Code's `McpSessionRegistry` keeps (the harness owns sessions).
+
+## AD-claude-755-other-programs-files-are-replaced-through-one-checked-helper-001
+*decided at: 2026-10-11 · status: shipped · builds on: AD-claude-552-codex-configured-opencode-given-a-file-001*
+
+A file another program reads is replaced through `marley_workbench::safe_write::replace_in`: a
+symlink followed so it stays a link, a temp file beside the real one with the original's mode
+(0644 when new), synced; the old bytes kept as `<path>.marley-backup` when the caller asks (Codex's
+`config.toml`, not OpenCode's plugin, which is Marley's whole file); the file read again just before
+the rename, and the write refused when its bytes or identity (device, inode, mode, length,
+modification time) changed; then the rename and a sync of the folder. Codex's and OpenCode's
+notification setups use it now; Marley's own files move to it in a chore of their own. Rejected:
+Zed's `Fs::atomic_write` (it replaces a symlink with a file, writes mode 0600 and checks nothing),
+the `tempfile` crate (a dev-dependency only here, and `create_new` with a uuid name does the same),
+and a before-and-after card (the setup stays one click; #720's edits are where a preview belongs).
+

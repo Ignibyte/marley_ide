@@ -1364,6 +1364,15 @@ impl TerminalBuilder {
                 marley_terminal::identity::TERMINAL_ID_VARIABLE.to_string(),
                 marley_terminal_id.clone().unwrap_or_default(),
             );
+            // Marley: the token that proves the id to Marley's MCP server, set and emptied with
+            // the id (#755).
+            env.insert(
+                marley_terminal::identity::TOKEN_VARIABLE.to_string(),
+                marley_terminal_id
+                    .as_deref()
+                    .map(marley_terminal::identity::terminal_token)
+                    .unwrap_or_default(),
+            );
             if marley_terminal_id.is_none() {
                 env.insert(
                     marley_terminal::identity::PROJECT_VARIABLE.to_string(),

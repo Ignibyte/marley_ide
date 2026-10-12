@@ -1290,6 +1290,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Three hardening fixes** (#755, 2026-10-11).
+  - Turn on Codex notifications and Connect OpenCode to Marley write their files the way another
+    program's files should be written. A `config.toml` that is a symlink stays one, and its target
+    is written. The file keeps its mode, and the new text goes in by a rename, so no half-written
+    file is ever read. The old Codex config stays in `config.toml.marley-backup`, and a file that
+    changed while Marley wrote it is left alone, with an error that says so.
+  - Each terminal gets `MARLEY_TERMINAL_TOKEN` beside its id, and the plugin's bridge (now 1.7.0)
+    and `marley-edit` send it. A call that names a terminal without that terminal's token counts
+    as from no terminal, so an agent in one terminal cannot pass for another's or use the
+    approvals given there.
+  - A page the kernel kills for memory no longer stops its project's whole Chromium: the unit
+    carries `OOMPolicy=continue`, so only that page's tab closes.
+
 - **Archived threads listed once** (#754). The Threads page counted and listed each archived
   conversation twice, and Reopen Thread… and the rail's Threads view listed archived ones.
 

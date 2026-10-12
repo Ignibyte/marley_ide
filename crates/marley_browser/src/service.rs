@@ -335,7 +335,9 @@ pub fn relay_command(executable: &Path, binary: &Path, profile: &Path) -> Vec<Os
 ///
 /// The unit is removed once it stops, its helpers stopped with it. A stop sends SIGTERM to the
 /// main process alone (`KillMode=mixed`), the relay, which closes Chromium over its pipe first
-/// (#583).
+/// (#583). A renderer the kernel kills for memory leaves the unit running (`OOMPolicy=continue`,
+/// #755): systemd's default stops the whole unit then, which would close every tab of the project
+/// for one page's memory.
 #[must_use]
 pub fn systemd_run_args(unit: &str, command: &[OsString]) -> Vec<OsString> {
     let mut args: Vec<OsString> = [
@@ -347,6 +349,7 @@ pub fn systemd_run_args(unit: &str, command: &[OsString]) -> Vec<OsString> {
         "--service-type=exec",
         "--property=KillMode=mixed",
         "--property=TimeoutStopSec=10",
+        "--property=OOMPolicy=continue",
         "--",
     ]
     .iter()

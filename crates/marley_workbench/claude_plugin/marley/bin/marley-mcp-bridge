@@ -162,6 +162,8 @@ def messages_in(body, kind):
 # A terminal id, as Marley mints them: a UUID.
 TERMINAL_ID = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 MAX_PATH = 4096
+# A terminal's token, as Marley mints them: 32 hex digits.
+TOKEN = re.compile(r"^[0-9a-f]{32}$")
 
 
 def caller_headers():
@@ -173,6 +175,10 @@ def caller_headers():
     terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
     if TERMINAL_ID.match(terminal):
         headers["Marley-Terminal"] = terminal
+        # The token that proves the id; a call without it runs as from no terminal.
+        token = os.environ.get("MARLEY_TERMINAL_TOKEN", "")
+        if TOKEN.match(token):
+            headers["Marley-Terminal-Token"] = token
     try:
         cwd = os.getcwd()
     except OSError:

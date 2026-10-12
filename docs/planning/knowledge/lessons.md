@@ -5534,3 +5534,37 @@ and `thread_source` (`user`, `subagent`, `guardian_review`) decide it; its `sour
 on an App Server writes `vscode`). Codex 0.162 writes prompts as `item_completed` `UserMessage`
 items, names threads only in `session_index.jsonl`, and a rollout can pass 100 MB, so read a head
 and a tail.
+
+## L-claude-755-terminal-lists-id-is-the-views-not-the-environments-001
+*category: e2e · topic: checking a caller's terminal in a scenario · from: pipeline 755*
+
+`terminal_list`'s `id` is the terminal view's entity id (`12884902166`), not the
+`MARLEY_TERMINAL_ID` UUID the terminal's programs see and the bridge sends. #755's first spoof check
+set `MARLEY_TERMINAL_ID` to a listed id: the bridge dropped it for its shape, no row was `self`, and
+the check passed with nothing tested. To claim another terminal's identity, have that terminal
+write `$MARLEY_TERMINAL_ID` to a file and borrow it from there. A negative check (no row is
+`self`) needs a positive one beside it that the same set-up can fail.
+
+## L-claude-755-a-renderer-killed-for-memory-needs-a-cap-and-no-swap-001
+*category: e2e · topic: making the kernel kill one of Chromium's renderers · from: pipeline 755*
+
+A project's Chromium is a user unit, so a scenario can cap it at run time:
+`systemctl --user set-property --runtime <unit> MemoryMax=<MemoryCurrent + 400 MiB>
+MemorySwapMax=0`. Without `MemorySwapMax=0` the hungry renderer swapped instead of dying and ate
+7.7 GiB of the box first; give the page a ceiling of its own (64 blocks of 32 MiB) so a cap that
+does not hold cannot eat the machine. The journal then says "The kernel OOM killer killed some
+processes in this unit."; grep it with `|| true` under `set -e`. Marley closes the killed page's
+tab on `Target.targetCrashed`, so shoot the hungry tab before the kill, or the after shot cannot
+show a second tab ever existed.
+
+## L-claude-755-serve-site-no-longer-ends-a-run-outside-a-substitution-001
+*category: e2e · topic: the browser fixture's serve_site · from: pipeline 755*
+
+The third run ended by a poll under `set -e` (after
+L-claude-535-a-setup-wait-loop-under-set-e-exits-without-a-word-001 and
+L-claude-565-a-poll-in-setup-dies-under-set-e-001), and the first through the fixture itself: #755's
+`setup` called `serve_site` outside `$(…)`, its first poll found no port, and `set -e` with
+`pipefail` ended the run with nothing printed. Both earlier lessons noted that `serve_site` survived
+only inside a substitution. The fixture's poll now ends with `|| true`, so `serve_site` is safe in
+any context; the trap stays for a scenario's own wait loops.
+

@@ -290,16 +290,8 @@ fn write_codex() -> anyhow::Result<()> {
 }
 
 fn write_codex_in(path: &Path) -> anyhow::Result<()> {
-    let text = match std::fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(error).context(format!("reading {}", path.display())),
-    };
-    let configured = configure_codex(&text)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context(format!("making {}", parent.display()))?;
-    }
-    std::fs::write(path, configured).context(format!("writing {}", path.display()))
+    // A symlink stays a link, the mode stays, and the old text is kept beside it (#755).
+    crate::safe_write::replace_in(path, true, configure_codex).map(|_| ())
 }
 
 /// Writes the plugin `OpenCode` loads, whole.
@@ -308,11 +300,6 @@ fn write_plugin() -> anyhow::Result<()> {
 }
 
 fn write_plugin_in(path: &Path) -> anyhow::Result<()> {
-    use std::os::unix::fs::PermissionsExt as _;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context(format!("making {}", parent.display()))?;
-    }
-    std::fs::write(path, OPENCODE_PLUGIN).context(format!("writing {}", path.display()))?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644))
-        .context(format!("setting {}'s permissions", path.display()))
+    // The plugin is Marley's whole file, versioned in its first line, so no backup (#755).
+    crate::safe_write::replace_in(path, false, |_| Ok(OPENCODE_PLUGIN.to_string())).map(|_| ())
 }
