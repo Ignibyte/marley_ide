@@ -7,7 +7,8 @@
 //! kind of event has its switch. The line carries nothing the agent wrote. The server must be
 //! on this machine (ntfy on the dev box, which `tailscale serve` publishes to the phone), a token
 //! comes from a file only its owner can read, a burst of events from one project makes one push,
-//! and a server that does not answer shows one toast until it answers again.
+//! and a server that does not answer shows one toast until it answers again. A Claude Code with
+//! Remote Control pushes nothing here: the Claude app does (#757).
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -66,6 +67,15 @@ pub(crate) fn on_change(
         return;
     };
     if notifications::looking_at(view, window, cx) {
+        return;
+    }
+    // The Claude app pushes for a session with Remote Control, so the phone rings once (#757).
+    let argv = view
+        .terminal()
+        .read(cx)
+        .marley_foreground_argv()
+        .unwrap_or_default();
+    if marley_agent::remote_control(AgentKind::Claude, &argv) {
         return;
     }
     push(

@@ -381,6 +381,8 @@ pub struct TerminalAgent {
     pub status: AgentStatus,
     /// Whether it runs without its permission prompts, and where Marley read it (#532).
     pub mark: Option<PermissionMark>,
+    /// Whether Claude Code runs with Remote Control, its session on the Claude app (#757).
+    pub remote: bool,
 }
 
 /// One agent thread.
@@ -3036,6 +3038,7 @@ mod tests {
             kind: AgentKind::Claude,
             status: AgentStatus::Waiting,
             mark: None,
+            remote: false,
         };
         let mut claude = terminal(7, false);
         claude.agent = Some(agent);

@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Claude Code on your phone** (#757, 2026-10-12). Claude Code Remote Control, a switch on the
+  Marley page that starts off, starts every Claude Code Marley opens with `--remote-control`, so
+  its session shows in the Claude app. Its row shows a `remote` chip, and Marley's own phone push
+  skips the session so the phone rings once.
+
 - **Notes on a Markdown file or an agent's last reply** (#729, 2026-10-12). `marley: review
   markdown` opens a Markdown file, and `marley: review last reply` (or Review Last Reply in the
   rail's menus) an agent's last reply, in the plan review tab: select a passage, press `c`, write a

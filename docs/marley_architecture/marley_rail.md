@@ -121,7 +121,8 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   `It merges cleanly.`, or `This git cannot tell whether it merges cleanly.`
 - **`TerminalAgent::mark`** (#532) is the agent's permission mark, `marley_agent`'s
   `PermissionMark`, when it runs without its permission prompts; the builders copy it with the
-  agent, and it decides no order or visibility.
+  agent, and it decides no order or visibility. `TerminalAgent::remote` (#757) says Claude Code
+  runs with `--remote-control`; it decides nothing either.
 - **`TerminalSnapshot::turns`** (#509) are the turns of the terminal's Claude Code that changed
   the tree, newest first, as `TurnSnapshot { title, files, failed, injected, sha, mark }`, where
   `mark` is the `TurnMark` (`Kept` or `Undone`, #714) the user gave it, and

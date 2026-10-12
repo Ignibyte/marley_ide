@@ -219,6 +219,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#attach-files">Attach files and images; copy and paste</a></li>
 <li><a href="#dictation">Dictation</a></li>
 <li><a href="#permission-modes">Permission modes</a></li>
+<li><a href="#remote-control">Claude Code on your phone (Remote Control)</a></li>
 <li><a href="#codex-app-server">Codex&#x27;s App Server</a></li>
 <li><a href="#agent-reads-terminals">Agents read your terminals</a></li>
 <li><a href="#agent-runs-commands">Agents run commands at your prompt</a></li>
@@ -1328,6 +1329,18 @@ th { background: var(--panel); font-weight: 650; }
 <li>Click the microphone, or run <code>marley: toggle dictation</code>. It turns red while recording.</li>
 <li>Speak, then click again. It turns yellow while transcribing, and your words are typed where the focus is.</li>
 </ol>
+</article>
+
+<article id="remote-control">
+<h3>Claude Code on your phone (Remote Control) <span class="ticket">#757</span></h3>
+<p class="what"><strong>What it is.</strong> A switch that starts every Claude Code Marley opens with <code>--remote-control</code>, so its session shows in the Claude app on your phone, where you can read it, answer its questions and send it prompts.</p>
+<h4>How to use it</h4>
+<ol class="steps">
+<li>On the Marley page (Agents), turn on <strong>Claude Code Remote Control</strong> (<code>marley.claude_code_remote_control</code>, off by default). It applies to Claude Code started after the change: from New Agent, the English hint, a worktree, a launch config or a resume.</li>
+<li>Its row in the rail shows a <code>remote</code> chip. Open the Claude app to find the session.</li>
+<li>Marley's own push to your phone (ntfy) skips such a session, since the Claude app notifies you for it. Desktop notices stay.</li>
+</ol>
+<p class="note">The session travels through Anthropic's service, which is why the switch starts off. Checked on Claude Code 2.1.296.</p>
 </article>
 
 <article id="permission-modes">

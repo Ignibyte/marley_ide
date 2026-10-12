@@ -922,6 +922,15 @@ for Codex `--sandbox danger-full-access` (or `-s`), a `--config` of `sandbox_mod
 `config.toml` sets shows no chip: Codex tells Marley nothing but its arguments, unless it runs
 against its own App Server, below.
 
+**Claude Code on your phone** (#757), Claude Code Remote Control in the Marley page's Agents
+section (`marley.claude_code_remote_control`), off by default. On, every Claude Code Marley starts
+gets `--remote-control`, so its session shows in the Claude app on your phone: from New Agent, the
+English hint, a worktree, a launch config or a resume. A prompt Marley gives it follows a `--`,
+since the flag takes an optional name. Its row shows a `remote` chip, read from the arguments it
+runs with, so one you started by hand with the flag shows it too. Marley's own push skips the
+session, since the Claude app notifies you for it; desktop notices stay. The session travels
+through Anthropic's service, which is why the switch starts off. Checked on Claude Code 2.1.296.
+
 **Codex's own App Server** (#650), Codex App Server in the Marley settings, off by default. On,
 each Codex Marley launches in a local project (the `+`, New Agent, a worktree agent, a launch
 config) runs against an App Server of its own: Marley starts `codex app-server` for the terminal,

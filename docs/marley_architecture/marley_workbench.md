@@ -528,6 +528,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `marley_agent::permission_mark` with the seat's `PERMISSION_MODE_LABEL` and the terminal's
   `marley_foreground_argv`; `render_terminal_row` draws `permission_chip`, a pill as the inbox's
   chips are, in `Color::Warning` with the mark's tooltip, before #569's `stall_flag`.
+- **Remote Control** (#757). `AgentPermissions` also holds `claude_code_remote_control`, and
+  `launch_mode` sets the mode's `remote_control` for Claude Code only. `terminal_snapshot` sets
+  `TerminalAgent.remote` through `runs_remote` (`marley_agent::remote_control` over the
+  foreground's arguments); `terminal_marks` draws `remote_chip`, a muted pill, after the
+  permission chip.
 
 - **`is_threads_list_view_active` stays `false`.** `true` would make Zed treat every thread
   in the window as seen while the rail is open. That would silence the OS pop-ups and sounds
@@ -3119,6 +3124,8 @@ below describe what #743 retired.
   user is not looking at the terminal (`notifications::looking_at`, the gate desktop banners use),
   only to a loopback host and an ntfy topic (`target_url`), and at most once per project in 5
   seconds. The line is `marley_agent::event_line` over the last folder of the seat's `cwd`.
+  A terminal whose foreground arguments hold `--remote-control` (`marley_agent::remote_control`)
+  pushes nothing, since the Claude app notifies for it (#757).
 - `post` runs on a background task: the token from `token_file`, refused when group or others
   can read the file; `Title: Marley`, `Priority` 4 (needs input, failed) or 3 (finished), `Tags`
   `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a

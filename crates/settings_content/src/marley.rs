@@ -178,6 +178,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "ask"
     pub claude_code_permissions: Option<ClaudeCodePermissions>,
+    /// Whether Marley starts Claude Code with `--remote-control`, which puts the session on the
+    /// Claude app through Anthropic's service; Marley's own push skips such a session (#757).
+    ///
+    /// Default: false
+    pub claude_code_remote_control: Option<bool>,
     /// Whether Marley starts Codex with its own approvals and sandbox or with full access,
     /// `--sandbox danger-full-access --ask-for-approval never` (#532). An entry of
     /// `agent_permissions_by_project` wins for its project.

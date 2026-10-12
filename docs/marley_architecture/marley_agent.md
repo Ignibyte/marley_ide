@@ -22,7 +22,9 @@ impl AgentKind {
 }
 pub fn agent_kind_of(command: &str) -> Option<AgentKind>;
 pub fn send_payload(line: &str) -> Vec<u8>;        // the line and a carriage return
-pub enum LaunchMode { Ask, Bypass }                // #532
+pub struct LaunchMode { pub bypass: bool, pub remote_control: bool }   // #532, #757
+pub const REMOTE_CONTROL_ARGUMENT: &str;         // "--remote-control", #757
+pub fn remote_control(kind: AgentKind, argv: &[String]) -> bool;     // #757
 pub fn launch_input(kind: AgentKind, mode: LaunchMode) -> Vec<u8>;
                                                      // the program, the mode's arguments, Enter
 pub fn launch_line(kind: AgentKind, mode: LaunchMode, prompt: &str) -> Vec<u8>;   // #510
@@ -60,12 +62,16 @@ pub fn ssh_dialog_title(project: &str, kind: AgentKind) -> String;
   are case-sensitive. The rail feeds it a terminal's foreground argv, never a process name:
   Claude Code's binary on the dev box is named after its version.
 - **`launch_input`** is everything the rail writes to start an agent: a program name from the
-  fixed list, for `LaunchMode::Bypass` the agent's own bypass arguments (Claude Code's
+  fixed list, for a mode with `bypass` the agent's own bypass arguments (Claude Code's
   `--dangerously-skip-permissions`; Codex's `--sandbox danger-full-access --ask-for-approval
-  never`, never `--dangerously-bypass-approvals-and-sandbox`), and Enter. No text from a user
-  or a file reaches the shell this way (#532 keeps it: the arguments are constants).
+  never`, never `--dangerously-bypass-approvals-and-sandbox`), for Claude Code with
+  `remote_control` `--remote-control` after them (#757), and Enter. No text from a user or a file
+  reaches the shell this way (#532 keeps it: the arguments are constants). `LaunchMode` was an
+  enum until #757 made it a `Copy` struct with `LaunchMode::ASK`, so the Remote Control flag
+  reaches every line `command` writes, the resume line included, with no signature changed.
 - **`launch_line`** (#510) adds a first prompt as one quoted argument: positional for Claude Code
-  and Codex, after a `--` when it starts with `-`; `--prompt-interactive=` for Gemini CLI and
+  and Codex, after a `--` when it starts with `-` or Claude Code runs with Remote Control, whose
+  flag takes an optional name (#757); `--prompt-interactive=` for Gemini CLI and
   `--prompt=` for OpenCode. `quote_argument` puts runs of anything but an apostrophe or a
   backslash in single quotes and each of those two in double quotes, Orca's form (MIT), which
   bash, zsh and fish read alike; fish reads `\'` and `\\` as escapes inside single quotes, so sh's

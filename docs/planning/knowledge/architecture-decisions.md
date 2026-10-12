@@ -5371,3 +5371,16 @@ its last 16 MiB off the main thread, taking only the assistant `text` blocks aft
 Sent notes stay, marked. Rejected: notes inside Zed's Markdown preview (a Zed view drawing
 Marley's notes, and no preview for a reply), gutter notes on the raw file, the Stop frame's
 300-character message, and scraping the terminal's screen.
+
+## AD-claude-757-remote-control-rides-the-launch-mode-001
+*decided at: 2026-10-12 · status: shipped*
+
+Claude Code's Remote Control is a setting, off by default since the session travels through
+Anthropic's service, that adds `--remote-control` to every Claude Code line Marley writes. It rides
+in `LaunchMode`, made a struct of `bypass` and `remote_control` for it, so one place,
+`marley_agent::command`, covers New Agent, the English hint, worktrees, launch configs and
+resumes, and a prompt after the flag follows a `--`, since the flag takes an optional name. The
+row's `remote` chip and the push skip both read the running process's arguments, so a Claude Code
+started by hand with the flag counts too. Rejected: a per-project value (not asked for), a name per
+session (`--remote-control=<name>`), and keeping Marley's push for such a session, which would
+ring the phone twice.

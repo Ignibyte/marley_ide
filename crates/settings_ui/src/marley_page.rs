@@ -190,7 +190,7 @@ fn layout_section() -> [SettingsPageItem; 7] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 22] {
+fn agents_section() -> [SettingsPageItem; 23] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -598,6 +598,29 @@ fn agents_section() -> [SettingsPageItem; 22] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().plan_review = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Claude Code's Remote Control, off by default (#757).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Claude Code Remote Control",
+            description: "Start Claude Code with --remote-control, so its sessions show in the Claude app on your phone, through Anthropic's service. Its row shows a remote chip, and Marley's own push skips the session. Applies to Claude Code started after the change.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.claude_code_remote_control"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.claude_code_remote_control.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .claude_code_remote_control = value;
                 },
             }),
             metadata: None,

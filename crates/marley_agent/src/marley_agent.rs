@@ -140,16 +140,29 @@ pub fn send_payload(line: &str) -> Vec<u8> {
     format!("{line}\r").into_bytes()
 }
 
-/// Whether Marley starts an agent CLI with its own permission prompts (#532).
+/// How Marley starts an agent CLI: with or without its own permission prompts (#532), and for
+/// Claude Code whether with Remote Control (#757).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum LaunchMode {
-    /// With them.
-    #[default]
-    Ask,
-    /// Without them: Claude Code's bypass, Codex's full access. The other agents start as they
-    /// are.
-    Bypass,
+pub struct LaunchMode {
+    /// Without its permission prompts: Claude Code's bypass, Codex's full access. The other agents
+    /// start as they are.
+    pub bypass: bool,
+    /// Claude Code with `--remote-control`, its session on the Claude app; the other agents
+    /// ignore it.
+    pub remote_control: bool,
 }
+
+impl LaunchMode {
+    /// With its permission prompts and nothing more.
+    pub const ASK: Self = Self {
+        bypass: false,
+        remote_control: false,
+    };
+}
+
+/// Claude Code's flag that puts its session on the Claude app (#757); its name argument is
+/// optional, so a prompt after it follows a `--`.
+pub const REMOTE_CONTROL_ARGUMENT: &str = "--remote-control";
 
 /// The arguments that start `kind` without its permission prompts: for Codex, the two its Full
 /// Access preset stands for, and never `--dangerously-bypass-approvals-and-sandbox`, which its
@@ -205,7 +218,8 @@ pub struct Remote<'a> {
 /// What starts `kind` in a shell with `prompt` as its first prompt (#510).
 ///
 /// [`launch_input`]'s words, then the prompt as one quoted argument, the way each agent takes
-/// one, and Enter. A prompt that starts with `-` follows a `--` for Claude Code and Codex, and
+/// one, and Enter. A prompt that starts with `-` follows a `--` for Claude Code and Codex, as does
+/// any prompt of a Claude Code with Remote Control, whose flag would take it as its name (#757);
 /// Gemini CLI and `OpenCode` take theirs in an option's `=` form, so no prompt is read as an
 /// option. An empty prompt starts the agent with none.
 #[must_use]
@@ -223,7 +237,7 @@ fn line_with(kind: AgentKind, mode: LaunchMode, prompt: &str, remote: Option<&Re
     line.push(' ');
     match kind {
         AgentKind::Claude | AgentKind::Codex => {
-            if prompt.starts_with('-') {
+            if prompt.starts_with('-') || (kind == AgentKind::Claude && mode.remote_control) {
                 line.push_str("-- ");
             }
         }
@@ -275,7 +289,7 @@ pub fn resume_line(
                     )
                 },
             );
-            if mode == LaunchMode::Bypass {
+            if mode.bypass {
                 for argument in bypass_arguments(kind) {
                     line.push(' ');
                     line.push_str(argument);
@@ -326,8 +340,9 @@ pub fn launch_line_after(
     after
 }
 
-/// The program and the arguments `mode` asks for; with `remote`, the program's full path and the
-/// App Server's two arguments first, each one quoted word.
+/// The program and the arguments `mode` asks for, Remote Control's after the bypass's (#757); with
+/// `remote`, the program's full path and the App Server's two arguments first, each one quoted
+/// word.
 fn command(kind: AgentKind, mode: LaunchMode, remote: Option<&Remote>) -> String {
     let mut line = remote.map_or_else(
         || kind.program().to_string(),
@@ -340,11 +355,15 @@ fn command(kind: AgentKind, mode: LaunchMode, remote: Option<&Remote>) -> String
             )
         },
     );
-    if mode == LaunchMode::Bypass {
+    if mode.bypass {
         for argument in bypass_arguments(kind) {
             line.push(' ');
             line.push_str(argument);
         }
+    }
+    if mode.remote_control && kind == AgentKind::Claude {
+        line.push(' ');
+        line.push_str(REMOTE_CONTROL_ARGUMENT);
     }
     line
 }
@@ -636,6 +655,19 @@ pub fn permission_mark(
     })
 }
 
+/// Whether `kind` runs with Claude Code's Remote Control, by the process's arguments `argv`
+/// (#757): `--remote-control`, or its `=` form with a name, among the options.
+#[must_use]
+pub fn remote_control(kind: AgentKind, argv: &[String]) -> bool {
+    kind == AgentKind::Claude
+        && options(argv).iter().any(|argument| {
+            argument == REMOTE_CONTROL_ARGUMENT
+                || argument
+                    .strip_prefix(REMOTE_CONTROL_ARGUMENT)
+                    .is_some_and(|rest| rest.starts_with('='))
+        })
+}
+
 /// The sandbox policy a Codex thread reports when it runs with no sandbox (#650).
 pub const THREAD_FULL_ACCESS: &str = "dangerFullAccess";
 
@@ -907,7 +939,7 @@ mod tests {
             );
             // The command the launch writes is recognized back as the same agent.
             let launched =
-                String::from_utf8(launch_input(kind, LaunchMode::Ask)).expect("the launch is text");
+                String::from_utf8(launch_input(kind, LaunchMode::ASK)).expect("the launch is text");
             assert_eq!(agent_kind_of(&launched), Some(kind));
         }
         assert_eq!(agent_kind_of("ls"), None);
@@ -924,11 +956,11 @@ mod tests {
     #[test]
     fn the_launch_is_the_program_and_enter() {
         assert_eq!(
-            launch_input(AgentKind::Claude, LaunchMode::Ask),
+            launch_input(AgentKind::Claude, LaunchMode::ASK),
             b"claude\r"
         );
         assert_eq!(
-            launch_input(AgentKind::OpenCode, LaunchMode::Ask),
+            launch_input(AgentKind::OpenCode, LaunchMode::ASK),
             b"opencode\r"
         );
         assert_eq!(send_payload("ls"), b"ls\r");

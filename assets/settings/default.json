@@ -1851,6 +1851,10 @@
     // "bypass" (--dangerously-skip-permissions). A rail row carries a mark while an agent runs
     // without its prompts, however it was started.
     "claude_code_permissions": "ask",
+    // Whether Marley starts Claude Code with --remote-control (#757), which puts the session on
+    // the Claude app through Anthropic's service. Its row shows a "remote" chip, and Marley's own
+    // push skips the session.
+    "claude_code_remote_control": false,
     // What Marley starts Codex with (#532): "ask" (its own approvals and sandbox) or
     // "full_access" (--sandbox danger-full-access --ask-for-approval never).
     "codex_permissions": "ask",

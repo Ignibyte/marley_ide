@@ -192,6 +192,8 @@ pub fn thread_agents(
 pub struct AgentPermissions {
     claude_code: ClaudeCodePermissions,
     codex: CodexPermissions,
+    /// Claude Code with Remote Control, in every project (#757).
+    claude_code_remote_control: bool,
     /// The per-project entries, their folders with `~/` expanded.
     by_project: Vec<ProjectPermissions>,
 }
@@ -215,6 +217,9 @@ impl AgentPermissions {
             codex: content
                 .and_then(|content| content.codex_permissions)
                 .unwrap_or_default(),
+            claude_code_remote_control: content
+                .and_then(|content| content.claude_code_remote_control)
+                .unwrap_or(false),
             by_project: content
                 .and_then(|content| content.agent_permissions_by_project.as_ref())
                 .into_iter()
@@ -232,7 +237,7 @@ impl AgentPermissions {
 
     /// How `kind` starts in a local project whose main folders are `folders`: as the entry says
     /// whose folder holds one of them, the longest of those that sets `kind`, else as the default
-    /// says.
+    /// says; Claude Code with Remote Control while that setting is on (#757).
     #[must_use]
     pub fn launch_mode(&self, kind: AgentKind, folders: &[PathBuf]) -> LaunchMode {
         let bypasses = |entry: &ProjectPermissions| match kind {
@@ -260,10 +265,9 @@ impl AgentPermissions {
             AgentKind::Codex => self.codex == CodexPermissions::FullAccess,
             AgentKind::Gemini | AgentKind::OpenCode => false,
         });
-        if bypass {
-            LaunchMode::Bypass
-        } else {
-            LaunchMode::Ask
+        LaunchMode {
+            bypass,
+            remote_control: kind == AgentKind::Claude && self.claude_code_remote_control,
         }
     }
 }

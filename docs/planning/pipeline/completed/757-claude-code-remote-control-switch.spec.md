@@ -1,7 +1,7 @@
 ---
 pipeline_id: 7194a006-da52-4d6c-8963-46c186795aa2
 ticket: docs/planning/tickets/open/TICKET-757-claude-code-remote-control-switch.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Claude Code's Remote Control switch
 type: feature
 slice: the phone path (docs/t3code_architecture/README.md item 13; report 04 item 2), shelved

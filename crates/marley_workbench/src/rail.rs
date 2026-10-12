@@ -8675,6 +8675,7 @@ fn terminal_snapshot(
             |seat| claude_events::seat_status(seat.state),
         ),
         mark: agent_mark(kind, terminal.read(cx), seat),
+        remote: runs_remote(kind, terminal.read(cx)),
     });
     let (title, subtitle) = agent.map_or_else(
         || {
@@ -8875,6 +8876,11 @@ fn agent_mark(
         &terminal.marley_foreground_argv().unwrap_or_default(),
         label(claude_events::PERMISSION_MODE_LABEL),
     )
+}
+
+/// Whether the agent in `terminal` is a Claude Code with Remote Control (#757).
+fn runs_remote(kind: AgentKind, terminal: &Terminal) -> bool {
+    marley_agent::remote_control(kind, &terminal.marley_foreground_argv().unwrap_or_default())
 }
 
 /// A Codex row's line from its App Server's thread (#650): the state's words and the thread's
@@ -9971,6 +9977,27 @@ fn permission_chip(id: u64, mark: marley_agent::PermissionMark, cx: &App) -> Sta
         .tooltip(Tooltip::text(mark.tooltip()))
 }
 
+/// The chip of a Claude Code whose session is on the Claude app (#757), muted beside the warning
+/// of the permission chip.
+fn remote_chip(id: u64, cx: &App) -> Stateful<Div> {
+    div()
+        .id(("marley-rail-remote", id))
+        .debug_selector(move || format!("marley-rail-remote-{id}"))
+        .flex_none()
+        .px_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(
+            Label::new("remote")
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+        .tooltip(Tooltip::text(
+            "Remote Control: this session is on the Claude app",
+        ))
+}
+
 /// A worktree row's drift (#560): a pill with how far its branch is behind its base, muted, or
 /// how many files a merge would stop on, in the warning color with Zed's conflict icon; its
 /// tooltip says the rest. None while the branch is up to date and merges cleanly.
@@ -10019,14 +10046,19 @@ fn stall_flag(id: u64, flag: String) -> Stateful<Div> {
         .tooltip(Tooltip::text(flag))
 }
 
-/// A terminal row's marks before its end: an agent's permission chip, its stall flag (#569) and
-/// a running command's failure (#572).
+/// A terminal row's marks before its end: an agent's permission chip, its Remote Control chip
+/// (#757), its stall flag (#569) and a running command's failure (#572).
 fn terminal_marks(row: &TerminalRow, cx: &App) -> Vec<Stateful<Div>> {
     let id = row.id;
     row.agent
         .and_then(|agent| agent.mark)
         .map(|mark| permission_chip(id, mark, cx))
         .into_iter()
+        .chain(
+            row.agent
+                .filter(|agent| agent.remote)
+                .map(|_| remote_chip(id, cx)),
+        )
         .chain(row.flag.clone().map(|flag| stall_flag(id, flag)))
         .chain(
             row.running_error
