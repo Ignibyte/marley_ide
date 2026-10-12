@@ -2,10 +2,9 @@
 
 - **Ticket:** LOCAL #719 (feature; Marley's part small to medium, after the harness's)
 - **Owner:** 4a72b24c-9078-4b13-afe3-4d0e692d70e0
-- **Pipeline doc:** none yet. The scheduler is rustal-harness's; Marley's spec is written when the
-  harness has said what it serves.
+- **Pipeline doc:** [719-scheduled-runs.spec.md](../../pipeline/queued/719-scheduled-runs.spec.md)
 - **Source ticket:** [monocode-findings.md](../../intake/monocode-findings.md), item 6; Chad, 2026-10-09: "lets queue up the MonoCode findings for potential future use"; Chad, 2026-10-11: "15.) harness yes"
-- **Status:** open (deliberate: waits on rustal-harness)
+- **Status:** open (queued 2026-10-12; waits on rustal-harness's MREQ-011 ticket)
 
 ## Summary
 Recurring prompts (hourly, daily, weekdays) that run an agent in a background session, keep every
