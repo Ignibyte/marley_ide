@@ -2830,6 +2830,19 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
+## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
+
+- `review_tools::guide_open` checks the guide (`guide_of`: a title, 1 to 30 sections, absolute
+  paths, lines from 1, titles and summaries cut), finds the project holding the first file, else
+  the caller's folder (`Caller::cwd`), is admitted as `review_notes_add` is, then activates that
+  workspace and runs `guide_tab::open`.
+- `guide_tab::open` replaces the sections of an open `GuideTab` with the same title (ticks cleared)
+  or adds a new one to the center. Summaries are `Markdown::new` entities (HTML not parsed), drawn
+  with `MarkdownStyle::themed(Preview)`. A section's Reviewed `Checkbox` folds it to its title and
+  counts it; a chip runs `ProjectDiff::deploy_at_project_path` when the repository reports a status
+  for the file (`in_project_diff`), else `open_abs_path` and `go_to_singleton_buffer_point`. Ticks
+  live with the tab.
+
 ## Viewed marks in the project diff (`src/viewed_marks.rs`, Zed's `editor`, #731)
 
 - `review_notes::init` calls `viewed_marks::init`, which follows `observe_new::<ProjectDiff>`:

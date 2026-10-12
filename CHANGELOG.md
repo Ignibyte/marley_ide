@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Guided review** (#733, 2026-10-12). An agent can hand you a change in ordered sections with
+  `review_guide_open`. A Guide tab shows each section's summary, a chip per file that brings the
+  file up in the project diff, and a Reviewed box that folds the section away, with "K of N
+  reviewed" at the top.
+
 - **Viewed marks in the project diff** (#731, 2026-10-12). Each file's header in the project diff
   ends with a Viewed tick. Ticking folds the file out of the way, and it stays ticked after a
   restart. When the file's diff changes, as when an agent rewrites it, the tick goes and the file

@@ -1357,6 +1357,14 @@ of the file's diff, so it is still there after a restart, and it goes, with the 
 soon as the diff changes: your save, an agent's write, or a commit that moves the base. The branch
 diff has no ticks yet.
 
+**Guided review** (#733). An agent can split a change into sections and hand them to you with
+`review_guide_open`. A **Guide** tab opens in the project holding the first file: the guide's title
+and summary, "K of N reviewed", then each section in order with its summary, a chip per file
+(`alpha.txt:3`) and a **Reviewed** box. A chip shows the file in the project diff when it has
+changes, else opens it at its line. Ticking a section folds it to its title. A guide sent again with
+the same title replaces the open one, its ticks cleared; ticks are not kept after the tab closes.
+It asks first, as the editor tools do.
+
 **Findings from tools** (#730). An agent or a tool connected to Marley's MCP server can put its
 findings into the project diff with `review_notes_add`: each note under its lines on the changed
 side, with where it came from (`clippy`, `codex review`, or the caller's name) and **Keep** and
@@ -2126,6 +2134,8 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   draft open and says why.
 - `review_notes_add` puts findings into the project diff as notes you keep or drop (#730), as
   "Findings from tools" under Review notes to the agent describes. It asks as `editor_open` does.
+- `review_guide_open` opens a guided review in a tab (#733), as "Guided review" under Review notes
+  to the agent describes. It asks as `editor_open` does.
 - `action_list` lists the palette actions an agent may run (#707). These are Marley's safe ones
   (docks and panels, splits, pane navigation, search, go-to, Format, folds and the finders) and
   any you name in `marley.agent_control.actions_allowed`. Settings → Marley → Agent Control →

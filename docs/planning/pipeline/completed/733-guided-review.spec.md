@@ -1,7 +1,7 @@
 ---
 pipeline_id: 76921186-e24a-426e-a5a9-6cabf7fc6068
 ticket: docs/planning/tickets/open/TICKET-733-guided-review.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Guided review
 type: feature
 slice: the review batch after the finish (docs/planning/intake/plannotator-findings.md item 8; docs/planning/design-notes/finish-line-2026-10-11.md row 11); after #730 (the `review` tool family)

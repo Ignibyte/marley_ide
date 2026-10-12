@@ -736,6 +736,19 @@ const REGISTRY: &[ToolSpec] = &[
                       the editor tools do.",
     },
     ToolSpec {
+        family: Family::Review,
+        verb: "guide_open",
+        tier: Tier::Write,
+        grant_class: "review.write",
+        description: "Hand the user a guided review of a change: `title`, an optional `summary`, \
+                      and 1 to 30 `sections` in reading order, each a `title`, a Markdown \
+                      `summary` and `files` (absolute `path`, optional `first_line` and \
+                      `last_line`). Marley opens a Guide tab in the project holding the first \
+                      file: each section with its summary, a chip per file that shows it in the \
+                      project diff, and a Reviewed box. A guide with the same title in the same \
+                      project replaces the open one. Asks the user first, as the editor tools do.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -922,7 +935,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Keymap => keymap_change_schemas(),
         Family::Seat => seat_schemas(spec.verb),
         Family::Draft => draft_schemas(),
-        Family::Review => review_schemas(),
+        Family::Review => review_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -977,9 +990,13 @@ fn draft_schemas() -> (Value, Value) {
     )
 }
 
-/// The schemas of `review_notes_add` (#730): the source and the notes; the answer lists the notes
-/// placed and the ones left out.
-fn review_schemas() -> (Value, Value) {
+/// The schemas of the `review` family: `review_notes_add` (#730), the source and the notes, the
+/// answer listing the notes placed and the ones left out; `review_guide_open` (#733), the guide's
+/// sections, the answer naming its tab.
+fn review_schemas(verb: &str) -> (Value, Value) {
+    if verb == "guide_open" {
+        return guide_schemas();
+    }
     (
         json!({
             "type": "object",
@@ -1036,6 +1053,55 @@ fn review_schemas() -> (Value, Value) {
                 }
             },
             "required": ["source", "placed", "refused"]
+        }),
+    )
+}
+
+/// The schemas of `review_guide_open` (#733).
+fn guide_schemas() -> (Value, Value) {
+    let file = json!({
+        "type": "object",
+        "properties": {
+            "path": { "type": "string", "description": "The file's absolute path." },
+            "first_line": { "type": "integer", "minimum": 1 },
+            "last_line": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+    });
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "title": { "type": "string", "minLength": 1, "description": "What the change is." },
+                "summary": { "type": "string", "description": "The change in a few lines." },
+                "sections": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 30,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": { "type": "string", "minLength": 1 },
+                            "summary": { "type": "string", "description": "Markdown." },
+                            "files": { "type": "array", "items": file }
+                        },
+                        "required": ["title"],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": ["title", "sections"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "guide": { "type": "string" },
+                "sections": { "type": "integer" },
+                "replaced": { "type": "boolean" }
+            },
+            "required": ["guide", "sections", "replaced"]
         }),
     )
 }
@@ -3181,10 +3247,11 @@ mod tests {
                 "seat_remove",
                 "draft_message",
                 "review_notes_add",
+                "review_guide_open",
                 "actions_list"
             ]
         );
-        assert_eq!(registry().len(), 68);
+        assert_eq!(registry().len(), 69);
         assert_eq!(
             lookup("fleet_snapshot").expect("read tool").tier,
             Tier::Read

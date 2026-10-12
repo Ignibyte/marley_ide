@@ -142,6 +142,9 @@ OR Apache-2.0, with the Marley crates' lint table.
 - Since #730 the `review` family is served: `review_notes_add` (Write, `review.write`; `source`
   and `notes`, up to 50, each `path`, `first_line`, `last_line`, `comment`), with
   `review_schemas`; it answers `source`, `placed` and `refused`. `dispatch` defers it.
+- Since #733 the `review` family also holds `review_guide_open` (Write, `review.write`; `title`,
+  `summary`, 1 to 30 `sections` of `title`, `summary`, `files`), with `guide_schemas`;
+  `review_schemas` now takes the verb.
 - Since #769 the `draft` family is served: `draft_message` (Write, `draft.write`; `to`, an object
   naming a `terminal` id or a `thread` id, and `text`), with `draft_schemas`; it answers `draft`,
   `to` and `opened`. `dispatch` defers it, and `INSTRUCTIONS` tells agents to draft to another

@@ -5309,3 +5309,14 @@ the file comes back ticked and folded while the fingerprint matches, and any cha
 clears the mark and unfolds it, whoever made the change. Rejected: relaxing the header's
 one-addon `.take(1)` (hash-map order would pick), a mark inside Zed's git panel addon, the
 buffer's version (gone at a restart), and a git blob id (no public API for the working file's).
+
+## AD-claude-733-a-guided-review-is-a-tab-of-sections-over-the-project-diff-001
+*decided at: 2026-10-12 · status: shipped*
+
+An agent hands the user a guided review with `review_guide_open` (the `review` family, admitted
+as the editor tools are): a title, a summary and up to 30 ordered sections, each with a Markdown
+summary and its files. Marley draws them in a Guide tab with "K of N reviewed", a Reviewed box per
+section that folds it, and a chip per file that shows the file in the project diff when it has
+changes, else opens it at its line. The diffs stay Zed's; ticks live with the tab; a guide sent
+again with the same title replaces the open one's sections. Rejected: a guide file in the
+repository, a diff drawn inside the tab, and saved ticks.

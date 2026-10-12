@@ -4,7 +4,8 @@
 //! project diff, each under its lines as a proposal that names its source and offers Keep and
 //! Drop. Only kept notes count on Send Review to Agent and go to an agent (#522). The call is
 //! admitted as the editor tools are, and a note whose lines the diff does not show is left out by
-//! name.
+//! name. Since #733 `review_guide_open` hands the user a guided review in a tab of its own
+//! (`guide_tab`).
 
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,7 @@ pub(crate) fn answer(call: AppCall, cx: &App) {
     let tool = call.tool.clone();
     match tool.as_str() {
         "review_notes_add" => notes_add(call, cx),
+        "review_guide_open" => guide_open(call, cx),
         other => call.answer(Err(format!("Marley answers no tool named {other}"))),
     }
 }
@@ -317,4 +319,161 @@ fn in_project(workspace: &Entity<Workspace>, path: &Path, cx: &App) -> bool {
         .read(cx)
         .visible_worktrees(cx)
         .any(|worktree| path.starts_with(worktree.read(cx).abs_path()))
+}
+
+/// The most sections a guide holds.
+const SECTIONS_MAX: usize = 30;
+/// The most characters a guide's or a section's summary keeps.
+const SUMMARY_MAX: usize = 20_000;
+/// The most characters a title keeps.
+const TITLE_MAX: usize = 200;
+
+/// `review_guide_open` (#733): the guide checked, the user asked, then its tab opened in the project
+/// holding its first file, else the caller's.
+fn guide_open(call: AppCall, cx: &App) {
+    let guide = match guide_of(&call.arguments) {
+        Ok(guide) => guide,
+        Err(refusal) => {
+            call.answer(Err(refusal));
+            return;
+        }
+    };
+    let first_file = guide
+        .sections
+        .iter()
+        .flat_map(|section| section.files.iter())
+        .next()
+        .map(|file| file.path.clone());
+    let holding = first_file
+        .or_else(|| call.caller().cwd.as_ref().map(PathBuf::from))
+        .and_then(|path| crate::editor_tools::project_holding(&path, cx));
+    let Some((multi_workspace, workspace)) = holding else {
+        call.answer(Err(Refusal::new(
+            "outside_projects",
+            "neither the guide's first file nor the caller is in an open project",
+        )
+        .next("name files inside an open project; list them with editor_list")));
+        return;
+    };
+    let title = guide.title.clone();
+    let sections = guide.sections.len();
+    let what = format!("open the guide \"{title}\" ({sections} sections)");
+    let admitted = admit(&call, Area::Editors, Level::Act, what, cx);
+    cx.spawn(async move |cx| {
+        if let Err(refusal) = admitted.await {
+            call.answer(Err(refusal));
+            return;
+        }
+        let opened = AnyWindowHandle::from(multi_workspace).update(cx, |_, window, cx| {
+            if let Some(root) = window.root::<MultiWorkspace>().flatten() {
+                root.update(cx, |multi_workspace, cx| {
+                    multi_workspace.activate(workspace.clone(), None, window, cx);
+                });
+            }
+            workspace.update(cx, |workspace, cx| {
+                crate::guide_tab::open(workspace, guide, window, cx)
+            })
+        });
+        match opened {
+            Ok(replaced) => call.answer::<Refusal>(Ok(ToolAnswer {
+                structured: json!({ "guide": title, "sections": sections, "replaced": replaced }),
+                text: Some(format!(
+                    "The guide \"{title}\" is open for the user with {sections} sections."
+                )),
+                image: None,
+            })),
+            Err(_) => call.answer(Err(Refusal::new(
+                "no_window",
+                "the project's window is gone",
+            ))),
+        }
+    })
+    .detach();
+}
+
+/// The call's guide: a title, 1 to 30 sections, absolute paths and lines from 1.
+fn guide_of(arguments: &Value) -> Result<crate::guide_tab::Guide, Refusal> {
+    let text = |value: Option<&Value>, limit: usize| -> String {
+        value
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or_default()
+            .chars()
+            .take(limit)
+            .collect()
+    };
+    let title = text(arguments.get("title"), TITLE_MAX);
+    if title.is_empty() {
+        return Err(Refusal::new("bad_argument", "give the guide a `title`"));
+    }
+    let sections = arguments
+        .get("sections")
+        .and_then(Value::as_array)
+        .filter(|sections| !sections.is_empty())
+        .ok_or_else(|| Refusal::new("bad_argument", "give the guide its `sections`"))?;
+    if sections.len() > SECTIONS_MAX {
+        return Err(Refusal::new(
+            "bad_argument",
+            format!("at most {SECTIONS_MAX} sections in one guide"),
+        ));
+    }
+    let sections = sections
+        .iter()
+        .enumerate()
+        .map(|(index, section)| {
+            let title = text(section.get("title"), TITLE_MAX);
+            if title.is_empty() {
+                return Err(Refusal::new(
+                    "bad_argument",
+                    format!("section {}: give it a `title`", index + 1),
+                ));
+            }
+            let files = section
+                .get("files")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+                .iter()
+                .enumerate()
+                .map(|(file_index, file)| {
+                    let path = file
+                        .get("path")
+                        .and_then(Value::as_str)
+                        .map(PathBuf::from)
+                        .filter(|path| path.is_absolute())
+                        .ok_or_else(|| {
+                            Refusal::new(
+                                "bad_argument",
+                                format!(
+                                    "section {}, file {}: give an absolute `path`",
+                                    index + 1,
+                                    file_index + 1
+                                ),
+                            )
+                        })?;
+                    let line = |name: &str| {
+                        file.get(name)
+                            .and_then(Value::as_u64)
+                            .and_then(|line| u32::try_from(line).ok())
+                            .filter(|line| *line >= 1)
+                    };
+                    Ok(crate::guide_tab::GuideFile {
+                        path,
+                        first_line: line("first_line"),
+                        last_line: line("last_line"),
+                    })
+                })
+                .collect::<Result<Vec<_>, Refusal>>()?;
+            Ok(crate::guide_tab::GuideSection {
+                title,
+                summary: text(section.get("summary"), SUMMARY_MAX),
+                files,
+            })
+        })
+        .collect::<Result<Vec<_>, Refusal>>()?;
+    Ok(crate::guide_tab::Guide {
+        title,
+        summary: text(arguments.get("summary"), SUMMARY_MAX),
+        sections,
+    })
 }

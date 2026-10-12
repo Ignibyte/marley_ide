@@ -3966,3 +3966,13 @@ moment any local user could read CI logs that may hold secrets the redactor does
 before it ran: the file is opened with `OpenOptionsExt::mode(0o600)`, so a new file is private
 from its creation, and the open file is set to 0600 before the write, since a truncated file keeps
 the mode it had.
+
+## F-claude-733-a-guides-file-chip-opened-the-diff-inside-the-tabs-own-update-001
+*severity: high · found in: pipeline 733's Test, the second run · class: a pane change from an item's own update (PR-claude-defer-a-pane-change-out-of-an-items-own-event-001)*
+
+The Guide tab's file chip ran `ProjectDiff::deploy_at_project_path` from the tab's click
+listener, inside the `GuideTab`'s update. Adding the diff to the pane makes `Pane::add_item_inner`
+read every item's `buffer_kind`, the Guide tab among them, and gpui panicked with "cannot read
+GuideTab while it is already being updated"; Marley ended at the first click. The rule already
+said so; the chip was written without it. Fixed in #733: the listener hands the open to
+`window.defer`, which runs with no entity leased.
