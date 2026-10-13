@@ -27,7 +27,7 @@ use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 
 use crate::groups::GroupKind;
-use crate::rusty::home_tab::muted;
+use crate::home_page::muted;
 use crate::{AgentControl, MarleySettings};
 
 actions!(

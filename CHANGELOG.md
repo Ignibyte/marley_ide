@@ -1250,6 +1250,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **One Home page, with Rusty's cards while Rusty is on** (#782, 2026-10-13). Rusty's home page
+  folded into Home: while `marley.rusty.enabled` is on, Home shows Rusty's screens, Open Page… and
+  the captures, your recent pages, the follow-ups due and your open tasks under Recent Projects and
+  Agents at Work, and Configure moves to the bottom. While Rusty is on but not connected, one Rusty
+  card says why; while it is off, Home shows nothing of Rusty. The Rusty tab and its status-bar
+  button are gone; `rusty: open home` and `marley rusty` open Home. In the rail, Home's row is
+  always the first under Default, above its terminals.
+
 - **Marley and Rusty start in their own folders, never asked where** (#780, 2026-10-12). New
   Agent… no longer asks Where for the Marley or Rusty agent: Marley starts in Marley's settings
   folder, where it can read the settings it changes, and Rusty in the vault folder Rusty stores.

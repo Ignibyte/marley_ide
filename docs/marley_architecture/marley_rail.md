@@ -110,6 +110,9 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   the row to the project, and `cycle_project` climbs through it; `Focus::worktree` puts the
   displayed worktree's row before the project header in the selection. The terminals stay in the
   project's flat list, so every other reader of it is unchanged.
+- **Home's row first** (#782). `TabKind::Home` marks Home's page among a project's tabs; the walk
+  lists a project's Home rows right after its header, before the main checkout's terminals.
+  `selection` treats it as `Other`, so a focused Home selects its row.
 - **`WorktreeSnapshot::drift`** (#560), copied onto `WorktreeRow`, is `DriftSnapshot { ahead,
   behind, conflicts, base, base_commit }`: since #511 the commits on the branch its base lacks,
   the commits on the base the branch lacks, the files a merge would stop on (`None` when git

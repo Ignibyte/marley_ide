@@ -45,7 +45,7 @@ marley <command>: open things in the running Marley, working in the folder you r
   marley talk marley|rusty                               a conversation with Marley or Rusty
   marley threads                                         the Threads page
   marley home                                            the Home page
-  marley rusty [SCREEN]                                  Rusty's home page, or one of its screens:
+  marley rusty [SCREEN]                                  the Home page, or one of Rusty's screens:
                                                          brain, today, graph, tasks, decisions,
                                                          memory, skills, secrets
   marley panel NAME                                      project, git, outline, collab, fleet,
@@ -800,7 +800,8 @@ fn run_verb(
             if let Some(why) = rusty_unavailable(cx) {
                 return Err(why);
             }
-            crate::rusty::open_home_here(workspace, window, cx);
+            // Rusty's cards are on Home since #782.
+            crate::home_page::open_here(workspace, window, cx);
         }
         Verb::Panel(name) => open_panel(name, workspace, window, cx)?,
         Verb::Browser(url) => {

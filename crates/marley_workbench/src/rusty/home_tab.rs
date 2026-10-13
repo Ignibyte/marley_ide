@@ -1,14 +1,17 @@
-//! The Rusty home page (#679): a dashboard tab in the group the window shows (#743).
+//! Rusty's cards on Home (#679, #782).
 //!
-//! The status bar's Rusty button opens it (#739). A card holds every Rusty screen's button, and
-//! the forms the Rusty group's + menu held until #743 (Open Page… and the captures); the cards
-//! under it list the vault's recent pages, the decisions whose follow-up is due and the open tasks
-//! of every list, each row opening what it names: pages and decisions in the Brain tab (#678),
-//! tasks in Tasks on their list.
+//! A card with every Rusty screen's button and the forms the Rusty group's + menu held until #743
+//! (Open Page… and the captures); under it the vault's recent pages, the decisions whose follow-up
+//! is due and the open tasks of every list, each row opening what it names: pages and decisions in
+//! the Brain tab (#678), tasks in Tasks on their list.
+//!
+//! Home holds them while `marley.rusty.enabled` is on. While Rusty is not connected they are one
+//! card saying why: cards that came and went with each `rusty-mcp` restart would leave no sign that
+//! Rusty is down.
 
 use gpui::{
-    Action, App, AppContext as _, ClickEvent, Context, Entity, EventEmitter, FocusHandle,
-    Focusable, Render, SharedString, Stateful, Subscription, WeakEntity, Window, actions,
+    Action, App, ClickEvent, Context, FocusHandle, Render, SharedString, Subscription, WeakEntity,
+    Window, actions,
 };
 use marley_rusty::decisions::{BRAIN_DUE, DecisionSummary, due_from_answer};
 use marley_rusty::tasks::{
@@ -18,18 +21,18 @@ use marley_rusty::vault;
 use serde_json::json;
 use ui::{ButtonStyle, prelude::*};
 use util::ResultExt as _;
-use workspace::item::{Item, ItemEvent};
-use workspace::{MultiWorkspace, MultiWorkspaceEvent, Workspace};
+use workspace::{MultiWorkspace, Workspace};
 
 use super::brain::{Screen, open_screen};
 use super::capture::{CaptureToInbox, CaptureToToday, CaptureUrl};
 use super::page::OpenPage;
+use crate::home_page::{card, muted, row};
 
 actions!(
     rusty,
     [
-        /// Opens Rusty's home page: every screen's button, the recent pages, the follow-ups due
-        /// and the open tasks.
+        /// Opens Home, which holds Rusty's screens, the recent pages, the follow-ups due and the
+        /// open tasks.
         #[derive(Eq)]
         OpenHome,
     ]
@@ -41,96 +44,20 @@ const ROWS_SHOWN: usize = 8;
 /// How many open tasks the table lists.
 const TASKS_SHOWN: usize = 12;
 
-/// Registers `rusty: open home` on every workspace, and keeps the Default group from showing no tab
-/// (#701); `rusty::init` calls it once.
+/// Registers `rusty: open home` on every workspace; `rusty::init` calls it once.
 pub(super) fn init(cx: &App) {
-    cx.observe_new(
-        |workspace: &mut Workspace, window, cx: &mut Context<Workspace>| {
-            workspace.register_action(|_, _: &OpenHome, window, cx| {
-                open_later(cx.weak_entity(), window, cx);
-            });
-            let Some(window) = window else {
-                return;
-            };
-            // Its last tab closed.
-            cx.subscribe_in(
-                &cx.entity(),
-                window,
-                |workspace, _, event: &workspace::Event, window, cx| {
-                    if let workspace::Event::ItemRemoved { .. } = event {
-                        crate::home_page::fill_emptied(workspace, window, cx);
-                    }
-                },
-            )
-            .detach();
-        },
-    )
-    .detach();
-    // Shown with no tab: from the rail or a switch, or after a restart, once the rail adopts the
-    // restored group.
-    cx.observe_new(
-        |_: &mut MultiWorkspace, window, cx: &mut Context<MultiWorkspace>| {
-            let Some(window) = window else {
-                return;
-            };
-            cx.subscribe_in(
-                &cx.entity(),
-                window,
-                |multi_workspace, _, event: &MultiWorkspaceEvent, window, cx| {
-                    if let MultiWorkspaceEvent::ActiveWorkspaceChanged { .. } = event {
-                        fill_shown(multi_workspace, window, cx);
-                    }
-                },
-            )
-            .detach();
-            cx.observe_global_in::<crate::groups::Groups>(window, |multi_workspace, window, cx| {
-                fill_shown(multi_workspace, window, cx);
-            })
-            .detach();
-        },
-    )
-    .detach();
-}
-
-/// Home's page in the workspace the window shows when it is the Default group (#701).
-fn fill_shown(multi_workspace: &MultiWorkspace, window: &mut Window, cx: &mut App) {
-    let shown = multi_workspace.workspace().clone();
-    if crate::groups::is_home_workspace(shown.entity_id(), cx) {
-        shown.update(cx, |workspace, cx| {
-            crate::home_page::ensure(workspace, window, cx);
+    cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
+        workspace.register_action(|_, _: &OpenHome, window, cx| {
+            open_later(cx.weak_entity(), window, cx);
         });
-    }
+    })
+    .detach();
 }
 
-/// Opens Rusty's home page in the group the window shows, or brings it forward there, once the
-/// update in progress ends.
-pub(crate) fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
-    super::in_shown_group(workspace, window, cx, |workspace, window, cx| {
-        if !super::capture::ready(workspace, cx) {
-            return;
-        }
-        open_here(workspace, window, cx);
-    });
-}
-
-/// Brings `workspace`'s Rusty home page forward, or opens one in its center (#739): the status
-/// bar's Rusty button opens it in whatever group the window shows.
-pub(crate) fn open_here(
-    workspace: &mut Workspace,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
-    if let Some(home) = home_of(workspace, cx) {
-        workspace.activate_item(&home, true, true, window, cx);
-        return;
-    }
-    let weak_workspace = cx.weak_entity();
-    let home = cx.new(|cx| RustyHome::new(weak_workspace, window, cx));
-    workspace.add_item_to_center(Box::new(home), window, cx);
-}
-
-fn home_of(workspace: &Workspace, cx: &App) -> Option<Entity<RustyHome>> {
-    workspace.items_of_type::<RustyHome>(cx).next()
+/// Opens Home in the group the window shows, or brings it forward there, once the update in
+/// progress ends. Home itself says whether Rusty is connected, so nothing is checked first.
+fn open_later(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut App) {
+    super::in_shown_group(workspace, window, cx, crate::home_page::open_here);
 }
 
 /// An open task, as the table lists it.
@@ -152,44 +79,57 @@ enum Read {
     Failed(SharedString),
 }
 
-/// Rusty's home page.
-pub(crate) struct RustyHome {
+/// Rusty's cards on Home.
+pub(crate) struct RustyCards {
     workspace: WeakEntity<Workspace>,
+    /// Home's own focus handle: the forms dispatch from Home's node, where the workspace's
+    /// handlers hear them.
     focus_handle: FocusHandle,
     read: Read,
     /// Whether a read is in flight, and whether another was asked for meanwhile.
     reading: bool,
     again: bool,
+    /// Whether Rusty was connected when last seen, so a reconnection reads again.
+    connected: bool,
     _subscriptions: [Subscription; 2],
 }
 
-impl std::fmt::Debug for RustyHome {
+impl std::fmt::Debug for RustyCards {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RustyHome")
+        f.debug_struct("RustyCards")
             .field("reading", &self.reading)
             .finish_non_exhaustive()
     }
 }
 
-impl RustyHome {
-    fn new(workspace: WeakEntity<Workspace>, window: &Window, cx: &mut Context<Self>) -> Self {
+impl RustyCards {
+    pub(crate) fn new(
+        workspace: WeakEntity<Workspace>,
+        focus_handle: FocusHandle,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let subscriptions = [
             // A change Rusty announces: the cards read again.
             cx.observe_global_in::<super::Announced>(window, |this, _, cx| this.load(cx)),
-            // Connected again after a failed read.
+            // Connected again: Home holds the cards across a `rusty-mcp` restart, and Rusty's data
+            // may have changed while it was down.
             cx.observe_global_in::<super::Rusty>(window, |this, _, cx| {
-                if super::is_connected(cx) && matches!(this.read, Read::Failed(_)) {
+                let connected = super::is_connected(cx);
+                if connected && (!this.connected || matches!(this.read, Read::Failed(_))) {
                     this.load(cx);
                 }
+                this.connected = connected;
                 cx.notify();
             }),
         ];
         let mut this = Self {
             workspace,
-            focus_handle: cx.focus_handle(),
+            focus_handle,
             read: Read::Loading,
             reading: false,
             again: false,
+            connected: super::is_connected(cx),
             _subscriptions: subscriptions,
         };
         this.load(cx);
@@ -522,62 +462,31 @@ fn task_rows(
     Ok(rows)
 }
 
-/// A card: a muted title over its body.
-pub(crate) fn card(
-    title: &'static str,
-    selector: &'static str,
-    body: impl IntoElement,
-    cx: &App,
-) -> Div {
-    let colors = cx.theme().colors();
-    v_flex()
-        .debug_selector(move || selector.into())
-        .gap_2()
-        .p_3()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.panel_background)
-        .child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
-        .child(body)
+/// Why Rusty's lists cannot show, if they cannot: [`super::unavailable`], in Home's words while
+/// Rusty is still connecting.
+fn not_connected(cx: &App) -> Option<SharedString> {
+    match cx.global::<super::Rusty>().state {
+        super::State::Connected { .. } => None,
+        super::State::Starting => Some(SharedString::new_static("Rusty is still connecting.")),
+        _ => super::unavailable(cx),
+    }
 }
 
-/// A clickable row of a card.
-pub(crate) fn row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
-    let hover = cx.theme().colors().ghost_element_hover;
-    h_flex()
-        .id(id)
-        .w_full()
-        .gap_2()
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .cursor_pointer()
-        .hover(move |style| style.bg(hover))
-}
-
-pub(crate) fn muted(text: impl Into<SharedString>) -> AnyElement {
-    div()
-        .px_2()
-        .child(
-            Label::new(text.into())
-                .size(LabelSize::Small)
-                .color(Color::Muted),
-        )
-        .into_any_element()
-}
-
-impl Render for RustyHome {
+impl Render for RustyCards {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
+        if let Some(reason) = not_connected(cx) {
+            return card(
+                "RUSTY",
+                "marley-rusty-home-not-connected",
+                muted(reason),
+                cx,
+            )
+            .w_full()
+            .into_any_element();
+        }
         v_flex()
-            .id("marley-rusty-home")
-            .track_focus(&self.focus_handle)
-            .size_full()
-            .overflow_y_scroll()
-            .p_4()
+            .w_full()
             .gap_4()
-            .bg(colors.editor_background)
             .child(card(
                 "RUSTY",
                 "marley-rusty-home-screens",
@@ -619,33 +528,6 @@ impl Render for RustyHome {
                 self.render_tasks(cx),
                 cx,
             ))
-    }
-}
-
-impl Focusable for RustyHome {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
-impl EventEmitter<ItemEvent> for RustyHome {}
-
-impl Item for RustyHome {
-    type Event = ItemEvent;
-
-    fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
-        SharedString::new_static("Rusty")
-    }
-
-    fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
-        Some(Icon::new(super::RUSTY_ICON))
-    }
-
-    fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {
-        Some(SharedString::new_static("Rusty's home page"))
-    }
-
-    fn to_item_events(event: &ItemEvent, f: &mut dyn FnMut(ItemEvent)) {
-        f(*event);
+            .into_any_element()
     }
 }

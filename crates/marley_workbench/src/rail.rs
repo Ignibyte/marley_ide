@@ -6657,7 +6657,7 @@ impl Rail {
         let id = row.id;
         let fallback = match row.kind {
             TabKind::File => IconName::File,
-            TabKind::Other => IconName::FileGeneric,
+            TabKind::Other | TabKind::Home => IconName::FileGeneric,
         };
         let icon = tab
             .icon
@@ -6706,7 +6706,7 @@ impl Rail {
             .debug_selector(move || format!("marley-rail-tab-{id}"))
             .map(|row_div| match row.kind {
                 TabKind::File => row_div.pl_5(),
-                TabKind::Other => row_div.pl_2(),
+                TabKind::Other | TabKind::Home => row_div.pl_2(),
             })
             .child(item)
     }
@@ -9913,7 +9913,9 @@ fn member_tabs(
             let path = item
                 .project_path(cx)
                 .filter(|_| item.buffer_kind(cx) == ItemBufferKind::Singleton);
-            let kind = if path.is_some() {
+            let kind = if item.downcast::<crate::home_page::MarleyHome>().is_some() {
+                TabKind::Home
+            } else if path.is_some() {
                 TabKind::File
             } else {
                 TabKind::Other

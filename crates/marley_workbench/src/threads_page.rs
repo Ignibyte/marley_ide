@@ -42,7 +42,7 @@ use workspace::item::{Item, ItemEvent};
 use workspace::{ModalView, MultiWorkspace, Workspace};
 
 use crate::agents::{self, AgentIcon};
-use crate::rusty::home_tab::muted;
+use crate::home_page::muted;
 
 actions!(
     marley,

@@ -34,8 +34,8 @@ use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 
+use crate::home_page::muted;
 use crate::mcp_server_form::{self, Kind, McpServerForm, Place, Stored, entry_hash};
-use crate::rusty::home_tab::muted;
 
 actions!(
     marley,

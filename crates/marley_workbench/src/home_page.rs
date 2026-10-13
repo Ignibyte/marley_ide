@@ -3,15 +3,16 @@
 //!
 //! Its cards start what belongs to no project (a terminal or an agent CLI in the home folder, a
 //! folder or a clone), list Zed's recent projects and the window's agents at work from the rail, and
-//! open Zed's and Marley's settings and guide.
+//! open Zed's and Marley's settings and guide. While `marley.rusty.enabled` is on it holds Rusty's
+//! cards too (#782), which Rusty's own page held until then.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use fs::Fs;
 use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Render,
-    SharedString, Subscription, WeakEntity, Window,
+    App, AppContext as _, Context, Div, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
+    Render, SharedString, Stateful, Subscription, WeakEntity, Window,
 };
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
@@ -19,21 +20,77 @@ use ui::{ButtonStyle, prelude::*};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::{
-    MultiWorkspace, OpenMode, SerializedWorkspaceLocation, Workspace, WorkspaceDb,
-    notifications::DetachAndPromptErr as _,
+    MultiWorkspace, MultiWorkspaceEvent, OpenMode, SerializedWorkspaceLocation, Workspace,
+    WorkspaceDb, notifications::DetachAndPromptErr as _,
 };
 
 use crate::OpenGuide;
 use crate::agent_activity::AgentActivity;
 use crate::agents;
 use crate::rail::Rail;
-use crate::rusty::home_tab::{card, muted, row};
+use crate::rusty::home_tab::RustyCards;
 
 /// How many recent projects the page lists.
 const RECENT_SHOWN: usize = 8;
 
 /// How many rows of agent activity the page lists (#703).
 const ACTIVITY_SHOWN: usize = 5;
+
+/// Keeps Default from showing no tab (#701): Home's page goes in when Default is shown with none,
+/// and when its last tab closes. [`crate::init`] calls it once.
+pub(crate) fn init(cx: &App) {
+    cx.observe_new(|_: &mut Workspace, window, cx: &mut Context<Workspace>| {
+        let Some(window) = window else {
+            return;
+        };
+        // Its last tab closed.
+        cx.subscribe_in(
+            &cx.entity(),
+            window,
+            |workspace, _, event: &workspace::Event, window, cx| {
+                if let workspace::Event::ItemRemoved { .. } = event {
+                    fill_emptied(workspace, window, cx);
+                }
+            },
+        )
+        .detach();
+    })
+    .detach();
+    // Shown with no tab: from the rail or a switch, or after a restart, once the rail adopts the
+    // restored group.
+    cx.observe_new(
+        |_: &mut MultiWorkspace, window, cx: &mut Context<MultiWorkspace>| {
+            let Some(window) = window else {
+                return;
+            };
+            cx.subscribe_in(
+                &cx.entity(),
+                window,
+                |multi_workspace, _, event: &MultiWorkspaceEvent, window, cx| {
+                    if let MultiWorkspaceEvent::ActiveWorkspaceChanged { .. } = event {
+                        fill_shown(multi_workspace, window, cx);
+                    }
+                },
+            )
+            .detach();
+            cx.observe_global_in::<crate::groups::Groups>(window, |multi_workspace, window, cx| {
+                fill_shown(multi_workspace, window, cx);
+            })
+            .detach();
+        },
+    )
+    .detach();
+}
+
+/// Home's page in the workspace the window shows when it is the Default group (#701).
+fn fill_shown(multi_workspace: &MultiWorkspace, window: &mut Window, cx: &mut App) {
+    let shown = multi_workspace.workspace().clone();
+    if crate::groups::is_home_workspace(shown.entity_id(), cx) {
+        shown.update(cx, |workspace, cx| {
+            ensure(workspace, window, cx);
+        });
+    }
+}
 
 /// Adds Home's page first in `workspace`'s active pane when the workspace has none, taking the
 /// active tab only from an empty pane.
@@ -78,11 +135,7 @@ pub(crate) fn open_here(
 }
 
 /// Home's page in the Home group once its last tab closed, so it never shows Zed's Welcome page.
-pub(crate) fn fill_emptied(
-    workspace: &Workspace,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
+fn fill_emptied(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     if crate::groups::is_home_workspace(cx.entity_id(), cx) && workspace.items(cx).next().is_none()
     {
         ensure(workspace, window, cx);
@@ -107,6 +160,10 @@ pub(crate) struct MarleyHome {
     rail: Option<(WeakEntity<Rail>, Subscription)>,
     /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703).
     _activity: [Subscription; 2],
+    /// Rusty's cards, held while `marley.rusty.enabled` is on (#782).
+    rusty: Option<Entity<RustyCards>>,
+    /// Rusty's switch, which makes and drops the cards.
+    _rusty_switch: Subscription,
 }
 
 impl std::fmt::Debug for MarleyHome {
@@ -155,7 +212,7 @@ impl MarleyHome {
             .log_err();
         })
         .detach();
-        Self {
+        let mut this = Self {
             workspace,
             focus_handle: cx.focus_handle(),
             recent: None,
@@ -164,7 +221,30 @@ impl MarleyHome {
                 cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
                 cx.observe_global_in::<SettingsStore>(window, |_, _, cx| cx.notify()),
             ],
+            rusty: None,
+            _rusty_switch: cx.observe_global_in::<crate::rusty::Rusty>(
+                window,
+                |this, window, cx| {
+                    this.follow_rusty(window, cx);
+                },
+            ),
+        };
+        this.follow_rusty(window, cx);
+        this
+    }
+
+    /// Makes Rusty's cards when Rusty's switch is on and drops them when it is off, so Home holds
+    /// nothing of Rusty while it is off.
+    fn follow_rusty(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let on = crate::rusty::is_on(cx);
+        if on == self.rusty.is_some() {
+            return;
         }
+        self.rusty = on.then(|| {
+            let (workspace, focus_handle) = (self.workspace.clone(), self.focus_handle.clone());
+            cx.new(|cx| RustyCards::new(workspace, focus_handle, window, cx))
+        });
+        cx.notify();
     }
 
     /// The AGENT ACTIVITY card's body (#703): the kill switch, the newest rows, and the tab.
@@ -453,6 +533,51 @@ impl MarleyHome {
     }
 }
 
+/// A card: a muted title over its body.
+pub(crate) fn card(
+    title: &'static str,
+    selector: &'static str,
+    body: impl IntoElement,
+    cx: &App,
+) -> Div {
+    let colors = cx.theme().colors();
+    v_flex()
+        .debug_selector(move || selector.into())
+        .gap_2()
+        .p_3()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
+        .child(body)
+}
+
+/// A clickable row of a card.
+pub(crate) fn row(id: impl Into<ElementId>, cx: &App) -> Stateful<Div> {
+    let hover = cx.theme().colors().ghost_element_hover;
+    h_flex()
+        .id(id)
+        .w_full()
+        .gap_2()
+        .px_2()
+        .py_1()
+        .rounded_sm()
+        .cursor_pointer()
+        .hover(move |style| style.bg(hover))
+}
+
+pub(crate) fn muted(text: impl Into<SharedString>) -> AnyElement {
+    div()
+        .px_2()
+        .child(
+            Label::new(text.into())
+                .size(LabelSize::Small)
+                .color(Color::Muted),
+        )
+        .into_any_element()
+}
+
 /// Opens a terminal in `workspace`'s center, in its default folder (the home folder for Home), as
 /// the rail's New Terminal does.
 fn new_terminal(workspace: &WeakEntity<Workspace>, window: &mut Window, cx: &mut App) {
@@ -514,16 +639,18 @@ impl Render for MarleyHome {
                             .min_w_0(),
                     ),
             )
-            .child(card(
-                "CONFIGURE",
-                "marley-home-configure",
-                self.render_configure(),
-                cx,
-            ))
+            .children(self.rusty.clone())
             .child(card(
                 "AGENT ACTIVITY",
                 "marley-home-activity",
                 self.render_activity(cx),
+                cx,
+            ))
+            // The card used least goes last (#782).
+            .child(card(
+                "CONFIGURE",
+                "marley-home-configure",
+                self.render_configure(),
                 cx,
             ))
     }

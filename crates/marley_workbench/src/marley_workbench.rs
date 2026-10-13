@@ -929,6 +929,26 @@ struct LayoutState {
     displaced: HashMap<EntityId, [Option<DockShown>; 3]>,
 }
 
+impl LayoutState {
+    /// The layout the settings name, and Zed's own defaults, before anything patched them.
+    fn read(cx: &App) -> Self {
+        let defaults = SettingsStore::global(cx).raw_default_settings();
+        Self {
+            applied: MarleySettings::get_global(cx).layout,
+            zed_terminal_button: defaults
+                .terminal
+                .as_ref()
+                .and_then(|terminal| terminal.button),
+            zed_debug_button: defaults
+                .debugger
+                .as_ref()
+                .and_then(|debugger| debugger.button),
+            zed_agent_dock: defaults.agent.as_ref().and_then(|agent| agent.dock),
+            displaced: HashMap::default(),
+        }
+    }
+}
+
 /// A dock as a layout switch found it: open or not, and its active panel's persistent name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct DockShown {
@@ -972,20 +992,7 @@ pub fn init(cx: &mut App) {
     if cx.has_global::<LayoutState>() {
         return;
     }
-    let defaults = SettingsStore::global(cx).raw_default_settings();
-    let state = LayoutState {
-        applied: MarleySettings::get_global(cx).layout,
-        zed_terminal_button: defaults
-            .terminal
-            .as_ref()
-            .and_then(|terminal| terminal.button),
-        zed_debug_button: defaults
-            .debugger
-            .as_ref()
-            .and_then(|debugger| debugger.button),
-        zed_agent_dock: defaults.agent.as_ref().and_then(|agent| agent.dock),
-        displaced: HashMap::default(),
-    };
+    let state = LayoutState::read(cx);
     let layout = state.applied;
     cx.set_global(state);
     apply_defaults(layout, cx);
@@ -1001,6 +1008,7 @@ pub fn init(cx: &mut App) {
     sticky_header::init(cx);
     block_headers::init(cx);
     harness::init(cx);
+    home_page::init(cx);
     rusty::init(cx);
     markdown_commands::init(cx);
     command_watch::init(cx);

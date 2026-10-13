@@ -83,10 +83,7 @@ use ui::{
 
 use crate::MarleySettings;
 
-pub(crate) use home_tab::open_here as open_home_here;
-
-/// Rusty's icon in the rail and on its home page: a placeholder until Rusty has one of its own
-/// (#675, #679).
+/// Rusty's icon in the title bar: a placeholder until Rusty has one of its own (#675, #679).
 pub(crate) const RUSTY_ICON: IconName = IconName::Blocks;
 
 /// The context server Zed's agents know Rusty's tools by.

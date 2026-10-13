@@ -1935,12 +1935,14 @@ alike.
 
 ## Home's own page (`src/home_page.rs`, `src/rail.rs`, #701)
 
-- `MarleyHome` (an `Item`: Home, `ListTree`) is drawn with `rusty::home_tab`'s `card`, `row` and
-  `muted`.
+- `MarleyHome` (an `Item`: Home, `ListTree`) is drawn with `card`, `row` and `muted`, which live
+  here since #782 (`agent_activity`, `mcp_servers`, `threads_page` and `rusty::home_tab` use them).
   - `home_page::ensure` adds it at index 0 of the active pane through `add_item_inner(…, activate:
     empty, …)`, taking the active tab only from an empty pane.
   - #699's hooks carry it: `ItemRemoved` calls `fill_emptied` (Home's last tab closed), and
     `fill_shown` calls `ensure` when the shown workspace is Home (`groups::is_home_workspace`).
+    Since #782 `home_page::init` registers both, just before `rusty::init`, where
+    `rusty::home_tab::init` did.
   - `ensure` runs inside the workspace's or the `MultiWorkspace`'s update, so `MarleyHome::new`
     reads neither: `ensure` hands it the `Fs`, and the rail is looked up in `render`.
 - The cards:
@@ -1961,6 +1963,11 @@ alike.
 - Every handler that updates the workspace is a plain closure over a weak handle, never
   `cx.listener`. The workspace's updates read its items, the page among them.
 - `groups::make` names Home and Rusty by their kind; only named groups are numbered.
+- #782 (Chad, 2026-10-13: "combining the rusty home page with the marley home page and then just
+  show rusty items if it is configured"): `MarleyHome::rusty: Option<Entity<RustyCards>>`, made
+  and dropped by `follow_rusty` on the `rusty::Rusty` global (`rusty::is_on`), rendered as a child
+  after Recent Projects | Agents at Work; Configure moved under Agent Activity. The rail marks the
+  page `TabKind::Home` in `member_tabs`, and `marley_rail::walk` lists it first under its group.
 
 ## Home and Rusty from the start (`src/rail.rs`, `src/groups.rs`, #700)
 
@@ -2484,6 +2491,15 @@ alike.
 - The tab comes back after a restart (#736, above).
 
 ## The Rusty home page (`src/rusty/home_tab.rs`, #679)
+
+Since #782 this is `RustyCards`, a view `MarleyHome` holds while Rusty is on, not an `Item`: it
+takes Home's focus handle (the forms dispatch from Home's node), draws one RUSTY card with the
+reason while Rusty is not connected (`not_connected`: "Rusty is still connecting." while
+starting, else `rusty::unavailable`), and reads again whenever Rusty connects again, not only
+after a failed read. `OpenHome` runs `home_page::open_here` in the shown group with no readiness
+toast; `open_here`, `home_of` and `rusty::open_home_here` went, and so did the status bar's Rusty
+button (`HomeButton` draws Home alone, made in place with no observer). The `rusty` verb with no
+screen opens Home after `rusty_unavailable`.
 
 - `RustyHome` (an `Item`, title Rusty, `rusty::RUSTY_ICON`, a placeholder) is the Rusty group's
   first tab: `rusty::in_rusty_group` calls `home_tab::ensure` before every open there, which adds it

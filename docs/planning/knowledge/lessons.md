@@ -5847,3 +5847,30 @@ Two more traps of the same seam: `CustomAgentServerSettings` merges whole (`Merg
 replaces), so a value Marley puts in Zed's `agent_servers` defaults loses to any user entry for that
 agent; and in a scenario, the note #563 raises when Ctrl+Alt+N opens the New Agent picker from a
 terminal stays over a thread's bottom right, the mode switch and the send button, until closed.
+
+## L-claude-782-a-stopped-rusty-shows-as-down-up-to-10-s-later-001
+*category: e2e · topic: Rusty's connection · from: pipeline 782*
+
+Marley pings Rusty every 5 s and gives the ping 5 s to answer (`rusty::PING_EVERY`,
+`CALL_TIMEOUT`), and Zed's MCP client reports no server exit, so a `rusty-mcp` that stops shows as
+not connected up to 10 s later. A scenario that stops the stand-in waits 15 s before its shot; #782's
+first run waited 6 s and its shot still showed every Rusty card. To keep Rusty down, replace
+`$bin/rusty-mcp` with a script that exits 1 before stopping it, since Marley starts the server again
+after 1 s.
+
+## L-claude-782-marley-workbench-init-sits-at-clippys-100-lines-001
+*category: build · topic: clippy too_many_lines · from: pipeline 782*
+
+`marley_workbench::init` is a list of module inits at clippy's `too_many_lines` limit: one more
+`<module>::init(cx)` made it 101 and failed gate:2. Make room by moving a construction out of it
+(#782 moved `LayoutState`'s build into `LayoutState::read`), never with an `allow`, and not by
+calling the new init from an unrelated module's, which also moves when its observers register.
+
+## L-claude-782-the-in-app-guide-is-inside-the-gates-receipt-001
+*category: gate · topic: the receipt · from: pipeline 782*
+
+The receipt hashes everything under `crates/`, `script/e2e` and the gate's own files, so
+`crates/marley_workbench/guide/index.html` (the in-app guide) counts as code for it, and so does a
+new scenario. Editing either while `script/gates.sh` runs fails only the receipt row, and the gate
+must run again. Write the scenario and the in-app guide's changes before the last gate run; the
+docs under `docs/` are outside the hash.

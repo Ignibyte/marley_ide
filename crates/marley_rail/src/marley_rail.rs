@@ -309,6 +309,8 @@ pub enum TabKind {
     File,
     /// Anything else: a project search, a diff, settings, one of Marley's tabs.
     Other,
+    /// Home's page, listed first under its group (#782): Default always holds it.
+    Home,
 }
 
 /// One center tab that is neither a terminal nor a Browser tab (#674).
@@ -1314,9 +1316,10 @@ fn summary(project: &ProjectSnapshot) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join(", "))
 }
 
-/// Every row the rail shows, in its order: each shown project's header, then the main
-/// checkout's terminals, each linked worktree's row with its terminals (#510), the Browser tabs,
-/// the other tabs, the threads, the Files row with its files (#674) and the ports shown under it.
+/// Every row the rail shows, in its order: each shown project's header, then Home's page (#782),
+/// the main checkout's terminals, each linked worktree's row with its terminals (#510), the Browser
+/// tabs, the other tabs, the threads, the Files row with its files (#674) and the ports shown under
+/// it.
 /// The rows, the selection and the keyboard all read this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
@@ -1324,6 +1327,12 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
         let Some(project) = snapshot.projects.get(index) else {
             continue;
         };
+        let homes = project
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == TabKind::Home)
+            .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
+            .map(|tab| Shown::Tab(index, tab));
         let terminals = arrange_terminals(
             snapshot,
             project
@@ -1397,7 +1406,8 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|port| row_shows(snapshot, project, port.matched.as_deref()))
             .map(|port| Shown::Port(index, port));
-        let under: Vec<Shown<'_>> = terminals
+        let under: Vec<Shown<'_>> = homes
+            .chain(terminals)
             .chain(worktrees)
             .chain(browsers)
             .chain(others)
@@ -1615,7 +1625,7 @@ pub fn parent(snapshot: &RailSnapshot, selection: &Selection) -> Selection {
                 });
             match found {
                 Some((index, TabKind::File)) => return Selection::Files(index),
-                Some((index, TabKind::Other)) => Some(index),
+                Some((index, TabKind::Other | TabKind::Home)) => Some(index),
                 None => None,
             }
         }

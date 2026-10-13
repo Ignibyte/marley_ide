@@ -408,7 +408,9 @@ quiets a handed one to a single line; #713 cleans up the rail (refreshes on row 
 sidebar's subscriptions, silent swaps, saves after the restore);
 #700 gives every window its Home group, and its Rusty group while Rusty is on, from the start,
 listed Home then Rusty above the projects; #701 gives Home its own page, with a terminal, the agent
-CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page.
+CLIs, recent projects, the agents at work and the settings, in place of Zed's Welcome page;
+#782 folds Rusty's home page into it, Rusty's cards shown while Rusty is on, its status-bar button
+gone, and lists Home's row first under Default in the rail.
 W5 shipped as #441:
 in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom

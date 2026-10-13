@@ -168,7 +168,7 @@ th { background: var(--panel); font-weight: 650; }
 <li><a href="#rail-keyboard">The rail from the keyboard</a></li>
 <li><a href="#rail-filter">The filter</a></li>
 <li><a href="#rail-switcher">The switcher and next thread</a></li>
-<li><a href="#rusty-group">The Rusty group: its home page and its + menu</a></li>
+<li><a href="#rusty-group">Rusty on Home</a></li>
 <li><a href="#brain-view">The Brain tab: Rusty&#x27;s vault</a></li>
 <li><a href="#knowledge-panel">The Knowledge panel: a page&#x27;s links, tags and brain search</a></li>
 <li><a href="#graph-tab">The Graph tab: the vault as a graph</a></li>
@@ -357,7 +357,7 @@ th { background: var(--panel); font-weight: 650; }
 
 <article id="this-guide">
 <h3>This guide <span class="ticket">#599</span></h3>
-<p class="what"><strong>What it is.</strong> The page you are reading ships inside Marley. The <kbd>?</kbd> button in the title bar, beside Sign In, opens it. Beside the <kbd>?</kbd> sit Rusty's button, while Rusty's agent is there, and Marley's, each opening a conversation with that agent in a tab where you are. Home is at the right of the status bar, with Rusty's home page beside it while Rusty is connected.</p>
+<p class="what"><strong>What it is.</strong> The page you are reading ships inside Marley. The <kbd>?</kbd> button in the title bar, beside Sign In, opens it. Beside the <kbd>?</kbd> sit Rusty's button, while Rusty's agent is there, and Marley's, each opening a conversation with that agent in a tab where you are. Home is at the right of the status bar; while Rusty is on, Home's page holds Rusty's cards too.</p>
 <h4>How to use it</h4>
 <ol class="steps">
 <li>Click the <kbd>?</kbd> in the title bar, or run <code>marley: open guide</code> from the command palette.</li>
@@ -502,11 +502,11 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="home-page">
-<h3>Home's page: a terminal, an agent, a project <span class="ticket">#701 · #703</span></h3>
-<p class="what"><strong>What it is.</strong> Home's first tab is a page of its own, titled Home, shown in place of Zed's Welcome page. Its cards start what belongs to no project, list your recent projects and the agents at work in the window, open Zed's and Marley's settings, and show what agents did with Marley's tools.</p>
+<h3>Home's page: a terminal, an agent, a project <span class="ticket">#701 · #703 · #782</span></h3>
+<p class="what"><strong>What it is.</strong> Default's first tab is a page of its own, titled Home, shown in place of Zed's Welcome page. Its cards start what belongs to no project, list your recent projects and the agents at work in the window, hold Rusty's screens and lists while Rusty is on, show what agents did with Marley's tools, and open Zed's and Marley's settings. In the rail, Home's row is always the first under Default, above its terminals.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Home's header at the top of the rail. When Home is shown without its page, or its last tab closes, the page comes back.</li>
+<li>Click Default's header at the top of the rail, or the Home button at the right of the status bar. When Default is shown without its page, or its last tab closes, the page comes back.</li>
 <li>Click what you need on one of its cards:</li>
 </ol>
 <table>
@@ -515,8 +515,9 @@ th { background: var(--panel); font-weight: 650; }
 <tr><td>NEW AGENT</td><td>A button for each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a terminal in Home, in your home folder</td></tr>
 <tr><td>RECENT PROJECTS</td><td>Up to eight local projects you opened lately, each with its folder; a click opens one</td></tr>
 <tr><td>AGENTS AT WORK</td><td>Every agent thread and agent CLI in the window that is working, waiting or failed, with its project and state; a click opens it where it lives</td></tr>
-<tr><td>CONFIGURE</td><td>Settings, Marley Settings (the Settings window on its Marley page), Keymap, Extensions and Marley Guide</td></tr>
+<tr><td>RUSTY, while Rusty is on</td><td>A button for each Rusty screen and Open Page… with the three captures, then RECENT PAGES, FOLLOW-UPS DUE and TASKS (see <a href="#rusty-group">Rusty on Home</a>); while Rusty is not connected, one card saying why</td></tr>
 <tr><td>AGENT ACTIVITY</td><td>Whether agents may use Marley's tools that act, with Stop or Resume; the five newest calls (time, caller, tool, what it acted on, <code>done</code> or <code>refused</code>); and Open Agent Activity for the full list</td></tr>
+<tr><td>CONFIGURE</td><td>Settings, Marley Settings (the Settings window on its Marley page), Keymap, Extensions, MCP Servers and Marley Guide</td></tr>
 </table>
 <p class="note">Agent Panel threads need a project folder, so start those from a project's <kbd>+</kbd>. A Home page you close beside other tabs stays closed until Home is shown again or empties. Stop sets Settings → Marley → Agent Control → Stopped (<code>marley.agent_control.stopped</code>): every agent's call to a tool that acts is then refused, across restarts, while the tools that only read keep answering. <code>marley: stop agent control</code>, <code>marley: resume agent control</code> and <code>marley: open agent activity</code> do the same from the palette; the Agent Activity tab opens under Home.</p>
 </article>
@@ -665,17 +666,16 @@ th { background: var(--panel); font-weight: 650; }
 </article>
 
 <article id="rusty-group">
-<h3>The Rusty group: its home page and its + menu <span class="ticket">#675 · #679 · #699 · #700</span></h3>
-<p class="what"><strong>What it is.</strong> While Rusty is on (the Rusty section of the Marley settings), the rail has a group named Rusty under Home, above your projects. Every Rusty screen and brain page opens there, whatever project the window shows. Its first tab is Rusty's home page, titled Rusty: a RUSTY card with a button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills and Secrets), and cards of your RECENT PAGES, the FOLLOW-UPS DUE and your open TASKS, each row opening what it names.</p>
+<h3>Rusty on Home <span class="ticket">#679 · #743 · #782</span></h3>
+<p class="what"><strong>What it is.</strong> While Rusty is on (the Rusty section of the Marley settings), Home's page holds Rusty's cards under RECENT PROJECTS and AGENTS AT WORK: a RUSTY card with a button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills and Secrets) and Open Page…, Capture to Today…, Capture to Inbox… and Capture a URL…; then your RECENT PAGES, the FOLLOW-UPS DUE and your open TASKS, each row opening what it names. Rusty's screens and pages open as tabs of the group you are looking at.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click the Rusty group's header in the rail, or the Rusty button before PROJECTS at the top of the rail (while Rusty is connected), or run <code>rusty: open home</code>. The window shows the group on its home page.</li>
-<li>Click a screen's button to open its tab in the group, or bring it forward if it is open.</li>
-<li>Click the <kbd>+</kbd> on the Rusty group's tab bar for Rusty's quick links: Home and the eight screens, then Open Page… (<kbd>Ctrl+Alt+U</kbd>), Capture to Today…, Capture to Inbox… and Capture a URL…. Zed's own entries (New File, Open File, Search Project and the rest) follow under a line.</li>
-<li>The group's tabs are its rows in the rail. Click a project to go back to your work; Rusty's tabs stay where they are.</li>
-<li>The group never shows Zed's Welcome page: when its last tab closes, or it is shown with no tab (after a restart, for one), its home page opens.</li>
+<li>Open Home: Default's header in the rail, the Home button in the status bar, <code>rusty: open home</code>, or <code>marley rusty</code> in a terminal.</li>
+<li>Click a screen's button to open its tab, or bring it forward if it is open.</li>
+<li>Click a recent page or a follow-up for the Brain tab on it, or a task for the Tasks tab on its list.</li>
+<li>While Rusty is on but not connected, the RUSTY card says why, and the lists come back once it connects.</li>
 </ol>
-<p class="note">The group has no Rename or Remove; its header's right-click menu reads "Rusty's screens and pages open here". The tab bar <kbd>+</kbd> of a project or any other group keeps Zed's entries only. While Rusty is off, Marley shows nothing of it but its switch: no Rusty group, no Rusty button and no <code>rusty:</code> command in the palette (#661).</p>
+<p class="note">Rusty's own home page, a tab titled Rusty, and its status-bar button went in #782: Home holds all of it. While Rusty is off, Marley shows nothing of it but its switch: no Rusty card on Home, no Rusty button and no <code>rusty:</code> command in the palette (#661).</p>
 </article>
 
 <article id="brain-view">
@@ -683,10 +683,10 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's vault, while Rusty is on and connected: on its left a search field, the favourites and the vault's folders and pages; on its right the page you pick, as the Tasks tab shows a list beside its lists. It opens in the Rusty group (see <a href="#rusty-group">The Rusty group</a>), and the rail stays your projects. Everything it changes goes through Rusty's tools; Marley writes no file of the vault.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Brain on Rusty's home page or in the Rusty group's <kbd>+</kbd> menu, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window. With Rusty off or not connected, it says why in a toast.</li>
+<li>Click Brain on Home's RUSTY card, or press <kbd>Ctrl+Alt+V</kbd> from anywhere in the window. With Rusty off or not connected, it says why in a toast.</li>
 <li>Click a folder to open or close it. Click a page and it shows on the tab's right: its title, its properties and its body, with its wikilinks as links (#645); a second click moves the keyboard into it. Right-click a page and choose Open in New Tab to keep it in a tab of its own.</li>
 <li>The Brain tab, and every page you open in a tab of its own, sits in the window's Rusty group, whatever project the window shows. Click a project to go back to your work; Rusty's tabs stay where they are.</li>
-<li>Today's Note, on the home page or in the <kbd>+</kbd> menu, opens the Brain tab on today's daily note, which Rusty makes when it is missing.</li>
+<li>Today's Note, on Home's RUSTY card, opens the Brain tab on today's daily note, which Rusty makes when it is missing.</li>
 <li>Type in the search field and press Enter: Rusty's hits replace the tree. Rusty's <code>tag:</code>, <code>path:</code> and <code>type:</code> work as typed. Escape clears the search, a second Escape goes back to the tree.</li>
 <li>In the tree, Up and Down move, Right opens a folder or steps into it, Left closes it or goes up, and Enter opens the selected page.</li>
 <li>The <kbd>+</kbd> after the search field makes a new page in the selected row's folder. Right-click a folder for New Page, New Folder, Rename and Delete; a page for Open, Open in New Tab, Rename and Delete; the empty space for New Page, New Folder and Refresh. A name is typed in the tree: Enter makes it, Escape drops it.</li>
@@ -740,7 +740,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab that draws Rusty's vault as a graph, while Rusty is on: pages as dots sized by their links and coloured by page type, links as lines, and a decision's consulted, supersedes and follows-up edges dashed, a colour each. Local shows the neighbourhood of the brain page last in front, to a depth of one to four; Vault shows every page.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Run <code>rusty: open graph</code>, or click Graph on the Rusty home page. With a brain page in front it opens on that page's neighbourhood; <code>rusty: open local graph</code> turns it to the page in front.</li>
+<li>Run <code>rusty: open graph</code>, or click Graph on Home's RUSTY card. With a brain page in front it opens on that page's neighbourhood; <code>rusty: open local graph</code> turns it to the page in front.</li>
 <li>Click a page to open it. Drag the background to move the view, turn the wheel to zoom about the pointer, and drag a dot to hold it while the rest settle around it.</li>
 <li>Rest the pointer on a dot to light it and its neighbours and read its title.</li>
 <li>In the panel at the top right: Local or Vault, the depth, a filter (words, <code>tag:</code>, <code>path:</code>, <code>type:</code>, every term matching), and the switches Tags, Unresolved links, Decision edges and Orphans. Click a page type in the legend to hide it. Restart layout, Fit and Hide panel are the panel's three buttons.</li>
@@ -757,7 +757,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's to-do lists, while Rusty is on: the lists in a column on the left, the chosen list's tasks on the right, in Rusty's order. Every change goes to Rusty and is read back, so the tab shows what Rusty holds.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Tasks on the Rusty home page, or run <code>rusty: open tasks</code>. From the Knowledge panel's project view, the list icon on its Tasks heading opens the tab on the project's task group.</li>
+<li>Click Tasks on Home's RUSTY card, or run <code>rusty: open tasks</code>. From the Knowledge panel's project view, the list icon on its Tasks heading opens the tab on the project's task group.</li>
 <li>Click a list to see its tasks. Type in the field above them and press Enter to add one at the end; Down from the field goes to the first task.</li>
 <li>Click a task's box, or press <kbd>Space</kbd>, to check it done; a done task stays in its place, struck through. Double-click it, or press <kbd>F2</kbd> or <kbd>Enter</kbd>, to rename it in its row.</li>
 <li><kbd>Delete</kbd> archives the selected task, which hides it; Show archived lists archived tasks in their places, marked Archived, and <kbd>Delete</kbd> or the menu's Restore brings one back. <kbd>Shift+Delete</kbd> or Delete for Good asks first, then deletes it.</li>
@@ -771,7 +771,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over the decisions Rusty's brain loop records, while Rusty is on: the follow-ups due first, under Due, the overdue ones marked; then every decision, the newest first, with its status (decided, kept, revised or superseded), the day it was decided, the day of its last follow-up, its next follow-up day, and for a replaced decision the one that replaced it. Rusty's agents write them: <code>brain_ask</code> before a choice, <code>brain_decide</code> when it is made, <code>brain_follow_up</code> when its day comes. You can record that follow-up yourself.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Decisions on the Rusty home page, or run <code>rusty: open decisions</code>.</li>
+<li>Click Decisions on Home's RUSTY card, or run <code>rusty: open decisions</code>.</li>
 <li>Click a decision to open its page in a tab. On a replaced decision, click the title after "replaced by" to open the one that replaced it.</li>
 <li>To record a follow-up, click Follow Up on a row under Due, or right-click any decision that is not replaced and choose Follow Up….</li>
 <li>Choose Kept, Revised or Superseded and write how it went. For Revised, give the next follow-up day (<code>YYYY-MM-DD</code>) or leave it empty; for Superseded, pick the decision that replaced it.</li>
@@ -797,7 +797,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's long-term memories, while Rusty is on: the facts, preferences and context its agents read at the start of a conversation, the high ones first. Each row shows the memory, its category, its importance, who stored it and the day it last changed.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Memory on the Rusty home page, or run <code>rusty: open memory</code>.</li>
+<li>Click Memory on Home's RUSTY card, or run <code>rusty: open memory</code>.</li>
 <li>To add one, type it in the top field, give a category (empty files it under <code>context</code>), choose Low, Normal or High, and press <kbd>Enter</kbd>.</li>
 <li>Choose a category in the Category menu to see only those; All shows every memory again.</li>
 <li>Click a memory to edit it: change the text, the category or the importance and click Save. Delete asks first, then Rusty forgets it.</li>
@@ -810,7 +810,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's skills store, while Rusty is on. A skill is a <code>SKILL.md</code> that Claude Code loads once it is active; an agent's new skill waits, staged, for your approval. A script is a <code>.sh</code> beside a skill, the command <code>rusty &lt;name&gt;</code>. Rusty commits every change to the store.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Skills on the Rusty home page, or run <code>rusty: open skills</code>. Staged skills come first, marked pending; <code>auto</code> marks one an agent wrote.</li>
+<li>Click Skills on Home's RUSTY card, or run <code>rusty: open skills</code>. Staged skills come first, marked pending; <code>auto</code> marks one an agent wrote.</li>
 <li>Click a skill to see its description and body. Edit either and click Save; Scan runs Rusty's safety scan and lists what it found.</li>
 <li>On a staged skill, Approve makes it active and Reject removes it. If the scan blocks Approve, Rusty says why and Approve Anyway appears.</li>
 <li>Click a script to see its text; Save keeps an edit, and Run opens a terminal in the center running it.</li>
@@ -824,7 +824,7 @@ th { background: var(--panel); font-weight: 650; }
 <p class="what"><strong>What it is.</strong> A center tab over Rusty's secrets: the keys for providers and services that Rusty and its agents use. The names show to anyone; a value shows, changes or goes only behind your PIN. Never type the PIN to an agent.</p>
 <h4>How to use it</h4>
 <ol class="steps">
-<li>Click Secrets on the Rusty home page, or run <code>rusty: open secrets</code>.</li>
+<li>Click Secrets on Home's RUSTY card, or run <code>rusty: open secrets</code>.</li>
 <li>The first time, set a PIN: six characters or more, typed twice.</li>
 <li>Type the PIN and click Unlock. For a few minutes (Rusty's <code>pin_timeout_minutes</code>) each name has Reveal, Replace and Delete; a shown value has Copy and Hide.</li>
 <li>To add a secret, type its key and value and click Set. Replace asks for a new value; Enter saves it. Delete asks first.</li>
@@ -2342,7 +2342,7 @@ Or set <code>"embedded_harness": true</code> where <code>rh</code> is installed:
 <tr><td><code>marley: open agent activity</code></td><td>The log of every agent call to a tool that acts</td></tr>
 <tr><td><code>marley: stop agent control</code>, <code>marley: resume agent control</code></td><td>Make every tool that acts refuse agents, and let them act again</td></tr>
 <tr><td><code>marley: open harness session</code></td><td>Open a harness session from a profile, with <code>harness_writes</code> on</td></tr>
-<tr><td><code>rusty: open home</code></td><td>Rusty's home page, while Rusty is on</td></tr>
+<tr><td><code>rusty: open home</code></td><td>Home, which holds Rusty's cards while Rusty is on</td></tr>
 <tr><td><code>multi workspace: next project</code> / <code>previous project</code> / <code>next thread</code> / <code>previous thread</code></td><td>Walk the rail</td></tr>
 </table>
 </article>

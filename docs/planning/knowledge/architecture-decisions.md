@@ -5445,3 +5445,19 @@ still wins: Open Agent Here's, and `marley agent-thread --provider=marley` with 
 asking Where (Chad: "we dont ask for the folder for marley and rusty"); the home folder for both;
 #738's hidden folders under the data folder, which an agent could read nothing useful in. Chad,
 2026-10-12.
+
+## AD-claude-782-one-home-page-rustys-cards-follow-the-switch-and-home-heads-default-001
+*decided at: 2026-10-13 · status: shipped · supersedes: AD-claude-679-one-rusty-button-and-a-home-page-in-place-of-the-screens-row-001's separate page, AD-claude-743-rustys-screens-open-where-the-user-is-and-home-is-default-001's quick links on Rusty's home page, and #778's Rusty button in the status bar*
+
+Marley has one home page. Rusty's cards (the screens, Open Page… and the captures, the recent
+pages, the follow-ups due, the open tasks) are a view of the `rusty` module that Home holds while
+`marley.rusty.enabled` is on, under Recent Projects and Agents at Work; Configure goes last. The
+cards follow the switch, not the connection: on but not connected, one Rusty card says why, since
+cards that vanished on every `rusty-mcp` restart would hide that Rusty is down. Off, Home holds
+nothing of Rusty. The Rusty tab and its status-bar button went; `rusty: open home` and `marley
+rusty` open Home. In the rail, Home's row is the first under its group (`TabKind::Home`), so under
+Default it heads the terminals. Rejected: showing the cards only once connected (above); pinning
+Home in the tab strip with Zed's pinned tabs (Chad asked about the rail, and `ensure` already puts
+it first in the strip). Chad, 2026-10-13: "combining the rusty home page with the marley home page
+and then just show rusty items if it is configured", and "in default the Home that always stays
+should always be at the top."
