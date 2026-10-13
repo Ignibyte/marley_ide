@@ -1250,6 +1250,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The title bar's Rusty opens Rusty's agent** (#778, 2026-10-12). The Rusty button beside the
+  `?` now opens your latest conversation with Rusty, or starts one in a tab, as Marley's button
+  beside it does; it shows while Rusty's agent is there. Rusty's home page has its button back at
+  the right of the status bar, beside Home, while Rusty is connected.
+
 - **Plan Review works with a real Claude Code** (#776, 2026-10-12). Marley carries the shared
   Claude Code plugin at rustal-harness's 0.4.0 (its TICKET-119): with Plan Review on, Claude Code's
   request to leave plan mode now opens its plan in the Plan tab, and the plugin's `plan-questions`

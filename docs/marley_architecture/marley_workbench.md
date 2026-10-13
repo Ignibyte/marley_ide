@@ -2619,6 +2619,11 @@ alike.
   `?`. `status_buttons::init` sets it to a `TitleButtons` view: Rusty then Marley, #739's rules,
   tooltips and handlers, observing the settings, `rusty::Rusty` and `assistant::Assistant`.
 - The status bar keeps `HomeButton` alone, with no observer.
+- #778 (Chad, 2026-10-12: the top right Rusty button opens the Rusty agent, the home page goes
+  back to the bottom): the title bar's Rusty runs `assistant::talk_to_rusty` (Talk to Rusty, its
+  tooltip naming the action) and shows while `assistant::rusty_present`, Rusty's entry, as Marley's
+  shows on `marley_present`. `HomeButton::new` observes the settings and `rusty::Rusty`, and the
+  view draws Home, then #739's Rusty button (on and connected, `rusty::open_home_here`).
 
 ## Threads in the rail (`src/rail.rs`, `src/threads_page.rs`, `src/home_page.rs`, `src/status_buttons.rs`, #745)
 

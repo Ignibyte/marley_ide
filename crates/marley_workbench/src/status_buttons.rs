@@ -1,8 +1,10 @@
-//! Marley's pages as buttons (#739, #746), and the Debug panel's button (#774).
+//! Marley's pages as buttons (#739, #746, #778), and the Debug panel's button (#774).
 //!
-//! Home at the right of the status bar; Rusty and the Marley agent in the title bar beside the
-//! guide's `?` (#746: Chad, 2026-10-11, "Rusty and Marley go to the top right next to (?) and
-//! Avatar instead"). Each opens its tab in the group the window shows, in either layout. Chad,
+//! Home and Rusty's home page at the right of the status bar; Rusty's and the Marley agent's
+//! conversations in the title bar beside the guide's `?` (#746: Chad, 2026-10-11, "Rusty and
+//! Marley go to the top right next to (?) and Avatar instead"; #778: Chad, 2026-10-12, "The top
+//! right rusty button is suppose to open the rusty agent not the rusty home page that goes back to
+//! the bottom"). Each opens its tab in the group the window shows, in either layout. Chad,
 //! 2026-10-10: "they just open in a new tab." Threads left for the rail's header and the Home page
 //! (#745). In the Marley layout the Debug panel's button sits at the status bar's left (#774).
 
@@ -23,15 +25,15 @@ use workspace::{HideStatusItem, ItemHandle, StatusItemView, Workspace};
 /// crate needs no `debugger_ui`.
 const DEBUG_PANEL: &str = "DebugPanel";
 
-/// Adds Home and Debug to every workspace's status bar, and hands the title bar the view that draws
-/// Rusty and Marley. [`crate::init`] calls it once, before any window opens.
+/// Adds Home, Rusty's home page and Debug to every workspace's status bar, and hands the title bar
+/// the view that draws Rusty and Marley. [`crate::init`] calls it once, before any window opens.
 pub(crate) fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
             return;
         };
         let handle = workspace.weak_handle();
-        let buttons = cx.new(|_| HomeButton { workspace: handle });
+        let buttons = cx.new(|cx| HomeButton::new(handle, cx));
         let docks = workspace.all_docks().map(Entity::clone);
         let debug = cx.new(|cx| DebugButton::new(docks, cx));
         workspace.status_bar().update(cx, |status_bar, cx| {
@@ -50,7 +52,8 @@ pub(crate) fn init(cx: &mut App) {
     })));
 }
 
-/// The status bar's Home button, drawn only while its workspace is shown.
+/// The status bar's Home button, and Rusty's home page beside it while Rusty is on and connected
+/// (#778), drawn only while its workspace is shown.
 pub struct HomeButton {
     workspace: WeakEntity<Workspace>,
 }
@@ -61,21 +64,53 @@ impl std::fmt::Debug for HomeButton {
     }
 }
 
+impl HomeButton {
+    fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+        // What Rusty's presence rests on: its switch and its connection.
+        cx.observe_global::<SettingsStore>(|_, cx| cx.notify())
+            .detach();
+        cx.observe_global::<crate::rusty::Rusty>(|_, cx| cx.notify())
+            .detach();
+        Self { workspace }
+    }
+}
+
 impl Render for HomeButton {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        // A plain closure over the weak workspace: opening a tab updates the workspace, which reads
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Plain closures over the weak workspace: opening a tab updates the workspace, which reads
         // its items (PR-claude-701).
-        let workspace = self.workspace.clone();
-        IconButton::new("marley-status-home", IconName::ListTree)
-            .icon_size(IconSize::Small)
-            .shape(IconButtonShape::Square)
-            .tooltip(Tooltip::text("Home"))
-            .on_click(move |_, window, cx| {
-                workspace
-                    .update(cx, |workspace, cx| {
-                        crate::home_page::open_here(workspace, window, cx);
-                    })
-                    .log_err();
+        let home_workspace = self.workspace.clone();
+        let rusty_workspace = self.workspace.clone();
+        let rusty = crate::rusty::is_on(cx) && crate::rusty::is_connected(cx);
+        h_flex()
+            .gap_1()
+            .child(
+                IconButton::new("marley-status-home", IconName::ListTree)
+                    .icon_size(IconSize::Small)
+                    .shape(IconButtonShape::Square)
+                    .tooltip(Tooltip::text("Home"))
+                    .on_click(move |_, window, cx| {
+                        home_workspace
+                            .update(cx, |workspace, cx| {
+                                crate::home_page::open_here(workspace, window, cx);
+                            })
+                            .log_err();
+                    }),
+            )
+            .when(rusty, |buttons| {
+                buttons.child(
+                    IconButton::new("marley-status-rusty", crate::rusty::RUSTY_ICON)
+                        .icon_size(IconSize::Small)
+                        .shape(IconButtonShape::Square)
+                        .tooltip(Tooltip::text("Rusty"))
+                        .on_click(move |_, window, cx| {
+                            rusty_workspace
+                                .update(cx, |workspace, cx| {
+                                    crate::rusty::open_home_here(workspace, window, cx);
+                                })
+                                .log_err();
+                        }),
+                )
             })
     }
 }
@@ -205,7 +240,7 @@ impl StatusItemView for DebugButton {
     }
 }
 
-/// Rusty and the Marley agent in one workspace's title bar (#746).
+/// Rusty's and the Marley agent's conversations in one workspace's title bar (#746, #778).
 pub struct TitleButtons {
     workspace: WeakEntity<Workspace>,
 }
@@ -221,7 +256,7 @@ impl std::fmt::Debug for TitleButtons {
 impl TitleButtons {
     fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         // What each button's presence rests on: the settings (AI, Rusty's switch), Rusty's
-        // connection, and the Marley entry.
+        // connection, and the Marley and Rusty entries.
         cx.observe_global::<SettingsStore>(|_, cx| cx.notify())
             .detach();
         cx.observe_global::<crate::rusty::Rusty>(|_, cx| cx.notify())
@@ -235,7 +270,8 @@ impl TitleButtons {
 impl Render for TitleButtons {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ai = !DisableAiSettings::get_global(cx).disable_ai;
-        let rusty = crate::rusty::is_on(cx) && crate::rusty::is_connected(cx);
+        // Rusty's entry is there only while Rusty is on and connected and an agent runs it.
+        let rusty = ai && crate::assistant::rusty_present(cx);
         let marley = ai && crate::assistant::marley_present(cx);
         let rusty_workspace = self.workspace.clone();
         let marley_workspace = self.workspace.clone();
@@ -245,11 +281,13 @@ impl Render for TitleButtons {
                 buttons.child(
                     IconButton::new("marley-title-rusty", crate::rusty::RUSTY_ICON)
                         .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text("Rusty"))
+                        .tooltip(|_, cx| {
+                            Tooltip::for_action("Talk to Rusty", &crate::assistant::TalkToRusty, cx)
+                        })
                         .on_click(move |_, window, cx| {
                             rusty_workspace
                                 .update(cx, |workspace, cx| {
-                                    crate::rusty::open_home_here(workspace, window, cx);
+                                    crate::assistant::talk_to_rusty(workspace, window, cx);
                                 })
                                 .log_err();
                         }),

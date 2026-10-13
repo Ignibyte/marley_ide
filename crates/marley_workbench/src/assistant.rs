@@ -1036,6 +1036,21 @@ pub(crate) fn marley_present(cx: &App) -> bool {
         .is_some_and(|assistant| assistant.applied.of(Entry::Marley).is_some())
 }
 
+/// Whether Rusty's entry is there (#778).
+pub(crate) fn rusty_present(cx: &App) -> bool {
+    cx.try_global::<Assistant>()
+        .is_some_and(|assistant| assistant.applied.of(Entry::Rusty).is_some())
+}
+
+/// `marley: talk to rusty` from outside an action, as the title bar's Rusty button runs it (#778).
+pub(crate) fn talk_to_rusty(
+    workspace: &mut Workspace,
+    window: &Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    talk_to(Entry::Rusty, false, workspace, window, cx);
+}
+
 /// `marley: talk to marley` from outside an action, as the status bar's Marley button runs it
 /// (#739).
 pub(crate) fn talk_to_marley(

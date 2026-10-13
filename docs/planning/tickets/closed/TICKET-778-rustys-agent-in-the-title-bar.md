@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #778 (feature, the Marley layout)
 - **Owner:** 9623da6e-a5cd-4dcb-b048-40009324e9f0
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [778-rustys-agent-in-the-title-bar.spec.md](../../pipeline/completed/778-rustys-agent-in-the-title-bar.spec.md)
 - **Source ticket:** Chad, 2026-10-12: "The top right rusty button is suppose to open the rusty
   agent not the rusty home page that goes back to the bottom".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #746 put Rusty's button in the title bar opening Rusty's home page. The title bar's Rusty button
