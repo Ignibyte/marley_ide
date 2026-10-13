@@ -6,7 +6,7 @@ planning tree, and the design record carried over from the gpui-era app on 2026-
 
 | Folder | What it holds |
 |---|---|
-| **`marley/`** | The fork's own record: [guide.md](guide.md) (everything Marley adds and how to use it, the user's reference), [walkthrough.md](walkthrough.md) (a hands-on tour of the whole IDE, stop by stop, with what each stop should show), [tutorial-outline.md](tutorial-outline.md) (the lesson-by-lesson tutorial, outlined), [workbench-shell.md](workbench-shell.md) (the Warp-style shell, first in line), [three-prong-plan.md](three-prong-plan.md) (the forward plan), [fleet-contract.md](fleet-contract.md) (the outputs Marley reads to show agents, their work and their hosts; a draft), [mutation-runs.md](mutation-runs.md) (the mutation pass, on this machine or on GitHub's runners), [zed-touchpoints.md](zed-touchpoints.md) (every change outside Marley-owned paths, read at each upstream merge), and `history/` (the gpui-era changelog). |
+| **`marley/`** | The fork's own record: [guide.md](guide.md) (everything Marley adds and how to use it, the user's reference), [walkthrough.md](walkthrough.md) (a hands-on tour of the whole IDE, stop by stop, with what each stop should show), [tutorial-outline.md](tutorial-outline.md) (the lesson-by-lesson tutorial, outlined), [workbench-shell.md](workbench-shell.md) (the plan for the Warp-style shell, the Marley layout and its rail, built first), [three-prong-plan.md](three-prong-plan.md) (the forward plan), [rusty-in-marley.md](rusty-in-marley.md) (the plan that rebuilt Rusty's app as Marley's panels and tabs), [browser-handoff.md](browser-handoff.md) (the 2026-09-24 handoff that gathered the record on the embedded browser), [fleet-contract.md](fleet-contract.md) (the outputs Marley reads to show agents, their work and their hosts; a draft), [mutation-runs.md](mutation-runs.md) (the mutation pass, on this machine or on GitHub's runners), [zed-touchpoints.md](zed-touchpoints.md) (every change outside Marley-owned paths, read at each upstream merge), and `history/` (the gpui-era changelog). |
 | **`marley/borrowing.md`** | The ongoing list of projects Marley was compared with (Zed, Warp, Orca, T3 Code, herdr and Hermes, MonoCode, plannotator, the ASD-STE100 skill): each survey, what came of it, and what is still open. |
 | **`vendor/`** (at the root) | The upstream crates Marley changes and so carries, built through `[patch]` and kept out of Zed's workspace: `alacritty_terminal` at Zed's rev (#461). [`vendor/README.md`](../../vendor/README.md) records each copy's source, what is left out, Marley's hunks, and the re-sync steps. |
 | **`planning/`** | The workflow's working tree (CONSTITUTION §3/§19): `tickets/` (open, closed, `BACKLOG.md`), `pipeline/` (`queued/`, `active/`, `completed/`, `parked/`, templates), `knowledge/` (the four append-only ledgers recall greps), `intake/`, `design-notes/`. History from the gpui era continues here unbroken. |
@@ -41,10 +41,17 @@ stay cheap.
   (`/mnt/fast/target/debug/marley` on the dev box). The e2e scenarios run it.
 - `just install` (#502) builds `marley` in the release profile and installs it under
   `~/.local` (`--prefix DIR` for another place): the binary `lib/marley/marley`, its launcher
-  `bin/marley`, the desktop entry `share/applications/marley.desktop` and an icon, so the menu
-  lists Marley. Run it again after a pull; a running Marley keeps its old binary until it
+  `bin/marley`, the desktop entry `share/applications/marley.desktop` (which claims `marley://`
+  links, #762) and an icon, so the menu lists Marley. It also builds Marley's remote server for
+  Linux x86_64 hosts and stages it under `~/.local/share/marley/remote_servers/` (#445), which
+  needs `musl-gcc` and `llvm-objcopy`; `script/install-marley --remote-server-only` stages the
+  server alone. Run it again after a pull; a running Marley keeps its old binary until it
   restarts. The launcher appends stderr to `~/.local/share/marley/logs/stderr.log` when stderr
   is not a terminal: on the `dev` channel a panic goes to stderr and nowhere else.
 - Both builds are on the `dev` channel and share `~/.config/marley` and `~/.local/share/marley`.
-  That channel skips Zed's single-instance check, and a second Marley on the same data
-  directory hangs, so run one at a time.
+  Since #513 a second Marley on the same data directory hands its paths to the one that runs,
+  through `marley-dev.sock` in the data directory (#760), and exits; `--user-data-dir DIR` runs
+  one beside it on a directory of its own. Marley's windows have the class
+  `com.ignibyte.Marley` (#760).
+- The guide's "Install and run" section has the details, and the walkthrough's Part 0 checks an
+  install stop by stop.

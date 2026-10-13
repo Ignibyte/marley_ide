@@ -5,7 +5,7 @@ language support, projects, settings, themes, the Agent Panel) and adds a layout
 terminals, a block terminal, agents recognized in any terminal, an MCP server that lets agents
 read your terminals and your browser, and a Browser tab that you and your agents drive together.
 
-This guide describes Marley as of 2026-09-25 (through #516) on Linux, where it is built and
+This guide describes Marley as of 2026-10-12 (through #778) on Linux, where it is built and
 tested (Omarchy on Hyprland). A number such as #496 is the ticket that shipped a feature; its
 entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 
@@ -15,9 +15,15 @@ entry in `CHANGELOG.md` says more. Marley is pre-1.0.
 - [The block terminal](#the-block-terminal)
 - [Agent CLIs in terminals](#agent-clis-in-terminals)
 - [Zed's Agent Panel with Marley's tools](#zeds-agent-panel-with-marleys-tools)
+- [Rusty](#rusty)
+- [MCP Servers](#mcp-servers)
+- [The rustal-ste skill for Marley's agents](#the-rustal-ste-skill-for-marleys-agents)
+- [The Marley agent](#the-marley-agent)
 - [Marley's MCP server](#marleys-mcp-server)
 - [The Browser tab](#the-browser-tab)
 - [System One](#system-one)
+- The harness's sessions
+- [The Fleet panel](#the-fleet-panel)
 - [Key bindings](#key-bindings)
 - [Settings](#settings)
 - [Where data lives](#where-data-lives)
@@ -76,13 +82,17 @@ else. Each install also builds Marley's remote server and stages it (see
 The first release build takes about ten minutes on the dev box; a rebuild with nothing changed
 takes under a second. The binary is about 2.1 GB because it keeps its debug information, which
 gives a backtrace its file and line numbers. When it finishes, the installer prints the commit it
-installed (and says so when the tree had uncommitted changes), the menu entry's path, a warning
-when a Marley is running, and a note when the prefix's `bin` is not on your PATH. The entry
-claims no file types, so Marley never becomes the default app for text files or folders.
+installed (and says so when the tree had uncommitted changes), the staged remote server's path,
+the menu entry's path, a warning when a Marley is running, and a note when the prefix's `bin` is
+not on your PATH. The entry claims no file types and no scheme but `marley://` (#762), so Marley
+never becomes the default app for text files, folders or stock Zed's `zed://` links.
 
 Marley's windows have the class `com.ignibyte.Marley` (#760; stock Zed's is `dev.zed.Zed`, and a
 Marley installed before #760 had `dev.zed.Zed-Dev`), which is what a Hyprland window rule matches.
-Its About window and a window title's `${appName}` say Marley.
+Its About window and a window title's `${appName}` say Marley. Marley stays on Zed's `dev`
+channel, so its database (`db/0-dev`), its settings and its credentials stayed where they were when
+it took its own name. What it keeps in the system keyring is labelled Marley (#761; see
+[Turning it on](#turning-it-on) under System One).
 
 ### Remote projects over SSH (#445)
 
@@ -104,6 +114,8 @@ no server, so the install builds one:
   with a message naming the platform, the commit and `script/install-marley
   --remote-server-only`. Run that in the checkout at the commit Marley was built from.
 - **Hosts:** Linux x86_64 only for now. A macOS or aarch64 host gets the same message.
+- **Dev containers** take the same staged server through the same lookup. No run has opened one
+  yet, and #445's scenario reached its hosts through an sshd on the same machine.
 
 ### Start it and update it
 
@@ -115,7 +127,8 @@ file is the only record of one; `Marley.log` says nothing about it.
 
 To update, pull and run `just install` again. Each file is replaced by a rename, so a Marley that
 is running keeps its old build until you quit it and start it again. Marley never checks zed.dev
-for an update: Check for Updates says this (#763).
+for an update. Check for Updates (`auto update: check`) says so (#763): "Marley updates through
+its install script", with what to run.
 
 ### One Marley at a time
 
@@ -132,6 +145,10 @@ on <data dir>; it was handed 1 of this launch's paths".
   and Chromium, and behaves as a fresh install.
 - A Marley that hangs keeps its data directory: a new launch hands off to it and exits. Kill
   the hung one (`pgrep -x marley` finds it), and the next launch starts.
+- The hand-off goes through a socket in the data directory, `marley-dev.sock` since #760
+  (`zed-dev.sock` before). A Marley started from an older build listens on the old name, which a
+  new build does not look for, so quit the running Marley before you start the first build past
+  #760.
 
 ### `marley://` links (#762)
 
@@ -218,13 +235,15 @@ by default or `"zed"`, and two commands write it for you: `marley: use marley la
 | Left column | Zed's Threads Sidebar | The rail |
 | Terminals | The bottom Terminal Panel | The main area. Tasks, New Terminal and Open in Terminal open there, and the Terminal Panel's button is hidden. |
 | Agent Panel | Where Zed puts it | Docked on the right |
+| Agent threads | In the Agent Panel | In tabs, never in the Agent Panel (#772) |
+| Side panels (project, git, outline, collab, Fleet, Knowledge, Containers) | In their docks | Tabs in the pane you are in (#747, #748); Debug stays in the bottom dock (#774) |
 | A folder you open for the first time | Zed's behavior | Starts with a terminal at its root |
 | Ctrl+\`, Ctrl+J, Ctrl+~ | Zed's Terminal Panel | The center terminals |
 
 The block terminal, the agent bar, the MCP server and the Browser tab work in both layouts. The
-layout sets two defaults, `terminal.button: false` and `agent.dock: "right"`, under your own
-settings, so a value you set wins in either layout. A switch to the Zed layout and back gives each
-dock the panel it showed before (#456).
+layout sets three defaults, `terminal.button: false`, `agent.dock: "right"` and `debugger.button:
+false` (#774), under your own settings, so a value you set wins in either layout. A switch to the
+Zed layout and back gives each dock the panel it showed before (#456).
 
 Zed's Panel Layout presets, Classic and Agentic, would rewrite the docks the Marley layout sets.
 In the Marley layout, choosing one shows a toast saying the presets belong to Zed's layout, with a
@@ -234,16 +253,19 @@ With AI turned off (`disable_ai`), Zed draws no sidebar at all, the rail include
 
 ### The rail
 
-The header reads PROJECTS and carries Add Project (a folder with a plus). Add Project opens Zed's
-recent-projects popover: your recent projects, Open Local Folders and Open Remote Folder. The
-filter field sits under the header. While Rusty is on and connected, PROJECTS gives way to two
-buttons, Projects and Brain (see [The Brain view](#the-brain-view)), and the end button follows the
-view shown.
+The header reads PROJECTS and THREADS (#745), the view showing lit, and carries Add Project (a
+folder with a plus) while the projects show. Add Project opens Zed's recent-projects popover: your
+recent projects, Open Local Folders and Open Remote Folder. The filter field sits under the header.
+THREADS lists your conversations in the projects' place (see [Threads in the
+rail](#threads-in-the-rail)). Rusty's vault no longer takes over the rail: it opens in a Brain tab
+(see [The Brain tab](#the-brain-tab)).
 
 Each project has a header row: its name as a muted label, a chevron that folds it, an attention
 dot when a row it hides (folded, or filtered out) needs you, and a `+`. Under the header come the
-project's terminals, its Browser tabs, its Zed agent threads, newest first, and the ports its
-servers listen on. A line separates one project from the next.
+project's terminals, its Browser tabs, its other tabs (a panel tab, the Home page, a Rusty screen, a
+search or a diff), its open files under a **Files** row (#674), its agent threads, newest first,
+and the ports its servers listen on. A line separates one project from the next. A thread in a
+tab has one row, under the group that holds the tab (#734), lit while the tab is in front (#702).
 
 | Row | What it shows | A click |
 |---|---|---|
@@ -266,8 +288,10 @@ Dots mark what needs you:
 
 To close a thread you are done with, point at its row and click Archive at its end, or right-click
 the row and choose Archive Thread (#605). The thread is archived as Zed's thread history archives
-it, and its row goes. To bring it back, right-click the project's header and choose it under
-Archived Threads (#616): it opens in a tab and its row comes back. To delete a thread for good,
+it: its row goes, and its tab closes if it has one, in every window, and stays closed after a
+restart (#777). To bring it back, right-click the project's header and choose it under Archived
+Threads (#616), or open it from the Threads page's Show archived: it opens in a tab, its row comes
+back, and the Threads view lists it again (#777). To delete a thread for good,
 right-click its row and choose Delete Thread…: Marley asks first, then the thread goes from every
 Agent Panel, from the rail and from the agent's own sessions where the agent keeps them.
 
@@ -359,10 +383,11 @@ header (#531):
   gray as a draft, in the accent color once merged, red when closed; the pointer gives its state,
   title and link. Marley asks the GitHub CLI, `gh`, when the branch or its latest commit changes
   and every two minutes while the window is active. Without `gh` on the PATH Marley started with,
-  logged out of it, or with a remote that is not GitHub, the row shows the counts alone.
-- **Its checks** (#718), beside the number: a red cross when a check failed, a yellow dot while
-  one is still running and none failed, a green tick when all passed. The pointer adds a line such
-  as `Checks: 2 failed (test, ci/external), 1 passed`.
+  logged out of it, or with a remote that is not GitHub, the row shows the counts alone. The same
+  lookup reads the pull request's checks (#718), marked beside the number: a red cross when a
+  check failed, a yellow dot while one is still running and none failed, a green tick when all
+  passed, and no mark when it has none. The pointer adds a line such as
+  `Checks: 2 failed (test, ci/external), 1 passed`.
 
 Marley reads neither for a repository Zed does not trust yet.
 
@@ -395,6 +420,20 @@ them. Click a thread to open the project and the thread; a port row's Open and S
 project first, while Copy, Stop and Restart work with the project closed. Next and Previous
 Thread pass over a closed project's threads.
 
+### Threads in the rail
+
+The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THREADS, or Ctrl+G with
+the focus in the rail, swaps the project rows for every saved conversation, newest first, each with
+its agent's icon, its title, and its agent and folder; archived conversations and drafts are left
+out. The search field ("Search conversations…") takes the filter's place and matches titles
+and folders. A click opens the conversation in a tab of the group you are looking at, with its
+earlier turns, or brings its tab forward where it is open. Your Claude Code and Codex CLI sessions
+are listed too, and a click resumes one (#754). PROJECTS, or Ctrl+G again, brings the projects back;
+while the conversations show, PROJECTS carries a dot when a project needs you. The rail starts on
+the projects. For agent filters and archived conversations, open the Threads page: the Threads
+button on the Home page's NEW AGENT card, `marley: open threads` or `marley threads` (see [The
+Threads page](#the-threads-page)).
+
 ### The + menu
 
 A project's `+` ("New in this project") starts things in that project.
@@ -403,12 +442,15 @@ A project's `+` ("New in this project") starts things in that project.
 |---|---|
 | New Terminal | A shell in the project's directory, in the main area |
 | New Browser Tab | Shows the project and opens a blank page in a new Browser tab, the cursor in the address bar, starting Chromium if it must |
-| New Agent… | The New Agent picker, below, opened on this project: the one way to start an agent, a thread or a CLI (#744) |
+| New Agent… | The New Agent picker, below, opened on this project: the one way to start an agent, a thread or a CLI. It replaced New Agent Thread and the list of agent CLIs (#744) |
+| Reopen Thread… | A picker over your saved conversations ("Reopen a conversation…"), newest first, each with its agent, folder and time; Enter opens one in a tab here, with its earlier turns, or brings its tab forward (#772) |
+| New Agent in Worktree | For a local git repository, a submenu of the installed agent CLIs (see [Worktree agents](#worktree-agents)) |
+| Launch | The project's launch configs, when it has any (see [Launch configs](#launch-configs)) |
 
-Ctrl+Alt+N opens the New Agent picker ("Start an agent…") in either layout. So does every pane's
-`+` (New Agent… at its head), and in the Marley layout the status bar's sparkle, Ctrl+? and Zed's
-`agent: new thread` too, in place of Zed's Agent Panel, which starts nothing in a group with no
-folder (#744). Zed's agents are marked Thread and the CLIs Terminal, and typing filters the list.
+A group with no folder has the first four. Ctrl+Alt+N opens the New Agent picker ("Start an
+agent…") in either layout. So does every pane's `+` (New Agent… at its head, then Reopen Thread…),
+and in the Marley layout the status bar's sparkle, Ctrl+? and Zed's `agent: new thread` too, in
+place of Zed's Agent Panel, which starts nothing in a group with no folder (#744). Zed's agents are marked Thread and the CLIs Terminal, and typing filters the list.
 After the agent, it asks where (#735):
 
 - **The project's root** comes first in a group with a project, marked "this project" (#744), so
@@ -445,37 +487,46 @@ or none.
 
 ### Groups with no folder (#600)
 
-A right-click on the rail's empty space (under the last row, or beside PROJECTS, or the Projects and
-Brain buttons) opens a menu:
+A right-click on the rail's empty space (under the last row, or beside PROJECTS and THREADS while
+the projects show) opens a menu:
 New Group… asks for a name and makes a group with no folder, listed after the window's projects
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
 folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
-the agent CLIs in the same menu open in the window's Default group. A group's `+`
-has no New Agent in Worktree or Launch, which need a folder; its New Agent… starts a thread in a
-tab of the group, or a CLI in a terminal, in your home folder (#734, #744). Right-click a
-group's header for Rename Group… and Remove Group. Groups come back after a restart with their
+the agent CLIs in the same menu open in the window's Default group. A group's `+` has no New
+Agent in Worktree or Launch, which need a folder; its New Agent… starts a thread in a tab of the
+group, or a CLI in a terminal, in your home folder (#734, #744). Right-click a group's header for
+Rename Group… and Remove Group. Groups come back after a restart with their
 names, order, terminals and Browser tabs (#601).
 
 Every window has its Default group from the start (#700; called Home until #743, which kept that
 name for the Home page). It holds what belongs to no project. The rail lists Default, then your
 projects, then the groups you named; a header you dragged keeps its place. A window started with no
 folder and nothing to restore shows Default. Default is always there, so its header menu has
-nothing to rename or remove. There is no Rusty group since #743: Rusty's screens open where you are
-(see below), and a Rusty group an earlier build made closes when it comes back after a restart.
+nothing to rename or remove: it reads "What belongs to no project opens here". There is no Rusty
+group since #743: Rusty's screens open where you are (see [Rusty's home
+page](#rustys-home-page)), and a Rusty group an earlier build made closes when it comes back after
+a restart; a window that showed it shows Default.
 
 Default's first tab is the Home page (#701), never Zed's Welcome page: when Default is shown without
-it, or its last tab closes, the page comes back. The status bar's Home button opens the same page
-in any group.
+it, or its last tab closes, the page comes back. The status bar's Home button opens the same page,
+a tab titled Home, in the group you are looking at, or brings it forward where that group has it
+(#739); `marley home` opens it in the group of the folder you run it from (#749). Its buttons work
+in the group that shows it.
 
-- **Start:** New Terminal (a terminal in Default, in your home folder), Open Folder…, Clone
-  Repository… and Command Palette.
-- **New Agent:** New Agent…, the picker that asks which agent and where (#735), then a button for
-  each agent CLI on your PATH (Claude Code, Codex, Gemini CLI, OpenCode), started in a terminal in
-  Default, in your home folder.
-- **Recent Projects:** the projects you opened lately; a click opens one.
+- **Start:** New Terminal (a terminal in the page's group, in your home folder in Default), Open
+  Folder…, Clone Repository… and Command Palette.
+- **New Agent:** New Agent…, the picker that asks which agent and where (#735); Threads, which
+  opens the Threads page (#745); then a button for each agent CLI on your PATH (Claude Code, Codex,
+  Gemini CLI, OpenCode), started in a terminal in the page's group.
+- **Recent Projects:** the projects you opened lately, each with its folder; a click opens one.
 - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
-  failed, with its project; a click opens it where it lives.
-- **Configure:** Settings, Marley Settings, Keymap, Extensions and the Marley guide.
+  failed, with its project; a click opens it where it lives. It follows the rail, also after a
+  switch to Zed's layout and back (#713).
+- **Configure:** Settings, Marley Settings, Keymap, Extensions, MCP Servers (#720) and the Marley
+  guide.
+- **Agent Activity:** Stop or Resume for Marley's tools, the five newest calls agents made to them,
+  and Open Agent Activity (#703; see [Agent activity and the kill
+  switch](#agent-activity-and-the-kill-switch)).
 
 ### Drag to reorder (#602)
 
@@ -486,8 +537,8 @@ card with the name follows the pointer, and a line shows where it lands: above t
 you drag up, below it when you drag down. A terminal row dropped on another open project's or
 group's header moves to that project, with its shell still running (#613); its right-click
 menu's Move to Project does the same. Any other row dropped on another group, a header or
-outside the rail goes back. The rail holds still while you drag, and a press that barely moves is still a
-click. The order is saved with the window and comes back after a restart; under the attention
+outside the rail goes back. The rail holds still while you drag, and a press that barely moves is
+still a click. The order is saved with the window and comes back after a restart; under the attention
 order, a row moves within its class and the order you set breaks ties. Something added later goes
 after what you placed, and moving a row never moves its tab in the panes.
 
@@ -541,16 +592,18 @@ toggle.
 
 In the Marley layout the project panel, the git panel, the outline panel, the collab panel, Fleet,
 Knowledge and Containers open as tabs in the pane you are in, not in the right dock (#747, #748).
-Only the Agent Panel stays in the right dock, and Debug in the bottom one. Their buttons at the right of the status bar, their keys
-(Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B) and Zed's own ways to them, such as Reveal in Project
-Panel, bring the panel's tab forward where it is, or open one. Each sits in the rail like any tab.
+Only the Agent Panel stays in the right dock, and Debug in the bottom one. Their buttons at the
+right of the status bar, their keys (Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B), `marley panel NAME`
+(#749) and Zed's own ways to them, such as Reveal in Project Panel, bring the panel's tab forward
+where it is, or open one. A tab is titled as its panel's button: Project Panel, Git Panel, Outline
+Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like any tab.
 
 - **One of each per group.** Asking again brings the same tab forward. Drag a panel tab to a pane's
   edge, or use the split keys, to put it in a pane of its own: it moves, it is not copied.
 - **The outline** keeps listing the symbols of the editor you were in last, while its own tab, the
-  Files tab or a terminal has the focus.
-- **The docks.** A dock that opens on one of the three by itself, such as the project panel Zed opens
-  on a new project, closes again and makes no tab. With the Agent Panel open in the right dock, a
+  Project Panel tab or a terminal has the focus (#773).
+- **The docks.** A dock that opens on a moved panel by itself, such as the project panel Zed
+  opens on a new project, closes again and makes no tab. With the Agent Panel open in the right dock, a
   panel's button opens its tab and leaves the Agent Panel where it is.
 - **Fleet and Knowledge** keep working while their own tab is in front: Fleet keeps reading its
   providers, Knowledge keeps the page it follows. A panel turned off (Knowledge while Rusty is off,
@@ -561,9 +614,8 @@ Panel, bring the panel's tab forward where it is, or open one. Each sits in the 
   `debugger.button` to true puts Zed's own button back among the dock buttons at the right.
 - **Zed's layout** keeps its docks: switching to it closes the panel tabs, and the Debug button
   goes back among the bottom dock's buttons.
-
-- **After a restart** each panel tab is back in its pane (#773), unless its panel is turned off by
-  then or the window starts in Zed's layout.
+- **After a restart** each panel tab is back in its pane, beside the editors that come back there
+  (#773), unless its panel is turned off by then or the window starts in Zed's layout.
 
 ## The block terminal
 
@@ -688,8 +740,9 @@ a folder of mode 0700), written within a second of the output and at the quit.
   files of the terminals Zed brings back. Restore Scrollback on the Marley page's Terminal
   section (`marley.restore_scrollback`, on by default) turns it off and deletes every file.
 - **What it holds.** The file keeps what was printed, a token you echoed included, until it
-  scrolls past the 5,000 lines or the terminal closes. Tasks, remote terminals and the Agent
-  Panel's terminals keep nothing.
+  scrolls past the 5,000 lines or the terminal closes. Zed's own Clear (`terminal: clear`) does
+  not reach the file, so a restore shows the output it cleared, with its blocks. Tasks, remote
+  terminals and the Agent Panel's terminals keep nothing.
 
 ### Remote terminals (#543, #641)
 
@@ -874,20 +927,32 @@ reads its startup files), so Marley does not recognize it; start the agent at th
 
 ### Starting one
 
-Choose a CLI under Agent CLIs in a project's `+` menu, or a Terminal entry in the New Agent picker
-(Ctrl+Alt+N). Marley opens a center terminal at the project root and, once the shell is ready (or
-after five seconds), types the program's name and Enter, nothing more. The shell outlives the CLI.
-After a restart, an agent's terminal comes back as a shell in its old directory. A Claude Code
-that was running at the quit comes back too, with `claude --resume` and its session, when Marley's
-plugin is connected; a Codex that ran on Marley's App Server comes back with `codex resume` and its
-thread, joining a new App Server while `marley.codex_app_server` is on (#750). One you ended
-yourself does not, and Resume Agent Sessions (`marley.resume_agents`) turns resuming off.
+Choose New Agent… in a project's `+` menu, or press Ctrl+Alt+N, and pick an entry marked Terminal,
+then where it starts: the project's root first, then the active terminal's folder, the open and
+recent projects, and Browse… (#735, #744; see "The + menu"). **Open Agent Here…** on a terminal's
+rail row, or Open Agent Here on a folder in the project panel, skips the question and starts it in
+that folder. Home's button for each CLI, the CLIs in the rail's empty-space menu and
+`marley agent-cli` start one too. Marley opens a center terminal in the folder and, once the shell
+is ready (or after five seconds), types the program's name, with any arguments the settings below
+add, and Enter. The shell outlives the CLI.
+
+After a restart, an agent's terminal comes back as a shell in its old directory, with its earlier
+output dimmed above the new prompt (#751). A Claude Code that was running at the quit comes back
+too, with `claude --resume` and its session, when Marley's plugin is connected; a Codex that ran
+on Marley's App Server comes back with `codex resume` and its thread, joining a new App Server
+while `marley.codex_app_server` is on (#750). One you ended yourself does not, and Resume Agent
+Sessions (`marley.resume_agents`) turns resuming off.
 
 When the quit cut an agent's turn off (it was working or waiting), its rail row shows
 **Interrupted · Continue** under its state. Continue types "Continue where you left off." and
 Enter once the agent waits at its prompt; while it is doing anything else, a toast names what it is
 doing and nothing is typed. Marley never continues a turn by itself, and the chip goes once the
 agent starts a turn or ends.
+
+A session you ran earlier, in any folder, opens again from the Threads page, the rail's Threads
+view or Reopen Thread…: Marley brings forward the terminal that runs it, or runs
+`claude --resume <id>` or `codex resume <id>` in a new terminal in its folder (#754; see "The
+Threads page").
 
 ### Permission modes
 
@@ -1000,8 +1065,8 @@ A project can name sets of things to open together in `.zed/marley.json` at its 
 ```
 
 - An item is one of `terminal` (the command typed once the shell is ready; `""` is a plain
-  shell), `agent` (`claude`, `codex`, `gemini` or `opencode`, started as the Agent CLIs entries
-  start it) and `browser` (an `http` or `https` URL). A URL on this machine waits up to 30 seconds
+  shell), `agent` (`claude`, `codex`, `gemini` or `opencode`, started as New Agent starts a CLI)
+  and `browser` (an `http` or `https` URL). A URL on this machine waits up to 30 seconds
   for its port, so the dev server an earlier item starts has time to come up.
 - `title` names a terminal's or an agent's tab, `cwd` is a folder inside the project, `split`
   (`right` or `down`) puts the item in a new pane off the previous item's, and `focus` gives it the
@@ -1191,6 +1256,34 @@ The plugin, `marley` 1.7.0, brings three things:
   carries its options, which the inbox's question route reads (#570). The agent bar offers the
   update to a plugin that is older than Marley's.
 
+### Pushes to your phone (#535, #752)
+
+With an ntfy server on this machine, Marley pushes one line to your phone when an agent you are not
+looking at needs a permission or an answer, finishes a turn, or fails. Set the server in the Marley
+page's Push section, or in `settings.json`:
+
+```json
+"marley": { "push": { "url": "http://127.0.0.1:8090", "topic": "marley" } }
+```
+
+- **Which agents.** Claude Code in a Marley terminal, through the events of Marley's plugin or
+  the shared plugin; Codex on its own App Server (#650); and a thread in the Agent Panel or a tab
+  when Zed itself would notify you: a tool's permission, a question, a finished turn, an error
+  (#752). A subagent's finish or error pushes nothing, and neither does a Codex without the App
+  Server, whose own notifications stay (#552).
+- **The line** names the project and the agent and nothing the agent wrote:
+  `marley-tour: Claude needs approval`, `needs input`, `finished` or `failed`; a thread's line
+  names its agent as Zed shows it. Events from one project within five seconds make one push. The
+  desktop notification for a Claude Code permission says `needs approval` too.
+- **Four switches** in the same section, all on by default: Push Approvals, Push Questions, Push
+  Finished Turns and Push Failures (`approval`, `input`, `finish` and `failure` in `marley.push`).
+- **The server** must be on this machine (`localhost`, `127.0.0.1` or `[::1]`), so the line crosses
+  no network before ntfy's. Push Token File (`token_file`) names a file holding an ntfy access
+  token, readable by you alone. A server that stops answering shows one toast until it answers
+  again.
+- A Claude Code with Remote Control pushes nothing here, since the Claude app notifies you for it
+  (#757).
+
 ### Claude Code's IDE link (#653)
 
 Claude Code links to an IDE through a small server the IDE runs and a lock file in Claude Code's
@@ -1272,14 +1365,17 @@ Claude Code in a new local terminal that finishes a plan and asks to leave plan 
 plan to Marley instead of its own dialog. It needs the shared plugin (above), 0.4.0 or later
 (#776); with the plugin off, Claude Code's dialog decides as before.
 
-- The plan opens as Markdown in a **Plan** tab beside the terminal, taking the focus only when the
-  terminal had it, and Needs you lists "Plan to review" until you answer.
+- The plan opens as Markdown in a **Plan · project** tab beside the terminal, taking the focus only
+  when the terminal had it, and Needs you lists "Plan to review" until you answer; a click on the
+  entry brings the tab forward.
 - Select a passage and press `c`, or right-click and choose **Comment…**; type your comment and
-  press Enter. Each note shows its passage and your words, with × to remove it. An **Overall** note
-  sits below.
-- **Approve** lets Claude Code go on. **Send Feedback** (once there is a note) sends the notes back
-  as the reason: each note's passage and comment, then the overall note, asking Claude Code to
-  address every note and plan again. Its revised plan replaces the old one in the same tab.
+  press Enter (Escape drops it). Each note shows its passage and your words, with × to remove it,
+  and the passage stays highlighted. An **Overall** note sits below.
+- **Approve** lets Claude Code leave plan mode and go on, and the tab says **Approved.** with its
+  buttons off. **Send Feedback** (once there is a note or an overall note) sends the notes back as
+  the reason: each note's passage and comment, then the overall note, asking Claude Code to
+  address every note and plan again. Claude Code stays in plan mode, and its revised plan comes to
+  the same tab with no notes.
 - A revised plan shows **Version N** in the column's header, with the lines added and removed since
   the version before (#727). **Changes** shows that diff as Zed draws one, removed lines and added
   lines in their colors, read-only; **Plan** goes back to the plan, where notes are made. The tab
@@ -1291,6 +1387,8 @@ plan to Marley instead of its own dialog. It needs the shared plugin (above), 0.
   **Skip**. The column counts "K of M answered". While an answer or a skip waits to go, **Send
   Answers** takes Approve's place, since an approval carries no text; it sends the answers first,
   under "Answers to your questions", then any notes, and Claude Code revises the plan with them.
+  An answer given by Accept recommended carries "(your recommendation)". A `c` typed in a card's
+  field stays in the field.
 - A question is a block in the plan, plannotator's syntax, which the shared plugin's
   `plan-questions` skill teaches Claude Code (#776): a line `:::question` (one choice),
   `:::question-multi` (several) or `:::question-text` (free text), then the question, any context,
@@ -1312,17 +1410,21 @@ go to an agent.
 - **A reply:** run `marley: review last reply` with an agent thread or Claude Code's terminal
   active, or choose **Review Last Reply** in the rail's menu for the terminal or the thread. A
   thread's reply is its last turn's text, its thoughts left out. Claude Code's is read from the
-  transcript its hook events name, which needs Marley's plugin.
+  transcript its hook events name, which needs Marley's plugin and a local terminal; its thinking
+  and tool output are left out too. A tab **Reply · …** opens with the reply drawn as Markdown.
 - Select a passage and press `c` (or right-click, **Comment…**), write the note and press Enter;
   an **Overall** note sits below. **Send Notes** sends the notes not sent yet, and the count on the
   button says how many.
 - A file's notes open the agent picker of the diff's review notes, listing the agents whose folder
   holds the file and Copy notes. Each note goes as `File:`, `Line:` or `Lines:`, `Quote:` (the
-  passage) and `User comment:`, inside the review notes template.
-- A reply's notes go back only to the agent that wrote it, under "Notes on your last reply:": into
-  Claude Code's terminal with Enter while it is ready, or into the thread as your message. An agent
-  at work, one waiting on a question, or a thread with a message of yours typed in it gets nothing,
-  and a toast says why.
+  passage) and `User comment:`, and the overall note as `File:` and `User comment:`, inside the
+  review notes message (#732). Copy notes copies it with the file's full path and marks nothing
+  sent.
+- A reply's notes go back only to the agent that wrote it, into Claude Code's terminal with Enter
+  while it is ready, or into the thread as your message. They come under "Notes on your last
+  reply:", each as `Quote:` and `User comment:`, inside the same message. An agent at work, one
+  waiting on a question, or a thread with a message of yours typed in it gets nothing, and a toast
+  says why.
 - Sent notes stay in the tab, marked **Sent**; an overall note that went is kept as a note.
 
 ### Per-turn diffs
@@ -1365,8 +1467,9 @@ and changes nothing on disk. Undo takes that one turn's changes out of your file
 turn changed goes back to how the turn found it and each file it created goes away, while what
 later turns and you yourself changed stays, in the same files and in others. Marley asks first,
 naming each file it will restore or remove. Your index, `HEAD`, your branches and the turn refs
-stay as they were, and the undone turn's row keeps its diff for a click. The agent is not told:
-its conversation still has the turn, so tell it what you undid.
+stay as they were, and the undone turn's row keeps its diff for a click; its menu then reads only
+"This turn was undone". The agent is not told: its conversation still has the turn, so tell it
+what you undid. Claude Code's and Codex's turns undo alike.
 
 The undo refuses, says why and changes no file:
 
@@ -1407,9 +1510,9 @@ file (#522):
 | `no idle signal` | Nothing is sent: Marley cannot tell (another agent, or Claude Code without Marley's plugin) |
 | Copy notes | The same prompt goes on the clipboard, for any agent |
 
-The prompt gives each note as `File:` (relative to the agent's folder), `Line:` or `Lines:`, and
-`User comment: "…"`. Sent notes stay in the diff with Sent beside them, and the button counts only
-the ones not sent; Copy notes marks nothing sent.
+The prompt gives each note as `File:` (relative to the agent's folder; Copy notes gives the full
+path), `Line:` or `Lines:`, and `User comment: "…"`. Sent notes stay in the diff with Sent beside
+them, and the button counts only the ones not sent; Copy notes marks nothing sent.
 
 The notes come inside a message (#732). Marley's own asks the agent to check each note against the
 code before it changes anything, say whether it agrees and why, fix only what it agrees with, and
@@ -1421,7 +1524,9 @@ change nothing the notes do not name. To send your own, set `marley.review_notes
 ```
 
 A template without `{notes}` gets the notes after it, past a blank line. Copy notes copies the same
-message. Unset or empty, Marley's own applies.
+message, and notes on a Markdown file or a reply (#729) come in it too. Unset or empty, Marley's own
+applies. Marley drops a template's control characters other than line breaks and tabs, so it
+cannot carry an escape sequence into an agent's terminal.
 
 **Viewed** (#731). Each file's header in the project diff (`git: diff`) ends with a Viewed tick.
 Tick it and the file folds; untick it and the file opens again. The tick is kept with a fingerprint
@@ -1430,16 +1535,17 @@ soon as the diff changes: your save, an agent's write, or a commit that moves th
 diff has no ticks yet.
 
 **Guided review** (#733). An agent can split a change into sections and hand them to you with
-`review_guide_open`. A **Guide** tab opens in the project holding the first file: the guide's title
-and summary, "K of N reviewed", then each section in order with its summary, a chip per file
-(`alpha.txt:3`) and a **Reviewed** box. A chip shows the file in the project diff when it has
+`review_guide_open`, in 1 to 30 sections. A **Guide · title** tab opens in the project holding the
+first file: the guide's title and summary, "K of N reviewed", then each section in order with its
+summary, a chip per file (its path in the project and its lines, such as `alpha.txt:3`) and a
+**Reviewed** box. A chip shows the file in the project diff when it has
 changes, else opens it at its line. Ticking a section folds it to its title. A guide sent again with
 the same title replaces the open one, its ticks cleared; ticks are not kept after the tab closes.
 It asks first, as the editor tools do.
 
 **Findings from tools** (#730). An agent or a tool connected to Marley's MCP server can put its
-findings into the project diff with `review_notes_add`: each note under its lines on the changed
-side, with where it came from (`clippy`, `codex review`, or the caller's name) and **Keep** and
+findings into the project diff with `review_notes_add`, up to 50 in one call: each note under its
+lines on the changed side, with where it came from (`clippy`, `codex review`, or the caller's name) and **Keep** and
 **Drop**. Marley asks first, as for the editor tools (Settings → Marley → Agent Control → Editors),
 and opens the project's diff. A finding is a proposal until you keep it: it does not count on Send
 Review to Agent and is not sent. Keep makes it an ordinary note that still names its source, and it
@@ -1449,17 +1555,20 @@ tool's answer says which and why.
 
 ## Zed's Agent Panel with Marley's tools
 
-Zed's Agent Panel works as it does in Zed. In the Marley layout it docks on the right (Ctrl+?
-focuses it), and the rail lists its threads under each project. Marley also offers its MCP server
-to the panel's agents (#501):
+In Zed's layout the Agent Panel works as it does in Zed. In the Marley layout its agents run in
+thread tabs instead (#734): the status bar's sparkle, Ctrl+? and `agent: new thread` open the New
+Agent picker (#744), every way Marley opens a thread shows it in a tab (#772), and the rail lists
+the threads under each project. The panel itself stays in the right dock, out of sight unless you
+open that dock. Marley also offers its MCP server to the agents of the panel and of thread tabs
+(#501):
 
 - Marley adds a context server named `marley` to Zed's default settings: a stdio server that runs
   the bridge Marley writes to `~/.local/share/marley/mcp/marley-mcp-bridge`, with
   `MARLEY_MCP_ENDPOINT` naming the endpoint file. No password or token goes into your settings.
 - The Zed Agent gets Marley's tools in its default Write profile, which turns on every context
   server.
-- Each external agent you start in the panel, Claude Agent, Codex and the rest, is handed the
-  `marley` server with its new session.
+- Each external agent you start in the panel or a tab, Claude Agent, Codex and the rest, is
+  handed the `marley` server with its new session.
 - The server runs for local projects.
 
 To turn it off, set `"context_servers": { "marley": { "enabled": false } }`. An entry of your own
@@ -1517,45 +1626,41 @@ Rusty's screens and pages open as tabs of the group you are looking at (#743), a
 alike; before #743 they went to a Rusty group of their own (#675). Rusty's home page (#679) has a
 button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills, Secrets), a
 row with Open Page… and the three captures (to Today, to the Inbox, a URL), your recent pages, the
-follow-ups due and your open tasks. The Rusty button at the right of the status bar opens it, or
-brings it forward, where you are (#739); so does `rusty: open home`.
+follow-ups due and your open tasks; a recent page or a decision opens in the Brain tab, a task in
+the Tasks tab on its list. Its tab is titled Rusty, and `marley rusty` opens it from a terminal
+(#749). The Rusty button at the right of the status bar, beside Home, opens it, or brings it
+forward, where you are (#739, #778); so does `rusty: open home`.
 
 ### Buttons at the right of the status bar
 
-Home sits at the right of the status bar, and Rusty and Marley at the right of the title bar,
-after the `?` and before the user menu (#739, #746), in both layouts. Each opens its page in a tab
-of the group you are looking at, or brings that tab forward when the group has it open:
+Home and Rusty's home page sit at the right of the status bar, and the Rusty and Marley agents at
+the right of the title bar, after the `?` and before the user menu (#739, #746, #778), in both
+layouts. Each opens its page or conversation in a tab of the group you are looking at, or brings
+that tab forward when the group has it open:
 
 | Button | Where | Opens | Shown |
 |---|---|---|---|
 | Home | Status bar | Home's page (#701) | Always |
-| Rusty | Title bar | Rusty's home page (#679) | While Rusty is on and connected |
+| Rusty | Status bar, beside Home | Rusty's home page (#679) | While Rusty is on and connected |
+| Rusty | Title bar | `marley: talk to rusty`, Rusty's latest conversation or a new one (#778) | While Rusty's agent is there |
 | Marley | Title bar | `marley: talk to marley` (#738) | While the Marley agent is there |
 
 The rail's header no longer has a Rusty button. Threads left the status bar for the rail's header
 and the Home page (#745).
 
-### Threads in the rail
+### The Brain tab
 
-The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THREADS, or Ctrl+G with
-the rail focused, swaps the project rows for every saved conversation, newest first, each with its
-agent's icon, its title, and its agent and folder. The search field above the list matches titles
-and folders. A click opens the conversation in a tab of the group you are looking at, or brings its
-tab forward where it is open. Your Claude Code and Codex CLI sessions are listed too, and a click
-resumes one (#754). PROJECTS, or Ctrl+G again, brings the projects back; while the
-conversations show, PROJECTS carries a dot when a project needs you. The rail starts on the
-projects. For agent filters and archived conversations, open the Threads page: the Threads button
-on the Home page's NEW AGENT card, or `marley: open threads`.
+Rusty's vault opens in a Brain tab (#678) of the group you are looking at (#743), one per group:
+Brain on Rusty's home page, Ctrl+Alt+V from anywhere in the window (`marley: toggle brain view`),
+or `marley rusty brain`. A second ask brings the tab forward. With Rusty off or not connected, the
+key says why in a toast. The vault no longer takes over the rail, as the Brain view did from #644
+to #678. The tab's left column holds the search field ("Search the brain…") with a `+` after it,
+your favourites and the vault's tree; the page you pick shows on its right ("Pick a page on the
+left." until then), with the same Back, Forward, Outline button, folder and name, star and Edit as
+a Page tab (below).
 
-### The Brain view
-
-While Rusty is connected, the rail's header shows Projects and Brain (#644). Brain, or Ctrl+Alt+V
-from anywhere in the window, swaps the rail's rows for Rusty's vault; the same key goes back. With
-Rusty off or not connected, the key says why in a toast. The rail starts on Projects, and goes back
-to it when the connection is lost; Brain shows again once Rusty connects.
-
-- **Today** (the notepad under the header) opens today's daily note, which Rusty makes when it is
-  missing.
+- **Today's Note** on Rusty's home page opens the Brain tab on today's daily note, which Rusty
+  makes when it is missing, selected in the tree.
 - **Search.** Type in the field and press Enter: Rusty's brain search lists its hits, title and
   slug, in the tree's place. Rusty's `tag:`, `path:`, `file:` and `type:` work as typed. The query
   is sent on Enter only, since with an embedding provider set Rusty embeds every query it gets.
@@ -1563,25 +1668,23 @@ to it when the connection is lost; Brain shows again once Rusty connects.
   Escape clears the search; a second Escape goes back to the tree.
 - **The tree.** The vault's folders and pages as Rusty lists them, folders first, each folder
   with its page count. All folders start closed. A click on a folder opens or closes it; one
-  click on a page opens it in a preview tab, two keep the tab, as Zed's project panel opens files.
-  A page opens in a Page tab (below); a tab already showing it comes forward. With the focus in
-  the tree, Up, Down, Home and End
-  move, Right opens a folder or steps into it, Left closes it or climbs, and Enter does what a
-  click does.
+  click on a page shows it on the tab's right, and a second moves the keyboard into it. A page's
+  **Open in New Tab** opens it in a Page tab of its own (below), or brings forward the tab already
+  showing it. With the focus in the tree, Up, Down, Home and End move, Right opens a folder or
+  steps into it, Left closes it or climbs, and Enter does what a click does.
 - **Changing the vault.** Right-click a folder for New Page, New Folder, Rename and Delete; a page
-  for Open, Rename and Delete; the tree's empty space for New Page, New Folder and Refresh. A new
-  name is typed in the tree: Enter makes it (an empty page name lets Rusty call it Untitled),
-  Escape drops it, and clicking away keeps a typed name. The header's `+` makes a page in the
-  selected row's folder. Drag a row onto a folder to move it there, onto a page to move it into
-  that page's folder, or onto the empty space to move it to the top. Delete asks first; Rusty
-  moves the page or folder into `archive/` and leaves the links to it. Everything goes through
-  Rusty's tools, which rewrite links on a rename or a move; Marley writes no file of the vault. A
-  refusal shows Rusty's message in a toast, such as "Could not rename delta: Already exists:
-  notes/alpha".
+  for Open, Open in New Tab, Rename and Delete; the tree's empty space for New Page, New Folder and
+  Refresh. A new name is typed in the tree: Enter makes it (an empty page name lets Rusty call it
+  Untitled), Escape drops it, and clicking away keeps a typed name. The `+` after the search field
+  makes a page in the selected row's folder. Drag a row onto a folder to move it there, onto a
+  page to move it into that page's folder, or onto the empty space to move it to the top. Delete
+  asks first; Rusty moves the page or folder into `archive/` and leaves the links to it.
+  Everything goes through Rusty's tools, which rewrite links on a rename or a move; Marley writes
+  no file of the vault. A refusal shows Rusty's message in a toast, such as "Could not rename
+  delta: Already exists: notes/alpha".
 - **Live.** On the embedded connection, a change Rusty makes or sees in the vault's folder shows
   with no click. On the service connection the tree is read again after Marley's own changes and
   on Refresh.
-- While Brain shows, a dot on Projects says something in the Projects view needs you.
 - **Favourites** (#662). Rusty's bookmarks, listed above the tree in Rusty's order whenever it
   holds one. A page opens as a tree row does; a folder opens in the tree and is selected; a search
   puts its query in the field and lists its hits; a heading opens its page with that heading at
@@ -1590,16 +1693,18 @@ to it when the connection is lost; Brain shows again once Rusty connects.
 
 ### A brain page in a tab
 
-A page opens in a center tab (#645), from the Brain view or with the `rusty::OpenPage` action,
-which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "projects/marley"}]`;
-`"preview": true` opens it in the preview tab).
+A page opens in a center tab of its own (#645): Open in New Tab in the Brain tab's tree (#678), a
+click in the Knowledge panel, Open a page by name (below), or the `rusty::OpenPage` action, which a
+key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "projects/marley"}]`;
+`"preview": true` opens it in the preview tab). A page shown on the Brain tab's right works as this
+tab does.
 
 - **What it shows.** The page's title, its properties (each frontmatter key and its value, a list
   as chips) and its body, drawn by Zed's own Markdown renderer: headings, lists, task boxes as
   written, code highlighted for its language, tables. The header carries Back, Forward, the
   Outline button (#656), the page's folder and name, the star (#662), and Edit.
 - **The star** (#662). Filled when the page is one of Rusty's bookmarks. A click, or Ctrl+D with
-  the focus in the tab, adds the page to the Brain view's Favourites or removes it; the change is
+  the focus in the tab, adds the page to the Brain tab's Favourites or removes it; the change is
   Rusty's, in its vault, so Rusty's own app shows it too. A change made in Rusty's app fills or
   empties the star with no click, on the embedded connection.
 - **Links.** A wikilink is a link. One to a page opens it in the same tab, at its heading when it
@@ -1608,9 +1713,9 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
   say, shows in a toast. A web link opens in your browser.
 - **Back and Forward.** The tab keeps its own history: the buttons, or Alt+Left and Alt+Right with
   the focus in the tab.
-- **Preview tabs.** One click in the tree opens the page in the pane's preview tab (its title in
-  italics), which the next one-click page replaces; a double-click, or an edit, keeps the tab.
-  With `preview_tabs.enabled` off, every page opens kept.
+- **Preview tabs.** A one-click open, such as a link in the Knowledge panel, puts the page in the
+  pane's preview tab (its title in italics), which the next one-click page replaces; a
+  double-click, or an edit, keeps the tab. With `preview_tabs.enabled` off, every page opens kept.
 - **Edit and Read.** Edit shows the page's file in an editor inside the same tab: the unsaved dot,
   Ctrl+S and the close prompt work as for any file. Read, Back and Forward save unsaved edits
   first, without formatting, then show the page as saved. Rusty's watcher sees the save and
@@ -1644,7 +1749,7 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
   - Each change goes to Rusty in order, one at a time (`brain_set_property`,
     `brain_remove_property`, `brain_rename`), and Rusty commits each. After the last, the tab reads
     the page again and shows what Rusty holds, a refused change included.
-  - A rename or a move, from a tab or from the Brain view, moves every Page tab that shows the page,
+  - A rename or a move, from a tab or from the Brain tab, moves every Page tab that shows the page,
     or has it in its history, along with it.
 
 ### Open a page by name (#654)
@@ -1653,12 +1758,13 @@ which a key of your own can bind with a slug (`["rusty::OpenPage", {"slug": "pro
 takes the key from the program), opens a picker over every page of the brain.
 
 - **The list.** Each row shows the page's title and its slug. With nothing typed, your favourite
-  pages come first, each with a star, in the Brain view's order (#662); then a line, the pages you
+  pages come first, each with a star, in the Brain tab's order (#662); then a line, the pages you
   opened most recently, newest first; then a line and the rest in the order Rusty lists them, the
-  most recently changed first. When a page's tab is in front, that page heads the list and the
-  selection starts on the row after it; with no favourite that row is the page you had open
-  before, so Enter goes back to it. Marley keeps the last 20 pages opened, from the picker, the
-  Brain view, links, Back and Forward, in its own database, so the order holds after a restart.
+  most recently changed first. When a page's tab is in front, or the Brain tab showing a page, that
+  page heads the list and the selection starts on the row after it; with no favourite that row is
+  the page you had open before, so Enter goes back to it. Marley keeps the last 20 pages opened,
+  from the picker, the Brain tab, links, Back and Forward, in its own database, so the order holds
+  after a restart.
 - **Typing.** Part of a title or of a path, in any order of words (`quart rev`, `peop sam`); the
   matched letters light up. The list is read from Rusty once when the picker opens and matched in
   Marley, so nothing you type is sent to Rusty or to an embedding provider.
@@ -1675,8 +1781,8 @@ With Rusty off, or not connected, the key says so in a toast and opens nothing.
 ### The Memory tab (#664)
 
 What Rusty remembers across conversations: the facts, preferences and context its agents read at
-the start of one, the high ones first. The book after Decisions in the Brain view, or `rusty: open
-memory`, opens it in a center tab.
+the start of one, the high ones first. Memory on Rusty's home page, `rusty: open memory` or
+`marley rusty memory` opens it in a tab of the group you are looking at (#743).
 
 - **The list.** Rusty's order: high, then normal, then low, the newest first within each. Each
   memory shows its text (up to three lines), its category, its importance, who stored it and the
@@ -1696,7 +1802,8 @@ memory`, opens it in a center tab.
 
 Rusty's skills store: a skill is a `SKILL.md` Claude Code loads once it is active, and a skill an
 agent writes waits, staged, for your approval. A script is a `.sh` beside a skill, the command
-`rusty <name>`. The hammer after Memory in the Brain view, or `rusty: open skills`, opens the tab.
+`rusty <name>`. Skills on Rusty's home page, `rusty: open skills` or `marley rusty skills` opens
+the tab.
 
 - **The lists.** Skills, staged first (marked pending; `auto` marks one an agent wrote), then the
   active ones, each with its description; then Scripts, `$ name` with its skill.
@@ -1715,9 +1822,9 @@ agent writes waits, staged, for your approval. A script is a `.sh` beside a skil
 
 ### The Secrets tab (#667)
 
-Rusty's vault of keys and tokens for providers and services. The lock after Skills in the Brain
-view, or `rusty: open secrets`, opens it. The names show to anyone; a value shows, changes or goes
-only behind your PIN. Never type the PIN to an agent.
+Rusty's vault of keys and tokens for providers and services. Secrets on Rusty's home page,
+`rusty: open secrets` or `marley rusty secrets` opens it. The names show to anyone; a value shows,
+changes or goes only behind your PIN. Never type the PIN to an agent.
 
 - **The PIN.** The first time, set one: six characters or more, typed twice. Change PIN, while
   unlocked, sets a new one the same way.
@@ -1751,19 +1858,23 @@ While Rusty is on, these commands in the palette put things into its brain:
   links that will not resolve, each list in full. Import brings it in; the form stays until Rusty
   answers, then gives the report, and Open Report opens Rusty's report page under `inbox/`. Rusty
   never writes the vault, and an import that fails part way leaves nothing behind.
-- **`rusty: open today`** opens today's daily note, as Today in the Brain view does.
+- **`rusty: open today`** opens today's daily note in a Page tab; Today's Note on Rusty's home page
+  opens it in the Brain tab.
 
 Escape closes a capture's form; a capture already sent still lands. While Rusty is off or not
 connected, each command says so in a toast.
 
 ### The Knowledge panel
 
-The Knowledge panel sits in the right dock while Rusty is on (#646): the Book button in the status
-bar, or `rusty: toggle knowledge panel` from the command palette, which opens it with the search
-field focused. With Rusty off there is no button, the command says where to turn Rusty on, and a
-panel that was showing closes.
+The Knowledge panel is there while Rusty is on (#646): the Book button in the status bar,
+`rusty: toggle knowledge panel` from the command palette, or `marley panel knowledge`, which opens
+it with the search field focused. In the Marley layout it opens as a Knowledge tab in the pane you
+are in (#748; see [Side panels as tabs](#side-panels-as-tabs-747)) and keeps the page it follows
+while its own tab is in front; in Zed's layout it sits in the right dock. With Rusty off there is
+no button, the command says where to turn Rusty on, and a panel or tab that was showing closes.
 
-- **The page view.** While a Page tab is the active item, the panel shows that page: its title and
+- **The page view.** While a Page tab is the active item, or the Brain tab showing a page, the
+  panel shows that page: its title and
   slug, its tags (frontmatter and inline) each with how many pages carry it, its backlinks with
   the line each link sits on and the link lit, and its own links in order. A click on a backlink or
   a link opens that page in the preview tab, and the panel follows it. A link to no page yet shows
@@ -1797,10 +1908,11 @@ panel that was showing closes.
 ### The Graph tab
 
 The Graph tab draws Rusty's vault as a graph in a center tab (#647): `rusty: open graph` from the
-command palette, or the graph icon after Today in the rail's Brain view. With a brain page in front
+command palette, Graph on Rusty's home page, or `marley rusty graph`. With a brain page in front
 it opens on that page's neighbourhood; with none, on the neighbourhood of the window's project page
 (#655), its header marking it "(project)". `rusty: open local graph` turns it to the page in
-front, else the project's page, or says to open a page first. There is one Graph tab per window.
+front, else the project's page, or says to open a page first. It opens in the group you are
+looking at (#743), one Graph tab per group.
 
 - **What it shows.** Pages are dots, larger the more links they have, coloured by page type in
   Zed's accent colours; the legend names each type with its count. Links are lines. A decision's
@@ -1851,10 +1963,10 @@ front, else the project's page, or says to open a page first. There is one Graph
 
 ### The Tasks tab
 
-The Tasks tab shows Rusty's to-do lists in a center tab (#658): the list icon after Graph in the
-rail's Brain view, `rusty: open tasks` from the command palette, or the list icon on the Tasks
-heading of the Knowledge panel's project view, which opens the project's task group. There is one
-Tasks tab per window.
+The Tasks tab shows Rusty's to-do lists in a center tab (#658): Tasks on Rusty's home page,
+`rusty: open tasks` from the command palette, `marley rusty tasks`, or the list icon on the Tasks
+heading of the Knowledge panel's project view, which opens the project's task group. It opens in
+the group you are looking at (#743), one Tasks tab per group.
 
 - **What it shows.** The lists in a column on the left, the chosen one lit; its tasks on the
   right, in Rusty's order. A done task stays in its place, struck through. Show archived lists the
@@ -1882,9 +1994,10 @@ Tasks tab per window.
 
 ### The Decisions tab
 
-The Decisions tab lists the decisions recorded in Rusty in a center tab (#659): the double check
-after Tasks in the rail's Brain view, or `rusty: open decisions` from the command palette. There is
-one Decisions tab per window. System One's log is another tab, System One calls.
+The Decisions tab lists the decisions recorded in Rusty in a center tab (#659): Decisions on
+Rusty's home page, `rusty: open decisions` from the command palette, or `marley rusty decisions`.
+It opens in the group you are looking at (#743), one Decisions tab per group. System One's log is
+another tab, System One calls.
 
 - **What it shows.** Under the title, Rusty's loop in one line: `brain_ask` before a choice,
   `brain_decide` when it is made, `brain_follow_up` when its day comes. Then Due, the decisions
@@ -1925,7 +2038,13 @@ the same tab forward and reads the files again; so does Refresh.
 - **Agent CLIs.** For Claude Code and Codex: the program Marley runs and its version, then each
   part of Marley that rests on it, with the versions it was tested on and whether it is on, not
   turned on, or off on this version. A part that needs a newer version than the one found shows
-  in the warning colour, with the update command.
+  in the warning colour, with the update command. A CLI Marley cannot find reads "not on Marley's
+  PATH".
+- **Too old.** When Marley finds a CLI older than a part you turned on needs, at start or when
+  the program changes, a notification says so ("Claude Code 2.1.280 is too old for parts of Marley
+  you use"), with each such part and the version it needs, the update command, and Open MCP
+  Servers. It shows once per CLI and version. A CLI newer than Marley has tested gets no
+  notification: the agent bar's chip says why a part is off.
 - **Claude Code.** The user scope (`mcpServers` in `.claude.json`, which sits in
   `$CLAUDE_CONFIG_DIR` when that is set, else in your home folder), the local scope of each open
   project's folder (that folder's entry in the same file), and each open project's `.mcp.json`,
@@ -1948,7 +2067,10 @@ form: a name, for Claude Code where it goes (your user scope, or an open folder'
 `.mcp.json`), then a command with its arguments (quoted as in a shell) or a URL, and the env
 variables or headers with their values, typed into fields that show dots. Edit on a row opens the
 same form with the command, arguments or URL as stored; each env variable or header is listed by
-name and keeps its value unless you type a new one, and Clear removes it. Remove asks first.
+name, its field reading "set; type to replace", and keeps its value unless you type a new one;
+Clear removes it. An edit keeps the server's name and place, so to rename or move one, remove it
+and add it again. Save writes and closes the form, and a toast says the CLI reads its servers at
+its next start. Remove asks first, naming the server and its scope.
 
 - A save changes that one entry and keeps the rest of the file: Codex's comments and other
   tables, `.claude.json`'s other keys and its layout. The file as it was stays beside it, with
@@ -1968,22 +2090,27 @@ writes to another (a message, a report, a handoff, a tool description).
 - **Zed's agent** has it as a built-in skill, which asks no permission.
 - **Claude Code** in Marley's local terminals, and the Marley entry on Claude Code, load it from a
   plugin folder under Marley's data directory, named by its files' digest and written read-only,
-  through `CLAUDE_CODE_PLUGIN_DIRS` beside the shared plugin (#709). New terminals load it.
+  through `CLAUDE_CODE_PLUGIN_DIRS`. New terminals load it. While **Shared Claude Code Plugin**
+  is on, a terminal loads that plugin alone, which carries its own `rustal-ste` (#724), so Claude
+  Code lists the skill once; the Marley entry keeps Marley's folder.
 - **Codex** finds a copy in `$CODEX_HOME/skills/rustal-ste` (`~/.codex/skills` by default), which
   Marley marks as its own with a `.marley-owned` file. A `rustal-ste` folder Marley didn't write is
   left alone.
 
 **Rustal STE Skill** in the Agents section (`marley.rustal_ste_skill`, on by default) turns it all
 off: no built-in, no plugin folder in new terminals, and Marley removes its own Codex copy. The
-skill's files are a copy of Rusty's skill store; its `SOURCE.md` says where it came from.
+shared plugin's copy stays while that plugin is on. The skill's files are a copy of Rusty's skill
+store; its `SOURCE.md` says where it came from.
 
 ## The Marley agent
 
 An agent that explains Marley and sets it up with you (#683). It reaches Marley's docs and
 settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_schema`,
 `settings_read`, `actions_list`, `settings_change`, `keymap_change`, `seat_add` (#692), and
-`seat_stop` and `seat_remove` (#710). Every change it proposes waits for your Apply. It is on out of the box (#696). **Agent** (`marley.assistant.agent`, #687)
-picks what it runs on:
+`seat_stop` and `seat_remove` (#710). Its docs are Zed's and Marley's guide, walkthrough and
+changelog, and it is told to look in the changelog for what changed and when (#723). Every change
+it proposes waits for your Apply. It is on out of the box (#696). **Agent**
+(`marley.assistant.agent`, #687) picks what it runs on:
 
 - **Auto** (`auto`, the default, #696): the first found a second after start. That is Claude Code
   signed in (`claude auth status`), then Codex signed in (`codex login status`), then Zed's agent
@@ -2150,16 +2277,21 @@ sidebar, which the Marley layout replaces with the rail; this page takes its pla
 ### Agent activity and the kill switch
 
 Every call an agent makes to one of Marley's tools that act is listed: typing into or running in
-a terminal, the browser's clicks and typing, a settings or keymap change, a harness seat (#703).
+a terminal, the browser's clicks and typing, a settings or keymap change, a harness seat (#703),
+and opening, editing or saving an editor, posting into or answering a thread, and running a
+palette action (#704 to #707). Some reads are listed too, since they hand an agent a file's or a
+conversation's text: `editor_read`, `thread_read` and the language server tools (#704, #706,
+and #712).
 
 - **Agent Activity** (`marley: open agent activity`, or Open Agent Activity on Home's AGENT
   ACTIVITY card) lists them newest first: the time, who called (Claude Code, Zed's agent, a
   client's name), the tool, what it acted on (a command, a URL, a key, with keys and tokens
   hidden), and whether it ran or was refused. Home's card shows the five newest.
 - **The kill switch.** Stop, on the card or in the tab, or `marley: stop agent control`, makes every
-  one of those tools refuse every agent until you Resume (`marley: resume agent control`). The
-  tools that only read keep working. It is `marley.agent_control.stopped`, so it holds across a
-  restart, and Settings → Marley → Agent Control shows it.
+  one of those tools refuse every agent, with `agent_control_stopped`, until you Resume
+  (`marley: resume agent control`). The refusals are listed too. The tools that only read keep
+  working. It is `marley.agent_control.stopped`, so it holds across a restart, and Settings →
+  Marley → Agent Control shows it.
 - The log is kept a day per file under Marley's data folder, in `agent_control/`, readable by you
   alone.
 
@@ -2169,33 +2301,37 @@ An agent can see and open Zed's editors through Marley's tools (#704):
 - `editor_list` names every open editor: its file, project, unsaved state, language, whether it's
   in front, and its cursor and selections.
 - `editor_read` reads one as it is now, unsaved changes included, a page at a time, with keys and
-  tokens masked. A file whose name matches **Secret Globs** (`marley.agent_control.secret_globs`:
-  `.env*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `.netrc`, `*.p12`) is
-  refused and named, and each read is listed in Agent Activity.
+  tokens masked. A file whose name matches a pattern in `marley.agent_control.secret_globs`
+  (`.env*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `.netrc` and `*.p12` by
+  default; set in `settings.json`, with no item on the Marley page) is refused with
+  `secret_file`, naming the file, and each read is listed in Agent Activity.
 - `editor_open` opens a file inside one of your open projects, at a line, its tab in front.
 - `editor_edit` replaces text in an open editor (#705): the text it names has to appear once, or
-  every match is replaced when the agent says so. The change is one undo step and stays unsaved,
-  so Ctrl+Z takes it back. A secret file is refused here too.
+  every match is replaced when the agent says so; otherwise it is refused with `no_match` or
+  `ambiguous` and nothing changes. The change is one undo step and stays unsaved, so Ctrl+Z takes
+  it back. A secret file is refused here too.
 - `editor_save` saves an open editor. A save asks every time, even in a session you allowed,
   unless Editors is set to Allow.
 - `editor_diagnostics`, `editor_definition`, `editor_references` and `editor_hover` (#712) ask
   Zed's language servers: a file's errors and warnings (or every file of the agent's project that
   has some), where a symbol is defined, where it is used, and its hover text. The agent names a
-  file inside an open project, a line, and the symbol's name on that line. The file needn't be
-  open: Marley opens it without a tab for the call and waits a few seconds for its language server
-  to start. Answers carry 1-based lines and columns and each place's line, keys and tokens masked;
-  a secret file is refused, and a place inside one keeps its path but not its text. Lists come a
-  page at a time, and each call is listed in Agent Activity. They are reads, so Editors set to Off
-  refuses them and nothing else asks.
+  file inside an open project, a line, and the symbol's name on that line (or a 1-based column).
+  The file needn't be open: Marley opens it without a tab for the call and waits up to 15 seconds
+  for its language server to start. Answers carry 1-based lines and columns and each place's line,
+  keys and tokens masked; a secret file is refused, and a place inside one keeps its path but not
+  its text. Lists come a page at a time, and each call is listed in Agent Activity. They are
+  reads, so Editors set to Off refuses them and nothing else asks. Their refusals carry
+  `outside_projects`, `no_file`, `secret_file`, `no_symbol` (with the line's text),
+  `no_language_server` or `lsp_timeout`; the last two say to call again.
 - `thread_list` lists the threads in your Agent Panels (#706): each one's title, agent, project,
   whether it is running, and the permission it waits on. `thread_read` reads one, keys masked,
   and shows in Agent Activity.
 - `thread_post` sends a message into a thread as you would; Settings → Marley → Agent Control →
-  Threads sets whether it asks (Ask First by default). It is refused while you have a message
-  typed there and not sent.
+  Threads sets whether it asks (Ask First by default). It is refused with `draft_in_progress`
+  while you have a message typed there and not sent. A running thread queues the message.
 - `thread_answer` allows a thread's waiting tool call once, or rejects it. It asks every time
-  unless Threads is Allow, and a sandbox escalation is never answered by an agent: only you
-  answer that, in the Agent Panel.
+  unless Threads is Allow, and a sandbox escalation is never answered by an agent
+  (`sandbox_escalation`): only you answer that, in the Agent Panel.
 - `draft_message` puts a message to another agent in front of you instead of sending it (#769).
   `to` names a terminal whose agent CLI runs (an id from `terminal_list`) or a thread (an id from
   `thread_list`). A Draft tab opens in that window, naming the agent that wrote it and the one it
@@ -2217,7 +2353,9 @@ An agent can see and open Zed's editors through Marley's tools (#704):
   the command palette would. Settings → Marley → Agent Control → Actions sets whether it asks
   (Ask First by default). An action that could quit, run code or a task, type into a terminal,
   answer a consent, push or change git, delete, install, sign in or share, or change Marley's
-  and Rusty's own controls is refused even when you name it.
+  and Rusty's own controls is refused even when you name it (`action_refused`). An action that is
+  neither Marley's nor named by you is refused with `action_not_allowed`, which says how to allow
+  it, and one the focused element can't take with `not_available`.
 
 **Settings → Marley → Agent Control → Editors** (`marley.agent_control.editors`) sets what agents
 may do there:
@@ -2226,7 +2364,12 @@ may do there:
   the agent's terminal (or Zed's agent) in a project, for as long as Marley runs; Always is
   remembered.
 - **Ask Every** asks each time, **Allow** never asks, and **Off** refuses the editor tools, reads
-  too.
+  too (`agent_control_off`).
+
+**Threads** and **Actions**, beside it, take the same four values for the thread and action
+tools. Deny, or a question left unanswered, refuses the call with `agent_control_declined`. The
+question is a notification naming the agent and the tool ("Claude Code wants to use
+editor_open"), what it acts on, and the caller's folder.
 
 ### What it serves, and where
 
@@ -2280,12 +2423,23 @@ The terminal family:
 
 | Tool | What it gives |
 |---|---|
-| `terminal_list` | Every terminal in every window, center and Terminal Panel: its id, tab title, project, working directory, running command, and how many blocks it holds |
+| `terminal_list` | Every terminal in every window, center and Terminal Panel: its id, its `terminal_id` (the `MARLEY_TERMINAL_ID` its programs see), tab title, project, working directory, running command, how many blocks it holds, and `self` for the terminal the call comes from |
 | `terminal_blocks` | A terminal's newest blocks, oldest first (50 unless `last` says otherwise, 500 at most): each command, whether the shell's hook reported it (`verified`), exit code, working directory, start time, duration, whether it runs, and whether its output is still in the scrollback; `redacted` counts the secrets hidden in the commands |
 | `terminal_read` | One block's command and output as text, a page at a time (#680): the newest whole lines that fit in 12,000 bytes (2,000 lines at most), numbered from the block's first line (`first_line`, `last_line`, `total_lines`). `previous`, passed back as `before`, reads the page before; a line longer than a page keeps its end (`line_cut`). `redacted` counts the secrets hidden in the whole output |
 | `terminal_find` | The line of a block's output a `query` in words names, such as "where the server refused the connection": its number and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
 | `terminal_screen` | What a terminal's screen shows now: its rows (secrets redacted), the cursor, whether a full-screen program has the alternate screen, the program in the foreground, and `generation`, `taken_over` and whether you approved writes to it (#525) |
 | `terminal_type` | Types into the program running in a terminal's foreground: `text` as a paste, `keys` by name (`escape`, `ctrl-c`, `up`), and Enter with `submit`, at most 4,096 bytes, given the `generation` `terminal_screen` gave. Never at the shell's prompt or into another agent CLI (#525) |
+| `terminal_run` | Runs one command line at a terminal's shell prompt, in your view, as a block with an agent mark before its pill, typed as Rerun types it, then answers the block's index, exit code, duration and output once it ends or `wait_seconds` (20 at most) pass, when it answers `running: true` and `terminal_read` reads the rest. At most 4,096 bytes. Refused while a program or an agent CLI runs there, while you have typed at the prompt, or while you have taken over (#556) |
+
+A command `terminal_run` would type that `marley.agent_command_denylist` matches (Warp's
+defaults: shells, `curl`, `wget`, `ssh`, `scp`, `rsync`, `rm` and more) waits on a card under the
+terminal with Run and Refuse, which Enter and Escape answer. One `marley.agent_command_allowlist`
+matches (`cat`, `echo`, `find`, `grep`, `ls`, `which`) runs at once; each list is regular
+expressions matched against the whole command and every part of a pipeline or a list.
+`marley.agent_commands_outside_lists` decides the rest: `run` (the default, since the agent's own
+permission prompt already asked) or `ask`. **Agent Commands in History**
+(`marley.agent_commands_in_history`, on by default) decides whether those commands enter your
+shell's history and Marley's suggestions (#553).
 
 When an agent first types into a program, such as psql or a debugger, Marley asks: a card under
 the terminal names the agent, the program and what it would type, with Allow and Deny, and a toast
@@ -2313,7 +2467,8 @@ The docs, settings and actions families (#681), for questions about Marley itsel
 
 Their refusals carry `no_doc`, `no_section`, `no_setting`, `too_large` or `bad_argument`.
 
-One write tool sits with them (#682):
+The tools that propose a settings or keymap change, set up the harness's seats, or start another
+agent sit with them (#682, #692, #710, #716):
 
 | Tool | What it does |
 |---|---|
@@ -2321,7 +2476,7 @@ One write tool sits with them (#682):
 | `seat_add` | Proposes a seat on the harness Marley follows: `name`, `agent` (`claude` or `codex`), `cwd` and an optional `role`. The same notification as a settings change shows the seat and the command it runs through. Apply runs the harness's `seat add` and answers `starting`, then starts the seat, which then shows in the rail. A start that fails comes up as a notification. Refused with the harness's own code (`seat_exists`, `seat_role_reserved`, `claude_signin_undeclared` …), or `tool_off` while `marley.harness_writes` is off (#692) |
 | `seat_stop` | Proposes to stop a seat on the harness by its `name` (#710): the harness ends its sessions and their supervision, and the profile stays, so the seat can start again. Marley asks you, and runs the harness's `seat stop` only on Apply; the answer lists the stopped sessions. A refusal carries the harness's code (`seat_unknown`, `seat_runtime`, `seat_stop_failed`) |
 | `seat_remove` | The same, then the harness deletes the seat's profile, so the name is free again (#710): `seat remove` on Apply, and the answer adds the removed profile's path; `seat_profile` when the file can't be deleted |
-| `agent_start` | Starts another agent from the caller's Marley terminal as a seat on the first harness (#716): `agent` (`claude` or `codex`), a first `prompt`, `place` (`here` or `worktree`), `view` (`terminal`, or `thread` for Claude Code) and a `request_id` UUID the caller keeps. Marley asks every time unless `marley.agent_control.agents` is `allow`, answers `starting`, then adds the seat labelled with its caller and the delegation, opens the view beside the caller (or in the worktree's window) and sends the prompt once with the request id as its delivery, again while the seat is still starting; a start that fails comes up as a notification. Refused `caller_unknown` from outside a Marley terminal, `tool_off` while `marley.harness_writes` is off, `agent_control_declined`, or with the harness's own code |
+| `agent_start` | Starts another agent from the caller's Marley terminal as a seat on the first harness (#716): `agent` (`claude` or `codex`), a first `prompt`, `place` (`here` or `worktree`), `view` (`terminal`, or `thread` for Claude Code) and a `request_id` UUID the caller keeps. Marley asks every time unless `marley.agent_control.agents` is `allow`, answers `starting`, then adds the seat labelled with its caller and the delegation, opens the view beside the caller (or in the worktree's window) and sends the prompt once with the request id as its delivery, again while the seat is still starting; a start that fails comes up as a notification. Refused `caller_unknown` from outside a Marley terminal, `tool_off` while `marley.harness_writes` is off, `no_harness` when Marley follows no harness it can reach, `agent_control_off` while `marley.agent_control.agents` is `off`, `agent_control_declined`, or with the harness's own code |
 | `agent_status` | A delegation's seat, its state, its delivery's state and outcome, its last 40 lines with secrets redacted, and whether its caller was told; reading an ended one marks it told (#716). `no_delegation` for an id no seat carries |
 | `settings_change` | Proposes a value for one key of your settings. A notification in every window names the agent, the key, the value now and the value proposed, and the file, with Apply and Decline; Apply writes it, keeping the file's comments and other keys, and it takes effect at once. A key the settings schema lacks (`no_setting`) or a value Zed would not parse (`invalid_value`, with Zed's error) is refused before you are asked; Decline answers `declined`, no answer within 25 seconds `no_answer`, and a file that changed while you were asked `changed` |
 
@@ -2329,8 +2484,8 @@ The browser family, reading:
 
 | Tool | What it gives |
 |---|---|
-| `browser_tabs` | Each page: its id (the `tab` the other tools take), title, URL, whether it loads, and which tab a call without `tab` acts on, the one you focused last |
-| `browser_look` | The page as you see it: URL, title, viewport, scroll, loading, the focused element and the selection, and the frame on your screen as an image |
+| `browser_tabs` | Each page of every project's browser: its id (the `tab` the other tools take), title, URL, whether it loads, its project, and `default`, the tab a call without `tab` acts on (the one you focused last in the caller's project); with an open dialog, a file chooser waiting (#767), its downloads this session (#767), and the device size and scheme an agent set (#756) |
+| `browser_look` | The page as you see it: URL, title, viewport, scroll, loading, the focused element and the selection, and the frame on your screen as an image; with an open dialog, a file chooser waiting, and the device size and scheme an agent set |
 | `browser_snapshot` | The accessibility tree as text: the interactive elements with refs such as `e3` (every node with `full`), cross-site iframes included, no field values |
 | `browser_find` | The element a `query` in words names, such as "the sign in button": its ref, which `browser_click` takes, and up to three candidates, by the query's words first and the System One model for the rest (#567); listed only while its use is on |
 | `browser_console` | The latest console messages and uncaught errors, oldest first, 200 at most, with secrets hidden |
@@ -2343,7 +2498,9 @@ The browser family, reading:
 | `browser_draft_test` | A Playwright test drafted from a recording, by its `id`, and where in the project it would go (#506) |
 | `browser_wait` | Waits until the page shows `text`, stops showing `text_gone`, has an element of `role` (and `name`), or is at a URL holding `url`: every condition given, looked for every 250 ms for up to `timeout_ms` (10 s by default, 20 s at most). Refused `not_met`, with what did not hold, when time runs out (#756) |
 
-The browser family, acting. These need the `browser.write` grant:
+The browser family, acting. These need the `browser.write` grant. Each but `browser_open_url`
+brings its page's tab forward and shows on the Agent chip, and is refused in a tab you have taken
+over (#767):
 
 | Tool | What it does |
 |---|---|
@@ -2361,7 +2518,7 @@ The browser family, acting. These need the `browser.write` grant:
 | `browser_drag` | Drags from one element or point to another; a page's HTML drag and drop is finished with its drop events |
 | `browser_upload` | Sets a file input's files by its `ref`, or with no `ref` answers the file chooser the page waits on: `paths` inside an open project, never a file a secret glob matches (`outside_projects`, `no_file`, `secret_file`, `no_chooser`) |
 | `browser_dialog` | Answers the tab's open alert, confirm, prompt or leave-page dialog: `accept`, and `text` for a prompt (`no_dialog` when none is open) |
-| `browser_resize` | Lays the page out as a device (`preset`: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24, iPad Mini, iPad Air, iPad Pro 13, Surface Pro 7, Laptop, Desktop), at `width` and `height`, or back at the tab's size with `fill` |
+| `browser_resize` | Lays the page out as a device (`preset`: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24, iPad Mini, iPad Air, iPad Pro 13, Surface Pro 7, Laptop, Desktop), at `width` and `height` (320 to 3840 by 240 to 2160), or back at the tab's size with `fill` |
 | `browser_color_scheme` | Makes the page's `prefers-color-scheme` `dark` or `light`, or the system's again with `system` |
 
 The tools that read or act in one page take `tab`, an id from `browser_tabs`, and without it act
@@ -2381,15 +2538,18 @@ Marley's server (`/mcp`), or in its next session.
 
 The server also holds `fleet_snapshot` and `session_surface_to_human`, which it does not list. The
 fleet stays empty until prong 2 feeds it, and a session write is refused, since Marley grants no
-`session.write`.
+`session.write`. Nor does it list `prompt_open` and `prompt_wait`, which Marley's own
+`marley-edit` calls to open an agent's prompt in a tab and wait for it to close (#649; named
+`editor_open` and `editor_wait` until #704 gave those names to the agents' editor tools).
 
 ### Grants and what keeps an agent in check
 
-- Read tools need no grant. A write tool needs its class granted. Marley grants seven when it
+- Read tools need no grant. A write tool needs its class granted. Marley grants ten when it
   starts the server: `browser.write`, `terminal.write`, `editor.write`, `settings.write`,
-  `harness.write`, `thread.write` and `action.write`. The editor, thread and action tools also pass
-  their area's mode under Agent Control, and every write is listed in Agent Activity (#703 to
-  #707).
+  `harness.write`, `thread.write`, `action.write`, `draft.write`, `review.write` and
+  `agents.write`. The editor, thread and action tools also pass their area's mode under Agent
+  Control, and every write is listed in Agent Activity (#703 to #707); the review tools pass the
+  Editors area's (#730, #733).
 - The checks on the browser's write tools are your agent client's approval of each call (Claude
   Code asks by default) and the Browser tab, where every action happens in front of you and the
   Agent chip names it. With the click consequence on, a consequential click also waits for you
@@ -2401,8 +2561,11 @@ fleet stays empty until prong 2 feeds it, and a session write is refused, since 
   contain `token`, `key`, `secret`, `password`, `auth`, `code`, `sig` or `session` are hidden, and
   a user name and password are dropped.
 - The snapshot writes no field values, `browser_look` leaves out the selection while a password
-  field has the focus, a pick never records what was typed into a field, and the recorder counts
-  typed characters without keeping them.
+  field has the focus, and a pick never records what was typed into a field. The flight recorder
+  keeps the text of each fill of an ordinary field, up to 4,096 characters, for a drafted test
+  (#506); a password, hidden, one-time-code or card field keeps only the fact that it was filled.
+  `browser_recording` passes a recording through the secret redaction and gives an agent at most
+  1,000 characters of a fill.
 - What the terminal tools and `browser_console` hand an agent has its secrets hidden (#516): each
   one becomes `[redacted: <kind>]`, and the terminal tools count them in `redacted`. The kinds are
   private key blocks (PEM and PGP), values assigned to names that hold `TOKEN`, `SECRET`,
@@ -2456,8 +2619,10 @@ failed, the tab says why, and "Run “marley: open browser” to try again."
 
 ### Marley's Chromium
 
-The first Browser tab starts Chromium in the background as a transient systemd user unit named
-`marley-browser-` and twelve hex digits, one per Marley data directory (#488).
+A project's first Browser tab starts a Chromium of its own in the background, as a transient
+systemd user unit named `marley-browser-` and twelve hex digits taken from its profile's path
+(#488, #507). Each project has its own, so a site you sign in to in one project stays signed out
+in another.
 
 - It runs headless, with a profile of its own for each project under
   `~/.local/share/marley/browser/projects/`, apart from your own browser's. It talks only to
@@ -2471,8 +2636,9 @@ The first Browser tab starts Chromium in the background as a transient systemd u
   `/usr/lib/chromium/chromium`, the browser behind Arch's and Debian's `/usr/bin/chromium`
   launcher (which would add your `chromium-flags.conf`), else `chromium` or `chromium-browser` on
   the PATH.
-- It keeps running when a tab, a window or Marley closes, and ends when you log out. Closing the
-  last Browser tab leaves it running with no page.
+- It keeps running when a tab, a window or Marley closes, so restored tabs find their pages, and
+  ends when you log out or remove the project. Closing the last Browser tab leaves it running with
+  no page.
 - When the kernel kills one of its pages for memory, the unit keeps running
   (`OOMPolicy=continue`, #755): that page's tab closes, and the project's other tabs carry on.
 
@@ -2559,21 +2725,31 @@ at a size, and force the page's dark or light scheme. While it does, a chip in t
 the device, the size and the scheme ("iPhone 15 Pro · 393×852 · light"), and the tab draws the page
 at that size, scaled down to fit, from its top left. Reset, beside the chip, puts the page back at
 the tab's size and the system's scheme. A page without `<meta name="viewport">` lays out 980 pixels
-wide on a phone, as a real phone does.
+wide on a phone, as a real phone does. The user agent stays Chrome's at every size, and a device
+size does not survive a restart: the tab comes back at its own size.
+
+An upload takes files from your open projects only, never one a secret glob matches
+(`outside_projects`, `no_file`, `secret_file`), and an option a select list lacks is refused with
+`no_option`, naming the options there. `browser_tabs` and `browser_look` report a dialog that is
+open, the device size and the forced scheme. A wait that times out is refused with `not_met`,
+naming what did not hold.
 
 ### Files, downloads and taking over
 
 - **File choosers (#767).** A page's Choose File opens Zed's path prompt when you clicked it; the
   files you pick fill the page's input, and Escape picks none. When an agent's click opened it,
   a bar under the toolbar says "The page asks for a file", with Choose… for you and Cancel, and
-  the agent answers it with `browser_upload`. `browser_tabs` reports a chooser waiting.
+  the agent answers it with `browser_upload` with no `ref`. A newer chooser replaces one not yet
+  answered, `browser_tabs` and `browser_look` report a chooser waiting, and with none waiting the
+  upload is refused with `no_chooser`.
 - **Downloads (#767).** A page's download is saved in your Downloads folder (`$XDG_DOWNLOAD_DIR`,
   else the desktop's download folder, else `~/Downloads`) under the name the page gives it, with
   " (1)" and on when that name is taken. A notification names it, with Open and Show in Folder,
   and `browser_tabs` lists each tab's downloads.
 - **Take Over (#767).** Once an agent has acted in a page, a bar under the toolbar names who, with
   Take Over. Take Over, or Ctrl-I in the Browser tab, gives you the page: the bar reads "You have
-  control", and every agent's browser action there is refused until you click Hand Back. Before
+  control", and every agent's browser action there is refused (`taken_over`) until you click Hand
+  Back. Before
   any agent has acted, Ctrl-I reaches the page as before. It works as the terminal's Take Over
   does.
 
@@ -2622,11 +2798,15 @@ with `browser_annotate` and list every box with `browser_annotations`.
 ### The flight recorder and "record this"
 
 While a Browser tab shows a page, Marley keeps that page's last minute (#499): your clicks and
-where they landed, keys by name, typing as a count of characters (never the characters), the
-agent's actions, console messages, requests with secret-looking URL values hidden, navigations, the
-page's accessibility snapshot after each load, and up to two frames a second. Chromium sends a frame
-only when the page changes, so a quiet page leaves few. Nothing is kept for a page behind another
-tab.
+where they landed, keys by name, typing as a count of characters, the agent's actions, console
+messages, requests with secret-looking URL values hidden, navigations, the page's accessibility
+snapshot after each load, and up to two frames a second. Chromium sends a frame only when the page
+changes, so a quiet page leaves few. Nothing is kept for a page behind another tab.
+
+Since #506 the minute also holds each click, fill and key press with the element it landed on,
+found by its locators as they were then, which `browser_draft_test` turns into a Playwright test.
+A fill of an ordinary field (an e-mail, a search) keeps the field's text, up to 4,096 characters;
+a password, hidden, one-time-code or card field keeps only the fact that it was filled.
 
 The red dot, or `marley: record this`, saves that minute into
 `~/.local/share/marley/browser/recordings/<id>/` (`timeline.json` and `frames/`), never into a
@@ -2644,8 +2824,9 @@ with browser_recording." An agent you tell "it broke just now" can list the reco
 - A title a single-page app sets later, with no navigation, does not reach the tab.
 - The network log starts when Marley starts watching a page. Console entries from before are
   replayed; requests are not.
-- Every tab shares one Chromium profile, so a login in one project is a login in all of them
-  (TICKET-507 plans a browser context per project).
+- Downloads go to the Downloads folder only, with no list of them beyond the notification and
+  `browser_tabs`, and no question before one starts (#767).
+- Files dragged from the desktop do not reach a page (#767).
 
 ## System One
 
@@ -2931,27 +3112,6 @@ Every call, refused and failed ones included, is a line in `system_one/calls-<da
 Marley's data directory, readable by you alone: the masked state as sent, the answers, the reading,
 the time, the tokens and the cost.
 
-### Agents that start agents (#716)
-
-An agent in a Marley terminal can start another agent with `agent_start`. The new agent is a
-seat on the harness Marley follows first, so the harness hosts it, supervises it and keeps its
-record: the seat carries the labels `started_by` (`marley:` and the caller's terminal id) and
-`delegation` (the caller's request id). Marley asks you each time, with the agent, the place and
-the prompt's first line (Agent Control's Agents setting, `marley.agent_control.agents`: `off`
-refuses it, `allow` stops the asking). On Allow it starts the seat, sends the prompt once, and
-opens the seat beside the caller, or in the new worktree's window. The seat's row in the Harness
-section says which terminal started it.
-
-When the seat's turn ends (its delivery reads `ended`), Marley types one line into the caller
-once the caller is at its prompt, and presses Enter: `Agent <seat> ended: <outcome>. Read the
-result: agent_status {"delegation": "<id>"}.` The line carries ids only, never the child's words.
-Marley then sets the seat's `delegation.told` label, so the line comes once, after a restart too:
-a caller restored with its terminal gets the line once it is ready. If no open terminal is the
-caller, Needs you lists "<seat> ended; its caller is closed"; opening it shows the seat and
-counts as told. The new agent runs with its own permission prompts, never a bypass. It needs
-harness writes on and a harness that publishes the labels and the `ended` state
-(rustal-harness MREQ-010).
-
 ## The harness's sessions
 
 Marley follows the sessions of a rustal-harness (#534) when your settings name its MCP server, as
@@ -3026,6 +3186,12 @@ the picker lists the profiles, and you can always type a name.
   `rh claude signin` on that root first.
 - **From an agent** (#692). Agents, the Marley agent among them, propose the same with
   `seat_add`, and nothing happens until you press Apply.
+- **Stop or remove a seat** (#710). Agents propose `seat_stop`, which ends the seat's sessions and
+  keeps its profile so it can start again, and `seat_remove`, which also deletes the profile so
+  the name is free. The question names the seat and what goes ("builder · stop its sessions and
+  delete its profile"); on Apply Marley runs the harness's `seat stop` or `seat remove`, and a
+  removed seat leaves the rail. A refusal comes back with the harness's code, such as
+  `seat_unknown`.
 
 **The manager in the Agent Panel** (#694). While the switch is on and the harness has a manager (a
 session whose `role` label is `manager`, which the harness moves with the designation), the Agent
@@ -3065,8 +3231,9 @@ Marley follows it beside the one above:
 ```
 
 - **Reaching it.** Marley runs `ssh -T -o BatchMode=yes HOST rh --state ROOT mcp` with its own
-  keepalive, so the host must take your key without a password prompt. Without `ssh`, the harness
-  is on this machine. `rh` defaults to `rh` on the host's PATH.
+  keepalive, so the host must take your key without a password prompt. While `harness_writes` is
+  on, Marley adds `--grant write` itself. Without `ssh`, the harness is on this machine. `rh`
+  defaults to `rh` on the host's PATH.
 - **The rail.** Each harness has its own section after the first, HARNESS · its name, with its
   own connection line, fold and rows. One that stops answering says why under its name, its rows
   stale, while the others go on.
@@ -3110,21 +3277,48 @@ desktop notice; one that ended while Marley was closed is listed without a notic
 entry opens the run's session and sets the session's label `finding.seen` (harness writes on), so
 the entry does not come back after a restart. `nothing` and `failed` raise nothing.
 
-**Try it on a real host** (#758). Scenarios run the second harness through a stand-in `ssh` on
-one machine; a real host is checked by hand. `HOST`, `ROOT` and the `rh` path are yours:
+**Agents that start agents** (#716). An agent in a Marley terminal can start another agent with
+`agent_start`. The new agent is a seat on the harness Marley follows first, so the harness hosts
+it, supervises it and keeps its record: the seat carries the labels `started_by` (`marley:` and the
+caller's terminal id) and `delegation` (the caller's request id). Marley asks you each time, with
+the agent, the place and the prompt's first line (Agent Control's Agents setting,
+`marley.agent_control.agents`: `off` refuses it, `allow` stops the asking). On Allow it starts the
+seat, sends the prompt once, and opens the seat beside the caller, or in the new worktree's window.
+The seat's row in the Harness section says which terminal started it.
+
+When the seat's turn ends (its delivery reads `ended`), Marley types one line into the caller
+once the caller is at its prompt, and presses Enter: `Agent <seat> ended: <outcome>. Read the
+result: agent_status {"delegation": "<id>"}.` The line carries ids only, never the child's words.
+Marley then sets the seat's `delegation.told` label, so the line comes once, after a restart too:
+a caller restored with its terminal gets the line once it is ready. If no open terminal is the
+caller, Needs you lists "<seat> ended; its caller is closed"; opening it shows the seat and
+counts as told. The new agent runs with its own permission prompts, never a bypass. It needs
+harness writes on and a harness that publishes the labels and the `ended` state
+(rustal-harness MREQ-010).
+
+**Try it on a real host** (#740 to #742, #758). No run has tried these four against a real second
+machine: their scenarios reach the second harness through a stand-in `ssh` on one machine. This
+list is that check, done by hand. `HOST`, `ROOT` and the `rh` path are yours:
 1. On `HOST`: `rh` installed, `ROOT` owned by the SSH user with mode 0700, `rh --state ROOT serve`
-   running, and a manager: `rh --state ROOT seat add boss --agent claude --role manager --cwd DIR`,
-   then `rh --state ROOT seat start boss`.
+   running, Claude Code's sign-in declared (`rh --state ROOT claude signin`), and a manager:
+   `rh --state ROOT seat add boss --agent claude --role manager --cwd DIR`, then
+   `rh --state ROOT seat start boss`.
 2. In Marley's settings, `marley.harnesses` names `HOST` with `ssh`, `state` and `rh`, and
    `marley.harness_writes` is on. The rail shows `HARNESS · HOST` with `boss`.
 3. New Agent lists `Manager · HOST`. Start it and type "hello": `rh --state ROOT thread show` on
    `HOST` holds it, and the manager's answer appears in the tab.
 4. Show another tab and have the manager post a report: a notice reads `Manager · HOST: Report`
    and Needs you lists it. The entry brings the tab forward with the report and clears.
-5. Quit Marley and start it again: the tab comes back and still talks to the manager.
-6. Open a project on `HOST` (Open Remote Folder). In that window, right-click a seat's row → Open as
+5. New Agent → Claude Code → **On HOST…**, then a folder that exists on `HOST`: a terminal opens
+   attached to the new seat through `ssh -t`, and the seat's row is under `HARNESS · HOST`. In the
+   seat's tab, Views → Open on a view runs it on `HOST` the same way.
+6. New Agent → Claude Agent → **On HOST…**, then a folder: a thread tab whose message box names
+   the seat and `HOST`. Type a line: the seat's reply comes back as the thread.
+7. Quit Marley and start it again: the manager's tab and the seat's thread tab come back and still
+   answer.
+8. Open a project on `HOST` (Open Remote Folder). In that window, right-click a seat's row → Open as
    Thread, and the manager's row → Open Manager Thread: both tabs open in that window and answer.
-7. Cut the network to `HOST` for a minute: the rail marks `HARNESS · HOST` stale, and once it is
+9. Cut the network to `HOST` for a minute: the rail marks `HARNESS · HOST` stale, and once it is
    back the tab answers again after you reopen it.
 
 ## The Fleet panel
@@ -3142,8 +3336,11 @@ Turn the pseudo provider on in your settings:
 }
 ```
 
-Then run `marley: toggle fleet`. The panel opens in the right dock, beside the Agent Panel; the
-server icon in the status bar toggles it too. Each agent's row shows:
+Then run `marley: toggle fleet`, click the server icon at the right of the status bar, or run
+`marley panel fleet` in a terminal (#749). In the Marley layout the panel opens as a tab in the pane
+you are in, and asking again brings that tab forward (#748, see
+[Side panels as tabs](#side-panels-as-tabs-747)); in Zed's layout it opens in the right dock,
+beside the Agent Panel. Each agent's row shows:
 
 - its runtime's mark (Claude Code, Codex and the others) and its name;
 - its work item's key and its phase as `name n/m`, such as `RB-142 · code 2/4`;
@@ -3181,8 +3378,8 @@ its Agent tab in the center (#609). Opening it again brings the same tab forward
 - its tokens for this run and for the day, with cache reads;
 - the other agents on its host: click one to open its tab.
 
-The fleet keeps reading while the panel shows or an Agent tab is in front. The graphs start
-empty after a restart.
+The fleet keeps reading while the panel or its tab shows, or an Agent tab is in front. The graphs
+start empty after a restart.
 
 ### Hosts over SSH (#610)
 
@@ -3256,10 +3453,11 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+Alt+N | Anywhere | The New Agent picker |
 | Ctrl+Alt+; | Anywhere | Moves the focus into the rail, or back out |
 | Ctrl+Alt+J | Anywhere | Opens or closes the rail |
-| Ctrl+Alt+V | Anywhere, while Rusty is connected | The rail's Projects and Brain views |
+| Ctrl+Alt+V | Anywhere, while Rusty is connected | The Brain tab, in the group you are looking at (#678, #743) |
 | Ctrl+Alt+U | Anywhere, while Rusty is connected | `rusty: open page`, the page picker |
 | Alt+Left, Alt+Right | A brain page's tab | Back, Forward |
-| Ctrl+? | Anywhere | Focuses the Agent Panel (Zed's) |
+| Ctrl+? | Anywhere | The New Agent picker in the Marley layout (#744); Zed's Agent Panel in Zed's |
+| Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B | Marley layout | The Project Panel, Git Panel or Outline Panel tab, brought forward or opened (#747) |
 | Ctrl+\` | Marley layout | Switches between the code and the project's terminals |
 | Ctrl+J | Marley layout | The same, while the bottom dock is closed |
 | Ctrl+~ | Marley layout | A new center terminal |
@@ -3268,8 +3466,9 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Left, Right | Rail | Folds a project or climbs to it; unfolds |
 | Ctrl+F | Rail | The filter |
 | Escape | Rail filter | Clears the filter; a second press goes back to the rows |
-| Up, Down, Home, End, Left, Right, Enter | Brain view | Move in the tree, open and close folders, open a page |
-| Enter, Escape | Brain view's search field | Searches, or opens the selected hit; clears, then goes back to the tree |
+| Ctrl+G | Rail | PROJECTS or THREADS (#745) |
+| Up, Down, Home, End, Left, Right, Enter | Brain tab's tree | Move in the tree, open and close folders, show a page |
+| Enter, Escape | Brain tab's search field | Searches, or opens the selected hit; clears, then goes back to the tree |
 | Ctrl+Tab, Ctrl+Shift+Tab | Rail, Agent Panel | The switcher; hold Ctrl, press Tab or Shift+Tab to move, let go to open |
 | Ctrl+Up, Ctrl+Down | Terminal | The previous or next block |
 | → | Terminal, at a prompt | Takes the autosuggestion |
@@ -3293,6 +3492,8 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Enter, Escape | A paused click's card, once clicked | Allow; Refuse |
 | Alt+Down, F4, Space | A focused select list | Opens Marley's list |
 | Up, Down, Enter, Escape | An open select list | Moves; chooses; closes |
+| c | A Plan or review tab, a passage selected | Comments on the passage (#726, #729) |
+| Enter, Escape | A Plan or review tab's comment field | Adds the note; drops it |
 
 Commands with no key of their own, from the command palette:
 
@@ -3312,6 +3513,15 @@ Commands with no key of their own, from the command palette:
 | `marley: open browser` | Shows or opens a Browser tab |
 | `marley: new browser tab` | A new Browser tab (Ctrl+T inside one) |
 | `marley: pick element`, `marley: annotate`, `marley: record this` | The Browser tab's three buttons, while a Browser tab has the focus |
+| `marley: review markdown` | The active Markdown file, or its preview's, in a review tab for notes (#729) |
+| `marley: review last reply` | The active agent thread's or terminal Claude Code's last reply in a review tab (#729) |
+| `marley: send failed checks to agent` | The project's failed pull request checks to an agent you pick (#718) |
+| `marley: open threads` | The Threads page, every saved conversation, in a tab of the group you are looking at (#737) |
+| `marley: reopen thread` | Reopen Thread…, a picker over the saved conversations (#772) |
+| `marley: talk to marley`, `marley: new marley conversation` | The Marley agent's latest conversation, or a new one, in a tab (#738) |
+| `marley: talk to rusty`, `marley: new rusty conversation` | The same for Rusty (#738) |
+| `marley: open thread in center`, `marley: move thread to panel` | Zed's layout only: the Agent Panel's thread into a tab, and back (#697, #772) |
+| `rusty: open home` | Rusty's home page in a tab of the group you are looking at (#679, #743) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Settings
@@ -3320,8 +3530,10 @@ Marley keeps its settings in `~/.config/marley/settings.json`, in Zed's format (
 the file; Ctrl+, opens the Settings window). `marley: open settings` opens the Settings window on its Marley page,
 first in the list (#515). The page has a Layout section, with the layout as a dropdown, the
 Prompt Editor toggle (#627) and Follow Omarchy's Theme (#759), an Agents
-section with Redact Secrets for Agents (#516), Codex App Server (#650) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
-Untested Claude Code (#648) and App Server on Untested Codex (#650), a Voice section with the Voice toggle (#642), a Rusty
+section with Redact Secrets for Agents (#516), Codex App Server (#650), Shared Claude Code Plugin (#709) and Agent Prompts in a Tab (#649), an Agent Versions section with Prompt Tags on
+Untested Claude Code (#648), App Server on Untested Codex (#650) and Shared Plugin on Untested
+Claude Code (#709), an Agent Control section whose Agents setting says whether an agent may start
+another (#716), a Voice section with the Voice toggle (#642), a Rusty
 section with Rusty's switch, its connection and Rusty Tools for Agents, and the Rusty's Server page
 (#643), and a Privacy section with the two telemetry toggles; later Marley settings add their
 sections there.
@@ -3343,9 +3555,13 @@ Marley's own keys in the file:
     "redact_secrets_for_agents": true,
     "redaction_patterns": ["INTERNAL-[0-9]{6}"],
     // What runs on an agent version Marley has not tested it on (#648): claude_prompt_tags, the
-    // tags that tell your prompts from the ones Claude Code adds, and codex_app_server (#650).
-    // Off by default.
-    "allow_untested_versions": { "claude_prompt_tags": false, "codex_app_server": false },
+    // tags that tell your prompts from the ones Claude Code adds, codex_app_server (#650) and
+    // claude_shared_plugin, the shared Claude Code plugin (#709). Off by default.
+    "allow_untested_versions": {
+      "claude_prompt_tags": false,
+      "codex_app_server": false,
+      "claude_shared_plugin": false
+    },
     // Agent prompts in a tab (#649): the agent's own editor key opens its prompt in a Marley tab.
     "agent_editor_in_tab": false,
     // Codex's own App Server (#650): the rail reads each launched Codex's thread. Off by default.
@@ -3353,6 +3569,9 @@ Marley's own keys in the file:
     // A Codex stopped at its usage limit continues by itself at the reset (#715). Off by default:
     // Continue at Reset in Needs you does it on a click.
     "continue_at_reset": false,
+    // New local terminals load the Claude Code plugin Marley shares with rustal-harness, so a
+    // Claude Code there reports its own state to the rail (#709). Off by default.
+    "claude_code_shared_plugin": false,
     // Dictation through Voxtype: the agent bar's microphone and marley: toggle dictation. Off
     // until you turn it on (#642).
     "voice": { "enabled": false },
@@ -3364,6 +3583,21 @@ Marley's own keys in the file:
       "service_url": "http://127.0.0.1:4174/mcp",
       "agent_tools": false
     },
+    // The rustal-harness whose sessions the rail follows, as a context server's command (#534).
+    // Unset by default, which starts nothing.
+    "harness": { "command": "/path/to/rh", "args": ["--state", "/path/to/root", "mcp"] },
+    // Marley runs `rh serve` on a root of its own and follows it (#632); "harness" wins. Off by
+    // default.
+    "embedded_harness": false,
+    // The harness's write verbs: a session's tab answers and sends, New Harness Seat sets up
+    // seats, and agents' seat tools run (#689). Off by default.
+    "harness_writes": false,
+    // Harnesses on other hosts, each followed over SSH beside "harness" (#740). None by default.
+    "harnesses": [{ "name": "box-2", "ssh": "me@box-2", "state": "/srv/harness", "rh": "rh" }],
+    // One of Agent Control's settings (#703): whether an agent in a Marley terminal may start
+    // another as a harness seat (#716). "off" refuses, "allow" never asks, and "ask_first" (the
+    // default) or "ask_every" asks at every start.
+    "agent_control": { "agents": "ask_first" },
     // Where the Fleet panel's agents come from (#607): [] (the default) shows "not set up";
     // { "kind": "pseudo" } shows Marley's example data. "hosts" lists machines Marley reads
     // over SSH or locally (#610), "agent_processes" more process names to list as agents.
@@ -3379,6 +3613,10 @@ Marley's own keys in the file:
 The Settings window shows the two defaults the Marley layout sets (`terminal.button: false` and
 `agent.dock: "right"`) as Zed's defaults, so in the Marley layout a stored `terminal.button: false`
 looks like the default and has no reset control.
+
+The harness keys (`harness`, `embedded_harness`, `harness_writes` and `harnesses`) have no row on
+the Marley page; set them in the file. The section on the harness's sessions, above, says what
+each does.
 
 Telemetry is off by default in Marley (#514): `telemetry.metrics` and `telemetry.diagnostics`
 default to false, and turning either on works as in Zed.
@@ -3428,16 +3666,25 @@ Environment variables and flags:
 | `~/.local/share/marley/mcp-endpoint.json` | The MCP server's URL and token (mode 0600), while Marley runs |
 | `~/.local/share/marley/mcp/marley-mcp-bridge` | The bridge Zed's agents run, written at each start |
 | `~/.local/share/marley/claude-code/` | The Claude Code plugin, as a local marketplace |
+| `~/.local/share/marley/claude-code/shared/<digest>/` | The plugin Marley shares with rustal-harness, read-only, named by its digest (#709) |
+| `~/.local/share/marley/marley-dev.sock` | The socket a second launch hands its paths to, while Marley runs (#760; `zed-dev.sock` before) |
+| `~/.local/share/marley/harness/` | The root of the harness Marley runs itself while `embedded_harness` is on (#632) |
+| `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz` | The remote servers the install staged, the newest three (#445) |
 | `~/.local/share/marley/shell_integration/` | `marley.bash` and `zsh/.zshenv` |
 | `~/.local/share/marley/browser/projects/<key>/` | A project's browser: `profile/`, `project.json`, and while it runs the relay's `relay.sock` and `relay.json` (mode 0600) |
 | `~/.local/share/marley/browser/recordings/<id>/` | A saved recording: `timeline.json` and `frames/` |
 | `~/.local/share/marley/system_one/` | The System One layer's calls, a file a day (mode 0600), and `replay.jsonl` |
+| `~/.local/share/marley/checks/` | The failed checks' logs sent to an agent, a file per pull request and commit (mode 0600, #718) |
 | `~/.cache/marley/` | Zed's cache |
 | `~/.local/bin/marley`, `~/.local/lib/marley/marley` | The installed launcher and binary |
-| `~/.local/share/applications/marley.desktop` | The menu entry |
+| `~/.local/share/applications/marley.desktop` | The menu entry, which claims `marley://` (#762) |
+| `~/.config/marley/themes/omarchy.json` | Omarchy's current theme drawn for Marley, while Follow Omarchy's Theme is on (#759) |
+| `~/.config/omarchy/themed/marley.json.tpl`, `~/.config/omarchy/hooks/theme-set.d/marley-theme` | The template Omarchy fills and the hook that copies the result, while Follow Omarchy's Theme is on (#759) |
+| `~/.zed_server/zed-remote-server-dev-<commit>`, on an SSH host | Marley's remote server, one per Marley commit (#445) |
 
 Every `~/.local/share/marley` path follows `$XDG_DATA_HOME`, and a Marley started with
-`--user-data-dir DIR` keeps them all under `DIR`.
+`--user-data-dir DIR` keeps them all under `DIR`. Marley's items in the system keyring, such as
+System One's key, are labelled Marley (#761).
 
 ## Troubleshooting
 
@@ -3503,8 +3750,31 @@ Every `~/.local/share/marley` path follows `$XDG_DATA_HOME`, and a Marley starte
 - **An agent reads `[redacted: …]` where it needs a value.** Marley hid what looked like a
   secret. Turn off Redact Secrets for Agents on the Marley settings page (`marley: open
   settings`) while the agent needs it, or print the value under a name the rules do not take.
-- **`zed://` links open stock Zed.** Stock Zed owns the scheme where it is installed; Marley's own
-  URL scheme waits on TICKET-445.
+- **A `zed://` link opens stock Zed.** Since #762 a `zed://` or `marley://` link clicked inside
+  Marley opens in Marley. A `zed://` link clicked anywhere else still goes to stock Zed, which owns
+  that scheme on the desktop; write it as `marley://` with the same path to reach Marley.
+- **Opening a folder over SSH fails with "no Marley remote server is staged for linux-x86_64 at
+  commit …".** Nothing is staged for the commit Marley was built from. Run `script/install-marley
+  --remote-server-only` in the checkout at that commit (#445). A debug build started with
+  `ZED_BUILD_REMOTE_SERVER=never` needs a server staged for its own commit in the same way.
+- **`just install` stops with "the remote server needs musl-gcc (the musl and llvm packages)"**,
+  or names `llvm-objcopy`. Install Arch's `musl` and `llvm` packages and run it again; nothing was
+  installed (#445).
+- **A Hyprland window rule stopped matching Marley.** Since #760 Marley's class is
+  `com.ignibyte.Marley`, no longer `dev.zed.Zed-Dev`. Match the new one.
+- **After an install, a second Marley started beside the running one.** The running Marley came
+  from a build before #760 and listens on `zed-dev.sock`, which the new build does not look for, and
+  two Marleys on one data directory hang. Quit both (`pgrep -x marley` finds them) and start one.
+- **The Harness section says "not running".** Point at the header for the whole reason. With
+  `embedded_harness`, it may be that no `rh` was found: install it or set `MARLEY_RH`. For a
+  harness in `marley.harnesses`, Marley runs `ssh` with `BatchMode=yes`, so a host that asks for a
+  password or a passphrase never answers; `ssh -o BatchMode=yes HOST true` shows whether your key
+  gets in.
+- **A harness session's tab refuses every write.** Turn on `marley.harness_writes`. A `harness`
+  command of your own also needs `"--grant", "write"` in its arguments; Marley adds it only to the
+  harness it runs itself and to those in `marley.harnesses`.
+- **New Harness Seat or New Agent's On box-2… refuses with `claude_signin_undeclared`.** The
+  harness's root has no Claude Code sign-in declared: run `rh --state ROOT claude signin` there.
 
 ## For developers
 
@@ -3533,29 +3803,16 @@ end. Every change outside `crates/marley_*` and Marley's other owned paths gets 
 
 ## What is planned
 
-`docs/planning/tickets/BACKLOG.md` orders the queue, and most tickets in it have a spec waiting in
-`docs/planning/pipeline/queued/` (`docs/planning/design-notes/specs-batch-2026-09-25.md` says where
-each came from). The next ones:
-
-| Ticket | What it brings |
-|---|---|
-| TICKET-517 | Marley's own regression suite: a golden set of scenarios that check themselves, run before every `just install` |
-| TICKET-519 | Claude Code's hook events in the rail: the prompt, the tool in flight, what it waits on, its last message |
-| TICKET-520 | Each terminal knows its id, and Marley's tools know which terminal called them |
-| TICKET-503 | A local URL in a terminal opens in a Browser tab, and the terminal offers the URL a dev server printed |
-| TICKET-504 | Browser tabs as rows of their project in the rail |
-| TICKET-518, TICKET-505 | A fuller pick (HTML, styles, the React component), then the same element found again after the agent's fix |
-| TICKET-507 | A Chromium and a profile per project |
-
-After those come saved Playwright scripts and trusted outside clients for the browser, the
-approvals inbox, per-turn diffs, permission modes, worktree agents with review and merge, and
-the terminal items from Warp (an agent typing into a running program, blocks over ssh, filtering
-a block, a sticky command header, runbook commands).
+`docs/planning/tickets/BACKLOG.md` orders the queue of open tickets, each with its file under
+`docs/planning/tickets/open/`. The walkthrough's Appendix C lists what shipped tickets left for
+later.
 
 Marley's own release identity shipped in five slices: its remote server, app id, keyring label,
 `marley://` scheme and updater message (#445, #760 to #763).
 
-`docs/marley/three-prong-plan.md` names the longer road: block-scoped path links and a jump to the
-first failure (T2), a prompt editor (T3), tasks and runnables as blocks (T4), native block headers
-with the shell's prompt hidden (T5), completions in the prompt (T6), and the control plane that
-brings harness seats and Rusty's sessions into the rail (C1 to C5).
+Most of `docs/marley/three-prong-plan.md` has shipped: block-scoped path links and a jump to the
+first failure (T2), the prompt editor (T3), tasks and runnables as blocks (T4), native block
+headers with the shell's prompt hidden (T5), completions in the prompt (T6), and the harness's
+sessions and seats in the rail. Two items remain: Rusty's sessions as rows in the rail, which wait
+on `rusty-mcp` serving them (C2), and work objects (C5): rustal-brain's tickets, runs and gate
+evidence as labels on seats and in a pane of their own, and the workflow's phase in the status bar.
