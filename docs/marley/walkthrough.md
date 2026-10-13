@@ -379,7 +379,7 @@ marley agent-cli --provider=nope; echo "exit $?"
   page there.
 - [ ] The wrong provider prints the error and `exit 2`, and nothing opens.
 
-### 1.8 Default and the Home page (#700, #701, #739, #743)
+### 1.8 Default and the Home page (#700, #701, #739, #743, #782)
 
 1. Click Default's header in the rail.
 2. On the Home page, click New Terminal under START, and run `pwd` in it.
@@ -392,10 +392,12 @@ marley agent-cli --provider=nope; echo "exit $?"
 - [ ] Step 1: Default shows the Home page, its tab titled Home, never Zed's Welcome page. Its
   cards: START (New Terminal, Open Folder…, Clone Repository…, Command Palette), NEW AGENT
   (New Agent…, Threads, and a button for each agent CLI on your PATH), RECENT PROJECTS with
-  `marley-tour` and its folder, AGENTS AT WORK, CONFIGURE (Settings, Marley Settings, Keymap,
-  Extensions, MCP Servers, Marley Guide) and AGENT ACTIVITY.
+  `marley-tour` and its folder, AGENTS AT WORK, AGENT ACTIVITY, and CONFIGURE last (Settings,
+  Marley Settings, Keymap, Extensions, MCP Servers, Marley Guide). With Rusty off, nothing of Rusty
+  shows; with Rusty on, see 2.12's Step 7.
 - [ ] AGENTS AT WORK reads "No agent at work." until an agent runs; Part 5 fills it.
-- [ ] Step 2: a terminal opens in Default, beside Home, and `pwd` prints your home folder.
+- [ ] Step 2: a terminal opens in Default, beside Home, and `pwd` prints your home folder. In the
+  rail, Default lists Home first, then the terminal (#782).
 - [ ] Step 3: the tabs close and Home comes back as Default's only tab.
 - [ ] Step 4: the menu reads "What belongs to no project opens here", with nothing to rename or
   remove.
@@ -652,7 +654,10 @@ settings page (1.4). This stop writes to your real vault, inside one folder it m
   "Already exists: marley-tour/second", and `third` stays.
 - [ ] Step 5: the hits replace the tree; the first Escape clears them, the second leaves the field.
 - [ ] Step 6: `second` lists under `inner`, and its folder stays open.
-- [ ] Step 7: Rusty's home page opens as a tab titled Rusty; Today's Note brings the Brain tab
+- [ ] Step 7: Home comes forward with Rusty's cards under RECENT PROJECTS and AGENTS AT WORK
+  (#782): RUSTY (the eight screens, Open Page… and the three captures), RECENT PAGES, FOLLOW-UPS DUE
+  and TASKS; there is no tab titled Rusty and no Rusty button in the status bar. Today's Note
+  brings the Brain tab
   forward with today's note on its right, selected under `daily`; the keys move the selection and
   open and close folders.
 - [ ] Step 8: Marley asks first, naming the folder and its pages and saying Rusty moves it into
@@ -806,7 +811,7 @@ Needs 2.12's setup: Rusty installed and on. This stop only reads your vault.
 5. In the panel click Vault, type `type:decision` in the filter, then clear it. Click a type in the
    legend twice. Turn Tags on and off.
 6. Click Fit, then the close button, then the button that brings the panel back.
-7. Run `rusty: open home` and click Graph on Rusty's home page.
+7. Run `rusty: open home` and click Graph on Home's RUSTY card.
 
 - [ ] Step 1: a Graph tab: your pages as dots coloured by type, the header's count, the legend's
   types with their counts; decision edges dashed in three colours.
@@ -843,7 +848,7 @@ Needs 2.15's Graph tab. This stop changes only the graph settings, which step 6 
 
 Needs 2.12's setup: Rusty installed and on. This stop makes a list of its own and deletes it.
 
-1. Run `rusty: open home` and click Tasks on Rusty's home page.
+1. Run `rusty: open home` and click Tasks on Home's RUSTY card.
 2. Click + by Lists, type `marley-tour`, press Enter. Type `first`, Enter, `second`, Enter,
    `third`, Enter.
 3. Click `first`'s box. Click `second`, press F2, type `second, renamed`, press Enter.
@@ -862,7 +867,7 @@ Needs 2.12's setup: Rusty installed and on. This stop makes a list of its own an
 
 Needs 2.12's setup: Rusty installed and on. This stop only reads.
 
-1. Run `rusty: open home` and click Decisions on Rusty's home page.
+1. Run `rusty: open home` and click Decisions on Home's RUSTY card.
 2. Rest the pointer on a row.
 3. Click a decision.
 4. Run `rusty: open decisions` from the command palette.
@@ -925,7 +930,7 @@ a source page, and one imported page with its report, which step 6 removes.
 Needs 2.12's setup: Rusty installed and on. This stop adds one memory to your Rusty and deletes it
 in step 4.
 
-1. Run `rusty: open home` and click Memory on Rusty's home page.
+1. Run `rusty: open home` and click Memory on Home's RUSTY card.
 2. Type `Marley tour memory` in the top field, `tour` as the category, click High, press Enter.
 3. Choose `tour` in the Category menu, then All again.
 4. Click `Marley tour memory`, change it to `Marley tour memory, edited`, click Low and Save. Click
@@ -942,7 +947,7 @@ in step 4.
 Needs 2.12's setup: Rusty installed and on. This stop makes one staged skill and deletes it in step
 4; it changes nothing else in your store.
 
-1. Run `rusty: open home` and click Skills on Rusty's home page.
+1. Run `rusty: open home` and click Skills on Home's RUSTY card.
 2. Click New Skill, type `Tour Skill`, click Create. Then make the name `tour-skill`, check "Stage
    for approval", click Create.
 3. Click Scan.
@@ -977,7 +982,7 @@ back.
 Needs 2.12's setup: Rusty installed and on. This stop adds a made-up secret and deletes it; if
 your vault has no PIN yet, step 2 sets the one you will keep.
 
-1. Run `rusty: open home` and click Secrets on Rusty's home page.
+1. Run `rusty: open home` and click Secrets on Home's RUSTY card.
 2. If it asks for a PIN, set yours (twice). Type it and press Enter to unlock.
 3. Type `tour_secret` and `made-up` and press Enter. Click Reveal on it, then Copy.
 4. Click Delete on `tour_secret` and answer Delete.
@@ -1009,7 +1014,7 @@ signed in (0.2).
 - [ ] Step 4: the click on the row brings the first conversation's tab forward.
 - [ ] Optional, with Rusty on: the Rusty button beside Marley's in the title bar (its tooltip
   reads "Talk to Rusty") does the same with Rusty's conversation, as `marley: talk to rusty`
-  does, and the Rusty button beside Home in the status bar opens Rusty's home page (#778).
+  does. The status bar holds Home alone; Rusty's cards are on Home (#782).
 
 ### 2.17 Projects and Threads (#745, #737, #772, #736)
 
@@ -3228,7 +3233,7 @@ Every Marley command runs from the palette. The ones with no key of their own:
 | `marley: talk to marley`, `marley: new marley conversation` | The Marley agent's latest conversation, or a new one, in a tab (#738) |
 | `marley: talk to rusty`, `marley: new rusty conversation` | The same for Rusty, while Rusty is on (#738) |
 | `marley: open thread in center`, `marley: move thread to panel` | Zed's layout only: the Agent Panel's thread into a tab, and back (#697, #772) |
-| `rusty: open home` | Rusty's home page, in a tab of the group you are looking at (#679, #743) |
+| `rusty: open home` | the Home page, with Rusty's cards, in the group you are looking at (#782) |
 | `rusty: toggle knowledge panel` | Show or hide the Knowledge panel, while Rusty is on (#646) |
 | `rusty: open graph`, `rusty: open local graph` | The Graph tab, on the vault or the page in front (#647) |
 | `rusty: open tasks` | The Tasks tab, Rusty's to-do lists (#658) |

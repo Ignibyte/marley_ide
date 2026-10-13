@@ -174,7 +174,7 @@ run it from. `marley help` lists them:
 | `marley talk marley` or `marley talk rusty` | a conversation with the Marley or the Rusty agent |
 | `marley threads` | the Threads page |
 | `marley home` | the Home page |
-| `marley rusty [SCREEN]` | Rusty's home page, or `brain`, `today`, `graph`, `tasks`, `decisions`, `memory`, `skills` or `secrets` |
+| `marley rusty [SCREEN]` | the Home page, or `brain`, `today`, `graph`, `tasks`, `decisions`, `memory`, `skills` or `secrets` |
 | `marley panel NAME` | `project`, `git`, `outline`, `collab`, `fleet`, `knowledge` or `containers` as a tab, or `debug` in the bottom dock |
 | `marley browser URL` | a Browser tab on the URL, or on a file in the folder |
 
@@ -262,8 +262,8 @@ rail](#threads-in-the-rail)). Rusty's vault no longer takes over the rail: it op
 
 Each project has a header row: its name as a muted label, a chevron that folds it, an attention
 dot when a row it hides (folded, or filtered out) needs you, and a `+`. Under the header come the
-project's terminals, its Browser tabs, its other tabs (a panel tab, the Home page, a Rusty screen, a
-search or a diff), its open files under a **Files** row (#674), its agent threads, newest first,
+Home page's row, first, where the group holds it (#782), then the project's terminals, its Browser
+tabs, its other tabs (a panel tab, a Rusty screen, a search or a diff), its open files under a **Files** row (#674), its agent threads, newest first,
 and the ports its servers listen on. A line separates one project from the next. A thread in a
 tab has one row, under the group that holds the tab (#734), lit while the tab is in front (#702).
 
@@ -503,8 +503,7 @@ name for the Home page). It holds what belongs to no project. The rail lists Def
 projects, then the groups you named; a header you dragged keeps its place. A window started with no
 folder and nothing to restore shows Default. Default is always there, so its header menu has
 nothing to rename or remove: it reads "What belongs to no project opens here". There is no Rusty
-group since #743: Rusty's screens open where you are (see [Rusty's home
-page](#rustys-home-page)), and a Rusty group an earlier build made closes when it comes back after
+group since #743: Rusty's screens open where you are (see [Rusty on Home](#rusty-on-home)), and a Rusty group an earlier build made closes when it comes back after
 a restart; a window that showed it shows Default.
 
 Default's first tab is the Home page (#701), never Zed's Welcome page: when Default is shown without
@@ -522,11 +521,16 @@ in the group that shows it.
 - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
   failed, with its project; a click opens it where it lives. It follows the rail, also after a
   switch to Zed's layout and back (#713).
-- **Configure:** Settings, Marley Settings, Keymap, Extensions, MCP Servers (#720) and the Marley
-  guide.
+- **Rusty**, while Rusty is on (#782): Rusty's screens, Open Page… and the captures, then Recent
+  Pages, Follow-ups Due and Tasks (see [Rusty on Home](#rusty-on-home)). While Rusty is on but not
+  connected, one Rusty card says why; while it is off, Home shows nothing of Rusty.
 - **Agent Activity:** Stop or Resume for Marley's tools, the five newest calls agents made to them,
   and Open Agent Activity (#703; see [Agent activity and the kill
   switch](#agent-activity-and-the-kill-switch)).
+- **Configure**, last since #782: Settings, Marley Settings, Keymap, Extensions, MCP Servers (#720)
+  and the Marley guide.
+
+In the rail, Home's row is always the first under Default, above its terminals (#782).
 
 ### Drag to reorder (#602)
 
@@ -1633,38 +1637,39 @@ the switch alone. A key bound to a Rusty command says Rusty is off.
 - With Rusty on, `rusty-mcp` runs twice when Rusty Tools for Agents is on too: once for Marley and
   once for Zed's agents.
 
-### Rusty's home page
+### Rusty on Home
 
 Rusty's screens and pages open as tabs of the group you are looking at (#743), a project or a group
-alike; before #743 they went to a Rusty group of their own (#675). Rusty's home page (#679) has a
-button for each screen (Brain, Today's Note, Graph, Tasks, Decisions, Memory, Skills, Secrets), a
-row with Open Page… and the three captures (to Today, to the Inbox, a URL), your recent pages, the
-follow-ups due and your open tasks; a recent page or a decision opens in the Brain tab, a task in
-the Tasks tab on its list. Its tab is titled Rusty, and `marley rusty` opens it from a terminal
-(#749). The Rusty button at the right of the status bar, beside Home, opens it, or brings it
-forward, where you are (#739, #778); so does `rusty: open home`.
+alike; before #743 they went to a Rusty group of their own (#675). Since #782 Rusty has no home page
+of its own: while Rusty is on, the Home page holds its cards under Recent Projects and Agents at
+Work. The Rusty card has a button for each screen (Brain, Today's Note, Graph, Tasks, Decisions,
+Memory, Skills, Secrets) and a row with Open Page… and the three captures (to Today, to the Inbox, a
+URL); under it come your recent pages, the follow-ups due and your open tasks. A recent page or a
+decision opens in the Brain tab, a task in the Tasks tab on its list. While Rusty is on but not
+connected, the Rusty card says why, and the lists come back once it connects. `rusty: open home`
+and `marley rusty` (#749) open Home where you are.
 
 ### Buttons at the right of the status bar
 
-Home and Rusty's home page sit at the right of the status bar, and the Rusty and Marley agents at
-the right of the title bar, after the `?` and before the user menu (#739, #746, #778), in both
+Home sits at the right of the status bar, and the Rusty and Marley agents at the right of the
+title bar, after the `?` and before the user menu (#739, #746, #778), in both
 layouts. Each opens its page or conversation in a tab of the group you are looking at, or brings
 that tab forward when the group has it open:
 
 | Button | Where | Opens | Shown |
 |---|---|---|---|
 | Home | Status bar | Home's page (#701) | Always |
-| Rusty | Status bar, beside Home | Rusty's home page (#679) | While Rusty is on and connected |
 | Rusty | Title bar | `marley: talk to rusty`, Rusty's latest conversation or a new one (#778) | While Rusty's agent is there |
 | Marley | Title bar | `marley: talk to marley` (#738) | While the Marley agent is there |
 
-The rail's header no longer has a Rusty button. Threads left the status bar for the rail's header
+The rail's header no longer has a Rusty button, and the status bar's Rusty button went in #782:
+Home holds Rusty's cards. Threads left the status bar for the rail's header
 and the Home page (#745).
 
 ### The Brain tab
 
 Rusty's vault opens in a Brain tab (#678) of the group you are looking at (#743), one per group:
-Brain on Rusty's home page, Ctrl+Alt+V from anywhere in the window (`marley: toggle brain view`),
+Brain on Home's Rusty card, Ctrl+Alt+V from anywhere in the window (`marley: toggle brain view`),
 or `marley rusty brain`. A second ask brings the tab forward. With Rusty off or not connected, the
 key says why in a toast. The vault no longer takes over the rail, as the Brain view did from #644
 to #678. The tab's left column holds the search field ("Search the brain…") with a `+` after it,
@@ -1672,7 +1677,7 @@ your favourites and the vault's tree; the page you pick shows on its right ("Pic
 left." until then), with the same Back, Forward, Outline button, folder and name, star and Edit as
 a Page tab (below).
 
-- **Today's Note** on Rusty's home page opens the Brain tab on today's daily note, which Rusty
+- **Today's Note** on Home's Rusty card opens the Brain tab on today's daily note, which Rusty
   makes when it is missing, selected in the tree.
 - **Search.** Type in the field and press Enter: Rusty's brain search lists its hits, title and
   slug, in the tree's place. Rusty's `tag:`, `path:`, `file:` and `type:` work as typed. The query
@@ -1794,7 +1799,7 @@ With Rusty off, or not connected, the key says so in a toast and opens nothing.
 ### The Memory tab (#664)
 
 What Rusty remembers across conversations: the facts, preferences and context its agents read at
-the start of one, the high ones first. Memory on Rusty's home page, `rusty: open memory` or
+the start of one, the high ones first. Memory on Home's Rusty card, `rusty: open memory` or
 `marley rusty memory` opens it in a tab of the group you are looking at (#743).
 
 - **The list.** Rusty's order: high, then normal, then low, the newest first within each. Each
@@ -1815,7 +1820,7 @@ the start of one, the high ones first. Memory on Rusty's home page, `rusty: open
 
 Rusty's skills store: a skill is a `SKILL.md` Claude Code loads once it is active, and a skill an
 agent writes waits, staged, for your approval. A script is a `.sh` beside a skill, the command
-`rusty <name>`. Skills on Rusty's home page, `rusty: open skills` or `marley rusty skills` opens
+`rusty <name>`. Skills on Home's Rusty card, `rusty: open skills` or `marley rusty skills` opens
 the tab.
 
 - **The lists.** Skills, staged first (marked pending; `auto` marks one an agent wrote), then the
@@ -1835,7 +1840,7 @@ the tab.
 
 ### The Secrets tab (#667)
 
-Rusty's vault of keys and tokens for providers and services. Secrets on Rusty's home page,
+Rusty's vault of keys and tokens for providers and services. Secrets on Home's Rusty card,
 `rusty: open secrets` or `marley rusty secrets` opens it. The names show to anyone; a value shows,
 changes or goes only behind your PIN. Never type the PIN to an agent.
 
@@ -1871,7 +1876,7 @@ While Rusty is on, these commands in the palette put things into its brain:
   links that will not resolve, each list in full. Import brings it in; the form stays until Rusty
   answers, then gives the report, and Open Report opens Rusty's report page under `inbox/`. Rusty
   never writes the vault, and an import that fails part way leaves nothing behind.
-- **`rusty: open today`** opens today's daily note in a Page tab; Today's Note on Rusty's home page
+- **`rusty: open today`** opens today's daily note in a Page tab; Today's Note on Home's Rusty card
   opens it in the Brain tab.
 
 Escape closes a capture's form; a capture already sent still lands. While Rusty is off or not
@@ -1921,7 +1926,7 @@ no button, the command says where to turn Rusty on, and a panel or tab that was 
 ### The Graph tab
 
 The Graph tab draws Rusty's vault as a graph in a center tab (#647): `rusty: open graph` from the
-command palette, Graph on Rusty's home page, or `marley rusty graph`. With a brain page in front
+command palette, Graph on Home's Rusty card, or `marley rusty graph`. With a brain page in front
 it opens on that page's neighbourhood; with none, on the neighbourhood of the window's project page
 (#655), its header marking it "(project)". `rusty: open local graph` turns it to the page in
 front, else the project's page, or says to open a page first. It opens in the group you are
@@ -1976,7 +1981,7 @@ looking at (#743), one Graph tab per group.
 
 ### The Tasks tab
 
-The Tasks tab shows Rusty's to-do lists in a center tab (#658): Tasks on Rusty's home page,
+The Tasks tab shows Rusty's to-do lists in a center tab (#658): Tasks on Home's Rusty card,
 `rusty: open tasks` from the command palette, `marley rusty tasks`, or the list icon on the Tasks
 heading of the Knowledge panel's project view, which opens the project's task group. It opens in
 the group you are looking at (#743), one Tasks tab per group.
@@ -2008,7 +2013,7 @@ the group you are looking at (#743), one Tasks tab per group.
 ### The Decisions tab
 
 The Decisions tab lists the decisions recorded in Rusty in a center tab (#659): Decisions on
-Rusty's home page, `rusty: open decisions` from the command palette, or `marley rusty decisions`.
+Home's Rusty card, `rusty: open decisions` from the command palette, or `marley rusty decisions`.
 It opens in the group you are looking at (#743), one Decisions tab per group. System One's log is
 another tab, System One calls.
 
@@ -3539,7 +3544,7 @@ Commands with no key of their own, from the command palette:
 | `marley: talk to marley`, `marley: new marley conversation` | The Marley agent's latest conversation, or a new one, in a tab (#738) |
 | `marley: talk to rusty`, `marley: new rusty conversation` | The same for Rusty (#738) |
 | `marley: open thread in center`, `marley: move thread to panel` | Zed's layout only: the Agent Panel's thread into a tab, and back (#697, #772) |
-| `rusty: open home` | Rusty's home page in a tab of the group you are looking at (#679, #743) |
+| `rusty: open home` | the Home page, with Rusty's cards, in the group you are looking at (#782) |
 | `multi workspace: next project`, `previous project`, `next thread`, `previous thread` | Walk the rail |
 
 ## Settings

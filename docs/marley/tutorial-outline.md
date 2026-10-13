@@ -513,10 +513,11 @@ Parts 8 onward use more of the folder, and a second repository:
 - **See:** Scratch after your projects with a group icon, a chevron and a `+` that has no worktree
   or Launch entry; its terminal's `pwd` prints your home folder. Default heads the rail, and its
   first tab is the Home page, never Zed's Welcome page: Start, New Agent, Recent Projects, Agents
-  at Work, Configure and Agent Activity. The Home button opens the same page as a tab of the group
+  at Work, Rusty's cards while Rusty is on, Agent Activity and Configure. Home's row is the first
+  under Default, above its terminals. The Home button opens the same page as a tab of the group
   you are in. A group comes back after a restart with its name, terminals and Browser tabs.
 - **Teaches:** groups with no folder (#600, #601), the Default group (#700, #743), the Home page
-  (#701) and the status bar's Home button (#739).
+  (#701, #782) and the status bar's Home button (#739).
 
 ### Lesson 40. Arrange the rail, and what a restart keeps
 
@@ -986,10 +987,11 @@ each step.
 - **See:** with Rusty off, a toast says so and where to turn it on, and no `rusty:` command is in
   the palette. Connected, the rail's header shows Projects and Brain; Brain shows Today, a search
   field and your vault's folders with their counts. One click opens a page in a preview tab, two
-  keep it. Rusty's home page has a button per screen, the captures, recent pages, follow-ups due
-  and open tasks. Delete asks first and Rusty moves the folder into `archive/`.
+  keep it. Home's Rusty card has a button per screen and the captures, with your recent pages,
+  follow-ups due and open tasks under it; while Rusty is not connected it says why. Delete asks
+  first and Rusty moves the folder into `archive/`.
 - **Teaches:** Rusty's switch and connection (#643), off leaving no trace (#661), the Brain view
-  (#644), Rusty's home page (#679) and its title bar button (#739).
+  (#644), Rusty's cards on Home (#679, #782) and its title bar button (#739).
 
 ### Lesson 72. Brain pages in tabs
 
@@ -1024,7 +1026,7 @@ each step.
 
 - **Goal:** put things into Rusty from Marley, and reach the rest of what it keeps.
 - **Do:** run `rusty: capture to today` and type a line; `rusty: capture url` with
-  `https://example.com`. Open the Memory, Skills and Secrets screens from Rusty's home page. Open
+  `https://example.com`. Open the Memory, Skills and Secrets screens from Home's Rusty card. Open
   Rusty's Server in the Settings window. Run `marley: talk to rusty` and ask it what is on your
   list.
 - **See:** the toast names today's note, and the URL becomes a source page with its text. Memory
