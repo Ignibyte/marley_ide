@@ -4060,3 +4060,14 @@ debug build draws a field whose `pick` returns `None` for the default settings a
 (`settings_ui.rs`, `file_set_in`). "Marley's Folder" hid the same fault in that run because the
 scenario had set it. The gate passed; only the shot showed it. Fixed in #780: both picks end with
 `.or(NO_FOLDER)`, an empty string, as Zed's own pages use `page_data`'s `DEFAULT_EMPTY_STRING`.
+
+## F-claude-781-configure-under-select-a-model-opened-the-hidden-agent-panel-001
+*severity: medium · found in: Chad's own use, 2026-10-12 · class: a Zed action whose handler reaches the Agent Panel, not diverted in the Marley layout · prevented by: PR-claude-781*
+
+A Zed Agent thread in a tab, with no model set up, showed an empty thread; its model picker's
+Configure dispatches `zed_actions::agent::OpenSettings`, whose handler in `agent_panel::init`
+runs `focus_panel::<AgentPanel>` before it opens the Settings window, so the hidden right dock
+opened on the panel, which then started a thread of its selected agent ("New Claude Agent Thread ·
+Loading…"). #744 had diverted the panel's other entry points (`ToggleFocus`, `Toggle`,
+`FocusAgent`, `NewThread`, `ToggleNewThreadMenu`) but not this one. The empty thread was the
+panel's new-user card, missing from a tab. Fixed in #781.

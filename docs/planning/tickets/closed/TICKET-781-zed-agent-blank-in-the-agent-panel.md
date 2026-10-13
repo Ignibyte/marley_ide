@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #781 (bug)
 - **Owner:** 9623da6e-a5cd-4dcb-b048-40009324e9f0
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [781-zed-agent-blank-in-the-agent-panel.spec.md](../../pipeline/completed/781-zed-agent-blank-in-the-agent-panel.spec.md)
 - **Source ticket:** Chad, 2026-10-12: "if you click agent panel, choose zed agent it shows blank,
   then choose select model it brings up the old right agent panel. add this somewhere as a bug".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In the Marley layout, opening the Agent Panel and choosing Zed Agent shows an empty thread; Select

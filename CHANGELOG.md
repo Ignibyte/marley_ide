@@ -1479,6 +1479,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A Zed Agent thread with no model says so, and Configure stays out of the right dock** (#781,
+  2026-10-12). A Zed Agent thread in a tab, with no model set up, showed an empty thread, and
+  Configure under Select a Model opened Zed's Agent Panel in the right dock, which the Marley layout
+  keeps hidden. The thread now shows "The Zed Agent has no model yet" with Configure Providers,
+  and in the Marley layout both open the Settings window's LLM Providers page.
+
 - **Archive sticks, and an archived thread comes back when you open it** (#777, 2026-10-12).
   Archive on a thread's rail row archived it, but while the thread's tab was open the row came
   straight back, and the tab came back after a restart, so the click looked like it did nothing.

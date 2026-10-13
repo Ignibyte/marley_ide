@@ -2687,6 +2687,12 @@ alike.
   gets the action. The status bar's sparkle is Zed's `PanelButtons` entry, whose click dispatches
   `ToggleFocus` from the dock inside the workspace, so the capture sees it. A key from the rail
   reaches none of them: the rail is the `MultiWorkspace`'s sidebar, outside the workspace's element.
+- #781: the same renderer captures `zed_actions::agent::OpenSettings` (a model picker's Configure,
+  the panel onboarding's Configure Providers) with `providers_in_place_of_panel`: in the Marley
+  layout it stops it and dispatches `llm_providers_page()` (`OpenSettingsAt { path: "llm_providers"
+  }`), since Zed's handler focuses the Agent Panel in its dock first. `ThreadTab::render` puts
+  `no_model_callout` above a Zed Agent thread while `LanguageModelRegistry::default_model()` is
+  none (the panel's new-user card, which a tab lacks), redrawn by an observation of the registry.
 - `agents::init` sets `MarleyNewItemMenu` (Zed's `pane.rs` hook, #699) to `new_item_entries`:
   New Agent… (with `marley::NewAgent`'s key shown; the entry's handler alone runs) and a separator
   ahead of Zed's entries while AI is on.

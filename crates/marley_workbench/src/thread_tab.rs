@@ -54,11 +54,12 @@ use gpui::{
     Action, App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
     Global, SharedString, Subscription, Task, WeakEntity, Window, actions,
 };
+use language_model::LanguageModelRegistry;
 use project::{AgentId, DisableAiSettings, Project, Worktree};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
-use ui::prelude::*;
+use ui::{Callout, Severity, prelude::*};
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::item::{Item, ItemEvent, SerializableItem};
@@ -214,6 +215,11 @@ impl ThreadTab {
                 }
             }),
         ];
+        // The callout a Zed Agent thread shows while no model is set comes and goes with the
+        // registry (#781).
+        subscriptions.push(cx.observe(&LanguageModelRegistry::global(cx), |_, _, cx| {
+            cx.notify();
+        }));
         // An archived thread leaves its tab, as the Agent Panel lets its kept one go (#777):
         // otherwise the rail lists the open tab's thread again at once.
         if let Some(store) = ThreadMetadataStore::try_global(cx) {
@@ -535,11 +541,45 @@ impl Focusable for ThreadTab {
     }
 }
 
+impl ThreadTab {
+    /// What a Zed Agent thread shows above its conversation while no model is set (#781): the card
+    /// Zed's Agent Panel shows a new user, which a tab has no panel to show.
+    fn no_model_callout(&self, cx: &App) -> Option<Callout> {
+        let native = self.conversation_view.read(cx).agent_key().id() == Agent::NativeAgent.id();
+        if !native
+            || LanguageModelRegistry::read_global(cx)
+                .default_model()
+                .is_some()
+        {
+            return None;
+        }
+        Some(
+            Callout::new()
+                .severity(Severity::Info)
+                .icon(IconName::ZedAssistant)
+                .title("The Zed Agent has no model yet")
+                .description(
+                    "Configure a language model provider, then pick a model under Select a Model.",
+                )
+                .actions_slot(
+                    Button::new("marley-configure-providers", "Configure Providers")
+                        .label_size(LabelSize::Small)
+                        .style(ButtonStyle::Filled)
+                        .on_click(|_, window, cx| {
+                            window
+                                .dispatch_action(Box::new(crate::agents::llm_providers_page()), cx);
+                        }),
+                ),
+        )
+    }
+}
+
 impl Render for ThreadTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .size_full()
             .bg(cx.theme().colors().panel_background)
+            .children(self.no_model_callout(cx))
             .child(self.conversation_view.clone())
     }
 }

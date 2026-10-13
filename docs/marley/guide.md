@@ -1570,7 +1570,9 @@ In Zed's layout the Agent Panel works as it does in Zed. In the Marley layout it
 thread tabs instead (#734): the status bar's sparkle, Ctrl+? and `agent: new thread` open the New
 Agent picker (#744), every way Marley opens a thread shows it in a tab (#772), and the rail lists
 the threads under each project. The panel itself stays in the right dock, out of sight unless you
-open that dock. Marley also offers its MCP server to the agents of the panel and of thread tabs
+open that dock. A Zed Agent thread with no model says so above its message box, with Configure
+Providers, and Configure under Select a Model opens the Settings window's LLM Providers page,
+not the panel (#781). Marley also offers its MCP server to the agents of the panel and of thread tabs
 (#501):
 
 - Marley adds a context server named `marley` to Zed's default settings: a stdio server that runs

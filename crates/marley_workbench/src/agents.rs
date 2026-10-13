@@ -734,6 +734,7 @@ pub fn init(cx: &mut App) {
                 .capture_action(cx.listener(picker_in_place_of::<assistant::FocusAgent>))
                 .capture_action(cx.listener(picker_in_place_of::<NewThread>))
                 .capture_action(cx.listener(picker_in_place_of::<ToggleNewThreadMenu>))
+                .capture_action(cx.listener(providers_in_place_of_panel))
         });
     })
     .detach();
@@ -752,6 +753,30 @@ fn picker_in_place_of<A>(
     if crate::marley_layout(cx) {
         cx.stop_propagation();
         show_picker(workspace, None, window, cx);
+    }
+}
+
+/// `agent::OpenSettings`, a model picker's Configure among others: in the Marley layout the
+/// Settings window's LLM Providers page, the page Zed's own "No model selected" callout opens.
+/// Zed's handler focuses the Agent Panel in its dock first, which the Marley layout keeps out of
+/// sight (#781); in the Zed layout the action goes on to it.
+fn providers_in_place_of_panel(
+    _: &mut Workspace,
+    _: &zed_actions::agent::OpenSettings,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    if crate::marley_layout(cx) {
+        cx.stop_propagation();
+        window.dispatch_action(Box::new(llm_providers_page()), cx);
+    }
+}
+
+/// The Settings window's LLM Providers page (#781).
+pub(crate) fn llm_providers_page() -> zed_actions::OpenSettingsAt {
+    zed_actions::OpenSettingsAt {
+        path: "llm_providers".to_string(),
+        target: None,
     }
 }
 

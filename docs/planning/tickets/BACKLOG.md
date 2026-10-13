@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-781](open/TICKET-781-zed-agent-blank-in-the-agent-panel.md) | bug | Zed Agent shows blank; Select Model opens the old right panel |
 
 ## Deliberate (picked explicitly, never auto-next)
 

@@ -3045,3 +3045,13 @@ Every `SettingItem` on the Marley page must find a value in the default settings
 value in `assets/settings/default.json`, or, for an optional text with no meaningful default, end
 its `pick` with `.or(NO_FOLDER)`-style empty string as `page_data`'s `DEFAULT_EMPTY_STRING` does.
 A scenario that shows a new field shoots it unset, since a set value hides the marker.
+
+## PR-claude-781-divert-every-zed-action-that-focuses-the-agent-panel-001
+*severity: medium · prevents: F-claude-781-configure-under-select-a-model-opened-the-hidden-agent-panel-001*
+
+In the Marley layout, the Agent Panel stays in a hidden dock, so any Zed action whose workspace
+handler calls `focus_panel::<AgentPanel>` must be captured on the workspace root, as
+`agents::init` does, and sent where the Marley layout shows that thing. When a new Agent Panel
+entry point is found (grep `agent_panel.rs`'s `register_action` handlers for `focus_panel`), add
+its capture beside #744's and #781's. And what the panel draws around a thread (onboarding cards,
+upsells) a thread tab has to draw itself, or lose.
