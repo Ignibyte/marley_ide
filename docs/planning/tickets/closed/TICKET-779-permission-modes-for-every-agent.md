@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #779 (feature)
 - **Owner:** 9623da6e-a5cd-4dcb-b048-40009324e9f0
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [779-permission-modes-for-every-agent.spec.md](../../pipeline/completed/779-permission-modes-for-every-agent.spec.md)
 - **Source ticket:** Chad, 2026-10-12: "we need to allow --dangerously-skip-permissions (on
   claude) and full permissions (on codex)"; then "if the default settings allow bypass then the
   agents start with it. but the zed agent panel needs the ability to toggle through and change
   these permissions."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `marley.claude_code_permissions` and `marley.codex_permissions` (#532) reach only the agent CLIs

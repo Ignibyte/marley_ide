@@ -1250,6 +1250,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The permission settings start agent threads too** (#779, 2026-10-12). With Claude Code
+  permissions at bypass, a new Claude Agent thread starts in Bypass Permissions; with Codex
+  permissions at full access, a new Codex thread starts in Full access; the Marley and Rusty
+  agents start in the mode of the agent they run on. The Marley and Rusty agents now offer Bypass
+  Permissions in their mode switch (they refused it), and a mode you pick in one thread, which Zed
+  remembers, no longer stops the setting from starting the next thread in bypass or full access.
+  Marley's mode reaches Zed's agent servers through `marley.agent_default_modes`.
+
 - **The title bar's Rusty opens Rusty's agent** (#778, 2026-10-12). The Rusty button beside the
   `?` now opens your latest conversation with Rusty, or starts one in a tab, as Marley's button
   beside it does; it shows while Rusty's agent is there. Rusty's home page has its button back at

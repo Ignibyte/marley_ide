@@ -536,6 +536,16 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `marley_agent::permission_mark` with the seat's `PERMISSION_MODE_LABEL` and the terminal's
   `marley_foreground_argv`; `render_terminal_row` draws `permission_chip`, a pill as the inbox's
   chips are, in `Color::Warning` with the mark's tooltip, before #569's `stall_flag`.
+- **Threads' modes** (#779). `agents::thread_modes` maps `claude-acp`, `codex-acp` and each Marley
+  entry `assistant::entry_agents` names (with the CLI its adapter runs) to `bypassPermissions` or
+  codex-acp's `agent-full-access` while `launch_mode(kind, &[])` asks for no prompts;
+  `sync_thread_modes`, on the settings and the `Assistant` global, writes the map into the
+  in-memory defaults as `marley.agent_default_modes` when it differs from the `ThreadModes`
+  global. A hunk in `agent_servers` (`marley_default_mode`) puts it before the agent's own
+  `default_mode` in `AcpConnectionDefaults`, which Zed applies with `session/set_mode` after
+  `session/new`; Zed's `ModeSelector` saves every pick as that `default_mode`, which is why
+  Marley's comes first. The entries' `session_meta` sends `allowDangerouslySkipPermissions: true`,
+  so the adapter keeps Bypass Permissions among their modes.
 - **Remote Control** (#757). `AgentPermissions` also holds `claude_code_remote_control`, and
   `launch_mode` sets the mode's `remote_control` for Claude Code only. `terminal_snapshot` sets
   `TerminalAgent.remote` through `runs_remote` (`marley_agent::remote_control` over the

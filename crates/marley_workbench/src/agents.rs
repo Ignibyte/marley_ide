@@ -4,6 +4,7 @@
 //! A Zed agent starts as a thread in the project's Agent Panel; an agent CLI starts in a new
 //! center terminal. The rail's `+` menu and the picker share everything here.
 
+use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -28,7 +29,9 @@ use picker::{Picker, PickerDelegate};
 use project::{AgentId, AgentRegistryStore, DirectoryLister, DisableAiSettings, Project};
 use schemars::JsonSchema;
 use serde::Deserialize;
-use settings::{ClaudeCodePermissions, CodexPermissions, MarleySettingsContent, Settings as _};
+use settings::{
+    ClaudeCodePermissions, CodexPermissions, MarleySettingsContent, Settings as _, SettingsStore,
+};
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
@@ -270,6 +273,61 @@ impl AgentPermissions {
             remote_control: kind == AgentKind::Claude && self.claude_code_remote_control,
         }
     }
+}
+
+/// Codex's id in Zed's agent registry, its ACP adapter (#779).
+const CODEX_AGENT: &str = "codex-acp";
+
+/// The session mode Codex's ACP adapter calls full access: no sandbox, no approvals (codex-acp
+/// 2.2.2's `agent-full-access`).
+const CODEX_ACP_FULL_ACCESS: &str = "agent-full-access";
+
+/// The mode a thread of an adapter running `kind` starts in when its permission setting asks for
+/// no prompts (#779).
+const fn thread_mode(kind: AgentKind) -> Option<&'static str> {
+    match kind {
+        AgentKind::Claude => Some(marley_agent::BYPASS_MODE),
+        AgentKind::Codex => Some(CODEX_ACP_FULL_ACCESS),
+        AgentKind::Gemini | AgentKind::OpenCode => None,
+    }
+}
+
+/// The modes Marley's permission settings start each agent server's threads in (#779), by the
+/// agent server's id: Claude Agent and every Marley entry on Claude Code in bypass, Codex and
+/// every Marley entry on Codex in full access, while the user's own settings ask for it.
+fn thread_modes(cx: &App) -> BTreeMap<String, String> {
+    let permissions = &crate::MarleySettings::get_global(cx).agent_permissions;
+    [
+        (CLAUDE_AGENT, AgentKind::Claude),
+        (CODEX_AGENT, AgentKind::Codex),
+    ]
+    .into_iter()
+    .chain(crate::assistant::entry_agents(cx))
+    .filter(|(_, kind)| permissions.launch_mode(*kind, &[]).bypass)
+    .filter_map(|(agent, kind)| Some((agent.to_string(), thread_mode(kind)?.to_string())))
+    .collect()
+}
+
+/// The modes [`sync_thread_modes`] last put in the defaults.
+#[derive(Default)]
+struct ThreadModes(Option<BTreeMap<String, String>>);
+
+impl Global for ThreadModes {}
+
+/// Puts [`thread_modes`] in the settings' in-memory defaults as `marley.agent_default_modes`, which
+/// Zed's agent servers take when an agent's own settings name no default mode. Only a change is
+/// written, since the write wakes the settings' observers, this one among them.
+fn sync_thread_modes(cx: &mut App) {
+    let modes = thread_modes(cx);
+    if cx.default_global::<ThreadModes>().0.as_ref() == Some(&modes) {
+        return;
+    }
+    cx.global_mut::<ThreadModes>().0 = Some(modes.clone());
+    cx.update_global::<SettingsStore, _>(|store, cx| {
+        store.update_default_settings(cx, |defaults| {
+            defaults.marley.get_or_insert_default().agent_default_modes = Some(modes);
+        });
+    });
 }
 
 /// Starts `kind` in a new center terminal of `workspace`, where New Terminal would start one.
@@ -660,6 +718,12 @@ fn ask_passphrase(
 /// at the head of every pane's `+` menu (#744).
 pub fn init(cx: &mut App) {
     fix_askpass_program();
+    // Threads start in the modes the permission settings give, for Marley's entries too (#779).
+    cx.observe_global::<SettingsStore>(sync_thread_modes)
+        .detach();
+    cx.observe_global::<crate::assistant::Assistant>(sync_thread_modes)
+        .detach();
+    cx.defer(sync_thread_modes);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(new_agent);
         // In the capture phase, before Zed's handlers on the same root, as `routing.rs` catches

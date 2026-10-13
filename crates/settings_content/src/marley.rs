@@ -278,6 +278,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: {}
     pub agent_session_meta: Option<BTreeMap<String, serde_json::Value>>,
+    /// The mode an agent server's new sessions start in, before its own `agent_servers` entry's
+    /// `default_mode`, by the agent server's id (#779). Marley fills it from
+    /// `claude_code_permissions` and `codex_permissions`.
+    ///
+    /// Default: {}
+    pub agent_default_modes: Option<BTreeMap<String, String>>,
     /// The System One layer (#565): typed questions to a model about states Marley builds from
     /// what it knows. Off until it is turned on.
     pub system_one: Option<SystemOneSettingsContent>,

@@ -5413,3 +5413,21 @@ run that ended after Marley connected. A run's session is listed under its task,
 harness's sessions, so a daily task adds no row a day. Rejected: a timer in Marley (lost with
 Marley, and hosting in Marley), and a seen list on Marley's disk (a second record of the harness's
 runs).
+
+## AD-claude-779-marleys-permission-settings-start-threads-ahead-of-zeds-remembered-mode-001
+*decided at: 2026-10-12 · status: shipped · builds on: AD-claude-532-agents-start-with-their-prompts-unless-your-own-settings-say-otherwise-001, AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001*
+
+`marley.claude_code_permissions` and `marley.codex_permissions` start ACP threads as they start
+the CLIs: Claude Agent and every Marley entry on Claude Code in `bypassPermissions`, Codex and
+every Marley entry on Codex in codex-acp's `agent-full-access`. Marley writes the modes into the
+in-memory defaults as `marley.agent_default_modes`, by agent server id, and one hunk in
+`agent_servers` puts that mode before the agent's own `default_mode`. Marley's comes first because
+Zed's `ModeSelector::set_mode` saves every pick as `default_mode`: with Zed's first, one Shift+Tab
+would end the setting for every later thread. The Marley and Rusty entries send
+`allowDangerouslySkipPermissions: true`, so their mode switch reaches bypass; their disallowed
+tools stay. Rejected: a `default_mode` inside Zed's `agent_servers` defaults (an agent's entry
+merges whole, so a user's `{"type": "registry"}` drops it); `_meta.claudeCode.options.permissionMode`
+(Claude only, and the adapter's mode state would disagree with the SDK's); per-project modes for
+threads (an adapter's defaults are per agent). Chad, 2026-10-12: "if the default settings allow
+bypass then the agents start with it. but the zed agent panel needs the ability to toggle through
+and change these permissions."

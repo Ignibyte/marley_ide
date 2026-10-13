@@ -5835,3 +5835,15 @@ of them in a terminal of the run's Marley (#777's first run; Claude Code stopped
 screen because the terminal's HOME was the scenario's). A scenario that clicks a thread list sets
 `profile_setting marley.list_cli_sessions false`, as #754's does, and empties `sidebar_threads`,
 so every row is the run's own.
+
+## L-claude-779-zeds-mode-selector-saves-each-pick-as-the-agents-default-001
+*category: zed · topic: agent session modes · from: pipeline 779*
+
+Zed's thread `ModeSelector::set_mode` (the selector and `agent::CycleModeSelector`, Shift+Tab)
+writes the picked mode into the user's settings as the agent server's `default_mode`, so the last
+mode picked in any thread becomes how every later thread of that agent starts. A default of
+Marley's that should hold whatever the user picks must come before `default_mode`, not after it.
+Two more traps of the same seam: `CustomAgentServerSettings` merges whole (`MergeFrom` on an enum
+replaces), so a value Marley puts in Zed's `agent_servers` defaults loses to any user entry for that
+agent; and in a scenario, the note #563 raises when Ctrl+Alt+N opens the New Agent picker from a
+terminal stays over a thread's bottom right, the mode switch and the send button, until closed.

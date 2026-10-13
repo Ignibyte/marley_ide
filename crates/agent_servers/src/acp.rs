@@ -377,7 +377,8 @@ impl AcpConnectionDefaults {
         };
         let settings = settings_store.get::<AllAgentServersSettings>(None);
         let Some(agent_settings) = settings.get(agent_id.as_ref()) else {
-            self.set(None, HashMap::default());
+            // Marley: the mode Marley's permission settings give the agent (#779).
+            self.set(marley_default_mode(agent_id, cx), HashMap::default());
             return;
         };
 
@@ -392,7 +393,10 @@ impl AcpConnectionDefaults {
             } => default_config_options.clone(),
         };
         self.set(
-            agent_settings.default_mode().map(acp::SessionModeId::new),
+            // Marley: the mode Marley's permission settings ask for first, then the agent's own
+            // default, which Zed's mode selector rewrites on each pick (#779).
+            marley_default_mode(agent_id, cx)
+                .or_else(|| agent_settings.default_mode().map(acp::SessionModeId::new)),
             default_config_options,
         );
     }
@@ -1483,6 +1487,21 @@ impl AcpConnection {
             }
         })
     }
+}
+
+// Marley: the mode `marley.agent_default_modes` names for an agent server's id (#779): Marley's
+// permission settings start a Claude Agent thread in bypass and a Codex thread in full access.
+// It comes before the agent's `default_mode`, which Zed's mode selector saves on every pick, so a
+// mode picked in one thread does not undo the setting for the next.
+fn marley_default_mode(id: &AgentId, cx: &App) -> Option<acp::SessionModeId> {
+    cx.global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref()?
+        .agent_default_modes
+        .as_ref()?
+        .get(id.0.as_ref())
+        .map(|mode| acp::SessionModeId::new(mode.clone()))
 }
 
 // Marley: the `_meta` `marley.agent_session_meta` names for an agent server's id, which its

@@ -8,10 +8,12 @@
 //! - Claude Code (#683): an entry running the registry's `claude-acp` adapter on the user's own
 //!   login, with instructions appended to its system prompt and the tools that edit files or run
 //!   commands disallowed. The adapter reads both from each session's `_meta`, which Zed sends from
-//!   `marley.agent_session_meta` (a hunk in `agent_servers`).
+//!   `marley.agent_session_meta` (a hunk in `agent_servers`). Bypass is among its modes, and it
+//!   starts there while `marley.claude_code_permissions` is `bypass` (#779).
 //! - Codex (#687): the same entry running the registry's `codex-acp` in its read-only mode, with
 //!   the instructions as Codex's `developer_instructions` in `CODEX_CONFIG`, which the adapter
-//!   merges into each thread's config.
+//!   merges into each thread's config; in full access while `marley.codex_permissions` is
+//!   `full_access` (#779).
 //! - Zed's own agent (#687): a profile with no file tools. Zed's agent takes no prompt per profile
 //!   and drops an MCP server's instructions, so the tools' own descriptions guide it.
 //!
@@ -572,9 +574,10 @@ fn take_out(entry: Entry, cx: &mut App) {
 }
 
 /// The `_meta` each Claude Code session of `entry` carries: its instructions as an append to the
-/// system prompt, the tools it may not use, and no bypass mode. Marley's keeps out every Marley
-/// tool but its own eight (#698). Rusty's also names Rusty's server, which the adapter adds to the
-/// servers Zed passes, and keeps Marley's tools out.
+/// system prompt, the tools it may not use, and bypass among its modes, so the thread's mode switch
+/// reaches it and Marley's permission setting can start it there (#779). Marley's keeps out every
+/// Marley tool but its own eight (#698). Rusty's also names Rusty's server, which the adapter adds
+/// to the servers Zed passes, and keeps Marley's tools out.
 fn session_meta(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     let mut disallowed: Vec<String> = DISALLOWED_TOOLS.iter().map(ToString::to_string).collect();
     let mut options = Map::new();
@@ -600,7 +603,7 @@ fn session_meta(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     options.insert("disallowedTools".to_string(), json!(disallowed));
     options.insert(
         "allowDangerouslySkipPermissions".to_string(),
-        Value::Bool(false),
+        Value::Bool(true),
     );
     json!({
         "systemPrompt": { "append": entry.instructions() },
@@ -1034,6 +1037,25 @@ pub(crate) fn talk_by_name(
 pub(crate) fn marley_present(cx: &App) -> bool {
     cx.try_global::<Assistant>()
         .is_some_and(|assistant| assistant.applied.of(Entry::Marley).is_some())
+}
+
+/// Each entry that is there, by its agent server's id, with the agent CLI its adapter runs: what
+/// Marley's permission settings start it in (#779). Zed's agent runs none.
+pub(crate) fn entry_agents(cx: &App) -> Vec<(&'static str, AgentKind)> {
+    let Some(assistant) = cx.try_global::<Assistant>() else {
+        return Vec::new();
+    };
+    Entry::ALL
+        .into_iter()
+        .filter_map(|entry| {
+            let kind = match assistant.applied.of(entry)?.0 {
+                MarleyAssistantAgent::ClaudeCode => AgentKind::Claude,
+                MarleyAssistantAgent::Codex => AgentKind::Codex,
+                MarleyAssistantAgent::Auto | MarleyAssistantAgent::Zed => return None,
+            };
+            Some((entry.name(), kind))
+        })
+        .collect()
 }
 
 /// Whether Rusty's entry is there (#778).

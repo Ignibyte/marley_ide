@@ -976,6 +976,17 @@ An entry applies to a local project whose main folder is its folder or inside it
 longest folder wins; a remote project takes the defaults. Only your own settings can set these:
 a repository's `.zed/settings.json` that asks for bypass changes nothing.
 
+The same two settings start agent threads too (#779), in a tab or in Zed's Agent Panel: a new
+Claude Agent thread starts in Bypass Permissions, a new Codex thread in Full access, and so do the
+Marley and Rusty agents, in the mode of the agent they run on. The thread's mode switch sits at
+the bottom right of its message box, beside the send button: click it to pick a mode, or press
+Shift+Tab in the box to move to the next one. The Marley and Rusty agents offer Bypass Permissions
+there too, whatever the setting says; they still never edit files or run commands. A mode you
+pick applies to that thread. Zed remembers it as the agent's default, but while the setting asks
+for bypass or full access, the next thread starts there again; with the setting at ask, threads
+start in the mode you last picked, as in Zed. The per-project entries do not reach threads: a
+thread takes the defaults.
+
 An agent row that runs without its prompts carries a chip at its end, `bypass` or `full access`,
 in the warning color, however the agent was started: from the `+`, a task, or typed by hand. Its
 tooltip says where Marley read it. For Claude Code with the plugin connected, the permission mode
