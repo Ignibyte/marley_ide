@@ -5824,3 +5824,14 @@ hide; the mapped user is Marley's own outside). Give it a scratch `CLAUDE_CONFIG
 the placeholder at run time, and set `MARLEY_CLAUDE` to the binary so Marley's version check
 passes. In plan mode, Claude Code 2.1.287 takes a plan only from the file its plan-mode reminder
 names: a rule captures that path for the model's `Write`.
+
+## L-claude-777-a-scenario-that-clicks-a-thread-list-turns-cli-sessions-off-001
+*category: e2e · topic: the copied profile lists the user's own sessions · from: pipeline 777*
+
+The run's profile is a copy of the user's, and Marley reads Claude Code's and Codex's sessions
+from the user's own HOME, not the scenario's terminal HOME, so the Threads page and the rail's
+Threads view list the user's real sessions. A click at a guessed point on those lists resumed one
+of them in a terminal of the run's Marley (#777's first run; Claude Code stopped at its first-run
+screen because the terminal's HOME was the scenario's). A scenario that clicks a thread list sets
+`profile_setting marley.list_cli_sessions false`, as #754's does, and empties `sidebar_threads`,
+so every row is the run's own.

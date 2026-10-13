@@ -447,9 +447,17 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   the card sits in a `right_click_menu` with Archive Thread. Both run `archive_thread`, which calls
   `ThreadMetadataStore::archive(thread_id, None, cx)` as Zed's history view does; the button stops
   the click, so the row does not open the thread. The store's notify refreshes the rail, which
-  lists no archived thread.
+  lists no archived thread, a tabbed one included (`group_threads`' tabbed loop filters on
+  `archived`, #777). A `ThreadTab` subscribes to the store's `ThreadArchived` and closes on its
+  own thread's, as the Agent Panel lets its retained thread go, and `deserialize` refuses an
+  archived thread as it refuses a deleted one. Every Marley opener unarchives first, as
+  `load_agent_thread` does: `threads_page::open_thread` (the Threads page, Reopen Thread…, Talk
+  to), `thread_tab::open_saved` and the rail's `show_thread`, before it brings an open tab
+  forward; `assistant::latest_conversation` skips archived records (#777).
 - **Delete and archived threads (#616).** The thread row's menu has Delete Thread…:
-  `delete_thread` asks with `window.prompt`, then, in the window's update, every Agent Panel's
+  `delete_thread` asks with `window.prompt`, then, in the window's update, closes the thread's
+  tabs in every workspace (`thread_tab::close_for`, #777: an open tab would save it again), every
+  Agent Panel's
   `remove_thread_without_activating_draft` (a live conversation would save the thread again, and
   a draft in its place would be a thread the user did not start), the store's `delete`, then
   `thread_worktree_archive::cleanup_thread_archived_worktrees` and the agent's

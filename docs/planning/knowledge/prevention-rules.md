@@ -3028,3 +3028,12 @@ bindings and loads the keymap files again, so a programmatic binding is gone aft
 reload (tests may still bind directly). Bind a single printable key only in a context that holds
 no editor, so the editors inside the view keep the letter, and make that context's element the
 view's focus.
+
+## PR-claude-777-every-source-of-thread-rows-applies-the-lists-filters-001
+*severity: medium · prevents: F-claude-777-an-archived-threads-row-came-back-while-its-tab-was-open-001*
+
+When a list adds rows from a second source (open tabs, a panel's live views, a harness), each row
+from it passes the same filters the first source applies: for Zed's thread store, not archived
+and not a draft unless shown. A thread view Marley holds outside the Agent Panel follows the
+store's events as the panel does (`ThreadArchived` closes it), and a Marley path that opens a
+thread unarchives it first, as `load_agent_thread` does.

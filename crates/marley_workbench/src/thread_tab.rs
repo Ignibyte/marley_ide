@@ -39,7 +39,9 @@ use acp_thread::AgentSessionListRequest;
 use agent::ThreadStore;
 use agent_client_protocol::schema::v1 as acp;
 use agent_settings::AgentProfileId;
-use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use agent_ui::thread_metadata_store::{
+    ThreadId, ThreadMetadata, ThreadMetadataStore, ThreadMetadataStoreEvent,
+};
 use agent_ui::{
     Agent, AgentConnectionStore, AgentInitialContent, AgentPanel, AgentPanelEvent,
     AgentThreadSource, ConversationView, MarleyThreadHost,
@@ -117,7 +119,7 @@ pub struct ThreadTab {
     /// The hidden worktree of the thread's folder, when the tab made one (#734): a project holds a
     /// hidden worktree only weakly, so the tab keeps it while it shows the thread.
     _folder: Option<Entity<Worktree>>,
-    _subscriptions: [Subscription; 2],
+    _subscriptions: Vec<Subscription>,
 }
 
 impl std::fmt::Debug for ThreadTab {
@@ -199,7 +201,7 @@ impl ThreadTab {
         folder: Option<Entity<Worktree>>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let subscriptions = [
+        let mut subscriptions = vec![
             cx.observe(&conversation_view, |_, _, cx| {
                 cx.emit(ItemEvent::UpdateTab);
                 cx.notify();
@@ -212,6 +214,16 @@ impl ThreadTab {
                 }
             }),
         ];
+        // An archived thread leaves its tab, as the Agent Panel lets its kept one go (#777):
+        // otherwise the rail lists the open tab's thread again at once.
+        if let Some(store) = ThreadMetadataStore::try_global(cx) {
+            subscriptions.push(cx.subscribe(&store, |this, _, event, cx| {
+                let ThreadMetadataStoreEvent::ThreadArchived(thread_id) = event;
+                if *thread_id == this.conversation_view.read(cx).parent_id() {
+                    cx.emit(ItemEvent::CloseItem);
+                }
+            }));
+        }
         Self {
             conversation_view,
             _folder: folder,
@@ -307,14 +319,26 @@ impl SerializableItem for ThreadTab {
         let Some(saved) = saved_tab(workspace_id, item_id, cx) else {
             return Task::ready(Err(anyhow::anyhow!("no thread tab was saved for the item")));
         };
-        // A thread deleted since leaves no empty tab: Zed logs the refusal, and the cleanup
-        // drops the row.
-        let known = ThreadMetadataStore::try_global(cx)
-            .is_some_and(|store| store.read(cx).entry(saved.thread_id).is_some());
-        if !known {
-            return Task::ready(Err(anyhow::anyhow!(
-                "the thread of a saved tab is no longer kept"
-            )));
+        // A thread deleted or archived since leaves no tab (#777): Zed logs the refusal, and the
+        // cleanup drops the row.
+        let kept = ThreadMetadataStore::try_global(cx).and_then(|store| {
+            store
+                .read(cx)
+                .entry(saved.thread_id)
+                .map(|entry| entry.archived)
+        });
+        match kept {
+            None => {
+                return Task::ready(Err(anyhow::anyhow!(
+                    "the thread of a saved tab is no longer kept"
+                )));
+            }
+            Some(true) => {
+                return Task::ready(Err(anyhow::anyhow!(
+                    "the thread of a saved tab is archived"
+                )));
+            }
+            Some(false) => {}
         }
         // A harness thread (#742, #758): its entry made again, and its folder on the harness's host.
         let on_harness = ensure_harness_entry(&AgentId::new(saved.agent.clone()), cx);
@@ -742,6 +766,34 @@ pub(crate) fn activate_for(
     true
 }
 
+/// Closes every center tab of `workspace` showing `thread_id`, as a delete needs (#777): a tab
+/// left open would save the deleted thread's record again.
+pub(crate) fn close_for(workspace: &Entity<Workspace>, thread_id: ThreadId, cx: &mut App) {
+    let tabs: Vec<Entity<ThreadTab>> = workspace
+        .read(cx)
+        .items_of_type::<ThreadTab>(cx)
+        .filter(|tab| tab.read(cx).conversation_view.read(cx).parent_id() == thread_id)
+        .collect();
+    for tab in tabs {
+        tab.update(cx, |_, cx| cx.emit(ItemEvent::CloseItem));
+    }
+}
+
+/// Unarchives `thread_id` when Zed's store holds it archived: opening a thread brings it back to
+/// the lists (#777).
+pub(crate) fn unarchive(thread_id: ThreadId, cx: &mut App) {
+    let Some(store) = ThreadMetadataStore::try_global(cx) else {
+        return;
+    };
+    if store
+        .read(cx)
+        .entry(thread_id)
+        .is_some_and(|entry| entry.archived)
+    {
+        store.update(cx, |store, cx| store.unarchive(thread_id, cx));
+    }
+}
+
 /// Brings forward `workspace`'s thread tab on `agent`, when it has one (#742).
 pub(crate) fn activate_agent(
     workspace: &mut Workspace,
@@ -927,7 +979,8 @@ fn open_thread(
 /// Opens a saved conversation in a tab of `workspace` (#737): its agent, folders and session, the
 /// first folder joining the project hidden when it needs to, as a restored tab does (#736). A
 /// conversation with no folder works in the workspace's own, and one of a remote project is
-/// refused: its folders are on another machine.
+/// refused: its folders are on another machine. An archived one is unarchived first, as Zed's
+/// panel does when it loads a thread (#777).
 pub(crate) fn open_saved(
     workspace: &mut Workspace,
     record: &ThreadMetadata,
@@ -946,6 +999,7 @@ pub(crate) fn open_saved(
         refuse(workspace, "This window has no Agent Panel.", cx);
         return;
     }
+    unarchive(record.thread_id, cx);
     let folders = if record.folder_paths().paths().is_empty() {
         PathList::new(&[default_folder(workspace, cx)])
     } else {

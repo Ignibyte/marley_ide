@@ -1458,6 +1458,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Archive sticks, and an archived thread comes back when you open it** (#777, 2026-10-12).
+  Archive on a thread's rail row archived it, but while the thread's tab was open the row came
+  straight back, and the tab came back after a restart, so the click looked like it did nothing.
+  Archiving a thread now closes its tab, from any window or list, and neither the tab nor the row
+  returns. Opening an archived thread from the Threads page, Reopen Thread…, its project's
+  Archived Threads or a row unarchives it, so the rail's Threads view lists it again; Talk to
+  Marley and Talk to Rusty skip an archived conversation. Deleting a thread closes its tab too,
+  where before the open tab could save the thread again.
+
 - **Two dependencies past new security advisories** (#719, 2026-10-12). `ammonia` 4.1.7
   (RUSTSEC-2021-0157, CSS `url("")` escaping) and `quinn-proto` 0.11.18 (RUSTSEC-2026-0338, -0340,
   -0343, panics a remote peer can cause), patch releases taken in `Cargo.lock`.

@@ -536,6 +536,8 @@ pub(crate) fn open_thread(
     let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
         return;
     };
+    // Opening an archived thread brings it back to the lists, wherever it shows (#777).
+    crate::thread_tab::unarchive(thread_id, cx);
     let members: Vec<Entity<Workspace>> = multi_workspace.read(cx).workspaces().cloned().collect();
     let in_tab = members.iter().find(|member| {
         crate::thread_tab::tab_threads(member.read(cx), cx)

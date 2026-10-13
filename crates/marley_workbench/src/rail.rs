@@ -539,7 +539,8 @@ fn load_thread(
 
 /// Shows the thread in a tab of `workspace`, never the Agent Panel (#772): its tab forward, or
 /// moved out of the panel holding it, or opened from Zed's store, an archived one unarchived
-/// first (#616). A thread the store does not keep yet loads into `panel` as before.
+/// first (#616), its tab already open included (#777). A thread the store does not keep yet loads
+/// into `panel` as before.
 fn show_thread(
     workspace: &mut Workspace,
     panel: &Entity<AgentPanel>,
@@ -547,15 +548,13 @@ fn show_thread(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    crate::thread_tab::unarchive(thread.thread_id, cx);
     if crate::thread_tab::show_here(workspace, thread.thread_id, window, cx) {
         return;
     }
     if let Some(store) = ThreadMetadataStore::try_global(cx)
         && let Some(record) = store.read(cx).entry(thread.thread_id).cloned()
     {
-        if record.archived {
-            store.update(cx, |store, cx| store.unarchive(thread.thread_id, cx));
-        }
         crate::thread_tab::open_saved(workspace, &record, window, cx);
         return;
     }
@@ -3359,6 +3358,12 @@ impl Rail {
                     .and_then(|store| store.read(cx).entry(thread_id).cloned())
             })?;
             let connections = multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+                // Its tabs close too (#777): a tab left open would save the thread again.
+                let members: Vec<Entity<Workspace>> =
+                    multi_workspace.workspaces().cloned().collect();
+                for member in &members {
+                    crate::thread_tab::close_for(member, thread_id, cx);
+                }
                 let panels: Vec<Entity<AgentPanel>> = multi_workspace
                     .workspaces()
                     .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
@@ -8744,14 +8749,15 @@ fn group_threads(
             .collect()
     };
     // The group's own tabs' threads the store's rows lack: a draft, a thread on another
-    // project's folder, or any thread of a group with no folder.
+    // project's folder, or any thread of a group with no folder. Never an archived one, which
+    // would come back the moment it was archived (#777).
     for (thread_id, holder) in tabbed {
         if group
             .workspaces
             .iter()
             .any(|member| member.entity_id() == *holder)
             && seen.insert(*thread_id)
-            && let Some(row) = store.entry(*thread_id)
+            && let Some(row) = store.entry(*thread_id).filter(|row| !row.archived)
         {
             rows.push(row);
         }

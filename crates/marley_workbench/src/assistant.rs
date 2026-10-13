@@ -1052,7 +1052,7 @@ fn latest_conversation(name: &AgentId, cx: &App) -> Option<agent_ui::ThreadId> {
     store
         .read(cx)
         .entries()
-        .filter(|record| record.agent_id == *name && !record.is_draft())
+        .filter(|record| record.agent_id == *name && !record.is_draft() && !record.archived)
         .max_by_key(|record| record.updated_at)
         .map(|record| record.thread_id)
 }

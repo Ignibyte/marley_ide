@@ -4037,3 +4037,16 @@ looked the caller up with `mcp::terminals`, which reads every window through `cx
 the rail draws inside its window's update, which takes that window out of the list: the rail's
 own terminals were never found. Fixed: the harness pass, which runs outside any window's update,
 works out each delegated seat's caller title into `Delegations.callers`, and the rail reads that.
+
+## F-claude-777-an-archived-threads-row-came-back-while-its-tab-was-open-001
+*severity: high · found in: Chad's own use, 2026-10-12 · class: a second source of rows that skips the first source's filter · prevented by: PR-claude-777*
+
+Archive on a thread's rail row archived the thread, and the row came back on the same refresh:
+#734 added a loop to `group_threads` that lists every thread held in a tab of the group through
+`ThreadMetadataStore::entry`, which does not check `archived`, while the store's lists it
+supplements skip archived threads. Nothing closed the tab, a restart restored it, and no Marley
+opener unarchived a thread, so every thread Chad archived this way vanished from the Threads view
+while staying in its tab. #605's acceptance ("the row goes and stays gone after a restart") was
+proven before #734 existed and never run again. Fixed in #777: the loop filters `archived`, a
+thread tab closes on its thread's `ThreadArchived`, a restored tab of an archived thread is
+refused, and every opener unarchives first.
