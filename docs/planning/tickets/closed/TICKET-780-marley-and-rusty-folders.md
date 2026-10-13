@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #780 (feature)
 - **Owner:** 9623da6e-a5cd-4dcb-b048-40009324e9f0
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [780-marley-and-rusty-folders.spec.md](../../pipeline/completed/780-marley-and-rusty-folders.spec.md)
 - **Source ticket:** Chad, 2026-10-12: "instead of marley choosing a folder we should default in
   the location that makes sense", then "this should be a settings as well and we dont ask for the
   folder for marley and rusty. by default choose the ones you recommended and if the user wants to
   somewhere else they can change it. The rusty agent probably should open in the place in which
   rusty has chosen."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 New Agent asks Where for the Marley and Rusty entries as for any agent, and Talk to Marley/Rusty

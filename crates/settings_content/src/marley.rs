@@ -417,6 +417,11 @@ pub struct MarleyAssistantSettingsContent {
     ///
     /// Default: auto
     pub agent: Option<MarleyAssistantAgent>,
+    /// The folder Marley's own agent's conversations start in, `~/` for the home folder, made when
+    /// missing (#780). Unset, Marley's settings folder.
+    ///
+    /// Default: null
+    pub folder: Option<String>,
 }
 
 /// What Marley's own agent runs on (#687).
@@ -574,6 +579,12 @@ pub struct MarleyRustySettingsContent {
     ///
     /// Default: false
     pub agent_tools: Option<bool>,
+    /// The folder Rusty's agent's conversations start in, `~/` for the home folder, made when
+    /// missing (#780). Unset, the vault folder Rusty stores (`brain_vault_path`), else
+    /// `~/.rusty/brain`.
+    ///
+    /// Default: null
+    pub agent_folder: Option<String>,
 }
 
 /// How Marley reaches Rusty (#643).

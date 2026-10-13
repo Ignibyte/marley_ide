@@ -940,8 +940,8 @@ fn filter_talk(entries: &Entries, cx: &mut App) {
 
 /// `marley: talk to marley` and its kin (#738). Unless `fresh`, the entry's latest conversation
 /// comes forward where it is, or opens in a tab of `workspace`; otherwise, or with none, a new one
-/// starts there on the entry's own folder. On Zed's agent every thread carries the Zed Agent's id,
-/// so its conversations cannot be told apart and each talk starts a new one, with the profile.
+/// starts there in the entry's folder (#780). On Zed's agent every thread carries the Zed Agent's
+/// id, so its conversations cannot be told apart and each talk starts a new one, with the profile.
 fn talk_to(
     entry: Entry,
     fresh: bool,
@@ -971,7 +971,7 @@ fn talk_to(
         });
         return;
     }
-    let folder = match folder_in(paths::data_dir(), entry) {
+    let folder = match made(folder_of(entry, cx)) {
         Ok(folder) => folder,
         Err(error) => {
             workspace.show_toast(
@@ -1094,12 +1094,43 @@ fn latest_conversation(name: &AgentId, cx: &App) -> Option<agent_ui::ThreadId> {
         .map(|record| record.thread_id)
 }
 
-/// The entry's own folder under `data`, made when it is missing: a thread of Marley or Rusty works
-/// there, since neither edits a file or runs a command (#738).
-fn folder_in(data: &Path, entry: Entry) -> std::io::Result<PathBuf> {
-    let folder = data.join("assistant").join(entry.profile());
+/// The folder `entry`'s conversations start in (#780): its setting, `~/` for the home folder;
+/// unset, Marley's settings folder, where the agent can read the settings it changes, or the vault
+/// folder Rusty stores, as Rusty itself chose.
+fn folder_of(entry: Entry, cx: &App) -> PathBuf {
+    let marley = cx
+        .global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref();
+    let set = match entry {
+        Entry::Marley => marley
+            .and_then(|marley| marley.assistant.as_ref())
+            .and_then(|assistant| assistant.folder.as_deref()),
+        Entry::Rusty => marley
+            .and_then(|marley| marley.rusty.as_ref())
+            .and_then(|rusty| rusty.agent_folder.as_deref()),
+    };
+    set.and_then(crate::system_one::folder_path)
+        .unwrap_or_else(|| match entry {
+            Entry::Marley => paths::config_dir().clone(),
+            Entry::Rusty => crate::rusty::vault_folder(cx),
+        })
+}
+
+/// `folder`, made when it is missing.
+fn made(folder: PathBuf) -> std::io::Result<PathBuf> {
     std::fs::create_dir_all(&folder)?;
     Ok(folder)
+}
+
+/// The folder a new conversation of the entry `agent` names starts in, made when missing, as New
+/// Agent starts it without asking where (#780); none when `agent` is not one of Marley's entries.
+pub(crate) fn conversation_folder(agent: &AgentId, cx: &App) -> Option<std::io::Result<PathBuf>> {
+    let entry = Entry::ALL
+        .into_iter()
+        .find(|entry| entry.name() == agent.0.as_ref())?;
+    Some(made(folder_of(entry, cx)))
 }
 
 /// `marley: open marley agent in terminal`: starts the agent in a center terminal of

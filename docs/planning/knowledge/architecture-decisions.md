@@ -5431,3 +5431,17 @@ merges whole, so a user's `{"type": "registry"}` drops it); `_meta.claudeCode.op
 threads (an adapter's defaults are per agent). Chad, 2026-10-12: "if the default settings allow
 bypass then the agents start with it. but the zed agent panel needs the ability to toggle through
 and change these permissions."
+
+## AD-claude-780-marley-and-rusty-start-in-folders-their-settings-give-never-asked-001
+*decided at: 2026-10-12 · status: shipped · builds on: AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001*
+
+The Marley and Rusty agents start every conversation in a folder their own settings give, and New
+Agent never asks Where for them: `marley.assistant.folder`, unset Marley's settings folder
+(`paths::config_dir()`, where the agent can read the settings it changes); `marley.rusty.agent_folder`,
+unset the vault folder Rusty stores (`brain_vault_path`, else `~/.rusty/brain`), "the place in
+which rusty has chosen". `~/` is the home folder and a missing folder is made. Each setting sits in
+its entry's section, so Rusty off leaves nothing new outside Rusty's own. A folder given outright
+still wins: Open Agent Here's, and `marley agent-thread --provider=marley` with a folder. Rejected:
+asking Where (Chad: "we dont ask for the folder for marley and rusty"); the home folder for both;
+#738's hidden folders under the data folder, which an agent could read nothing useful in. Chad,
+2026-10-12.

@@ -1216,8 +1216,14 @@ fn agent_control_section() -> [SettingsPageItem; 7] {
     ]
 }
 
-// Marley: the switch of Marley's own agent, off by default (#683), and what it runs on (#687).
-fn assistant_section() -> [SettingsPageItem; 3] {
+// Marley: an empty field for a folder setting with no default, as `page_data`'s
+// `DEFAULT_EMPTY_STRING` gives Zed's own, so the page shows the field and not NO DEFAULT (#780).
+const EMPTY_FOLDER: String = String::new();
+const NO_FOLDER: Option<&String> = Some(&EMPTY_FOLDER);
+
+// Marley: the switch of Marley's own agent, off by default (#683), what it runs on (#687), and the
+// folder its conversations start in (#780).
+fn assistant_section() -> [SettingsPageItem; 4] {
     [
         SettingsPageItem::SectionHeader("Marley Agent"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -1247,7 +1253,7 @@ fn assistant_section() -> [SettingsPageItem; 3] {
         }),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Agent",
-            description: "What Marley's own agent runs on, and Rusty's entry while Rusty is on. Auto takes the first found at start: Claude Code signed in, else Codex signed in, else Zed's agent with its default model set up. Claude Code and Codex each run on your own login as an entry in the Agent Panel, Codex in its read-only mode. Zed adds a profile to Zed's own agent, with no file tools.",
+            description: "What Marley's own agent runs on, and Rusty's entry while Rusty is on. Auto takes the first found at start: Claude Code signed in, else Codex signed in, else Zed's agent with its default model set up. Claude Code and Codex each run on your own login as an entry in the Agent Panel, Codex in its read-only mode unless Codex Permissions is Full Access. Zed adds a profile to Zed's own agent, with no file tools.",
             field: Box::new(SettingField {
                 organization_override: None,
                 json_path: Some("marley.assistant.agent"),
@@ -1265,6 +1271,32 @@ fn assistant_section() -> [SettingsPageItem; 3] {
                         .assistant
                         .get_or_insert_default()
                         .agent = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Marley's Folder",
+            description: "The folder the Marley agent's conversations start in; ~/ is your home folder, and a missing folder is made. Empty, Marley's settings folder, where the agent can read the settings it changes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.assistant.folder"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.assistant.as_ref())
+                        .and_then(|assistant| assistant.folder.as_ref())
+                        .or(NO_FOLDER)
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .assistant
+                        .get_or_insert_default()
+                        .folder = value;
                 },
             }),
             metadata: None,
@@ -1975,7 +2007,7 @@ pub(crate) fn rusty_on(cx: &App) -> bool {
 // Marley: Rusty's switch and connection (#643); the connection's state and Rusty's own settings
 // are on the Rusty's Server sub-page, which draws the view `marley_workbench::rusty` registers.
 // The header and the switch come first: while Rusty is off the page keeps those two (#661).
-fn rusty_section() -> [SettingsPageItem; 6] {
+fn rusty_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Rusty"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -2074,6 +2106,33 @@ fn rusty_section() -> [SettingsPageItem; 6] {
                         .rusty
                         .get_or_insert_default()
                         .agent_tools = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: where Rusty's agent's conversations start (#780).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Rusty Agent's Folder",
+            description: "The folder Rusty's agent's conversations start in; ~/ is your home folder, and a missing folder is made. Empty, the vault folder Rusty stores, else ~/.rusty/brain.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rusty.agent_folder"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rusty.as_ref())
+                        .and_then(|rusty| rusty.agent_folder.as_ref())
+                        .or(NO_FOLDER)
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .rusty
+                        .get_or_insert_default()
+                        .agent_folder = value;
                 },
             }),
             metadata: None,

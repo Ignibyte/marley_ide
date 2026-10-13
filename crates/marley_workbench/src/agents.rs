@@ -1433,7 +1433,32 @@ impl PickerDelegate for NewAgentDelegate {
                     return;
                 };
                 let (start, name) = (choice.start.clone(), choice.name.clone());
-                if let Some(folder) = self.fixed.clone() {
+                // Marley and Rusty start in the folders their settings give, never asked where
+                // (#780); a picker opened on a folder keeps it.
+                let own_folder = match (&self.fixed, &start) {
+                    (None, Start::Thread(agent)) => {
+                        crate::assistant::conversation_folder(agent, cx)
+                    }
+                    _ => None,
+                };
+                let folder = match own_folder {
+                    Some(Ok(folder)) => Some(folder),
+                    Some(Err(error)) => {
+                        self.workspace
+                            .update(cx, |workspace, cx| {
+                                crate::thread_tab::refuse(
+                                    workspace,
+                                    format!("Could not make {name}'s folder: {error}"),
+                                    cx,
+                                );
+                            })
+                            .log_err();
+                        self.dismissed(window, cx);
+                        return;
+                    }
+                    None => self.fixed.clone(),
+                };
+                if let Some(folder) = folder {
                     self.workspace
                         .update(cx, |workspace, cx| {
                             start.run_in(folder, workspace, window, cx);

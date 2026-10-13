@@ -3037,3 +3037,11 @@ from it passes the same filters the first source applies: for Zed's thread store
 and not a draft unless shown. A thread view Marley holds outside the Agent Panel follows the
 store's events as the panel does (`ThreadArchived` closes it), and a Marley path that opens a
 thread unarchives it first, as `load_agent_thread` does.
+
+## PR-claude-780-a-settings-page-field-needs-a-default-its-pick-can-find-001
+*severity: low · prevents: F-claude-780-a-folder-field-with-no-default-showed-no-default-001*
+
+Every `SettingItem` on the Marley page must find a value in the default settings: give the key a
+value in `assets/settings/default.json`, or, for an optional text with no meaningful default, end
+its `pick` with `.or(NO_FOLDER)`-style empty string as `page_data`'s `DEFAULT_EMPTY_STRING` does.
+A scenario that shows a new field shoots it unset, since a set value hides the marker.

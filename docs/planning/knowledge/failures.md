@@ -4050,3 +4050,13 @@ while staying in its tab. #605's acceptance ("the row goes and stays gone after 
 proven before #734 existed and never run again. Fixed in #777: the loop filters `archived`, a
 thread tab closes on its thread's `ThreadArchived`, a restored tab of an archived thread is
 refused, and every opener unarchives first.
+
+## F-claude-780-a-folder-field-with-no-default-showed-no-default-001
+*severity: low · found in: pipeline 780's Test, the first run · class: a Settings window field whose pick finds nothing in the defaults · prevented by: PR-claude-780*
+
+The Marley page's new "Rusty Agent's Folder" drew the Settings window's red NO DEFAULT marker in
+place of its text field: the setting is `Option<String>` with no value in `default.json`, and a
+debug build draws a field whose `pick` returns `None` for the default settings as an error
+(`settings_ui.rs`, `file_set_in`). "Marley's Folder" hid the same fault in that run because the
+scenario had set it. The gate passed; only the shot showed it. Fixed in #780: both picks end with
+`.or(NO_FOLDER)`, an empty string, as Zed's own pages use `page_data`'s `DEFAULT_EMPTY_STRING`.

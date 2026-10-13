@@ -1250,6 +1250,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Marley and Rusty start in their own folders, never asked where** (#780, 2026-10-12). New
+  Agent… no longer asks Where for the Marley or Rusty agent: Marley starts in Marley's settings
+  folder, where it can read the settings it changes, and Rusty in the vault folder Rusty stores.
+  Marley's Folder and Rusty Agent's Folder on the Marley page (`marley.assistant.folder`,
+  `marley.rusty.agent_folder`) move them; a missing folder is made. Talk to and New Conversation
+  use the same folders, in place of the hidden ones under Marley's data folder. Open Agent Here
+  still starts them where you opened it.
+
 - **The permission settings start agent threads too** (#779, 2026-10-12). With Claude Code
   permissions at bypass, a new Claude Agent thread starts in Bypass Permissions; with Codex
   permissions at full access, a new Codex thread starts in Full access; the Marley and Rusty

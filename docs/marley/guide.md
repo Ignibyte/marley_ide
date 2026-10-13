@@ -2149,10 +2149,12 @@ it proposes waits for your Apply. It is on out of the box (#696). **Agent**
   back to Write.
 - **In a tab, anywhere** (#738). `marley: talk to marley` brings its latest conversation forward
   where it is open, or opens it in a tab of the group you are in, or starts one there;
-  `marley: new marley conversation` always starts a new one. It works in a folder of its own,
-  `assistant/marley` in Marley's data folder, so it needs no project. On Zed's agent each talk
-  starts a new conversation with the Marley profile, since Zed's threads don't say which profile
-  they ran.
+  `marley: new marley conversation` always starts a new one. It works in Marley's settings folder
+  (`~/.config/marley`), where it can read the settings it changes, so it needs no project; Marley's
+  Folder on the Marley page (`marley.assistant.folder`, `~/` for your home folder, made when
+  missing) moves it (#780). New Agent… starts it there too, without asking where. On Zed's agent
+  each talk starts a new conversation with the Marley profile, since Zed's threads don't say which
+  profile they ran.
 - **In a terminal** (#684). `marley: open marley agent in terminal` starts the same agent with
   its own interface in a new terminal of the active project.
   - On Claude Code it runs `claude --append-system-prompt-file <data dir>/assistant/instructions.md
@@ -2186,7 +2188,10 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
 - **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
 - **In a tab, anywhere** (#738): `marley: talk to rusty` and `marley: new rusty conversation`, as the
-  Marley agent's, in `assistant/rusty`.
+  Marley agent's, and the Rusty button in the title bar (#778). Rusty works in the vault folder
+  Rusty itself stores (`brain_vault_path`, else `~/.rusty/brain`); Rusty Agent's Folder on the
+  Marley page (`marley.rusty.agent_folder`) moves it, and New Agent… starts it there without
+  asking where (#780).
 - **Zed's agent:** a **Rusty** profile with no built-in tools and the context servers' tools. While
   that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
   as **Rusty's Tools for Agents** does, and Zed asks before each call.
