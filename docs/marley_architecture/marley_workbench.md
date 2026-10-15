@@ -1071,6 +1071,18 @@ alike.
   handler (`accept_suggestion`) recomputes the suggestion and appends it with `Editor::insert`, and
   without one calls `cx.propagate()`, so gpui dispatches the next binding for the key,
   `editor::MoveRight`.
+- Since #783 Up and Down are `marley::RichInputUp` and `marley::RichInputDown` in
+  `MarleyRichInput > Editor && !showing_completions && !showing_code_actions`. Zed's
+  `Editor::move_up` and `move_down` call `cx.propagate()` when the cursor stays put, and the next
+  binding for the key inside a terminal view is the Terminal context's `terminal::SendKeystroke`,
+  so the footer's `arrow` never propagates: it calls the editor's own move, then
+  `cx.stop_propagation()`. In the shell's editor, with one empty selection on the display row the
+  text starts on (Up) or ends on (Down; the buffer end's row, since the hint inlay can wrap), it
+  steps `Prompt::walk` instead: a `Walk` of `autosuggest::history` taken at the first Up, blank
+  commands and repeats of a newer one left out, the index shown, and the draft Down gives back past
+  the newest. `walk` stores the walk before `set_text`, so the `BufferEdited` it raises sees the
+  recalled command; `edited` ends a walk whose command no longer matches the text. `open_for`
+  starts each opening with no walk.
 - `send` (#635) writes Ctrl-U to clear readline's line only when something may be on it (input
   typed since the prompt, or not known): on an empty line readline rings the bell at Ctrl-U, and
   the bell is Zed's dirty mark. It clears the view's bell, as Zed clears it on any input from the
@@ -4995,8 +5007,10 @@ Since #483 no test is added (CONSTITUTION §7): the files above stay and keep bu
 change is proven by an e2e scenario in `script/e2e/`. `480-voice-input.sh` drives the
 microphone through a fake Voxtype whose `record toggle` moves its status on, and
 `481-rich-input.sh` types into the rich input and reads what a stand-in agent prints;
-`484-autosuggestions.sh` types prefixes at a bash with a history file of its own, and
-`637-history-suggestions-in-the-prompt-editor.sh` the same in the prompt editor.
+`484-autosuggestions.sh` types prefixes at a bash with a history file of its own,
+`637-history-suggestions-in-the-prompt-editor.sh` the same in the prompt editor, and
+`783-up-and-down-in-the-prompt-editor.sh` walks that history with Up and Down and sends a
+stand-in agent a line after both keys.
 
 ## Known limits
 

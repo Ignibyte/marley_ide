@@ -21,9 +21,14 @@
 //! by English (#573); each edit tells [`crate::typed_line`] the line in front. While its cursor is
 //! at the end of its text, the rest of a history command the text starts shows there instead, and
 //! → takes it, as #484's suggestion does at the grid's prompt (#637).
+//!
+//! Up on the shell's editor's first line shows the shell's next older command, and Down on its
+//! last line the next newer one, then the text typed before (#783). Anywhere else, and in an
+//! agent's editor, they move the cursor; they never reach the terminal behind the editor.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use editor::display_map::ToDisplayPoint as _;
 use editor::{Editor, EditorEvent, HighlightKey, Inlay, MultiBufferOffset, ToOffset as _};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, EntityId, Focusable as _, Global,
@@ -35,13 +40,14 @@ use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
 use ui::prelude::*;
 use workspace::Workspace;
+use zed_actions::editor::{MoveDown, MoveUp};
 
 use crate::agent_bar::agent_in;
 use crate::blocks::focused_terminal;
 use crate::english::Hint;
 use crate::{
     AcceptSuggestion, ClearRichInput, CloseRichInput, MarleySettings, PromptEditor, RichInput,
-    SendRichInput,
+    RichInputDown, RichInputUp, SendRichInput,
 };
 use settings::Settings as _;
 
@@ -56,6 +62,18 @@ struct Prompt {
     target: Target,
     /// The view's terminal, whose line the shell's editor holds (#573).
     terminal: WeakEntity<Terminal>,
+    /// The shell's history shown with Up, until Down passes its newest command or an edit (#783).
+    walk: Option<Walk>,
+}
+
+/// A walk through the shell's history in its editor (#783).
+struct Walk {
+    /// The shell's commands at the walk's first Up, newest first, each once.
+    commands: Vec<String>,
+    /// Which of them the editor shows.
+    index: usize,
+    /// The editor's text before the walk, given back by Down past the newest command.
+    draft: String,
 }
 
 /// Who an editor's text goes to.
@@ -323,6 +341,7 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
             open: true,
             target,
             terminal: terminal.downgrade(),
+            walk: None,
         },
     );
     if matches!(target, Target::Shell) {
@@ -398,6 +417,7 @@ fn edited(view: &WeakEntity<TerminalView>, cx: &mut App) {
         return;
     };
     let text = editor.read(cx).text(cx);
+    end_walk_if_edited(view, &text, cx);
     crate::typed_line::changed(&terminal, &text, cx);
     paint_hint(&editor, &terminal, true, cx);
 }
@@ -497,6 +517,169 @@ fn accept_suggestion(view: &Entity<TerminalView>, window: &mut Window, cx: &mut 
     match suggestion {
         Some((editor, rest)) => editor.update(cx, |editor, cx| editor.insert(&rest, window, cx)),
         None => cx.propagate(),
+    }
+}
+
+/// Which way Up and Down go through the shell's history (#783).
+#[derive(Clone, Copy)]
+enum Toward {
+    Older,
+    Newer,
+}
+
+/// Up in `view`'s editor (#783).
+fn up(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    arrow(view, Toward::Older, window, cx);
+}
+
+/// Down in `view`'s editor (#783).
+fn down(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    arrow(view, Toward::Newer, window, cx);
+}
+
+/// Up or Down in `view`'s editor: from the shell's editor's first line or last, a step through the
+/// shell's history; anywhere else, and in an agent's editor, the editor's own move. Zed's editor
+/// passes the key on when its cursor cannot move, and the next binding is the terminal's, which
+/// would send it to the program behind the editor, so the key stops here.
+fn arrow(view: &Entity<TerminalView>, toward: Toward, window: &mut Window, cx: &mut App) {
+    let Some((editor, target)) = cx
+        .global::<Prompts>()
+        .0
+        .get(&view.entity_id())
+        .map(|prompt| (prompt.editor.clone(), prompt.target))
+    else {
+        return;
+    };
+    if matches!(target, Target::Shell) && at_edge(&editor, toward, cx) {
+        walk(view, &editor, toward, window, cx);
+    } else {
+        editor.update(cx, |editor, cx| match toward {
+            Toward::Older => editor.move_up(&MoveUp, window, cx),
+            Toward::Newer => editor.move_down(&MoveDown, window, cx),
+        });
+    }
+    cx.stop_propagation();
+}
+
+/// Whether `editor` has one cursor, with nothing selected, on the display line its text starts on
+/// (`Older`) or ends on (`Newer`). The end is the text's: the hint drawn after it can wrap onto a
+/// line of its own.
+fn at_edge(editor: &Entity<Editor>, toward: Toward, cx: &mut App) -> bool {
+    editor.update(cx, |editor, cx| {
+        if editor.selections.count() != 1 {
+            return false;
+        }
+        let snapshot = editor.display_snapshot(cx);
+        let cursor = editor.selections.newest_display(&snapshot);
+        if !cursor.is_empty() {
+            return false;
+        }
+        let row = cursor.head().row();
+        match toward {
+            Toward::Older => row.0 == 0,
+            Toward::Newer => {
+                let end = snapshot
+                    .buffer_snapshot()
+                    .max_point()
+                    .to_display_point(&snapshot);
+                row == end.row()
+            }
+        }
+    })
+}
+
+/// Shows the shell's next older or newer command in `editor`, `view`'s shell editor, with the
+/// cursor at its end, as readline does; at either end of the walk the editor stays as it is.
+fn walk(
+    view: &Entity<TerminalView>,
+    editor: &Entity<Editor>,
+    toward: Toward,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let id = view.entity_id();
+    let Some(mut current) = cx
+        .global_mut::<Prompts>()
+        .0
+        .get_mut(&id)
+        .map(|prompt| prompt.walk.take())
+    else {
+        return;
+    };
+    let terminal = view.read(cx).terminal().clone();
+    let shown = step(&mut current, toward, || {
+        let commands = distinct(crate::autosuggest::history(&terminal, cx));
+        let draft = editor.read(cx).text(cx);
+        (!commands.is_empty()).then_some(Walk {
+            commands,
+            index: 0,
+            draft,
+        })
+    });
+    // The walk goes back before the text changes: the edit's event asks whether the text is still
+    // the command the walk shows.
+    if let Some(prompt) = cx.global_mut::<Prompts>().0.get_mut(&id) {
+        prompt.walk = current;
+    }
+    if let Some(text) = shown {
+        editor.update(cx, |editor, cx| {
+            editor.set_text(text, window, cx);
+            editor.move_to_end(&editor::actions::MoveToEnd, window, cx);
+        });
+    }
+}
+
+/// Steps `walk` one command `toward` and returns the text the editor shows next, or none to leave
+/// it as it is. The first Up starts the walk with `start`; Down past the newest command ends it
+/// and gives back the draft.
+fn step(
+    walk: &mut Option<Walk>,
+    toward: Toward,
+    start: impl FnOnce() -> Option<Walk>,
+) -> Option<String> {
+    match (walk.as_mut(), toward) {
+        (None, Toward::Older) => {
+            let started = start()?;
+            let newest = started.commands.first().cloned();
+            *walk = Some(started);
+            newest
+        }
+        (None, Toward::Newer) => None,
+        (Some(current), Toward::Older) => {
+            let older = current.commands.get(current.index + 1).cloned()?;
+            current.index += 1;
+            Some(older)
+        }
+        (Some(current), Toward::Newer) => match current.index.checked_sub(1) {
+            Some(index) => {
+                current.index = index;
+                current.commands.get(index).cloned()
+            }
+            None => walk.take().map(|ended| ended.draft),
+        },
+    }
+}
+
+/// `commands` without blank ones and without a repeat of a newer one, so Up never shows the same
+/// command twice in a row.
+fn distinct(commands: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    commands
+        .into_iter()
+        .filter(|command| !command.trim().is_empty() && seen.insert(command.clone()))
+        .collect()
+}
+
+/// Ends the walk of `view`'s editor once `text`, its text, is no longer the command the walk
+/// shows, as Zed's inline input does (#783).
+fn end_walk_if_edited(view: &WeakEntity<TerminalView>, text: &str, cx: &mut App) {
+    if let Some(prompt) = cx.global_mut::<Prompts>().0.get_mut(&view.entity_id())
+        && prompt
+            .walk
+            .as_ref()
+            .is_some_and(|walk| walk.commands.get(walk.index).map(String::as_str) != Some(text))
+    {
+        prompt.walk = None;
     }
 }
 
@@ -649,7 +832,9 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
         return None;
     }
     let colors = cx.theme().colors();
-    let (send_to, close_on, clear_on, accept_on) = (
+    let (send_to, close_on, clear_on, accept_on, up_on, down_on) = (
+        context.view.clone(),
+        context.view.clone(),
         context.view.clone(),
         context.view.clone(),
         context.view.clone(),
@@ -672,6 +857,8 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
             .on_action(move |_: &CloseRichInput, window, cx| {
                 on_view(&close_on, window, cx, close);
             })
+            .on_action(move |_: &RichInputUp, window, cx| on_view(&up_on, window, cx, up))
+            .on_action(move |_: &RichInputDown, window, cx| on_view(&down_on, window, cx, down))
             .on_action(
                 move |_: &AcceptSuggestion, window, cx| match accept_on.upgrade() {
                     Some(view) => accept_suggestion(&view, window, cx),

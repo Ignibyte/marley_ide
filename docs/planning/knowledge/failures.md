@@ -4071,3 +4071,15 @@ opened on the panel, which then started a thread of its selected agent ("New Cla
 Loading…"). #744 had diverted the panel's other entry points (`ToggleFocus`, `Toggle`,
 `FocusAgent`, `NewThread`, `ToggleNewThreadMenu`) but not this one. The empty thread was the
 panel's new-user card, missing from a tab. Fixed in #781.
+
+## F-claude-783-up-in-the-prompt-editor-reached-the-shell-behind-it-001
+*severity: medium · found in: Chad's own use, 2026-10-14 (shipped with #627) · class: an editor action that passes its key on, inside a terminal view · prevented by: PR-claude-783-an-editor-in-a-terminal-keeps-the-keys-its-actions-pass-on-001*
+
+Up in the shell's prompt editor, on an empty line or at the start of the first line, put a
+history command on the grid behind the editor; Down did the same at the end of the last line, and
+in an agent's rich input both keys reached the agent. Zed's `Editor::move_up` and `move_down` call
+`cx.propagate()` when the cursor stays put, and gpui then dispatches the next binding for the key
+in the context stack: inside a terminal view, the Terminal context's
+`["terminal::SendKeystroke", "up"]`. #627's footer stopped unbound keys in `on_key_down`, which
+never sees a key a binding took. Fixed in #783: Up and Down bound in the editor's own context to
+a handler that walks the shell's history or moves the cursor, then stops the propagation.

@@ -10,6 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [#784](open/TICKET-784-terminal-keys-from-the-prompt-editor.md) | bug | Keys only the terminal binds (Ctrl-R, Ctrl-W, Alt-B …), pressed in the prompt editor, likely reach the shell behind it |
 
 ## Deliberate (picked explicitly, never auto-next)
 

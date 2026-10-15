@@ -277,6 +277,15 @@ actions!(
         /// prompt editor; without one, the key goes to the terminal's program or the editor.
         #[derive(Eq)]
         AcceptSuggestion,
+        /// Moves the rich input's cursor up a line; on the shell's prompt editor's first line,
+        /// shows the shell's next older command. The key never reaches the terminal behind it.
+        #[derive(Eq)]
+        RichInputUp,
+        /// Moves the rich input's cursor down a line; on the shell's prompt editor's last line,
+        /// shows the shell's next newer command, then the text typed before the history. The key
+        /// never reaches the terminal behind it.
+        #[derive(Eq)]
+        RichInputDown,
         /// Opens the Browser tab: the page Marley's own Chromium shows, starting the project's
         /// Chromium the first time.
         #[derive(Eq)]

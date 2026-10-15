@@ -3055,3 +3055,16 @@ handler calls `focus_panel::<AgentPanel>` must be captured on the workspace root
 entry point is found (grep `agent_panel.rs`'s `register_action` handlers for `focus_panel`), add
 its capture beside #744's and #781's. And what the panel draws around a thread (onboarding cards,
 upsells) a thread tab has to draw itself, or lose.
+
+## PR-claude-783-an-editor-in-a-terminal-keeps-the-keys-its-actions-pass-on-001
+*severity: medium · prevents: F-claude-783-up-in-the-prompt-editor-reached-the-shell-behind-it-001*
+
+An editor drawn inside a terminal view (the prompt editor, a rich input, a filter) hands a key to
+the terminal's program in two ways: the Editor action bound to it calls `cx.propagate()` when it
+has nothing to do (`move_up` and `move_down` with the cursor at an edge; most moves in a
+single-line editor), or the Editor context binds nothing for a key the Terminal context binds
+(`ctrl-r`, `ctrl-w`, `ctrl-e`, `alt-b` …). In both cases gpui runs the Terminal's
+`SendKeystroke`. List the Terminal context's keys from `default-linux.json`, look up each one's
+Editor action, read that function for `cx.propagate()`, and bind every key that can fall through
+in the element's own context, to a handler that does the editor's work and calls
+`cx.stop_propagation()`. A footer's `on_key_down` does not cover a key a binding took.

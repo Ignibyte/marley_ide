@@ -1487,6 +1487,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Up and Down stay in the prompt editor** (#783, 2026-10-14). In the prompt editor under a
+  terminal, Up on an empty line, or at the start of the first line, reached the shell behind the
+  editor, which put a history command on the grid instead of in the editor; Down did the same at
+  the end. Up on the editor's first line now brings the shell's older commands into the editor,
+  newest first and each once, and Down brings back newer ones and then what you were typing. On
+  any other line both keys move the cursor. In an agent's rich input they move the cursor and
+  never reach the agent.
+
 - **A Zed Agent thread with no model says so, and Configure stays out of the right dock** (#781,
   2026-10-12). A Zed Agent thread in a tab, with no model set up, showed an empty thread, and
   Configure under Select a Model opened Zed's Agent Panel in the right dock, which the Marley layout
@@ -2942,6 +2950,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   70 that predate the prior-art sweep now say so, which lets the reference hook accept them.
 
 ### Security
+
+- **rustls 0.23.46 and wasmtime 48.0.6** (#783, 2026-10-14). TLS moves from rustls 0.23.40 to its
+  patch release 0.23.46, with rustls-webpki 0.103.15, aws-lc-rs 1.18.2 and aws-lc-sys 0.46.0, for
+  RUSTSEC-2026-0346, -0348 and -0349 (session secrets in `Debug` output, a 1 GiB allocation before
+  authentication, a downgrade of later connections to classical key exchange). The extension
+  host's WebAssembly runtime moves from 48.0.5 to 48.0.6, with cranelift 0.135.6, for
+  RUSTSEC-2026-0352 to -0364 except -0360 (a sandbox escape through symlink renames in its WASI
+  layer, host panics a guest could cause, unbounded handle tables, unaligned host data). Only the
+  lockfile changed.
 
 - **Test runs leave the user's phone, harness, hosts and System One alone** (#668, 2026-10-06).
   `script/e2e.sh` copies the user's settings into each run's profile; the copy now drops

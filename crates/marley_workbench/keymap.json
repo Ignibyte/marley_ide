@@ -146,6 +146,16 @@
     }
   },
   {
+    // Up and Down are the rich input's own unless a menu shows (#783): Zed's editor passes them on
+    // when its cursor cannot move, and inside a terminal the next binding sends them to the
+    // terminal's program.
+    "context": "MarleyRichInput > Editor && !showing_completions && !showing_code_actions",
+    "bindings": {
+      "up": "marley::RichInputUp",
+      "down": "marley::RichInputDown"
+    }
+  },
+  {
     // The Browser tab's keys, as Chrome binds its own. While the tab has the focus they win over
     // Zed's workspace bindings for the same keys (Ctrl-R opens a recent project, F5 debugs), and
     // Escape reaches the page, or ends pick mode, instead of Zed's Unfollow.
