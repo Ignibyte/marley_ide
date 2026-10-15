@@ -1487,6 +1487,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Shell keys stay in the prompt editor** (#784, 2026-10-15). In the prompt editor under a
+  terminal and in an agent's rich input, Ctrl+W, Ctrl+E, Ctrl+B, Ctrl+R, Alt+B and Alt+F reached
+  the shell or the agent behind the editor, Ctrl+Shift+V pasted into that program instead of the
+  editor, Ctrl+Shift+C never copied the editor's selection, and Ctrl+Q quit Marley at once, even
+  with an agent at work. Now Ctrl+W deletes the word before the cursor, Ctrl+E goes to the end of
+  the line, Ctrl+B back a character, and Alt+B and Alt+F back and forward a word, as at a shell's
+  prompt; Ctrl+R, Ctrl+O and Ctrl+Q do nothing there. Ctrl+Shift+V pastes into the editor, and an
+  image on the clipboard still goes to an agent, as from its terminal. Ctrl+Shift+C copies the
+  editor's selection, or the terminal's when the editor has none.
+
 - **Up and Down stay in the prompt editor** (#783, 2026-10-14). In the prompt editor under a
   terminal, Up on an empty line, or at the start of the first line, reached the shell behind the
   editor, which put a history command on the grid instead of in the editor; Down did the same at

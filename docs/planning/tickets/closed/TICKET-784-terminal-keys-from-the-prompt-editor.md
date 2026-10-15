@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #784 (bug, prong 1 T3)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [784-terminal-keys-from-the-prompt-editor.spec.md](../../pipeline/completed/784-terminal-keys-from-the-prompt-editor.spec.md)
 - **Source ticket:** #783's Complete phase, the sweep of
   `PR-claude-783-an-editor-in-a-terminal-keeps-the-keys-its-actions-pass-on-001`.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Zed's Linux keymap binds `ctrl-r`, `ctrl-w`, `ctrl-e`, `ctrl-b`, `ctrl-o`, `ctrl-q`, `alt-b`,

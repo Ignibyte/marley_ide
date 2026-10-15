@@ -1083,6 +1083,19 @@ alike.
   the newest. `walk` stores the walk before `set_text`, so the `BufferEdited` it raises sees the
   recalled command; `edited` ends a walk whose command no longer matches the text. `open_for`
   starts each opening with no walk.
+- Since #784 the Terminal context's other keys stay in the editor too. Two ways out were found by
+  evaluating each binding of both keymaps against the editor's context stack as gpui does: a key
+  the Editor context leaves unbound falls to the Terminal's `SendKeystroke`, `SendText` or
+  `Paste` (Ctrl-W, Ctrl-E, Ctrl-B, Ctrl-R, Alt-B, Alt-F, Ctrl-Shift-V), and Zed's unscoped Ctrl-O
+  and Ctrl-Q rank at the deepest context, above the Terminal's override. `MarleyRichInput >
+  Editor` binds the readline moves to Zed's editor actions with the arguments Zed gives
+  Ctrl-Backspace, End, Ctrl-Left and Ctrl-Right, and Ctrl-R, Ctrl-O and Ctrl-Q to `null`, which at
+  the same depth and the same default source suppresses both. Ctrl-Shift-V is
+  `marley::RichInputPaste`: `paste` puts text in with `Editor::paste`, and from an agent's editor
+  propagates an image to `terminal::Paste`, which sends the agent Ctrl-V. Ctrl-Shift-C is
+  `marley::RichInputCopy`: `copy` dispatches `editor::Copy` when the editor has a selection
+  (`Editor::copy` is not public) and otherwise propagates to `terminal::Copy`, the grid's
+  selection.
 - `send` (#635) writes Ctrl-U to clear readline's line only when something may be on it (input
   typed since the prompt, or not known): on an empty line readline rings the bell at Ctrl-U, and
   the bell is Zed's dirty mark. It clears the view's bell, as Zed clears it on any input from the
@@ -5010,7 +5023,9 @@ microphone through a fake Voxtype whose `record toggle` moves its status on, and
 `484-autosuggestions.sh` types prefixes at a bash with a history file of its own,
 `637-history-suggestions-in-the-prompt-editor.sh` the same in the prompt editor, and
 `783-up-and-down-in-the-prompt-editor.sh` walks that history with Up and Down and sends a
-stand-in agent a line after both keys.
+stand-in agent a line after both keys; `784-terminal-keys-from-the-prompt-editor.sh` presses the
+terminal's keys in both editors at a bash that prints each one it gets and a stand-in agent that
+prints each byte.
 
 ## Known limits
 

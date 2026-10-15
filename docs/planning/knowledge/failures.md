@@ -4083,3 +4083,14 @@ in the context stack: inside a terminal view, the Terminal context's
 `["terminal::SendKeystroke", "up"]`. #627's footer stopped unbound keys in `on_key_down`, which
 never sees a key a binding took. Fixed in #783: Up and Down bound in the editor's own context to
 a handler that walks the shell's history or moves the cursor, then stops the propagation.
+
+## F-claude-784-terminal-keys-in-the-prompt-editor-reached-the-program-or-quit-marley-001
+*severity: high · found in: #783's sweep, reproduced in pipeline 784 (shipped with #481 and #627) · class: an unbound or unscoped key inside a terminal view · prevented by: PR-claude-783-an-editor-in-a-terminal-keeps-the-keys-its-actions-pass-on-001, PR-claude-an-editor-inside-a-terminal-rebinds-the-terminal-keys-it-must-keep-001*
+
+In the shell's prompt editor and an agent's rich input, Ctrl-W, Ctrl-E, Ctrl-B, Ctrl-R, Alt-B and
+Alt-F reached the program behind the editor, since the Editor context binds none of them and the
+next binding is the Terminal's `SendKeystroke` or `SendText`; Ctrl-Shift-V ran `terminal::Paste`
+into the program, and Ctrl-Shift-C copied only the grid's selection. Ctrl-Q ran Zed's unscoped
+`zed::Quit`, which gpui ranks above the Terminal's override inside the editor, and quit Marley with
+no question while a stand-in Claude Code was on the rail; Ctrl-O ran `workspace::OpenFiles` the
+same way. Fixed in #784: every one of them bound in `MarleyRichInput > Editor`.

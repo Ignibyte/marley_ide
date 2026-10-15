@@ -286,6 +286,13 @@ actions!(
         /// never reaches the terminal behind it.
         #[derive(Eq)]
         RichInputDown,
+        /// Pastes the clipboard's text into the rich input. An image goes to an agent the
+        /// rich input writes to, as from its terminal; nothing reaches a shell behind it.
+        #[derive(Eq)]
+        RichInputPaste,
+        /// Copies the rich input's selection, or the terminal's when the rich input has none.
+        #[derive(Eq)]
+        RichInputCopy,
         /// Opens the Browser tab: the page Marley's own Chromium shows, starting the project's
         /// Chromium the first time.
         #[derive(Eq)]

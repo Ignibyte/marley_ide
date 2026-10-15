@@ -123,7 +123,22 @@
     "bindings": {
       "shift-enter": "editor::Newline",
       "escape": "marley::CloseRichInput",
-      "ctrl-shift-w": "pane::CloseActiveItem"
+      "ctrl-shift-w": "pane::CloseActiveItem",
+      // The keys the terminal sends its program, and Zed's unscoped Ctrl-O and Ctrl-Q, which
+      // outrank the terminal's here, stay in the editor (#784): readline's moves act on the
+      // editor's line, and the rest do nothing.
+      "ctrl-w": ["editor::DeleteToPreviousWordStart", { "ignore_newlines": false, "ignore_brackets": false }],
+      "ctrl-e": ["editor::MoveToEndOfLine", { "stop_at_soft_wraps": true }],
+      "ctrl-b": "editor::MoveLeft",
+      "alt-b": "editor::MoveToPreviousWordStart",
+      "alt-f": "editor::MoveToNextWordEnd",
+      "ctrl-r": null,
+      "ctrl-o": null,
+      "ctrl-q": null,
+      // Ctrl-Shift-V pastes into the editor, an image going to an agent as from the grid;
+      // Ctrl-Shift-C copies the editor's selection, or the grid's when the editor has none.
+      "ctrl-shift-v": "marley::RichInputPaste",
+      "ctrl-shift-c": "marley::RichInputCopy"
     }
   },
   {

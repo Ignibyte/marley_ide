@@ -5874,3 +5874,18 @@ The receipt hashes everything under `crates/`, `script/e2e` and the gate's own f
 new scenario. Editing either while `script/gates.sh` runs fails only the receipt row, and the gate
 must run again. Write the scenario and the in-app guide's changes before the last gate run; the
 docs under `docs/` are outside the hash.
+
+## L-claude-784-sway-marley-pid-prints-nothing-when-the-window-is-gone-001
+*category: e2e · topic: the harness · from: pipeline 784*
+
+`sway_marley_pid` prints the pid of Marley's window and exits 0 either way: with no window, `jq`
+prints nothing. `sway_marley_pid >/dev/null` as a check passes after Marley quit (#784's
+reproduction said "still runs" over a black shot). Test what it prints: `[[ -n $(sway_marley_pid) ]]`.
+
+## L-claude-784-bash-read-n-turns-crnl-back-on-001
+*category: e2e · topic: stand-in agents · from: pipeline 784*
+
+A stand-in that reads raw bytes with bash's `read -n1` gets a return as `$'\n'`, though its `stty`
+said `-icrnl`: `read -n` sets the tty's mode itself and turns the CR-to-NL translation back on.
+Expect the newline, or read with a program that leaves the tty alone. `-icanon -isig -ixon
+-iexten` do hold, so control keys still arrive as their own bytes.

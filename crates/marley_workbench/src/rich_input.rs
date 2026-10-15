@@ -25,14 +25,19 @@
 //! Up on the shell's editor's first line shows the shell's next older command, and Down on its
 //! last line the next newer one, then the text typed before (#783). Anywhere else, and in an
 //! agent's editor, they move the cursor; they never reach the terminal behind the editor.
+//!
+//! The other keys the terminal sends its program stay in either editor too (#784): Ctrl-W,
+//! Ctrl-E, Ctrl-B, Alt-B and Alt-F edit its line as readline does, Ctrl-R, Ctrl-O and Ctrl-Q do
+//! nothing, Ctrl-Shift-V pastes into it, and Ctrl-Shift-C copies its selection, or the grid's
+//! when it has none.
 
 use std::collections::{HashMap, HashSet};
 
 use editor::display_map::ToDisplayPoint as _;
 use editor::{Editor, EditorEvent, HighlightKey, Inlay, MultiBufferOffset, ToOffset as _};
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, EntityId, Focusable as _, Global,
-    HighlightStyle, InteractiveElement as _, KeyDownEvent, WeakEntity, Window,
+    AnyElement, App, AppContext as _, ClipboardEntry, Context, Entity, EntityId, Focusable as _,
+    Global, HighlightStyle, InteractiveElement as _, KeyDownEvent, WeakEntity, Window,
 };
 use marley_agent::AgentKind;
 use project::InlayId;
@@ -47,7 +52,7 @@ use crate::blocks::focused_terminal;
 use crate::english::Hint;
 use crate::{
     AcceptSuggestion, ClearRichInput, CloseRichInput, MarleySettings, PromptEditor, RichInput,
-    RichInputDown, RichInputUp, SendRichInput,
+    RichInputCopy, RichInputDown, RichInputPaste, RichInputUp, SendRichInput,
 };
 use settings::Settings as _;
 
@@ -542,12 +547,7 @@ fn down(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
 /// passes the key on when its cursor cannot move, and the next binding is the terminal's, which
 /// would send it to the program behind the editor, so the key stops here.
 fn arrow(view: &Entity<TerminalView>, toward: Toward, window: &mut Window, cx: &mut App) {
-    let Some((editor, target)) = cx
-        .global::<Prompts>()
-        .0
-        .get(&view.entity_id())
-        .map(|prompt| (prompt.editor.clone(), prompt.target))
-    else {
+    let Some((editor, target)) = editor_of(view, cx) else {
         return;
     };
     if matches!(target, Target::Shell) && at_edge(&editor, toward, cx) {
@@ -680,6 +680,54 @@ fn end_walk_if_edited(view: &WeakEntity<TerminalView>, text: &str, cx: &mut App)
             .is_some_and(|walk| walk.commands.get(walk.index).map(String::as_str) != Some(text))
     {
         prompt.walk = None;
+    }
+}
+
+/// `view`'s editor and who its text goes to.
+fn editor_of(view: &Entity<TerminalView>, cx: &App) -> Option<(Entity<Editor>, Target)> {
+    cx.global::<Prompts>()
+        .0
+        .get(&view.entity_id())
+        .map(|prompt| (prompt.editor.clone(), prompt.target))
+}
+
+/// Ctrl-Shift-V in `view`'s editor (#784): the clipboard's text goes into the editor. An image
+/// goes on to the terminal's own paste from an agent's editor, so the agent gets Ctrl-V and
+/// attaches it as from the grid; from the shell's editor it goes nowhere.
+fn paste(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    let Some((editor, target)) = editor_of(view, cx) else {
+        return;
+    };
+    let image = cx.read_from_clipboard().is_some_and(|item| {
+        matches!(
+            item.entries().first(),
+            Some(ClipboardEntry::Image(image)) if !image.bytes.is_empty()
+        )
+    });
+    if !image {
+        editor.update(cx, |editor, cx| {
+            editor.paste(&editor::actions::Paste, window, cx);
+        });
+    } else if matches!(target, Target::Agent(_)) {
+        cx.propagate();
+    }
+}
+
+/// Ctrl-Shift-C in `view`'s editor (#784): the editor's selection when it has one. With none the
+/// key goes on to the terminal's copy, so output selected on the grid while the editor holds the
+/// keys copies as it does at a bare prompt.
+fn copy(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
+    let Some((editor, _)) = editor_of(view, cx) else {
+        return;
+    };
+    let selected = editor.update(cx, |editor, cx| {
+        editor.has_non_empty_selection(&editor.display_snapshot(cx))
+    });
+    if selected {
+        // The editor's copy is its own; the action reaches it through the focus it holds.
+        window.dispatch_action(Box::new(editor::actions::Copy), cx);
+    } else {
+        cx.propagate();
     }
 }
 
@@ -832,7 +880,9 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
         return None;
     }
     let colors = cx.theme().colors();
-    let (send_to, close_on, clear_on, accept_on, up_on, down_on) = (
+    let (send_to, close_on, clear_on, accept_on, up_on, down_on, paste_on, copy_on) = (
+        context.view.clone(),
+        context.view.clone(),
         context.view.clone(),
         context.view.clone(),
         context.view.clone(),
@@ -859,6 +909,10 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
             })
             .on_action(move |_: &RichInputUp, window, cx| on_view(&up_on, window, cx, up))
             .on_action(move |_: &RichInputDown, window, cx| on_view(&down_on, window, cx, down))
+            .on_action(move |_: &RichInputPaste, window, cx| {
+                on_view(&paste_on, window, cx, paste);
+            })
+            .on_action(move |_: &RichInputCopy, window, cx| on_view(&copy_on, window, cx, copy))
             .on_action(
                 move |_: &AcceptSuggestion, window, cx| match accept_on.upgrade() {
                     Some(view) => accept_suggestion(&view, window, cx),

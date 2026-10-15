@@ -879,6 +879,14 @@ Ctrl+C empties the editor, as it drops a line at the shell's prompt. To have the
 Ctrl+G, turn off Prompt Editor in the Settings window's Layout section
 (`"marley": { "prompt_editor": false }`).
 
+Up on the editor's first line shows the shell's older commands, newest first, and Down brings back
+newer ones and then what you were typing (#783). The shell's line keys work on the editor's line
+(#784): Ctrl+W deletes a word, Ctrl+E goes to the end, Ctrl+B back a character, Alt+B and Alt+F
+back and forward a word. Ctrl+R, Ctrl+O and Ctrl+Q do nothing in the editor; Ctrl+Q no longer
+quits Marley from a terminal. Ctrl+Shift+V pastes into the editor, and Ctrl+Shift+C copies its
+selection, or the terminal's when the editor has none. The same keys behave the same way in an
+agent's rich input, where an image pasted with Ctrl+Shift+V goes to the agent.
+
 A line that reads as a request in words, such as `what is using port 3000` or `kill the dev
 server`, shows `· ctrl-shift-enter asks the agent` after it, in the editor or at the shell's own
 prompt (#557). Ctrl+Shift+Enter hands it to the window's agent, a picker when there are several,
@@ -3498,6 +3506,10 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+G | Terminal running an agent CLI | Rich input |
 | Enter, Shift+Enter, Escape | Rich input | Sends; adds a line; closes and keeps the draft |
 | Ctrl+C | The shell's prompt editor | Empties it |
+| Up, Down | The shell's prompt editor | The shell's older and newer commands, then your draft |
+| Ctrl+W, Ctrl+E, Ctrl+B, Alt+B, Alt+F | Prompt editor, rich input | Delete a word; end of line; back a character; back and forward a word |
+| Ctrl+R, Ctrl+O, Ctrl+Q | Prompt editor, rich input | Nothing |
+| Ctrl+Shift+V, Ctrl+Shift+C | Prompt editor, rich input | Paste into it; copy its selection, or the terminal's |
 | Ctrl+Shift+Enter | The shell's prompt editor, or a terminal at a shell prompt | Asks the agent with a line in words; a command's key goes to the shell |
 | Ctrl+Q | Terminal | Goes to the shell, not Zed (quit with `zed: quit`) |
 | Ctrl+L | Browser tab | The address bar |
