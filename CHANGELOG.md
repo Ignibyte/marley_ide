@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A split opens Home, and a tab's menu splits it out** (#785, 2026-10-15). In the Marley
+  layout, splitting a terminal or an agent's terminal, with the pane's split button, a split key
+  or the palette, opens Home in the new pane instead of starting another shell. Splitting Home
+  opens a second Home; a file still opens in both panes. Every tab's right-click menu ends with
+  Split Right, Split Left, Split Up and Split Down, which move the tab into a new pane on that
+  side; a pane's only tab stays put and Home opens on the other side. The pane's split button now
+  splits a file or Home too: its menu's choice used to reach no pane, so it did nothing for
+  anything but a terminal.
+
 - **Scheduled runs** (#719, 2026-10-12). The rail's Harness section lists the harness's scheduled
   tasks with their next run and last outcome, and a task's history opens in a tab, each run
   opening its session. A run that found something raises one Needs you entry and a desktop

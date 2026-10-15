@@ -3114,6 +3114,8 @@ impl Pane {
         let is_pinned = self.is_tab_pinned(ix);
 
         let pane = cx.entity().downgrade();
+        // Marley: the hook below is asked with the pane's workspace (#785).
+        let marley_workspace = self.workspace.clone();
         let menu_context = item.item_focus_handle(cx);
         let item_handle = item.boxed_clone();
 
@@ -3121,6 +3123,7 @@ impl Pane {
             .trigger(|_, _, _| tab)
             .menu(move |window, cx| {
                 let pane = pane.clone();
+                let marley_workspace = marley_workspace.clone();
                 let menu_context = menu_context.clone();
                 let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
                 ContextMenu::build(window, cx, move |mut menu, window, cx| {
@@ -3473,6 +3476,11 @@ impl Pane {
                         for (label, action) in extra_actions {
                             menu = menu.action(label, action);
                         }
+                    }
+
+                    // Marley: a Marley crate's entries come last (#785).
+                    if let Some(pane) = pane.upgrade() {
+                        menu = marley_tab_menu(menu, &pane, &marley_workspace, item_id, window, cx);
                     }
 
                     menu.context(menu_context)
@@ -4346,6 +4354,39 @@ fn marley_new_item_menu(
     }
 }
 
+// Marley: the tab menu's entries a Marley crate adds (#785).
+/// Takes a tab's right-click menu, its pane, the pane's workspace and the tab's item id, and
+/// returns the menu with any entries added.
+pub type MarleyTabMenuFn = dyn Fn(
+    ContextMenu,
+    &Entity<Pane>,
+    &WeakEntity<Workspace>,
+    EntityId,
+    &mut Window,
+    &mut App,
+) -> ContextMenu;
+
+/// The hook a Marley crate sets for the tab menu (#785).
+#[derive(Clone)]
+pub struct MarleyTabMenu(pub Arc<MarleyTabMenuFn>);
+
+impl gpui::Global for MarleyTabMenu {}
+
+/// The tab menu as Marley's hook leaves it: unchanged when no hook is set.
+fn marley_tab_menu(
+    menu: ContextMenu,
+    pane: &Entity<Pane>,
+    workspace: &WeakEntity<Workspace>,
+    item_id: EntityId,
+    window: &mut Window,
+    cx: &mut App,
+) -> ContextMenu {
+    match cx.try_global::<MarleyTabMenu>().cloned() {
+        Some(hook) => (hook.0)(menu, pane, workspace, item_id, window, cx),
+        None => menu,
+    }
+}
+
 fn default_render_tab_bar_buttons(
     pane: &mut Pane,
     window: &mut Window,
@@ -4356,6 +4397,8 @@ fn default_render_tab_bar_buttons(
     }
     // Marley: the hook below is asked with the pane's workspace (#699).
     let workspace = pane.workspace.clone();
+    // Marley: the split menu's actions go to this pane (#785).
+    let pane_focus = pane.focus_handle(cx);
     let (can_clone, can_split_move) = match pane.active_item() {
         Some(active_item) if active_item.can_split(cx) => (true, false),
         Some(_) => (false, pane.items_len() > 1),
@@ -4404,9 +4447,10 @@ fn default_render_tab_bar_buttons(
                 .anchor(Anchor::TopRight)
                 .with_handle(pane.split_item_context_menu_handle.clone())
                 .menu(move |window, cx| {
+                    let pane_focus = pane_focus.clone();
                     ContextMenu::build(window, cx, |menu, _, _| {
                         let mode = SplitMode::MovePane;
-                        if can_split_move {
+                        let menu = if can_split_move {
                             menu.action("Split Right", SplitRight { mode }.boxed_clone())
                                 .action("Split Left", SplitLeft { mode }.boxed_clone())
                                 .action("Split Up", SplitUp { mode }.boxed_clone())
@@ -4416,7 +4460,10 @@ fn default_render_tab_bar_buttons(
                                 .action("Split Left", SplitLeft::default().boxed_clone())
                                 .action("Split Up", SplitUp::default().boxed_clone())
                                 .action("Split Down", SplitDown::default().boxed_clone())
-                        }
+                        };
+                        // Marley: the choice goes to this pane (#785). Without a context it
+                        // never reached a pane, so Split Right did nothing on a file or Home.
+                        menu.context(pane_focus)
                     })
                     .into()
                 }),

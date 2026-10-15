@@ -4094,3 +4094,24 @@ into the program, and Ctrl-Shift-C copied only the grid's selection. Ctrl-Q ran 
 `zed::Quit`, which gpui ranks above the Terminal's override inside the editor, and quit Marley with
 no question while a stand-in Claude Code was on the rail; Ctrl-O ran `workspace::OpenFiles` the
 same way. Fixed in #784: every one of them bound in `MarleyRichInput > Editor`.
+
+## F-claude-785-the-split-buttons-menu-reached-no-pane-001
+*severity: medium · found in: pipeline 785's probes, in the installed build too (shipped with Zed's tab bar buttons) · class: a context menu with no context dispatching a pane's action · prevented by: PR-claude-785-a-menu-that-dispatches-a-pane-action-names-the-pane-as-its-context-001*
+
+The pane's split button opens a `ContextMenu` built with no `.context(..)`. Its entries call
+`window.dispatch_action`, which reads the focus at that moment, the menu's own, and dispatches
+after the effects run; the action reached the capture listeners at the workspace root but never
+the pane's `on_action(SplitRight)`, so `Event::Split` was never emitted and Split Right did
+nothing on a file or Home. A terminal split only because Marley's capture listener at the root
+handled it. Debug logs in that listener and in `handle_pane_event` showed the action arrive at
+one and never the other. Fixed in #785: the menu's context is the pane's focus handle, so the
+entry focuses the pane and the action is dispatched on it, as the tab menu's are.
+
+## F-claude-785-home-read-the-workspace-inside-its-update-001
+*severity: high · found in: pipeline 785's probe, before the gate · class: entity re-entrancy in an Item hook · prevented by: PR-claude-785-an-items-split-hooks-never-read-the-workspace-001*
+
+`MarleyHome::clone_on_split` read the workspace for its `fs`. Zed calls `clone_on_split` from
+`Workspace::split_and_clone`, inside `handle_pane_event`, while the workspace is being updated,
+so splitting Home from the palette panicked with "cannot read workspace::Workspace while it is
+already being updated" and Marley quit. Fixed before it shipped: the page keeps the `fs` it was
+made with.

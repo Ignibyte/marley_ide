@@ -5889,3 +5889,11 @@ A stand-in that reads raw bytes with bash's `read -n1` gets a return as `$'\n'`,
 said `-icrnl`: `read -n` sets the tty's mode itself and turns the CR-to-NL translation back on.
 Expect the newline, or read with a program that leaves the tty alone. `-icanon -isig -ixon
 -iexten` do hold, so control keys still arrive as their own bytes.
+
+## L-claude-785-run-a-probe-against-the-installed-build-to-tell-old-from-new-001
+*category: e2e · topic: probes · from: pipeline 785*
+
+When a scenario's step fails in a way the change does not explain, run the same steps against the
+installed build: `E2E_BINARY=$HOME/.local/lib/marley/marley just e2e <probe>`. #785's split
+button did nothing on a file there too, which made it an old bug to fix rather than a regression
+to chase in the diff.

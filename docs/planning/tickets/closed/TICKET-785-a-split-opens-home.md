@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #785 (feature, the Marley layout)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [785-a-split-opens-home.spec.md](../../pipeline/completed/785-a-split-opens-home.spec.md)
 - **Source ticket:** Chad, 2026-10-15: "one thing the split left and right we shouldnt force a
   terminal to opne. instead we need open a home instead." Approved as "When you split a terminal
   or agent tab left, right, up or down, the new pane opens on Home instead of a new terminal",
   then "yes. also you should be able to right click on a tab split it out in another direction."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Splitting a center pane clones its active tab (`SplitMode::ClonePane`). A terminal or agent tab

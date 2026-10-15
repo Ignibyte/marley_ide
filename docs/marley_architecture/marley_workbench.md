@@ -2610,6 +2610,33 @@ screen opens Home after `rusty_unavailable`.
   then, else the panel's. `hide_setting` answers the panel's `hide_button_setting`, so the status
   bar draws Zed's Hide Button.
 
+## A split opens Home (`src/pane_splits.rs`, `src/home_page.rs`, Zed's `pane.rs`, #785)
+
+- `pane_splits::init` registers capture listeners at each workspace's root for
+  `pane::SplitLeft/Right/Up/Down/Horizontal/Vertical`, beside #747's `move_split`.
+  `split_to_home` acts only in the Marley layout, in `ClonePane` mode, on the center pane that
+  holds the focus (`Workspace::panes`, `contains_focused`) when its front tab is a
+  `TerminalView`: it stops the action, opens an empty pane (`split_pane`) and puts a new Home in
+  it with the focus, in place of the shell `TerminalView::clone_on_split` starts. The pane is
+  found by the focus, not `active_pane`, because the split button's menu focuses its own pane
+  before the workspace's active pane follows. A dock's pane is never in `panes`, so the terminal
+  dock splits its own way.
+- `MarleyHome` answers `can_split` with true and `clone_on_split` with a new Home of the same
+  workspace, built from the `fs` the page keeps: Zed calls `clone_on_split` from
+  `handle_pane_event`, while the workspace is being updated, and reading it there panicked.
+  `home_page::new_page` builds a page for `ensure`, `open_here` and the splits.
+- The tab menu's hook, `workspace::pane::MarleyTabMenu`, is set to `tab_menu`, which adds
+  Split Right, Left, Up and Down after the item's own actions, in the Marley layout and for a
+  center pane only, last so End reaches them. `split_out` activates the tab and runs
+  `split_and_move`; on a pane's only tab it opens the new pane on the opposite side
+  (`split_pane`), as Zed's `MovePane` does, puts Home there and gives the tab back the focus.
+- The split button's menu in Zed's `default_render_tab_bar_buttons` now has the pane's focus as
+  its context: without one, a choice never reached the pane, so Split Right did nothing on a file
+  or Home; a terminal had split only through the capture listener at the root.
+- `script/e2e/785-a-split-opens-home.sh` splits a terminal from the button and the palette, Home
+  and a file from the button, and moves a tab through its menu, checking that no second terminal
+  starts.
+
 ## Panel tabs after a restart (`src/panel_tabs.rs`, Zed's `dock.rs` and `outline_panel.rs`, #773)
 
 - `PanelTab` is a `SerializableItem` of kind `MarleyPanelTab`, registered in `panel_tabs::init`.

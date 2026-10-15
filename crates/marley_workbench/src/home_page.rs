@@ -12,7 +12,7 @@ use std::sync::Arc;
 use fs::Fs;
 use gpui::{
     App, AppContext as _, Context, Div, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
-    Render, SharedString, Stateful, Subscription, WeakEntity, Window,
+    Render, SharedString, Stateful, Subscription, Task, WeakEntity, Window,
 };
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
@@ -21,7 +21,7 @@ use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, SerializedWorkspaceLocation, Workspace,
-    WorkspaceDb, notifications::DetachAndPromptErr as _,
+    WorkspaceDb, WorkspaceId, notifications::DetachAndPromptErr as _,
 };
 
 use crate::OpenGuide;
@@ -98,9 +98,7 @@ pub(crate) fn ensure(workspace: &Workspace, window: &mut Window, cx: &mut Contex
     if workspace.items_of_type::<MarleyHome>(cx).next().is_some() {
         return;
     }
-    let fs = Arc::clone(&workspace.app_state().fs);
-    let weak_workspace = cx.weak_entity();
-    let home = cx.new(|cx| MarleyHome::new(weak_workspace, fs, window, cx));
+    let home = new_page(workspace, window, cx);
     let pane = workspace.active_pane().clone();
     pane.update(cx, |pane, cx| {
         let empty = pane.items_len() == 0;
@@ -128,10 +126,19 @@ pub(crate) fn open_here(
         workspace.activate_item(&home, true, true, window, cx);
         return;
     }
+    let home = new_page(workspace, window, cx);
+    workspace.add_item_to_center(Box::new(home), window, cx);
+}
+
+/// A new Home page of `workspace`, not yet in a pane.
+pub(crate) fn new_page(
+    workspace: &Workspace,
+    window: &Window,
+    cx: &mut Context<Workspace>,
+) -> Entity<MarleyHome> {
     let fs = Arc::clone(&workspace.app_state().fs);
     let weak_workspace = cx.weak_entity();
-    let home = cx.new(|cx| MarleyHome::new(weak_workspace, fs, window, cx));
-    workspace.add_item_to_center(Box::new(home), window, cx);
+    cx.new(|cx| MarleyHome::new(weak_workspace, fs, window, cx))
 }
 
 /// Home's page in the Home group once its last tab closed, so it never shows Zed's Welcome page.
@@ -152,6 +159,9 @@ struct Recent {
 /// Home's page.
 pub(crate) struct MarleyHome {
     workspace: WeakEntity<Workspace>,
+    /// The file system the recent projects are read through, kept for a split's new page (#785):
+    /// a split runs while the workspace is being updated, so it cannot be read there.
+    fs: Arc<dyn Fs>,
     focus_handle: FocusHandle,
     /// Zed's recent local projects; `None` while they are read.
     recent: Option<Vec<Recent>>,
@@ -180,9 +190,10 @@ impl MarleyHome {
         cx: &mut Context<Self>,
     ) -> Self {
         let db = WorkspaceDb::global(cx);
+        let recent_fs = Arc::clone(&fs);
         cx.spawn_in(window, async move |this, cx| {
             let recent = db
-                .recent_project_workspaces(fs.as_ref())
+                .recent_project_workspaces(recent_fs.as_ref())
                 .await
                 .log_err()
                 .unwrap_or_default()
@@ -214,6 +225,7 @@ impl MarleyHome {
         .detach();
         let mut this = Self {
             workspace,
+            fs,
             focus_handle: cx.focus_handle(),
             recent: None,
             rail: None,
@@ -683,5 +695,22 @@ impl Item for MarleyHome {
 
     fn to_item_events(event: &ItemEvent, f: &mut dyn FnMut(ItemEvent)) {
         f(*event);
+    }
+
+    // Home holds nothing to copy, so a split shows a new one, and Zed's split button stays live
+    // on a pane whose only tab is Home (#785).
+    fn can_split(&self) -> bool {
+        true
+    }
+
+    fn clone_on_split(
+        &self,
+        _workspace_id: Option<WorkspaceId>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<Option<Entity<Self>>> {
+        let workspace = self.workspace.clone();
+        let fs = Arc::clone(&self.fs);
+        Task::ready(Some(cx.new(|cx| Self::new(workspace, fs, window, cx))))
     }
 }

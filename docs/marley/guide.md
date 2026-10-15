@@ -592,6 +592,17 @@ Vim's `:!` and external agents' login terminals still open the Terminal Panel, s
 directly. A Terminal Panel moved to a side dock with `terminal.dock` still opens with that dock's
 toggle.
 
+### Splits (#785)
+
+In the Marley layout a split never starts a terminal you did not ask for. Splitting a terminal or
+an agent's terminal, with the pane's split button, a split key or `pane: split right` and its
+siblings, opens Home in the new pane, where its cards start a terminal or an agent if you
+want one. Splitting Home opens a second Home, and a file still opens in both panes, as in Zed.
+
+Right-click any tab for Split Right, Split Left, Split Up and Split Down: the tab moves into a new
+pane on that side. When it is the pane's only tab, it stays where it is and Home opens on the
+other side, so the tab still ends up on the side you picked. The Zed layout keeps Zed's splits.
+
 ### Side panels as tabs (#747)
 
 In the Marley layout the project panel, the git panel, the outline panel, the collab panel, Fleet,

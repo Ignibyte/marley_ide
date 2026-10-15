@@ -3068,3 +3068,18 @@ single-line editor), or the Editor context binds nothing for a key the Terminal 
 Editor action, read that function for `cx.propagate()`, and bind every key that can fall through
 in the element's own context, to a handler that does the editor's work and calls
 `cx.stop_propagation()`. A footer's `on_key_down` does not cover a key a binding took.
+
+## PR-claude-785-a-menu-that-dispatches-a-pane-action-names-the-pane-as-its-context-001
+*severity: medium · prevents: F-claude-785-the-split-buttons-menu-reached-no-pane-001*
+
+A `ContextMenu` whose entries are actions a pane or an item handles (`.action(label, action)`)
+gets `.context(<that element's focus handle>)`, as Zed's tab menu does. With no context the action
+is dispatched from the menu's focus after the menu has closed and does not reach the pane. Test a
+menu's entry by its effect, not by the menu opening.
+
+## PR-claude-785-an-items-split-hooks-never-read-the-workspace-001
+*severity: high · prevents: F-claude-785-home-read-the-workspace-inside-its-update-001*
+
+`Item::clone_on_split` and `can_split` run while the workspace is being updated
+(`split_and_clone` from `handle_pane_event`). An item's implementation reads nothing through its
+workspace handle there: it keeps what it needs (an `fs`, a project) on itself when it is made.

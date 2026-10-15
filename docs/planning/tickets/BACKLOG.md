@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [#785](open/TICKET-785-a-split-opens-home.md) | feature | A center split opens Home in the new pane, not a new terminal; a tab's right-click menu splits it out to any side |
 
 ## Deliberate (picked explicitly, never auto-next)
 

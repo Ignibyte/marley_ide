@@ -84,6 +84,7 @@ pub mod mcp_server_form;
 pub mod mcp_servers;
 pub mod notifications;
 pub mod omarchy_theme;
+pub mod pane_splits;
 pub mod panel_tabs;
 pub mod plan_review;
 pub mod playwright_scripts;
@@ -1072,6 +1073,17 @@ pub fn init(cx: &mut App) {
     stall::init(cx);
     fleet::init(cx);
     rail::containers::init(cx);
+    pane_splits::init(cx);
+    observe_workspaces(cx);
+    cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
+        .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
+        .observe_global::<SettingsStore>(layout_setting_changed)
+        .detach();
+}
+
+/// Each new workspace gets the worktree slot reader, the layout presets' capture and Open
+/// Settings' page.
+fn observe_workspaces(cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         worktree_agents::give_slot_reader(std::sync::Arc::clone(&workspace.app_state().fs));
         workspace.register_action_renderer(|div, _, _, cx| {
@@ -1091,10 +1103,6 @@ pub fn init(cx: &mut App) {
         });
     })
     .detach();
-    cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
-        .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
-        .observe_global::<SettingsStore>(layout_setting_changed)
-        .detach();
 }
 
 /// Binds the Marley keymap as a default source.
