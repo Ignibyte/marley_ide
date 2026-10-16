@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #788 (bug, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [788-ports-on-macos.spec.md](../../pipeline/completed/788-ports-on-macos.spec.md)
 - **Source ticket:** seen in #787's check on the Mac, 2026-10-16.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 On macOS, `marley_workbench::ports` reads the listening sockets from `/proc/net/tcp` and

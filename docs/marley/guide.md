@@ -166,8 +166,10 @@ visual checks: none of the e2e scenarios runs on a Mac.
   - Settings: `~/.config/marley`.
   - Data: `~/Library/Application Support/Marley`.
   - Logs: `~/Library/Logs/Marley`.
+- **Ports.** A project's port rows, the agents' `ports_list` and a terminal's offer of a printed
+  URL read the listening sockets from `lsof` and `ps` (#788). Stop signals the process, since a
+  Mac has no systemd services to stop.
 - **What a Mac lacks so far:**
-  - the Ports list (#788);
   - the agent editor, whose helper cannot sit under `Application Support`'s space (#790);
   - Cmd for Marley's own keys (#789);
   - agent reports' process chain and stall checks;

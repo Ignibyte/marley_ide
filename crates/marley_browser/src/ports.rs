@@ -252,7 +252,17 @@ pub fn url(address: SocketAddr) -> String {
 ///
 /// When the scan fails, or the signal fails for a reason other than the process being gone.
 pub fn stop_in(proc_root: &Path, port: u16, pid: u32) -> Result<Stopped> {
-    let listening = listeners_in(proc_root)?
+    stop_among(&listeners_in(proc_root)?, port, pid)
+}
+
+/// Stops `pid` with SIGTERM when `listeners`, a fresh scan, has it listening on `port`: the half
+/// of [`stop_in`] that macOS shares, with its listeners from `lsof` (#788).
+///
+/// # Errors
+///
+/// When the signal fails for a reason other than the process being gone.
+pub fn stop_among(listeners: &[Listener], port: u16, pid: u32) -> Result<Stopped> {
+    let listening = listeners
         .iter()
         .any(|listener| listener.pid == pid && listener.address.port() == port);
     let process = i32::try_from(pid)
@@ -266,6 +276,138 @@ pub fn stop_in(proc_root: &Path, port: u16, pid: u32) -> Result<Stopped> {
         Err(error) if error == rustix::io::Errno::SRCH => Ok(Stopped::Gone),
         Err(error) => Err(anyhow::Error::new(error).context(format!("stopping process {pid}"))),
     }
+}
+
+/// One listening socket in `lsof -nP -iTCP -sTCP:LISTEN -F pctn`'s output: the process and the
+/// address it is bound to (#788).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LsofListening {
+    /// The process that holds the socket.
+    pub pid: u32,
+    /// The process's name, as `lsof` gives it.
+    pub name: String,
+    /// The address and port it is bound to.
+    pub address: SocketAddr,
+}
+
+/// The listening sockets in `lsof -nP -iTCP -sTCP:LISTEN -F pctn`'s output (#788).
+///
+/// It is macOS's stand-in for `/proc/net/tcp`. Each `p` line starts a process, `c` names it, and
+/// each descriptor's `t` gives its family and `n` its `address:port`, `*` for any address of that
+/// family. A line that does not parse is skipped.
+#[must_use]
+pub fn lsof_listening(text: &str) -> Vec<LsofListening> {
+    let mut sockets = Vec::new();
+    let mut pid = None;
+    let mut name = String::new();
+    let mut ipv6 = false;
+    for line in text.lines() {
+        let Some(field) = line.chars().next() else {
+            continue;
+        };
+        let value = &line[field.len_utf8()..];
+        match field {
+            'p' => {
+                pid = value.parse::<u32>().ok();
+                name.clear();
+            }
+            'c' => name = value.to_string(),
+            'f' => ipv6 = false,
+            't' => ipv6 = value == "IPv6",
+            'n' => {
+                let Some(pid) = pid else { continue };
+                if let Some(address) = lsof_address(value, ipv6) {
+                    sockets.push(LsofListening {
+                        pid,
+                        name: name.clone(),
+                        address,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    sockets
+}
+
+/// An `lsof` socket name, `127.0.0.1:8080`, `[::1]:8080` or `*:8080`, as an address.
+fn lsof_address(name: &str, ipv6: bool) -> Option<SocketAddr> {
+    if let Some(port) = name.strip_prefix("*:") {
+        let ip = if ipv6 {
+            IpAddr::from(std::net::Ipv6Addr::UNSPECIFIED)
+        } else {
+            IpAddr::from(std::net::Ipv4Addr::UNSPECIFIED)
+        };
+        return Some(SocketAddr::new(ip, port.parse().ok()?));
+    }
+    name.parse().ok()
+}
+
+/// Each process's working directory in `lsof -nP -a -d cwd -p <pids> -F np`'s output (#788).
+#[must_use]
+pub fn lsof_folders(text: &str) -> HashMap<u32, PathBuf> {
+    let mut folders = HashMap::new();
+    let mut pid = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix('p') {
+            pid = value.parse::<u32>().ok();
+        } else if let (Some(value), Some(pid)) = (line.strip_prefix('n'), pid) {
+            folders.insert(pid, PathBuf::from(value));
+        }
+    }
+    folders
+}
+
+/// Each process's command line in `ps -ww -o pid=,command= -p <pids>`'s output (#788).
+#[must_use]
+pub fn ps_commands(text: &str) -> HashMap<u32, String> {
+    text.lines()
+        .filter_map(|line| {
+            let (pid, command) = line.trim_start().split_once(char::is_whitespace)?;
+            Some((pid.parse::<u32>().ok()?, command.trim().to_string()))
+        })
+        .collect()
+}
+
+/// The listeners `lsof` and `ps` describe, as [`listeners_in`] gives them from `/proc` (#788).
+///
+/// One per port of each process, sorted by port and pid. A process whose working directory `lsof`
+/// could not read is left out, as `listeners_in` leaves out one whose `cwd` link it cannot read;
+/// macOS has no systemd, so none runs in a service.
+#[must_use]
+pub fn listeners_from<S: std::hash::BuildHasher>(
+    listening: &[LsofListening],
+    folders: &HashMap<u32, PathBuf, S>,
+    commands: &HashMap<u32, String, S>,
+) -> Vec<Listener> {
+    let mut sockets: Vec<&LsofListening> = listening.iter().collect();
+    sockets.sort_by_key(|socket| (socket.pid, socket.address.port(), socket.address));
+    sockets.dedup_by_key(|socket| (socket.pid, socket.address.port()));
+    let mut listeners: Vec<Listener> = sockets
+        .into_iter()
+        .filter_map(|socket| {
+            Some(Listener {
+                address: socket.address,
+                pid: socket.pid,
+                name: socket.name.clone(),
+                command: commands.get(&socket.pid).cloned().unwrap_or_default(),
+                cwd: folders.get(&socket.pid)?.clone(),
+                service: None,
+            })
+        })
+        .collect();
+    listeners.sort_by_key(|listener| (listener.address.port(), listener.pid));
+    listeners
+}
+
+/// The ports in `listening` that a local URL reaches, as [`listening_ports_in`] counts them.
+#[must_use]
+pub fn reachable_ports(listening: &[LsofListening]) -> BTreeSet<u16> {
+    listening
+        .iter()
+        .filter(|socket| reachable(socket.address))
+        .map(|socket| socket.address.port())
+        .collect()
 }
 
 /// Whether a socket bound to `address` answers a connection to this machine's loopback.

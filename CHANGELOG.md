@@ -1523,6 +1523,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The Ports list on a Mac** (#788, 2026-10-16). macOS has no `/proc`, so on a Mac the
+  project's port rows, the agents' `ports_list`, a terminal's offer of a printed local URL and
+  Stop found nothing, and the log took a warning every 3 seconds. On macOS they now read the
+  user's listening sockets from `lsof`, each process's folder from `lsof` and its command line
+  from `ps`. Stop sends SIGTERM after a fresh look, as on Linux. Linux reads `/proc` as before.
+
 - **Shell keys stay in the prompt editor** (#784, 2026-10-15). In the prompt editor under a
   terminal and in an agent's rich input, Ctrl+W, Ctrl+E, Ctrl+B, Ctrl+R, Alt+B and Alt+F reached
   the shell or the agent behind the editor, Ctrl+Shift+V pasted into that program instead of the

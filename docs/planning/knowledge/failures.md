@@ -4144,3 +4144,14 @@ LAN addresses until the user allows it once. The unified log names the bundle
 `Permissions.plist` has no `NSLocalNetworkUsageDescription`, which is the reason the prompt
 shows. Fixed in #787: the Info.plist carries it, and the guide says to allow Marley. The grant
 itself is the user's and cannot be scripted.
+
+## F-claude-788-the-ports-scan-warned-every-3-s-on-macos-001
+*severity: medium · found in: pipeline 787's check on the Mac · class: a Linux-only source polled on every platform · prevented by: PR-claude-786-code-holding-a-util-command-child-names-zeds-type-001*
+
+The Ports scan (#521) read `/proc/net/tcp` and `tcp6` on every Unix. On macOS the read failed
+every round, so the log took "ports: reading the listening ports: … /proc/net/tcp6: File not
+found" every 3 s, 115 lines in a run's first six minutes, and the port rows, `ports_list`, the
+footer's URL offer and Stop found nothing. #786 had only made it compile. Fixed in #788: on macOS
+the listeners come from `lsof` and `ps` through the process adapter. The class is #786's rule: a
+Linux-only source sits behind `cfg(target_os = "linux")` with a macOS form beside it, which a
+poller needs as much as a call.

@@ -5937,3 +5937,31 @@ macOS keeps an app's Local Network decision as a rule for its bundle id in
 The rule is matched by signing identifier (`AllowEmptyDesignatedRequirement`), so an ad hoc
 rebuild keeps the decision. Watch that rule instead of retrying a connection, which raises an
 error in the app each time.
+
+## L-claude-788-drive-a-mac-marley-through-its-own-mcp-server-001
+*category: e2e · topic: macOS checks over ssh · from: pipeline 788*
+
+Over ssh a Mac grants no Accessibility, so neither keys nor clicks reach the app. The running
+Marley's own MCP server still answers. Its URL and headers are in `~/Library/Application
+Support/Marley/mcp-endpoint.json`: initialize, then call `ports_list`, `terminal_list`,
+`terminal_screen` and the rest, from a script on the Mac that prints none of the headers. Two
+limits:
+- `terminal_type` waits on the user's take-over, so it does not type for a check;
+- `terminal_run` types only at a shell prompt Marley recognizes.
+
+`open "marley://file<absolute path>"` opens a folder as a project. Use a folder outside `/tmp`,
+which is a link to `/private/tmp`, so a process's working directory matches the project's path.
+
+## L-claude-788-a-lint-on-one-platform-splits-the-function-not-the-block-001
+*category: build · topic: platform branches · from: pipeline 788*
+
+A function whose body differs by platform trips one platform's lints whichever way the branches
+sit inside it:
+- an `async` block that awaits only on macOS fails Zed's dylint on Linux;
+- `let x = …; x` fails clippy's `let_and_return`;
+- a `#[cfg]` `return` fails `needless_return` on the other platform.
+
+Two `#[cfg]` functions with one name, the Linux one returning `impl Future` from
+`futures::future::lazy` and the macOS one `async`, satisfy all three. `typos` (gate:18) reads two-letter
+`lsof -F` field strings as misspellings (`pn` for "on"); reorder the letters (`np`), which lsof
+takes in any order.

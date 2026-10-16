@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-788](open/TICKET-788-ports-on-macos.md) | bug | The Ports list on macOS: listening ports from the platform, no warning every 3 s |
+| [TICKET-792](open/TICKET-792-the-block-terminal-on-macos.md) | bug | The block terminal on macOS: zsh under `login` gets no prompt editor, no blocks, and `terminal_run` refuses |
 | [TICKET-790](open/TICKET-790-the-agent-editor-with-a-space-in-the-data-folder.md) | bug | The agent editor (#649) when the data folder has a space, as it always does on macOS |
 | [TICKET-789](open/TICKET-789-marleys-keys-use-cmd-on-macos.md) | feature | Marley's own keys use Cmd on macOS through `secondary-`; shell keys stay Ctrl |
 | [TICKET-791](open/TICKET-791-rustys-vault-when-rusty-runs-on-another-machine.md) | feature | Rusty's vault when the service runs on another machine: page files and the agent's folder |

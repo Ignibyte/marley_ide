@@ -11,14 +11,15 @@
 //! whose port something listens on shows in the terminal's footer ([`offer`], [`offer_button`]).
 
 use std::collections::{BTreeSet, HashMap};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use fs::Fs;
+#[cfg(not(target_os = "macos"))]
+use gpui::AppContext as _;
 use gpui::{
-    Anchor, AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, EntityId, Global,
-    Task, WeakEntity, Window,
+    Anchor, AnyElement, App, ClipboardItem, Context, Entity, EntityId, Global, Task, WeakEntity,
+    Window,
 };
 use marley_browser::address::{self, LocalUrl};
 use project::Project;
@@ -46,6 +47,7 @@ const PORTS_POLL: Duration = Duration::from_secs(2);
 /// How many printed URLs a terminal keeps, the newest.
 const KEPT_URLS: usize = 16;
 /// Where the machine's TCP tables are.
+#[cfg(not(target_os = "macos"))]
 const PROC_NET: &str = "/proc/net";
 
 /// Each terminal view's printed local URLs, and the ports that listen.
@@ -374,12 +376,20 @@ fn watch_ports(cx: &mut App) {
     cx.default_global::<ServedUrls>().watching = true;
     cx.spawn(async move |cx| {
         loop {
+            #[cfg(not(target_os = "macos"))]
             let ports = cx
                 .background_spawn(futures::future::lazy(|_| {
-                    marley_browser::ports::listening_ports_in(Path::new(PROC_NET))
+                    marley_browser::ports::listening_ports_in(std::path::Path::new(PROC_NET))
                 }))
                 .await
                 .log_err()
+                .unwrap_or_default();
+            // macOS has no TCP tables in `/proc`; `lsof` gives the same sockets (#788).
+            #[cfg(target_os = "macos")]
+            let ports = crate::ports::mac_listening()
+                .await
+                .log_err()
+                .map(|listening| marley_browser::ports::reachable_ports(&listening))
                 .unwrap_or_default();
             if !cx.update(|cx| take_ports(ports, cx)) {
                 break;

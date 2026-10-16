@@ -211,6 +211,17 @@ for.
   not read (another user's, or one that ended during the walk) gives nothing, and so does one
   whose `cwd` does not read, since the working directory places the listener. Only both tables,
   or `proc_root` itself, failing is an error.
+- On macOS (#788) the same `Listener`s come from programs' text, which the workbench runs.
+  - `lsof_listening` reads `lsof -nP -iTCP -sTCP:LISTEN -F pctn`: `p` starts a process, `c` names
+    it, each descriptor's `t` gives its family and `n` its `address:port`, `*` for the family's
+    unspecified address. It returns `LsofListening { pid, name, address }`.
+  - `lsof_folders` reads `lsof -d cwd … -F np`, and `ps_commands` reads `ps -ww -o
+    pid=,command=`.
+  - `listeners_from` keeps one listener per port of each pid, drops a pid whose folder did not
+    read, and sorts as `listeners_in` does, with `service: None`.
+  - `reachable_ports` is `listening_ports_in`'s filter over the same sockets.
+  - `stop_among(listeners, port, pid)` is `stop_in`'s signal half: `stop_in` calls it with a fresh
+    `listeners_in`, and macOS with a fresh `lsof` read.
 - `url(address)` is a listener's URL: `http://<host>:<port>/`, or `https` on 443 and 8443. The
   unspecified address opens as its family's loopback (`127.0.0.1`, `[::1]`), and an IPv4-mapped
   one as its IPv4.

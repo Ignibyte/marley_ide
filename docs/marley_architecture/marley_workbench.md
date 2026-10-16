@@ -373,6 +373,13 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
 - gpui's `global_mut` and `default_global` tell every observer of the global, changed or not, so
   the round reads `Ports` through `try_global` and writes it only when the listeners changed.
   A scan that fails leaves the last listeners and logs a warning.
+- On macOS (#788) a round reads the listeners through the `process` adapter. `mac_listening` runs
+  `/usr/sbin/lsof -nP -iTCP -sTCP:LISTEN -F pctn`, read whatever its status, since lsof exits 1
+  when nothing matches. `mac_listeners` adds `lsof -d cwd` and `/bin/ps` for those pids, at most
+  three programs a round. `proxied` is empty, and a test's `proc_root` stands for nothing
+  listening. `stop` finds the pid in a fresh `mac_listeners` and signals through `stop_among`.
+  `list`, the agents' `ports_list`, runs `listing`, one function per platform.
+  `links::watch_ports` takes the footer's ports from `reachable_ports(mac_listening())`.
 - `attribute` gives each listener to the group whose folder is the deepest one holding its
   working directory, compared by path components, across every window; a listener in no folder
   is dropped. So are Marley's own: its pid, any process named `marley` (another Marley's MCP

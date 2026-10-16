@@ -21,10 +21,16 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use gpui::{App, AppContext as _, Global, Task};
-use marley_browser::containers::{
-    self, Container, ENGINE_UNITS, Engine, HELPERS, ProxiedPort, proxied_ports_in,
+#[cfg(not(target_os = "macos"))]
+use marley_browser::containers::proxied_ports_in;
+use marley_browser::containers::{self, Container, ENGINE_UNITS, Engine, HELPERS, ProxiedPort};
+use marley_browser::ports::{Listener, Service, Stopped, own_service_in};
+#[cfg(target_os = "macos")]
+use marley_browser::ports::{
+    LsofListening, listeners_from, lsof_folders, lsof_listening, ps_commands, stop_among,
 };
-use marley_browser::ports::{Listener, Service, Stopped, listeners_in, own_service_in, stop_in};
+#[cfg(not(target_os = "macos"))]
+use marley_browser::ports::{listeners_in, stop_in};
 use project::ProjectGroupKey;
 use workspace::MultiWorkspace;
 
@@ -169,17 +175,32 @@ fn scan_while_watched(cx: &App) -> Task<()> {
     cx.spawn(async move |cx| {
         loop {
             let folders = cx.update(|cx| project_folders(cx));
+            #[cfg(not(target_os = "macos"))]
             let proc_root = cx.update(|cx| {
                 cx.try_global::<Ports>()
                     .and_then(|ports| ports.proc_root.clone())
                     .unwrap_or_else(|| PathBuf::from(PROC))
             });
             let started = Instant::now();
+            #[cfg(not(target_os = "macos"))]
             let (listened, proxied) = cx
                 .background_spawn(futures::future::lazy(move |_| {
                     (listeners_in(&proc_root), proxied_ports_in(&proc_root))
                 }))
                 .await;
+            // macOS has no `/proc` and no `docker-proxy`: its listeners come from `lsof` (#788),
+            // and a test's `proc_root` stands for a machine where nothing listens.
+            #[cfg(target_os = "macos")]
+            let overridden = cx.update(|cx| {
+                cx.try_global::<Ports>()
+                    .is_some_and(|ports| ports.proc_root.is_some())
+            });
+            #[cfg(target_os = "macos")]
+            let (listened, proxied): (_, Vec<ProxiedPort>) = if overridden {
+                (Ok(Vec::new()), Vec::new())
+            } else {
+                (mac_listeners().await, Vec::new())
+            };
             let took = started.elapsed();
             let found = container_ports(listened.as_deref().unwrap_or_default(), &proxied);
             let known = cx.update(|cx| {
@@ -647,10 +668,23 @@ pub fn project_names(cx: &App) -> HashMap<ProjectGroupKey, String> {
 
 /// Every project group's listeners from a scan made now, for `ports_list`.
 pub fn list(cx: &App) -> Task<anyhow::Result<HashMap<ProjectGroupKey, Vec<ProjectListener>>>> {
-    let folders = project_folders(cx);
-    cx.background_spawn(futures::future::lazy(move |_| {
-        attribute(listeners_in(Path::new(PROC)), &folders)
-    }))
+    cx.background_spawn(listing(project_folders(cx)))
+}
+
+/// The project groups' listeners, read where Linux keeps them.
+#[cfg(not(target_os = "macos"))]
+fn listing(
+    folders: Vec<(ProjectGroupKey, Vec<PathBuf>)>,
+) -> impl Future<Output = anyhow::Result<HashMap<ProjectGroupKey, Vec<ProjectListener>>>> {
+    futures::future::lazy(move |_| attribute(listeners_in(Path::new(PROC)), &folders))
+}
+
+/// The project groups' listeners, from `lsof` (#788).
+#[cfg(target_os = "macos")]
+async fn listing(
+    folders: Vec<(ProjectGroupKey, Vec<PathBuf>)>,
+) -> anyhow::Result<HashMap<ProjectGroupKey, Vec<ProjectListener>>> {
+    attribute(mac_listeners().await, &folders)
 }
 
 /// How a Stop went (#603).
@@ -676,9 +710,14 @@ pub enum Stop {
 pub fn stop(port: u16, pid: u32, cx: &App) -> Task<anyhow::Result<Stop>> {
     cx.background_spawn(async move {
         let proc_root = Path::new(PROC);
-        let found = listeners_in(proc_root)?
-            .into_iter()
-            .find(|listener| listener.pid == pid && listener.address.port() == port);
+        #[cfg(not(target_os = "macos"))]
+        let listeners = listeners_in(proc_root)?;
+        #[cfg(target_os = "macos")]
+        let listeners = mac_listeners().await?;
+        let found = listeners
+            .iter()
+            .find(|listener| listener.pid == pid && listener.address.port() == port)
+            .cloned();
         let Some(found) = found else {
             return Ok(Stop::Signalled(Stopped::NotListening));
         };
@@ -687,9 +726,72 @@ pub fn stop(port: u16, pid: u32, cx: &App) -> Task<anyhow::Result<Stop>> {
             Some(service) != own_service.as_ref() && !ENGINE_UNITS.contains(&service.unit.as_str())
         }) {
             Some(service) => stop_unit(service).await,
+            // Linux scans again just before the signal; macOS's scan was just made, by `lsof`.
+            #[cfg(not(target_os = "macos"))]
             None => Ok(Stop::Signalled(stop_in(proc_root, port, pid)?)),
+            #[cfg(target_os = "macos")]
+            None => Ok(Stop::Signalled(stop_among(&listeners, port, pid)?)),
         }
     })
+}
+
+/// The TCP sockets listening on macOS, from `lsof` (#788). `lsof` ends with 1 when nothing
+/// matches, so what it printed is read whatever its status, and only a failure to start it is an
+/// error.
+///
+/// # Errors
+///
+/// When `lsof` cannot start.
+#[cfg(target_os = "macos")]
+pub(crate) async fn mac_listening() -> anyhow::Result<Vec<LsofListening>> {
+    let output = crate::process::output(
+        "/usr/sbin/lsof",
+        ["-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pctn"],
+        None,
+        &[],
+    )
+    .await
+    .context("running lsof for the listening sockets")?;
+    Ok(lsof_listening(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// This user's listeners on macOS: `lsof`'s sockets, each process's working directory from `lsof`
+/// and its command line from `ps`, at most three programs a scan (#788).
+#[cfg(target_os = "macos")]
+async fn mac_listeners() -> anyhow::Result<Vec<Listener>> {
+    let listening = mac_listening().await?;
+    if listening.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut pids: Vec<u32> = listening.iter().map(|socket| socket.pid).collect();
+    pids.sort_unstable();
+    pids.dedup();
+    let pids = pids
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let folders = crate::process::output(
+        "/usr/sbin/lsof",
+        ["-nP", "-a", "-d", "cwd", "-p", pids.as_str(), "-F", "np"],
+        None,
+        &[],
+    )
+    .await
+    .context("running lsof for the listeners' folders")?;
+    let commands = crate::process::output(
+        "/bin/ps",
+        ["-ww", "-o", "pid=,command=", "-p", pids.as_str()],
+        None,
+        &[],
+    )
+    .await
+    .context("running ps for the listeners' command lines")?;
+    Ok(listeners_from(
+        &listening,
+        &lsof_folders(&String::from_utf8_lossy(&folders.stdout)),
+        &ps_commands(&String::from_utf8_lossy(&commands.stdout)),
+    ))
 }
 
 /// Runs `systemctl stop` for `service`, with `--user` for the user's own.
