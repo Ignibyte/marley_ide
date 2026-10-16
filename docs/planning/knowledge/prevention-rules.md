@@ -3093,3 +3093,13 @@ through `futures::AsyncRead`, never `smol::process::Child` or `ChildStderr`. On 
 types are the same, so only a macOS build catches the mistake. Likewise a Linux-only call such as
 rustix's `socket_peercred`, `/proc` or systemd sits behind `cfg(target_os = "linux")`, with a
 macOS form or an error arm beside it, in any module that builds on every Unix.
+
+## PR-claude-787-a-mac-bundle-that-reaches-lan-hosts-names-its-local-network-reason-001
+*severity: medium · prevents: F-claude-787-a-new-mac-app-could-not-reach-the-local-network-001*
+
+A macOS app that connects to machines on the local network (ssh to a LAN host, a local service
+by its LAN address) carries `NSLocalNetworkUsageDescription` in its Info.plist. Its first check
+plans for the user's one-time Allow, under System Settings, Privacy & Security, Local Network,
+before any LAN connection is judged. "No route to host" from the app, while a shell reaches the
+host, is this gate, not the network. Loopback and launchd agents' own processes are not held by
+it.

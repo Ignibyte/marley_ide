@@ -485,8 +485,10 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
   recorded in the brain with `brain_decide`, as this plan is.
 - **macOS.** On 2026-10-16 Chad moved his desk to an Apple Silicon Mac, keeping the Linux box
   as the engine for the projects, the builds and the visual checks. Marley compiles for
-  `aarch64-apple-darwin` since #786. The Mac app and its install are #787. Until their own
-  tickets land, these do nothing on macOS, because they need `/proc` or systemd:
+  `aarch64-apple-darwin` since #786, and `just install` writes `Marley.app` there since #787.
+  The Mac's gaps are tickets: #788 (Ports), #789 (Cmd keys), #790 (the agent editor) and #791
+  (Rusty's vault on another machine). Until their own tickets land, these do nothing on macOS,
+  because they need `/proc` or systemd:
   - agent reports' process chain and the stall checks;
   - the Ports and Containers lists;
   - the Browser tab's Chromium;

@@ -5907,3 +5907,33 @@ check showed only `marley_mcp`'s error, and the second, with that fixed, showed
 `marley_workbench`'s two. Plan a port as rounds of fix and recheck on the target itself, and
 finish with clippy `-D warnings` there, which surfaces what is dead code on that platform. A
 read of the code found one of the three problems.
+
+## L-claude-787-seeing-a-mac-apps-window-from-another-machine-001
+*category: e2e · topic: macOS checks over ssh · from: pipeline 787*
+
+Over ssh, `screencapture` fails (sshd has no Screen Recording grant), and System Events refuses UI
+reads (no Accessibility). Steps that worked:
+1. Read which apps hold the grant from the system TCC database:
+   `sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "select client, auth_value
+   from access where service='kTCCServiceScreenCapture'"`. On this Mac, iTerm does.
+2. Find the app's window id with JXA over `CGWindowListCopyWindowInfo`; ids and owners need no
+   grant.
+3. Have the granted app run the capture: `osascript -e 'tell application "iTerm" to create
+   window with default profile command "/usr/sbin/screencapture -x -o -l<id> /tmp/x.png"'`. Use
+   `iTerm` (its scripting name), not `iTerm2`, and write to `/tmp`, not a removable volume.
+
+For the menu bar, the capture sleeps while `open` brings the app forward, then captures a region.
+iTerm's `quit` asks for confirmation (error -128), and the dialog left behind can hang the next
+`osascript`. If iTerm was not running before, close it with `pkill -x iTerm2`.
+
+## L-claude-787-reading-a-mac-apps-local-network-decision-001
+*category: build · topic: macOS privacy · from: pipeline 787*
+
+macOS keeps an app's Local Network decision as a rule for its bundle id in
+`/Library/Preferences/com.apple.networkextension.plist`, readable with `sudo plutil -p`:
+- `DenyMulticast => true` with `MulticastPreferenceSet => false` means no decision yet;
+- an Allow turns `DenyMulticast` false.
+
+The rule is matched by signing identifier (`AllowEmptyDesignatedRequirement`), so an ad hoc
+rebuild keeps the decision. Watch that rule instead of retrying a connection, which raises an
+error in the app each time.

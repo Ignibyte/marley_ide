@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #787 (chore, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [787-marleys-mac-app.spec.md](../../pipeline/completed/787-marleys-mac-app.spec.md)
 - **Source ticket:** the same move as #786 (Chad, 2026-10-16, "lets make it happen").
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `script/bundle-mac` still builds Zed's `zed` binary and signs with Zed's identity, and the dev
@@ -20,3 +20,7 @@ built it, so remote projects on a Linux host keep working.
 ## Acceptance
 On the Mac, the install leaves a `Marley.app` that starts Marley, shows Marley as its name and
 id, and opens a remote folder on the Linux box with the server staged for its commit.
+
+## After close
+REQ-004 (a remote folder on the Linux box opened from the Mac) waits on the Mac's Local
+Network permission for Marley, which only the user grants.

@@ -29,20 +29,51 @@
 # ${XDG_DATA_HOME:-~/.local/share}/marley/remote_servers/dev/linux-x86_64/<commit>.gz, the layout
 # of Zed's own download cache. The newest three are kept. `--remote-server-only` stages the server
 # and builds or installs nothing else.
+#
+# On macOS (#787) it builds the same `marley` and wraps it in a Marley.app it writes itself, since
+# Zed's script/bundle-mac names, signs and notarizes Zed's own app: the identifier
+# com.ignibyte.Marley, only the marley:// scheme, no claimed file types, Zed's privacy strings
+# with Marley's name, Zed's dev icon and an ad hoc signature. It adds the reason macOS shows when
+# it asks to let Marley reach the local network: until that is allowed, every connection Marley or
+# its ssh makes to a LAN address fails with "No route to host". The app goes to ~/Applications
+# (`--app-dir DIR` moves it), the launcher to the prefix's bin, and stderr, when it is not a
+# terminal, to ~/Library/Logs/Marley/stderr.log. On a machine with under 32 GB the build drops the
+# release profile's thin LTO, uses 16 codegen units and a third as many jobs as gigabytes, unless
+# the environment sets them. A Mac builds no musl server: `--remote-server-from HOST` copies the
+# one HOST staged for this commit into ~/Library/Application Support/Marley/remote_servers, before
+# the build, so a missing one fails at once; with `--remote-server-only` that is all it does.
+# `--regress` needs sway and is Linux only. The script keeps to the bash 3.2 and the BSD tools
+# macOS ships.
 set -euo pipefail
 
 usage() {
   echo "usage: script/install-marley [--prefix DIR] [--regress] [--remote-server-only]   (DIR defaults to ~/.local)"
+  echo "       on macOS also: [--app-dir DIR] [--remote-server-from HOST]   (DIR defaults to ~/Applications)"
 }
 
 prefix=$HOME/.local
 regress=0
 server_only=0
+app_dir=$HOME/Applications
+server_host=
+mac_option=
 while (($#)); do
   case $1 in
     --prefix)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       prefix=$2
+      shift 2
+      ;;
+    --app-dir)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      app_dir=$2
+      mac_option=$1
+      shift 2
+      ;;
+    --remote-server-from)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      server_host=$2
+      mac_option=$1
       shift 2
       ;;
     --regress)
@@ -67,6 +98,221 @@ while (($#)); do
       ;;
   esac
 done
+
+# A path written into the launcher, quoted, where these characters would need escapes.
+refuse_unquotable() {
+  if [[ $2 == *[\"\`\$\\]* || $2 == *$'\n'* ]]; then
+    echo "install-marley: $1 with a quote, a backtick, a dollar, a backslash or a newline is not supported: $2" >&2
+    exit 2
+  fi
+}
+
+# Copies the remote server `server_host` staged for commit $1 (its own install-marley, #445) into
+# this Mac's cache, where Marley looks for it (`paths::remote_servers_dir`).
+fetch_remote_server() {
+  local commit=$1 platform_dir fetched
+  platform_dir="$HOME/Library/Application Support/Marley/remote_servers/dev/linux-x86_64"
+  mkdir -p "$platform_dir"
+  fetched=$platform_dir/.$commit.gz.$$
+  echo "==> fetching the remote server for ${commit:0:10} from $server_host"
+  # The host reads its own data folder; the commit goes as an argument, not into the script.
+  if ! ssh -o BatchMode=yes -- "$server_host" sh -s -- "$commit" >"$fetched" <<'EOF' || ! gzip -t "$fetched" 2>/dev/null; then
+cat "${XDG_DATA_HOME:-$HOME/.local/share}/marley/remote_servers/dev/linux-x86_64/$1.gz"
+EOF
+    rm -f "$fetched"
+    echo "install-marley: $server_host has no remote server staged for $commit." >&2
+    echo "    Run this there, in its checkout at that commit: script/install-marley --remote-server-only" >&2
+    exit 1
+  fi
+  mv -f "$fetched" "$platform_dir/$commit.gz"
+  # The newest three are kept, as on Linux.
+  stat -f '%m %N' "$platform_dir"/*.gz | sort -rn | tail -n +4 | cut -d' ' -f2- |
+    while IFS= read -r stale; do rm -f "$stale"; done
+  echo "    remote server for linux-x86_64 at ${commit:0:10}: $platform_dir/$commit.gz"
+}
+
+mac_staged=
+mac_old=
+mac_icons=
+cleanup_mac() {
+  if [[ -n $mac_staged ]]; then rm -rf "$mac_staged"; fi
+  if [[ -n $mac_old ]]; then rm -rf "$mac_old"; fi
+  if [[ -n $mac_icons ]]; then rm -rf "$mac_icons"; fi
+}
+
+# The macOS install (#787).
+install_mac() {
+  local root commit memory_gb jobs built version app size launcher running
+  root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+  cd "$root"
+  if ((regress)); then
+    echo "install-marley: --regress runs the scenarios under sway, so only on Linux" >&2
+    exit 2
+  fi
+  if ((server_only)) && [[ -z $server_host ]]; then
+    echo "install-marley: on macOS, --remote-server-only needs --remote-server-from HOST" >&2
+    exit 2
+  fi
+  refuse_unquotable "an app folder" "$app_dir"
+  commit=$(git rev-parse HEAD)
+  if [[ -n $server_host ]]; then
+    fetch_remote_server "$commit"
+  fi
+  if ((server_only)); then
+    return
+  fi
+
+  memory_gb=$(($(sysctl -n hw.memsize) / 1073741824))
+  if ((memory_gb < 32)); then
+    jobs=$((memory_gb / 3))
+    if ((jobs < 1)); then jobs=1; fi
+    export CARGO_PROFILE_RELEASE_LTO=${CARGO_PROFILE_RELEASE_LTO:-off}
+    export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-16}
+    export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-$jobs}
+    echo "==> $memory_gb GB here: LTO $CARGO_PROFILE_RELEASE_LTO, $CARGO_PROFILE_RELEASE_CODEGEN_UNITS codegen units, $CARGO_BUILD_JOBS jobs"
+  fi
+  until ! pgrep -x cargo >/dev/null; do sleep 2; done
+  echo "==> building marley in the release profile"
+  nice -n 10 cargo build --release -p zed --bin marley
+  built=${CARGO_TARGET_DIR:-$root/target}/release/marley
+
+  echo "==> writing Marley.app into $app_dir"
+  mkdir -p "$app_dir"
+  app=$app_dir/Marley.app
+  mac_staged=$app_dir/.Marley.app.new.$$
+  mac_old=$app_dir/.Marley.app.old.$$
+  mac_icons=$(mktemp -d)
+  trap cleanup_mac EXIT
+  mkdir -p "$mac_staged/Contents/MacOS" "$mac_staged/Contents/Resources" "$mac_icons/Marley.iconset"
+  cp "$built" "$mac_staged/Contents/MacOS/marley"
+  chmod 755 "$mac_staged/Contents/MacOS/marley"
+  for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" crates/zed/resources/app-icon-dev@2x.png \
+      --out "$mac_icons/Marley.iconset/icon_${size}x${size}.png" >/dev/null
+    sips -z $((size * 2)) $((size * 2)) crates/zed/resources/app-icon-dev@2x.png \
+      --out "$mac_icons/Marley.iconset/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$mac_icons/Marley.iconset" -o "$mac_staged/Contents/Resources/Marley.icns"
+  version=$(awk -F'"' '/^version = /{ print $2; exit }' crates/zed/Cargo.toml)
+  {
+    cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>CFBundleDevelopmentRegion</key>
+<string>en</string>
+<key>CFBundleDisplayName</key>
+<string>Marley</string>
+<key>CFBundleExecutable</key>
+<string>marley</string>
+<key>CFBundleIconFile</key>
+<string>Marley</string>
+<key>CFBundleIdentifier</key>
+<string>com.ignibyte.Marley</string>
+<key>CFBundleInfoDictionaryVersion</key>
+<string>6.0</string>
+<key>CFBundleName</key>
+<string>Marley</string>
+<key>CFBundlePackageType</key>
+<string>APPL</string>
+<key>CFBundleShortVersionString</key>
+<string>$version</string>
+<key>CFBundleVersion</key>
+<string>$version</string>
+<key>MarleyCommit</key>
+<string>$commit</string>
+<key>LSApplicationCategoryType</key>
+<string>public.app-category.developer-tools</string>
+<key>LSMinimumSystemVersion</key>
+<string>10.15.7</string>
+<key>NSHighResolutionCapable</key>
+<true/>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Marley connects to machines on your local network over SSH, for remote projects and terminals.</string>
+<key>CFBundleURLTypes</key>
+<array>
+<dict>
+<key>CFBundleURLName</key>
+<string>Marley</string>
+<key>CFBundleURLSchemes</key>
+<array>
+<string>marley</string>
+</array>
+</dict>
+</array>
+EOF
+    # Zed's privacy strings, which a program in Marley's terminal needs before it may ask for the
+    # camera, the microphone or AppleEvents; not DocumentTypes.plist, since Marley claims no file
+    # types (#762).
+    sed 's/Zed/Marley/g' crates/zed/resources/info/Permissions.plist \
+      crates/zed/resources/info/SupportedPlatforms.plist
+    printf '</dict>\n</plist>\n'
+  } >"$mac_staged/Contents/Info.plist"
+  plutil -lint -s "$mac_staged/Contents/Info.plist"
+  codesign --force --deep --sign - "$mac_staged"
+  if [[ -e $app ]]; then
+    mv "$app" "$mac_old"
+  fi
+  mv "$mac_staged" "$app"
+  mac_staged=
+  # LaunchServices learns the marley:// scheme now rather than at the first open.
+  lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  if [[ -x $lsregister ]] && ! "$lsregister" -f "$app"; then
+    echo "    note: LaunchServices did not take $app now; it will at the first open"
+  fi
+
+  mkdir -p "$prefix/bin"
+  launcher=$prefix/bin/.marley.new.$$
+  cat >"$launcher" <<EOF
+#!/usr/bin/env bash
+# Marley's launcher on macOS, written by script/install-marley (#787). A panic on the dev channel
+# goes to stderr only, so when stderr is not a terminal it goes to a log.
+if [[ ! -t 2 ]]; then
+  logs=\$HOME/Library/Logs/Marley
+  if mkdir -p "\$logs"; then
+    # One earlier log is kept once it passes 10 MiB.
+    if [[ \$(stat -f %z "\$logs/stderr.log" 2>/dev/null || echo 0) -gt 10485760 ]]; then
+      mv -f "\$logs/stderr.log" "\$logs/stderr.log.old"
+    fi
+    printf '%s marley %s started\\n' "\$(date +%Y-%m-%dT%H:%M:%S%z)" "\$*" >>"\$logs/stderr.log"
+    exec 2>>"\$logs/stderr.log"
+  fi
+fi
+exec "$app/Contents/MacOS/marley" "\$@"
+EOF
+  chmod 755 "$launcher"
+  mv -f "$launcher" "$prefix/bin/marley"
+
+  if [[ -n $(git status --porcelain) ]]; then
+    echo "    $app at ${commit:0:10}, with changes not committed"
+  else
+    echo "    $app at ${commit:0:10}"
+  fi
+  echo "    launcher: $prefix/bin/marley"
+  running=$(pgrep -x marley | paste -sd ' ' - || true)
+  if [[ -n $running ]]; then
+    echo "    Marley is running (pid $running): quit it and open Marley again to start the new build."
+  fi
+  case ":$PATH:" in
+    *":$prefix/bin:"*) ;;
+    *) echo "    note: $prefix/bin is not on PATH" ;;
+  esac
+}
+
+if [[ $(uname -s) == Darwin ]]; then
+  # macOS has no `realpath -m`; a relative folder is taken from here, before install_mac moves.
+  case $prefix in /*) ;; *) prefix=$PWD/$prefix ;; esac
+  case $app_dir in /*) ;; *) app_dir=$PWD/$app_dir ;; esac
+  refuse_unquotable "a prefix" "$prefix"
+  install_mac
+  exit 0
+fi
+if [[ -n $mac_option ]]; then
+  echo "install-marley: $mac_option is for macOS" >&2
+  exit 2
+fi
+
 prefix=$(realpath -m -- "$prefix")
 # The desktop entry quotes the binary's path in Exec, where these characters would need escapes.
 if [[ $prefix == *[\"\`\$\\]* || $prefix == *$'\n'* ]]; then

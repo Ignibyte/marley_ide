@@ -4132,3 +4132,15 @@ Marley had only been built on Linux, and three things stopped or warned a macOS 
 The pre-plan survey read the code and found only the first. Fixed in #786: a `peer_of` per
 platform (nix's `LocalPeerCred` and `LocalPeerPid` on macOS), the task's types taken from
 `util::command`, and the caller's `cfg` on `hand_verb`.
+
+## F-claude-787-a-new-mac-app-could-not-reach-the-local-network-001
+*severity: medium · found in: pipeline 787's Test, the first remote open on the Mac · class: a macOS privacy gate the bundle did not plan for · prevented by: PR-claude-787-a-mac-bundle-that-reaches-lan-hosts-names-its-local-network-reason-001*
+
+The installed `Marley.app` handled `marley://ssh/<host>/<path>`, but its ssh failed with
+"connect to host … port 22: No route to host", while `ssh` to the same host from a shell on the
+same Mac worked. macOS's Local Network privacy holds a new app, and the processes it starts, off
+LAN addresses until the user allows it once. The unified log names the bundle
+(`UserEventAgent … LocalNetwork: found bundle id com.ignibyte.Marley`). Zed's
+`Permissions.plist` has no `NSLocalNetworkUsageDescription`, which is the reason the prompt
+shows. Fixed in #787: the Info.plist carries it, and the guide says to allow Marley. The grant
+itself is the user's and cannot be scripted.

@@ -5461,3 +5461,25 @@ Home in the tab strip with Zed's pinned tabs (Chad asked about the rail, and `en
 it first in the strip). Chad, 2026-10-13: "combining the rusty home page with the marley home page
 and then just show rusty items if it is configured", and "in default the Home that always stays
 should always be at the top."
+
+## AD-claude-787-marleys-mac-app-is-written-by-its-install-script-001
+*decided at: 2026-10-16 · status: shipped · builds on: AD-claude-445-marleys-remote-server-is-staged-by-the-install-and-matched-by-commit-001*
+
+On macOS, `script/install-marley` builds the release `marley` and writes `Marley.app` itself:
+- an Info.plist with `com.ignibyte.Marley`, only the `marley` scheme, no document types, a Local
+  Network reason, and Zed's privacy strings read with Marley's name;
+- Zed's dev icon, made an `.icns` with `sips` and `iconutil`;
+- an ad hoc signature.
+
+It goes into `~/Applications`, so `just install` stays the one way in on both systems. Under 32 GB
+the build turns off thin LTO, uses 16 codegen units and caps the jobs. A Mac builds no Linux remote
+server: it copies the one a Linux host staged for the same commit, before the build.
+
+Rejected:
+- Zed's `script/bundle-mac` with Zed's fork of `cargo-bundle`. It reads `crates/zed/Cargo.toml`'s
+  `dev.zed.Zed-Dev` metadata and a binary named `zed`, so it would need Zed hunks, and its signing,
+  notarization and DMG arms are Zed's.
+- A Developer ID signature, which needs an account.
+- Cross-building the musl server on the Mac.
+
+Chad, 2026-10-16: "lets make it happen", for the move of his desk to the Mac.

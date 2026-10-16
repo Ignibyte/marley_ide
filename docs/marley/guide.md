@@ -6,8 +6,10 @@ terminals, a block terminal, agents recognized in any terminal, an MCP server th
 read your terminals and your browser, and a Browser tab that you and your agents drive together.
 
 This guide describes Marley as of 2026-10-12 (through #778) on Linux, where it is built and
-tested (Omarchy on Hyprland). A number such as #496 is the ticket that shipped a feature; its
-entry in `CHANGELOG.md` says more. Marley is pre-1.0.
+tested (Omarchy on Hyprland). Since #786 and #787 it also builds and installs on an Apple
+Silicon Mac; see [On a Mac](#on-a-mac-786-787) for what it does and lacks there. A number such
+as #496 is the ticket that shipped a feature; its entry in `CHANGELOG.md` says more. Marley is
+pre-1.0.
 
 - [What Marley adds](#what-marley-adds)
 - [Install and run](#install-and-run)
@@ -129,6 +131,51 @@ To update, pull and run `just install` again. Each file is replaced by a rename,
 is running keeps its old build until you quit it and start it again. Marley never checks zed.dev
 for an update. Check for Updates (`auto update: check`) says so (#763): "Marley updates through
 its install script", with what to run.
+
+### On a Mac (#786, #787)
+
+Marley builds for Apple Silicon Macs since #786, and `just install` on a Mac installs it as an
+app (#787). It needs full Xcode (the build compiles Metal shaders), `cmake`, `just` and rustup,
+which fetches the pinned toolchain. The Mac installs from its own checkout, and Linux keeps the
+visual checks: none of the e2e scenarios runs on a Mac.
+
+- **What it installs.** `~/Applications/Marley.app`, which `--app-dir DIR` moves:
+  - the identifier `com.ignibyte.Marley`, the `marley://` scheme and no claimed file types;
+  - Zed's privacy strings with Marley's name;
+  - a Local Network reason;
+  - Zed's dev icon;
+  - an ad hoc signature.
+
+  The launcher is `~/.local/bin/marley`, and `--prefix DIR` moves it. When stderr is not a
+  terminal, it appends stderr to `~/Library/Logs/Marley/stderr.log`, as Linux's does to its log.
+- **The build.** On a Mac with under 32 GB, the release build turns off the profile's thin LTO,
+  uses 16 codegen units and runs a third as many jobs as there are gigabytes, at low priority.
+  It says so, and `CARGO_PROFILE_RELEASE_*` or `CARGO_BUILD_JOBS` in the environment win. The
+  first build took 11 minutes on a 16 GB M4, and the binary is about 600 MB.
+- **Remote projects on a Linux host.** A Mac builds no Linux server. Run the install with
+  `--remote-server-from HOST`, a host whose own install staged the server for the same commit,
+  and the install copies it into `~/Library/Application Support/Marley/remote_servers` before it
+  builds. When HOST has none, the install stops at once and says what to run there:
+  `script/install-marley --remote-server-only`, in its checkout at that commit.
+  `--remote-server-only --remote-server-from HOST` does only the copy.
+- **Local Network.** macOS lets a new app, and the ssh it starts, reach a machine on your local
+  network only once you allow it. Until then a remote folder on a LAN host fails with "No route
+  to host". Allow Marley at the prompt, or under System Settings, Privacy & Security, Local
+  Network. The choice follows the app's identifier, so a reinstall keeps it.
+- **Where things are.**
+  - Settings: `~/.config/marley`.
+  - Data: `~/Library/Application Support/Marley`.
+  - Logs: `~/Library/Logs/Marley`.
+- **What a Mac lacks so far:**
+  - the Ports list (#788);
+  - the agent editor, whose helper cannot sit under `Application Support`'s space (#790);
+  - Cmd for Marley's own keys (#789);
+  - agent reports' process chain and stall checks;
+  - the Browser tab's Chromium;
+  - `marley <command>`;
+  - Codex's app server.
+
+  All of these need `/proc` or systemd today.
 
 ### One Marley at a time
 

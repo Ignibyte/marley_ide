@@ -13,6 +13,22 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley installs on a Mac** (#787, 2026-10-16). `just install` on macOS builds Marley and
+  writes `~/Applications/Marley.app`, with:
+  - the identifier `com.ignibyte.Marley`, only the `marley://` scheme, and no claimed file types;
+  - Zed's privacy strings with Marley's name, and a Local Network reason;
+  - Zed's dev icon and an ad hoc signature.
+
+  The launcher goes to `~/.local/bin/marley`, and its stderr log to `~/Library/Logs/Marley`.
+  `--app-dir` and `--prefix` move them.
+  - **Sizing.** On a machine with under 32 GB the release build drops thin LTO, uses 16 codegen
+    units and a third as many jobs as gigabytes. The first build took 11 minutes on a 16 GB M4.
+  - **Remote server.** A Mac builds no Linux server: `--remote-server-from HOST` copies the one
+    HOST staged for the same commit before the build, and stops at once, naming what to run there,
+    when HOST has none.
+  - **Local Network.** macOS has to be told once to let Marley reach the local network. Until
+    then a remote folder on a LAN host fails with "No route to host".
+
 - **Marley compiles on macOS** (#786, 2026-10-16). Marley now builds for Apple Silicon Macs
   (`aarch64-apple-darwin`) as well as Linux. Three things were Linux-only:
   - **The agent socket's peer check.** On macOS it reads the peer's user and process from
