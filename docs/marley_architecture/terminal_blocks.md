@@ -352,6 +352,11 @@ real, reusable session. The Block model is the unit the **brain** later observes
   uniformly on every platform. Every new branch is `MockPtyChannel`-unit-covered (raw-errno read
   pushes; MSI 100 on the diff).
 
+  On macOS (#792), `for_program` also gives zsh and fish `-l` (`login_arguments`). With an
+  argument the shell is `Shell::WithArguments`, which alacritty starts as given rather than
+  through its macOS `login -flp` wrapper, so the shell is the terminal's own child, a login
+  shell still, and `shown_arguments` leaves the `-l` out of the title.
+
 **ACCEPTED-UNTESTABLE (the ONLY shim — `pty_os.rs`, `mutants::skip` + a documented `rust_cov` exclude):**
 the four raw OS calls — `tty::new` spawn (HOLDS the `Pty` so output isn't discarded), leader-fd
 read/write, `rustix::termios::tcsetwinsize` (the winsize ioctl), `Pty::next_child_event` (SIGCHLD reap +

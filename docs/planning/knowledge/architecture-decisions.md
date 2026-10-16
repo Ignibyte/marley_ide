@@ -5483,3 +5483,19 @@ Rejected:
 - Cross-building the musl server on the Mac.
 
 Chad, 2026-10-16: "lets make it happen", for the move of his desk to the Mac.
+
+## AD-claude-792-on-macos-zsh-and-fish-start-as-login-shells-of-their-own-001
+*decided at: 2026-10-16 · status: shipped · amends: AD-claude-465-zsh-loads-marleys-hooks-through-a-zdotdir-that-hands-back-the-users-001*
+
+On macOS, Marley's integration gives zsh and fish the argument `-l`, so they are started as given
+(`Shell::WithArguments`) as the terminal's own child, and stay login shells reading
+`/etc/zprofile` and the user's `.zprofile`. Elsewhere they take no argument, as AD-465 has it.
+bash keeps `--rcfile`, which already starts it directly.
+
+Rejected:
+- teaching `program_of` and the prompt logic about `login`'s child: the hooks' prompt was not
+  taken through `login` either, and the cause was not found;
+- removing the `login` wrapper in the vendored alacritty: a vendored hunk for every shell;
+- a `terminal.shell` setting for the user to write.
+
+VS Code starts a macOS shell the same way, with `-l`.

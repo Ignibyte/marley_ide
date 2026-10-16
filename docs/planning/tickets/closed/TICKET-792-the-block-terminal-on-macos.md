@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #792 (bug, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [792-the-block-terminal-on-macos.spec.md](../../pipeline/completed/792-the-block-terminal-on-macos.spec.md)
 - **Source ticket:** seen in #788's check on the Mac, 2026-10-16.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 In a new terminal of the Mac's Marley (zsh, macOS's login shell), the shell's plain prompt

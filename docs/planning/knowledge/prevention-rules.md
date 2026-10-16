@@ -3103,3 +3103,13 @@ plans for the user's one-time Allow, under System Settings, Privacy & Security, 
 before any LAN connection is judged. "No route to host" from the app, while a shell reaches the
 host, is this gate, not the network. Loopback and launchd agents' own processes are not held by
 it.
+
+## PR-claude-792-the-shell-marley-integrates-is-the-terminals-own-child-001
+*severity: high · prevents: F-claude-792-a-macos-shell-under-login-lost-the-block-terminal-001*
+
+Marley takes the PTY's child (`fallback_pid`) for the shell. A shell Marley integrates must be
+started as that child, on every platform. An integration that adds only environment leaves the
+shell to Zed's and alacritty's defaults, and on macOS that default wraps it in `login`. Give it
+an argument (`-l` on macOS keeps the login-shell startup files), so it goes through
+`Shell::WithArguments` and is started as given. Check a new platform's process tree
+(`ps -o pid,ppid,command`) before trusting any foreground or prompt logic there.

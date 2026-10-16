@@ -4155,3 +4155,16 @@ footer's URL offer and Stop found nothing. #786 had only made it compile. Fixed 
 the listeners come from `lsof` and `ps` through the process adapter. The class is #786's rule: a
 Linux-only source sits behind `cfg(target_os = "linux")` with a macOS form beside it, which a
 poller needs as much as a call.
+
+## F-claude-792-a-macos-shell-under-login-lost-the-block-terminal-001
+*severity: high · found in: pipeline 788's check on the Mac · class: the PTY child taken for the shell · prevented by: PR-claude-792-the-shell-marley-integrates-is-the-terminals-own-child-001*
+
+On macOS the vendored alacritty starts a shell with no arguments through `/usr/bin/login -flp
+<user> /bin/zsh -fc 'exec -a -zsh <shell>'`. zsh's integration (#465) adds only environment, so
+zsh went that way and was the terminal's grandchild:
+- `terminal_drive::program_of` compares the foreground group with `pid_getter().fallback_pid()`,
+  `login`'s pid, so it reported the shell as a running program, and `terminal_run` refused;
+- the prompt editor never docked and no block formed, although probes showed zsh opening
+  Marley's `.zshenv` and its hooks writing their frames.
+
+Fixed in #792: zsh and fish get `-l` on macOS, so they start directly as login shells.

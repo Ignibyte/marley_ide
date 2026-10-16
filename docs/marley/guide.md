@@ -166,6 +166,10 @@ visual checks: none of the e2e scenarios runs on a Mac.
   - Settings: `~/.config/marley`.
   - Data: `~/Library/Application Support/Marley`.
   - Logs: `~/Library/Logs/Marley`.
+- **The block terminal.** zsh and fish start directly as login shells (`zsh -l`), not through
+  macOS's `login`, so the prompt editor, blocks and agents' `terminal_run` work as on Linux and
+  your `.zprofile` still runs (#792). bash starts with Marley's `--rcfile` as on Linux, so it
+  reads `.bashrc`, not `.bash_profile`.
 - **Ports.** A project's port rows, the agents' `ports_list` and a terminal's offer of a printed
   URL read the listening sockets from `lsof` and `ps` (#788). Stop signals the process, since a
   Mac has no systemd services to stop.

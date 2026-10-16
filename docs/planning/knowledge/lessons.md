@@ -5965,3 +5965,17 @@ Two `#[cfg]` functions with one name, the Linux one returning `impl Future` from
 `futures::future::lazy` and the macOS one `async`, satisfy all three. `typos` (gate:18) reads two-letter
 `lsof -F` field strings as misspellings (`pn` for "on"); reorder the letters (`np`), which lsof
 takes in any order.
+
+## L-claude-792-probing-a-terminal-launch-on-a-mac-001
+*category: debugging · topic: macOS shells · from: pipeline 792*
+
+Four probes split "the integration does not load" from "Marley does not take it":
+1. `ps -o pid,ppid,pgid,tpgid,command` under Marley's pid shows the launch: here
+   `login → zsh -fc → -zsh`.
+2. `sudo fs_usage -w -f filesys zsh login` across a Marley restart shows which startup files the
+   restored terminal's shell opens. `ps eww` and `launchctl procinfo` show no other process's
+   environment under SIP.
+3. The same launch by hand under `script(1)` (`printf 'echo hi\nexit\n' | env … script -q
+   out /usr/bin/login -flp …`) records the hooks' raw frames.
+4. A temporary `terminal.shell.program` setting changes the launch without a build. Back the
+   settings up and put them back after.

@@ -1523,6 +1523,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The block terminal on a Mac** (#792, 2026-10-16). On macOS, alacritty starts a shell that has
+  no arguments through `/usr/bin/login`, which left zsh the terminal's grandchild:
+  - Marley's prompt editor never docked, and no block formed;
+  - `terminal_run` took the shell for a running program and refused.
+
+  Marley's zsh and fish now start directly with `-l`, so they are still login shells that read
+  `/etc/zprofile` and your `.zprofile`, and the "Last login" line is gone. Linux starts them as
+  before.
+
 - **The Ports list on a Mac** (#788, 2026-10-16). macOS has no `/proc`, so on a Mac the
   project's port rows, the agents' `ports_list`, a terminal's offer of a printed local URL and
   Stop found nothing, and the log took a warning every 3 seconds. On macOS they now read the

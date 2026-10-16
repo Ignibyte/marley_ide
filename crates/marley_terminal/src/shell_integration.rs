@@ -204,6 +204,20 @@ fn write_if_changed(path: &Path, content: &str) -> io::Result<()> {
     std::fs::write(path, content)
 }
 
+/// The arguments that make zsh or fish a login shell on macOS (#792), and none elsewhere.
+///
+/// Given no arguments, alacritty starts a macOS shell through `/usr/bin/login -flp`, which makes
+/// it a login shell but leaves it the terminal's grandchild, where Marley's prompt never comes
+/// and its foreground check takes `login` for the shell. With `-l` it is started as given, as
+/// Marley's own child, and still reads `/etc/zprofile` and the user's `.zprofile`.
+fn login_arguments() -> Vec<String> {
+    if cfg!(target_os = "macos") {
+        vec!["-l".to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
 /// How to start `program` with Marley's integration, or `None` for a program it has none for.
 ///
 /// The scripts are read from `dir`, where [`install_in`] writes them. `user_zdotdir` and
@@ -231,7 +245,7 @@ pub fn for_program(
             env: vec![marker, ssh_command],
         }),
         "zsh" => Some(ShellIntegration {
-            args: Vec::new(),
+            args: login_arguments(),
             env: [
                 (
                     "ZDOTDIR".to_string(),
@@ -247,7 +261,7 @@ pub fn for_program(
             .collect(),
         }),
         "fish" => Some(ShellIntegration {
-            args: Vec::new(),
+            args: login_arguments(),
             env: [
                 (
                     "XDG_DATA_DIRS".to_string(),
@@ -366,7 +380,7 @@ mod tests {
             ),
         ];
         let zsh = Some(ShellIntegration {
-            args: Vec::new(),
+            args: login_arguments(),
             env: pairs(&marleys),
         });
         assert_eq!(for_program("zsh", dir, None, None), zsh);
@@ -376,7 +390,7 @@ mod tests {
         assert_eq!(
             for_program("zsh", dir, Some("/home/me/.config/zsh"), None),
             Some(ShellIntegration {
-                args: Vec::new(),
+                args: login_arguments(),
                 env: pairs(&with_users),
             })
         );
