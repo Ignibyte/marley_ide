@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #790 (bug, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [790-the-agent-editor-with-a-space-in-the-data-folder.spec.md](../../pipeline/completed/790-the-agent-editor-with-a-space-in-the-data-folder.spec.md)
 - **Source ticket:** seen in #787's check on the Mac, 2026-10-16.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The agent editor (#649: Ctrl+G in an agent Marley started opens the agent's draft in a tab) puts

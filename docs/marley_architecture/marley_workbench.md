@@ -1026,8 +1026,13 @@ alike.
   opens for agents.
 - `mcp::offer_agent_editor` writes `bin/marley-edit` (`agent_editor::HELPER`, embedded) beside the
   opener at start, and `set_helper` publishes its path unless it holds whitespace: Claude Code,
-  Gemini CLI and OpenCode split `$VISUAL` on spaces. A path with a space logs a warning and keeps
-  the overlay.
+  Gemini CLI and OpenCode split `$VISUAL` on spaces. Since #790 a data directory with whitespace,
+  as macOS's `Application Support` always has, gets a link in its place:
+  `spaceless_in(paths::state_dir(), helper)` makes
+  `<state dir>/agent-editor/<hash of the helper's path>/marley-edit` again at each start, off the
+  main thread. `marley-edit` finds its endpoint beside `realpath(__file__)`, so the link reaches
+  the Marley that wrote it. Only a link that cannot be made, or a state folder with whitespace too,
+  logs the warning and keeps the overlay.
 - `agents::start_in_terminal`, for an agent in a local project while `editor_path` gives the
   helper, adds `VISUAL`, `EDITOR` and `MARLEY_AGENT_EDITOR` (`add_env`) and records the new
   terminal (`give`, `forget` on its release). The shell integration exports the helper again after

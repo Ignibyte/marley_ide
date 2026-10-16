@@ -483,13 +483,13 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
   prong 2 follow.
 - **Tickets.** Each slice becomes a ticket in this repo when it starts; decisions get
   recorded in the brain with `brain_decide`, as this plan is.
-- **macOS.** On 2026-10-16 Chad moved his desk to an Apple Silicon Mac, keeping the Linux box
-  as the engine for the projects, the builds and the visual checks. Marley compiles for
+- **macOS.** On 2026-10-16 Chad moved his desk to an Apple Silicon Mac, keeping the Linux box as
+  the engine for the projects, the builds and the visual checks. Marley compiles for
   `aarch64-apple-darwin` since #786, and `just install` writes `Marley.app` there since #787.
-  The Ports list reads `lsof` there since #788, and zsh starts as a login shell of its own
-  since #792, so the block terminal works. The Mac's other gaps are tickets: #789 (Cmd
-  keys), #790 (the agent editor) and #791 (Rusty's vault on another machine). Until their own tickets land, these do nothing on macOS,
-  because they need `/proc` or systemd:
+  The Ports list reads `lsof` there since #788, and zsh starts as a login shell of its own since
+  #792, so the block terminal works. The Mac's other gaps are tickets: #789 (Cmd keys) and #791
+  (Rusty's vault on another machine); the agent editor works there since #790. Until their own
+  tickets land, these do nothing on macOS, because they need `/proc` or systemd:
   - agent reports' process chain and the stall checks;
   - the Containers list;
   - the Browser tab's Chromium;

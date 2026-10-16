@@ -374,13 +374,27 @@ fn offer_browser_opener(data_dir: PathBuf, cx: &mut App) {
 
 /// Writes `marley-edit` beside the opener off the main thread, and publishes its path once written
 /// (#649): the terminals Marley opens for agents get it as their editor while
-/// `marley.agent_editor_in_tab` is on.
+/// `marley.agent_editor_in_tab` is on. A data directory with whitespace, as macOS's is, gets a link
+/// without any in Marley's state folder (#790); one that cannot be made leaves the helper's own
+/// path, which `set_helper` turns down.
 fn offer_agent_editor(data_dir: PathBuf, cx: &App) {
     let written = cx.background_spawn(futures::future::lazy(move |_| {
-        write_program_in(
+        let helper = write_program_in(
             &data_dir,
             crate::agent_editor::HELPER_FILE,
             crate::agent_editor::HELPER,
+        )?;
+        Ok::<_, std::io::Error>(
+            match crate::agent_editor::spaceless_in(paths::state_dir(), &helper) {
+                Ok(link) => link,
+                Err(error) => {
+                    log::error!(
+                        "mcp: no link without spaces to {}: {error}",
+                        helper.display()
+                    );
+                    helper
+                }
+            },
         )
     }));
     cx.spawn(async move |cx| match written.await {

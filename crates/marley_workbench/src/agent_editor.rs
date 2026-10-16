@@ -11,6 +11,7 @@
 //! prompt comes back through the agent's path, with nothing pasted and nothing sent.
 
 use std::collections::{HashMap, HashSet};
+use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -87,10 +88,45 @@ struct AgentEditor {
 
 impl Global for AgentEditor {}
 
+/// Whether `path` holds whitespace, which three of the four agents split `$VISUAL` on.
+fn has_whitespace(path: &Path) -> bool {
+    path.to_string_lossy().chars().any(char::is_whitespace)
+}
+
+/// A path to `helper` that the agents can take as their editor (#790): `helper` itself, else a
+/// link to it under `state_dir`, as on macOS, whose data directory is under `Application Support`.
+///
+/// The link sits in a folder named for `helper`'s path, so two data directories keep two links,
+/// and it is made again on each start. `marley-edit` finds its endpoint beside its real path, so
+/// through the link it still reaches the Marley that wrote it.
+///
+/// # Errors
+///
+/// When the folder or the link cannot be made.
+pub(crate) fn spaceless_in(state_dir: &Path, helper: &Path) -> std::io::Result<PathBuf> {
+    if !has_whitespace(helper) {
+        return Ok(helper.to_path_buf());
+    }
+    let mut hasher = DefaultHasher::new();
+    helper.hash(&mut hasher);
+    let folder = state_dir
+        .join("agent-editor")
+        .join(format!("{:016x}", hasher.finish()));
+    std::fs::create_dir_all(&folder)?;
+    let link = folder.join(HELPER_FILE);
+    if let Err(error) = std::fs::remove_file(&link)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(error);
+    }
+    std::os::unix::fs::symlink(helper, &link)?;
+    Ok(link)
+}
+
 /// Publishes the helper once it is written: only a path with no whitespace, since three of the
 /// four agents split `$VISUAL` on spaces; otherwise agent terminals keep the overlay.
 pub(crate) fn set_helper(path: &Path, cx: &mut App) {
-    let usable = !path.to_string_lossy().chars().any(char::is_whitespace);
+    let usable = !has_whitespace(path);
     if !usable {
         log::warn!(
             "agent editor: Marley's data directory has a space in its path ({}), so agents keep the \

@@ -1523,6 +1523,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Agent prompts in a tab on a Mac** (#790, 2026-10-16). With `marley.agent_editor_in_tab` on,
+  the agents Marley starts get `marley-edit` as their editor. Its path was in the data folder,
+  which is `~/Library/Application Support/Marley` on a Mac. The agents split their editor setting
+  on spaces, so Marley refused that path, logged a warning at every start, and the agents kept the
+  overlay. The agents now get a link without spaces in `~/.local/state/Marley`, which still
+  reaches the same Marley.
+
 - **The block terminal on a Mac** (#792, 2026-10-16). On macOS, alacritty starts a shell that has
   no arguments through `/usr/bin/login`, which left zsh the terminal's grandchild:
   - Marley's prompt editor never docked, and no block formed;

@@ -5979,3 +5979,13 @@ Four probes split "the integration does not load" from "Marley does not take it"
    out /usr/bin/login -flp …`) records the hooks' raw frames.
 4. A temporary `terminal.shell.program` setting changes the launch without a build. Back the
    settings up and put them back after.
+
+## L-claude-790-macos-paths-hold-a-space-by-default-001
+*category: build · topic: macOS paths · from: pipeline 790*
+
+Zed's `paths` puts macOS's data folder under `~/Library/Application Support` and its logs and
+caches under `~/Library/…`, so any path built from them holds a space. That is where Marley's
+installed helpers live: `marley-edit`, the opener and the shell integration. Code that hands such
+a path to a shell or an agent's `$EDITOR` unquoted fails on a Mac only. Marley's state folder
+(`~/.local/state/Marley` on macOS) has no space; link from there, as #790 does, rather than copy,
+when the program finds its siblings through its real path.

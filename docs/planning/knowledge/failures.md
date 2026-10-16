@@ -4168,3 +4168,12 @@ zsh went that way and was the terminal's grandchild:
   Marley's `.zshenv` and its hooks writing their frames.
 
 Fixed in #792: zsh and fish get `-l` on macOS, so they start directly as login shells.
+
+## F-claude-790-the-agent-editor-never-turned-on-on-a-mac-001
+*severity: medium · found in: pipeline 787's check on the Mac · class: a path rule that holds on Linux and never on macOS*
+
+`agent_editor::set_helper` refuses a helper path with whitespace, since three agents split
+`$VISUAL` on spaces. On macOS the data folder is always `~/Library/Application Support/Marley`,
+so `marley-edit` was never published there: each start logged the warning, and #649's agent
+prompts in a tab stayed off. Fixed in #790: a link without spaces in Marley's state folder, which
+`marley-edit` resolves back to its endpoint through `realpath`.
