@@ -412,6 +412,10 @@ actions!(
 /// The Marley keymap, bound after Zed's defaults by [`load_keymap`].
 const KEYMAP: &str = include_str!("../keymap.json");
 
+/// The Cmd twins of the keymap's own Ctrl keys, bound after it on macOS (#789).
+#[cfg(target_os = "macos")]
+const MAC_KEYMAP: &str = include_str!("../keymap-macos.json");
+
 /// The resolved `marley` settings block.
 #[derive(Debug, Clone, PartialEq, Eq, RegisterSetting)]
 pub struct MarleySettings {
@@ -1112,6 +1116,8 @@ fn observe_workspaces(cx: &App) {
 /// context depth and lose to the user's.
 pub fn load_keymap(cx: &mut App) {
     load_keymap_from(KEYMAP, cx).log_err();
+    #[cfg(target_os = "macos")]
+    load_keymap_from(MAC_KEYMAP, cx).log_err();
 }
 
 /// Parses `keymap` and binds all of it, tagged as a default source, or none of it when any part

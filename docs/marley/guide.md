@@ -170,6 +170,9 @@ visual checks: none of the e2e scenarios runs on a Mac.
   macOS's `login`, so the prompt editor, blocks and agents' `terminal_run` work as on Linux and
   your `.zprofile` still runs (#792). bash starts with Marley's `--rcfile` as on Linux, so it
   reads `.bashrc`, not `.bash_profile`.
+- **Keys.** Marley's own actions answer Cmd as well as Ctrl (#789): Cmd+Shift+T, Cmd+I, the block
+  keys, Cmd+V and Cmd+C in the rich input, and a browser's Cmd+L, Cmd+T, Cmd+R, Cmd+[ and Cmd+].
+  The prompt editor's shell keys (Ctrl+W, Ctrl+E, Ctrl+B, Ctrl+C) and Ctrl+G stay on Ctrl.
 - **Agent prompts in a tab.** With `marley.agent_editor_in_tab` on, the agents get a link to
   `marley-edit` in `~/.local/state/Marley`, since their editor path cannot hold the space in
   `Application Support` (#790).
@@ -177,7 +180,6 @@ visual checks: none of the e2e scenarios runs on a Mac.
   URL read the listening sockets from `lsof` and `ps` (#788). Stop signals the process, since a
   Mac has no systemd services to stop.
 - **What a Mac lacks so far:**
-  - Cmd for Marley's own keys (#789);
   - agent reports' process chain and stall checks;
   - the Browser tab's Chromium;
   - `marley <command>`;

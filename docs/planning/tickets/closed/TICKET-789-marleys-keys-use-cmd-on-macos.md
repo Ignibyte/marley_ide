@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #789 (feature, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [789-marleys-keys-use-cmd-on-macos.spec.md](../../pipeline/completed/789-marleys-keys-use-cmd-on-macos.spec.md)
 - **Source ticket:** the move's plan, Phase 5 item 1 (Chad, 2026-10-16, "lets make it happen").
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley's keymap (`crates/marley_workbench/keymap.json`) binds its own actions with `ctrl-` (29

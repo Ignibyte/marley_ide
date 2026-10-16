@@ -4,6 +4,8 @@ The Marley layout, written in the fork for the workbench shell's W2 (#438): the
 `marley.layout` setting, the switch between Zed's sidebar and the rail, the rail itself, since
 W5 (#441, #449) the terminal routing, and since W5c (#450) the New Agent picker and the Marley
 keymap.
+On macOS `load_keymap` also binds `keymap-macos.json` after `keymap.json` (#789): Cmd twins of
+Marley's own Ctrl keys, in the same contexts. The shell keys and Ctrl-G have no twin.
 MIT OR Apache-2.0. It links Zed's GPL crates (`workspace`, `sidebar`, `terminal_view`,
 `recent_projects` and others), so it builds and ships only as part of the fork
 (AD-claude-438-marley-crates-may-link-zeds-gpl-crates-001).

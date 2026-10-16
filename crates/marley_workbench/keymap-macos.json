@@ -1,0 +1,75 @@
+// The Marley keymap's macOS overlay (#789): Cmd twins of Marley's own Ctrl keys, as Zed's macOS
+// keymap moves its own actions to Cmd. It loads after `keymap.json`, on macOS only, so the Ctrl
+// keys stay bound beside these. The keys that stand for a terminal's own (the prompt editor's
+// Ctrl-W, Ctrl-E and Ctrl-B, the shell input's Ctrl-C) and Ctrl-G, the agents' own editor key,
+// have no twin: a Mac's terminals keep them on Ctrl too.
+[
+  {
+    // Zed's macOS keymap binds Cmd-Shift-T to Reopen Closed Item here, as its Linux keymap binds
+    // Ctrl-Shift-T, and this one loads later, so it is tried first and hands the key back when no
+    // close is held.
+    "context": "Workspace",
+    "bindings": {
+      "cmd-shift-t": "marley::UndoCloseTerminal"
+    }
+  },
+  {
+    "context": "Terminal",
+    "bindings": {
+      "cmd-i": "marley::TakeOverTerminal",
+      "cmd-shift-enter": "marley::AskAgent",
+      "cmd-shift-b": "marley::ToggleBookmark"
+    }
+  },
+  {
+    "context": "Terminal && MarleyBlockSelected",
+    "bindings": {
+      "cmd-shift-i": "marley::ReinputBlock",
+      "cmd-shift-enter": "marley::SendBlockToAgent",
+      "cmd-shift-f": "marley::FindInBlock"
+    }
+  },
+  {
+    // A Mac pastes and copies on Cmd, so Marley's paste (an image goes to the agent) and copy (the
+    // editor's selection, else the terminal's) take Cmd-V and Cmd-C here; Ctrl-C stays the shell's.
+    "context": "MarleyRichInput > Editor",
+    "bindings": {
+      "cmd-v": "marley::RichInputPaste",
+      "cmd-c": "marley::RichInputCopy"
+    }
+  },
+  {
+    "context": "MarleyShellInput > Editor",
+    "bindings": {
+      "cmd-shift-enter": "marley::AskAgent"
+    }
+  },
+  {
+    // A Mac browser's keys: Cmd-L, Cmd-T, Cmd-R, Cmd-[ and Cmd-], and Chrome's Cmd-Shift-C picker.
+    "context": "MarleyBrowser",
+    "bindings": {
+      "cmd-i": "marley::TakeOverBrowser",
+      "cmd-l": "marley::FocusAddressBar",
+      "cmd-t": "marley::NewBrowserTab",
+      "cmd-r": "marley::BrowserReload",
+      "cmd-[": "marley::BrowserBack",
+      "cmd-]": "marley::BrowserForward",
+      "cmd-shift-c": "marley::PickElement"
+    }
+  },
+  {
+    "context": "MarleyBrowser > Editor",
+    "bindings": {
+      "cmd-shift-c": "marley::PickElement"
+    }
+  },
+  {
+    // A Mac browser's bookmark and history keys, for a brain page's tab.
+    "context": "RustyPage",
+    "bindings": {
+      "cmd-d": "rusty::ToggleBookmark",
+      "cmd-[": "rusty::PageBack",
+      "cmd-]": "rusty::PageForward"
+    }
+  }
+]

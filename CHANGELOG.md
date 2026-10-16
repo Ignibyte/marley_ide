@@ -13,6 +13,20 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Cmd keys on a Mac** (#789, 2026-10-16). On macOS, Marley's own actions also answer Cmd, as
+  Zed's do there:
+  - Cmd+Shift+T: Undo Close Terminal;
+  - Cmd+I: Take Over;
+  - Cmd+Shift+Enter: Ask Agent;
+  - Cmd+Shift+B: a bookmark;
+  - Cmd+Shift+I and Cmd+Shift+F: the block keys;
+  - Cmd+V and Cmd+C: the rich input's paste and copy;
+  - Cmd+L, Cmd+T, Cmd+R, Cmd+[, Cmd+] and Cmd+Shift+C: the Browser tab;
+  - Cmd+D, Cmd+[ and Cmd+]: a brain page.
+
+  The Ctrl keys still work. The prompt editor's shell keys and Ctrl+G stay on Ctrl, as a Mac's
+  terminals keep them. Linux is unchanged.
+
 - **Marley installs on a Mac** (#787, 2026-10-16). `just install` on macOS builds Marley and
   writes `~/Applications/Marley.app`, with:
   - the identifier `com.ignibyte.Marley`, only the `marley://` scheme, and no claimed file types;

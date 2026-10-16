@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-789](open/TICKET-789-marleys-keys-use-cmd-on-macos.md) | feature | Marley's own keys use Cmd on macOS through `secondary-`; shell keys stay Ctrl |
 | [TICKET-791](open/TICKET-791-rustys-vault-when-rusty-runs-on-another-machine.md) | feature | Rusty's vault when the service runs on another machine: page files and the agent's folder |
 
 ## Deliberate (picked explicitly, never auto-next)
