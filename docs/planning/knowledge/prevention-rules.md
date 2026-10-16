@@ -3083,3 +3083,13 @@ menu's entry by its effect, not by the menu opening.
 `Item::clone_on_split` and `can_split` run while the workspace is being updated
 (`split_and_clone` from `handle_pane_event`). An item's implementation reads nothing through its
 workspace handle there: it keeps what it needs (an `fs`, a project) on itself when it is made.
+
+## PR-claude-786-code-holding-a-util-command-child-names-zeds-type-001
+*severity: medium · prevents: F-claude-786-marley-did-not-compile-on-macos-001*
+
+A child started through Zed's `util::command::Command` (Marley's `process::serve`, `follow` and
+the like) is a `util::command::Child`. Code that holds one names that type, and reads its pipes
+through `futures::AsyncRead`, never `smol::process::Child` or `ChildStderr`. On Linux the two
+types are the same, so only a macOS build catches the mistake. Likewise a Linux-only call such as
+rustix's `socket_peercred`, `/proc` or systemd sits behind `cfg(target_os = "linux")`, with a
+macOS form or an error arm beside it, in any module that builds on every Unix.

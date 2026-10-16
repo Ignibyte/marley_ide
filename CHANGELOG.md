@@ -13,6 +13,17 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley compiles on macOS** (#786, 2026-10-16). Marley now builds for Apple Silicon Macs
+  (`aarch64-apple-darwin`) as well as Linux. Three things were Linux-only:
+  - **The agent socket's peer check.** On macOS it reads the peer's user and process from
+    `LOCAL_PEERCRED` and `LOCAL_PEERPID`, so it still refuses a process of another user.
+  - **Codex's app server.** Its process task named smol's child types, where Zed's command wrapper
+    uses its own on macOS. The server itself stays Linux-only.
+  - **The `marley <verb>` hand-off.** It is now compiled only where its caller is.
+
+  `cargo check` of the `marley` binary and clippy over every Marley crate pass on a Mac. The Mac
+  app and its install come next (#787).
+
 - **A split opens Home, and a tab's menu splits it out** (#785, 2026-10-15). In the Marley
   layout, splitting a terminal or an agent's terminal, with the pane's split button, a split key
   or the palette, opens Home in the new pane instead of starting another shell. Splitting Home

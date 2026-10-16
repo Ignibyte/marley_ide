@@ -10688,6 +10688,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "marley_fleet",
+ "nix",
  "regex",
  "rustix",
  "serde",

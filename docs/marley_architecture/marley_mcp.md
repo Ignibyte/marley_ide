@@ -236,7 +236,10 @@ OR Apache-2.0, with the Marley crates' lint table.
 
 - `spawn(path, handler)` removes a socket a Marley left at `path`, binds a `UnixListener`, sets
   the file to 0600 and accepts on a thread of its own, each connection on another. A connection's
-  peer credentials (`rustix`'s `socket_peercred`) must name the user Marley runs as; then one line
+  peer credentials must name the user Marley runs as. `peer_of` reads them as a `Peer { uid, pid }`
+  per platform (#786): on Linux, `rustix`'s `socket_peercred` (`SO_PEERCRED`); on macOS, `nix`'s
+  `LocalPeerCred` and `LocalPeerPid`, a pid at or below zero an error; on any other Unix, an
+  `Unsupported` error, which refuses every peer. Then one line
   of at most 64 KiB is read within 2 s and handed to `handler` as an `AgentRequest` with the
   peer's pid, on the connection's thread. The app answers through `AgentRequest::answer`; after
   3.5 s with no answer the peer reads `marley_not_running`.

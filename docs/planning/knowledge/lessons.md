@@ -5897,3 +5897,13 @@ When a scenario's step fails in a way the change does not explain, run the same 
 installed build: `E2E_BINARY=$HOME/.local/lib/marley/marley just e2e <probe>`. #785's split
 button did nothing on a file there too, which made it an old bug to fix rather than a regression
 to chase in the diff.
+
+## L-claude-786-keep-going-stops-at-a-failed-crate-so-a-port-takes-rounds-001
+*category: build · topic: macOS · from: pipeline 786*
+
+`cargo check --keep-going` builds every crate it can, but nothing that depends on a crate that
+failed. A port to a new target therefore shows its errors a layer at a time. #786's first Mac
+check showed only `marley_mcp`'s error, and the second, with that fixed, showed
+`marley_workbench`'s two. Plan a port as rounds of fix and recheck on the target itself, and
+finish with clippy `-D warnings` there, which surfaces what is dead code on that platform. A
+read of the code found one of the three problems.

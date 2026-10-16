@@ -10,6 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-787](open/TICKET-787-marleys-mac-app.md) | chore | Marley's Mac app (`Marley.app`, `com.ignibyte.Marley`, `marley` scheme) and a Mac install path |
 
 ## Deliberate (picked explicitly, never auto-next)
 

@@ -1701,6 +1701,8 @@ alike.
   socket under `/tmp/codex-daemon-<uid>/` and its lock). The `Server` is kept in `CodexServers` by
   the terminal and dropped with it; the quit hook kills every server at once and removes
   `marley-<pid>`.
+  The task holds `util::command::Child`, smol's on Linux and Zed's own posix_spawn child on
+  macOS, so `last_line` reads any `AsyncRead` (#786).
 - The follow (`follow`): it waits for the TUI's connection, an accepted socket under the path in
   `/proc/net/unix` (state 03), then 1 s, so the TUI's `initialize` names the originator. It
   connects (`smol`'s `UnixStream`, `async_tungstenite` at `ws://localhost/rpc`), initializes as
@@ -2590,7 +2592,8 @@ screen opens Home after `rusty_unavailable`.
   data directory without initializing `paths` (a custom one canonicalized, else
   `paths::data_dir()`) and `single_instance::hand_verb` sends the URL, answering `None` when no
   socket listens, so the launch prints only the hand-off's line; only then does it answer
-  `Launch`.
+  `Launch`. Both are Linux and FreeBSD only, `hand_verb` too since #786; on macOS the launch
+  answers `Launch`.
 - `commands::note_data_dir` (in `init`) notes `paths::data_dir()` when the launch named
   `--user-data-dir`; `marley_terminal::identity::agent_environment` writes it as
   `MARLEY_USER_DATA_DIR`, empty in any other terminal.

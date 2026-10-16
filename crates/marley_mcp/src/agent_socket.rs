@@ -126,20 +126,66 @@ pub fn spawn(path: &Path, handler: AgentHandler) -> std::io::Result<AgentSocket>
     })
 }
 
+/// The user and the process a connection's credentials name.
+struct Peer {
+    uid: u32,
+    pid: u32,
+}
+
+#[cfg(target_os = "linux")]
+fn peer_of(stream: &UnixStream) -> std::io::Result<Peer> {
+    let credentials = rustix::net::sockopt::socket_peercred(stream)?;
+    Ok(Peer {
+        uid: credentials.uid.as_raw(),
+        pid: credentials.pid.as_raw_nonzero().get().unsigned_abs(),
+    })
+}
+
+/// macOS has no `SO_PEERCRED`: the user comes from `LOCAL_PEERCRED` and the process from
+/// `LOCAL_PEERPID` (#786).
+#[cfg(target_os = "macos")]
+fn peer_of(stream: &UnixStream) -> std::io::Result<Peer> {
+    use nix::sys::socket::{getsockopt, sockopt};
+    let credentials = getsockopt(stream, sockopt::LocalPeerCred)?;
+    let raw_pid = getsockopt(stream, sockopt::LocalPeerPid)?;
+    let pid = u32::try_from(raw_pid)
+        .ok()
+        .filter(|pid| *pid > 0)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("the peer's process id {raw_pid}"),
+            )
+        })?;
+    Ok(Peer {
+        uid: credentials.uid(),
+        pid,
+    })
+}
+
+/// A platform whose peer cannot be read refuses every peer.
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn peer_of(_stream: &UnixStream) -> std::io::Result<Peer> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "reading a socket peer's credentials",
+    ))
+}
+
 /// One connection: the peer checked, one line read, the app's answer written.
 fn serve(stream: UnixStream, uid: rustix::process::Uid, handler: &AgentHandler) {
-    let peer = match rustix::net::sockopt::socket_peercred(&stream) {
+    let peer = match peer_of(&stream) {
         Ok(peer) => peer,
         Err(error) => {
             log::debug!("agent socket: the peer's credentials: {error}");
             return;
         }
     };
-    if peer.uid != uid {
+    if peer.uid != uid.as_raw() {
         log::warn!("agent socket: refused a peer of another user");
         return;
     }
-    let pid = peer.pid.as_raw_nonzero().get().unsigned_abs();
+    let pid = peer.pid;
     if let Err(error) = stream.set_read_timeout(Some(READ_TIMEOUT)) {
         log::debug!("agent socket: {error}");
         return;

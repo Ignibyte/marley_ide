@@ -556,8 +556,9 @@ async fn environment(
     env
 }
 
-/// The server's last line on stderr, read until it ends, cut to [`LAST_ERROR_MAX`].
-async fn last_line(stderr: Option<smol::process::ChildStderr>) -> Option<String> {
+/// The server's last line on stderr, read until it ends, cut to [`LAST_ERROR_MAX`]. Any reader,
+/// since `util::command::Child`'s stderr is smol's on Linux and Zed's own on macOS (#786).
+async fn last_line(stderr: Option<impl futures::AsyncRead + Unpin>) -> Option<String> {
     let mut lines = futures::io::BufReader::new(stderr?).lines();
     let mut last = None;
     while let Some(line) = lines.next().await {
@@ -575,7 +576,7 @@ async fn last_line(stderr: Option<smol::process::ChildStderr>) -> Option<String>
 /// Waits for the server to end, or for its stop: then SIGTERM, which lets it end its turns, and
 /// the kill after [`STOP_GRACE`]. True when it ended on its own.
 async fn watch(
-    child: &mut smol::process::Child,
+    child: &mut util::command::Child,
     stopped: oneshot::Receiver<()>,
     executor: &gpui::BackgroundExecutor,
 ) -> bool {

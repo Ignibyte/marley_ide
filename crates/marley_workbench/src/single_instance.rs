@@ -122,6 +122,7 @@ pub fn hand_off(paths_or_urls: &[String]) -> Result<String> {
 /// # Errors
 ///
 /// The URL is longer than the listener reads, or the socket is there and a send fails.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub(crate) fn hand_verb(url: &str, data_dir: &Path) -> Result<Option<String>> {
     let socket = socket_in(data_dir);
     if socket.as_os_str().len() >= SOCKET_PATH_BYTES {

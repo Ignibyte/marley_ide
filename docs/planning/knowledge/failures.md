@@ -4115,3 +4115,20 @@ entry focuses the pane and the action is dispatched on it, as the tab menu's are
 so splitting Home from the palette panicked with "cannot read workspace::Workspace while it is
 already being updated" and Marley quit. Fixed before it shipped: the page keeps the `fs` it was
 made with.
+
+## F-claude-786-marley-did-not-compile-on-macos-001
+*severity: medium · found in: pipeline 786's checks on a Mac · class: Linux-only types in code built on every Unix · prevented by: PR-claude-786-code-holding-a-util-command-child-names-zeds-type-001*
+
+Marley had only been built on Linux, and three things stopped or warned a macOS build:
+- **E0425, the agent socket's peer check (#652).** It called `rustix::net::sockopt::socket_peercred`,
+  which rustix compiles only for Linux, in a module built on every Unix.
+- **Two E0308 errors, Codex's app server (#650).** Its process task named
+  `smol::process::Child` and `ChildStderr`, but `process::serve` returns `util::command::Child`.
+  That type is smol's on Linux and Zed's own posix_spawn child on macOS, whose stderr is an
+  `Async<File>`.
+- **A dead-code warning, `single_instance::hand_verb` (#775).** Its only caller is Linux and
+  FreeBSD only.
+
+The pre-plan survey read the code and found only the first. Fixed in #786: a `peer_of` per
+platform (nix's `LocalPeerCred` and `LocalPeerPid` on macOS), the task's types taken from
+`util::command`, and the caller's `cfg` on `hand_verb`.
