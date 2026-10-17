@@ -533,6 +533,16 @@ pub struct MarleyThreadHost {
 
 impl gpui::Global for MarleyThreadHost {}
 
+// Marley: a tool call Marley draws itself, such as its `component_show` (#800). Zed draws every tool
+// call from a closed match of content kinds; this lets Marley's crate draw one by its name.
+pub struct MarleyToolCallView {
+    /// The drawing for a tool call, from the tool's name as the agent reported it, the call's
+    /// input and an element id, or `None` to draw the call as Zed does.
+    pub draw: fn(&str, &serde_json::Value, SharedString, &App) -> Option<gpui::AnyElement>,
+}
+
+impl gpui::Global for MarleyToolCallView {}
+
 // Marley: what a thread's event asks of the user, for Marley's push (#752).
 /// What a thread's event asks of the user.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #800 (feature, agent components)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/800-agent-tools-show-components-in-the-thread.spec.md
+- **Pipeline doc:** [800-agent-tools-show-components-in-the-thread.spec.md](../../pipeline/completed/800-agent-tools-show-components-in-the-thread.spec.md)
 - **Source ticket:** Chad, 2026-10-17 (as #799)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Two Marley MCP tools: `component_list` answers with the catalog (each component's description,

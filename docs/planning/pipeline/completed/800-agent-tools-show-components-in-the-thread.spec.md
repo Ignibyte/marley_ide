@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0301b40a-2ad9-44ed-b6bf-21c8d80dab70
-ticket: docs/planning/tickets/open/TICKET-800-agent-tools-show-components-in-the-thread.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-800-agent-tools-show-components-in-the-thread.md
+status: Phase 4 — Complete PASS
 title: Agents show components in the thread
 type: feature
 slice: Control plane (agent components)

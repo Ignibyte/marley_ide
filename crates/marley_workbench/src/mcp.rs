@@ -584,6 +584,10 @@ fn answer(mut call: AppCall, cx: &mut App) {
         crate::review_tools::answer(call, cx);
         return;
     }
+    if call.tool.starts_with("component_") {
+        crate::component_tools::answer(call, cx);
+        return;
+    }
     if call.tool == "ports_list" {
         ports_list(call, cx);
         return;

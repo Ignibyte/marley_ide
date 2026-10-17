@@ -48,6 +48,9 @@ pub enum Family {
     Review,
     /// Agents an agent in a Marley terminal starts as harness seats, and their state (#716).
     Agent,
+    /// Components an agent draws for the user: the catalog, and a tree drawn in its thread or a
+    /// tab (#800).
+    Component,
 }
 
 impl Family {
@@ -72,6 +75,7 @@ impl Family {
             Self::Draft => "draft",
             Self::Review => "review",
             Self::Agent => "agent",
+            Self::Component => "component",
         }
     }
 
@@ -95,6 +99,7 @@ impl Family {
                 | Self::Draft
                 | Self::Review
                 | Self::Agent
+                | Self::Component
         )
     }
 }
@@ -782,6 +787,29 @@ const REGISTRY: &[ToolSpec] = &[
                       project replaces the open one. Asks the user first, as the editor tools do.",
     },
     ToolSpec {
+        family: Family::Component,
+        verb: "list",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "List the components that component_show draws. Each entry gives the `type` \
+                      name, the group, a description, the JSON Schema of the fields and an \
+                      example tree.",
+    },
+    ToolSpec {
+        family: Family::Component,
+        verb: "show",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Draw a component tree for the user, such as a table, a chart or a status \
+                      card. Send `component`, one JSON object with a `type`. A `row`, a `column` \
+                      or a `card` holds more components in `children`. Set `tone` to default, \
+                      muted, accent, success, warning or error for color. In an Agent Panel \
+                      thread, the tree shows in the row of this call. From a Marley terminal, \
+                      the tree opens in a tab beside the terminal. An invalid tree returns \
+                      `shown: false` and the error with its JSON path. Fix the tree and call \
+                      again. component_list gives the fields of each type.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -970,6 +998,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Draft => draft_schemas(),
         Family::Review => review_schemas(spec.verb),
         Family::Agent => agent_schemas(spec.verb),
+        Family::Component => component_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -984,6 +1013,72 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
             receipt_schema(),
         ),
     }
+}
+
+/// The schemas of the `component` family (#800): `component_list`, no input, the catalog in the
+/// answer; `component_show`, a tree and a title, the answer saying where it showed or why not.
+fn component_schemas(verb: &str) -> (Value, Value) {
+    if verb == "list" {
+        return (
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "components": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": { "type": "string" },
+                                "group": { "type": "string" },
+                                "description": { "type": "string" },
+                                "schema": { "type": "object" },
+                                "example": { "type": "object" }
+                            },
+                            "required": ["type", "description", "schema", "example"]
+                        }
+                    }
+                },
+                "required": ["components"]
+            }),
+        );
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "component": {
+                    "type": "object",
+                    "description": "One component: a JSON object with a `type`. The types are text, heading, row, column, card, divider, table, key_value, stat, badge, progress, bar_chart, sparkline, code and callout. A row, a column or a card holds more components in `children`. Example: {\"type\": \"table\", \"columns\": [\"Service\", \"State\"], \"rows\": [[\"api\", {\"type\": \"badge\", \"text\": \"up\", \"tone\": \"success\"}]]}.",
+                    "properties": { "type": { "type": "string" } },
+                    "required": ["type"]
+                },
+                "title": {
+                    "type": "string",
+                    "description": "The title of the tab that a call from a Marley terminal opens."
+                }
+            },
+            "required": ["component"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "shown": { "type": "boolean" },
+                "where": { "type": "string", "enum": ["thread", "tab"] },
+                "title": { "type": "string" },
+                "error": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" },
+                        "message": { "type": "string" }
+                    },
+                    "required": ["path", "message"]
+                }
+            },
+            "required": ["shown"]
+        }),
+    )
 }
 
 /// The schemas of `draft_message` (#769): the target and the text; the answer says it opened.

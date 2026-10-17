@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agents draw components** (#800, 2026-10-17). Two Marley MCP tools: `component_list` gives
+  the catalog, and `component_show` draws a tree. In an agent thread the component appears in the
+  call's row for Claude Code, Codex and Zed's agent alike; from an agent in a Marley terminal it
+  opens in a tab beside the terminal. A tree with a mistake answers the agent with the error and its
+  JSON path, and the row shows the same error.
+
 - **Marley components and the Component Library** (#799, 2026-10-17). A catalog of components an
   agent can ask Marley to draw: text, headings, rows, columns, cards, dividers, tables, key-value
   lists, stats, badges, progress bars, bar charts, sparklines, code and callouts, described as JSON

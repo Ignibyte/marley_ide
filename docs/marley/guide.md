@@ -1712,6 +1712,16 @@ library`, Home's Components button, or Component Library on the Marley settings 
 A table draws at most 500 rows and says how many more there are; a tree nests at most 12 deep and
 holds at most 2,000 components.
 
+### Agents draw components (#800)
+
+Every agent Marley offers its tools to (Claude Code, Codex, Zed's agent) gets two more:
+`component_list`, the catalog with each type's fields and an example, and `component_show`, which
+draws a tree. In an agent thread the tree shows in the call's row, so a table or a chart sits in
+the conversation where the agent made it; open the row to see the JSON. An agent in a Marley
+terminal has no row to draw into, so its tree opens in a tab beside its terminal, named by the
+call's `title` (a second call with the same title replaces it). A tree with a mistake draws
+nothing; the agent gets the error and its JSON path, and the thread shows the same error.
+
 ## Rusty
 
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`

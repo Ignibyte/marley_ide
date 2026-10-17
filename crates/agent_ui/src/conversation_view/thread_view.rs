@@ -9210,6 +9210,28 @@ impl ThreadView {
             None
         };
 
+        // Marley: a completed call Marley draws itself, such as its `component_show`, shows the
+        // drawing under its header whether the row is open or not (#800).
+        let marley_view = matches!(tool_call.status(), ToolCallStatus::Completed)
+            .then(|| cx.try_global::<crate::MarleyToolCallView>())
+            .flatten()
+            .and_then(|host| {
+                let label = tool_call.label.read(cx).source().to_string();
+                let name = tool_call
+                    .tool_name
+                    .as_ref()
+                    .or(tool_call.name.as_ref())
+                    .map_or(label.as_str(), |name| name.as_ref());
+                let input = tool_call.raw_input.as_ref()?;
+                (host.draw)(
+                    name,
+                    input,
+                    SharedString::from(format!("marley-tool-view-{entry_ix}")),
+                    cx,
+                )
+            })
+            .map(|drawn| div().w_full().px_2().py_1().child(drawn));
+
         let body = v_flex()
             .map(|this| {
                 if is_terminal_tool {
@@ -9385,6 +9407,7 @@ impl ThreadView {
                     )
                 }
             })
+            .children(marley_view)
             .children(tool_output_display);
 
         v_flex()

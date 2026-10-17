@@ -53,6 +53,7 @@ pub mod codex_server;
 pub mod command_watch;
 pub mod commands;
 pub mod component_library;
+pub mod component_tools;
 pub mod delegation;
 pub mod docs_tools;
 pub mod drafts;
@@ -1081,6 +1082,7 @@ pub fn init(cx: &mut App) {
     rail::containers::init(cx);
     agent_panel_width::init(cx);
     component_library::init(cx);
+    component_tools::init(cx);
     pane_splits::init(cx);
     observe_workspaces(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
