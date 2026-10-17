@@ -1554,6 +1554,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A terminal's row in the rail no longer jumps** (#796, 2026-10-17). A terminal's row grew
+  when a second line came under its name: a shell's command (#551) under its folder, or an
+  agent's tool or last message (#519) under its status. The row and every row under it moved down,
+  then back up when the line went, as after a `cd` back to the project's folder. Every terminal
+  row is now two lines tall, with blank lines under what it shows, so the name stays put and
+  nothing below it moves. A third line, a command's error or an agent's quota, still makes the row
+  taller. Thread, Browser and port rows keep their height: their lines never change while they
+  show.
+
 - **A default mode no longer hides Rusty or Marley from New Agent** (#793, 2026-10-16). Picking a
   mode in a Rusty or Marley thread, or making a setting a thread's default, makes Zed save it in
   your settings under `agent_servers.Rusty` or `agent_servers.Marley`. That entry took the place

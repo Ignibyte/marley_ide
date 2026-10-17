@@ -163,7 +163,9 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     theme and darker in a light one; `border` and `element_background` match the fills under
     them in One Dark.
   - `row_card`, for terminal, Browser and thread rows: `h_11`, a `size_7` round icon container in
-    `raised`, the title over the second line when there is one. A shell's icon is a `>_` in the
+    `raised`, the title over the second line when there is one. Since #796 `render_terminal_row`
+    pads its lines to two with blank ones, so a terminal row is always the two-line 3.5 rem and a
+    line that comes or goes moves nothing. A shell's icon is a `>_` in the
     buffer font (`rail_terminal_icon`), since each of Zed's terminal icons boxes the prompt; an
     agent CLI's is its own.
   - A project header is `h_8`, its name in the small muted type of a section label unless
@@ -2889,7 +2891,8 @@ below describe what #743 retired.
   the seat of a Claude Code row: its status from `seat_status`, its second line from
   `seat_line` (the state, the subagents, the user's prompt; the icon names the agent), and a
   third line from `seat_activity`. `row_card` takes the lines under the title, and a row with
-  a third line is 3.5 rem tall; every other row keeps `h_11`. A row without a seat keeps the
+  a third line is 3.5 rem tall; every other row keeps `h_11`. (Since #796 a terminal row is
+  never shorter than 3.5 rem: it pads its lines to two.) A row without a seat keeps the
   quiet timer's reading.
 - **The stop kind** (#566). After each fold, `after_fold` runs the use when its mode is not off:
   on a lead `Stop`, or the interrupt that ended a running turn, `ask_stop_kind` reads the seat's

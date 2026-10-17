@@ -1525,7 +1525,8 @@ async fn a_terminal_row_is_a_fixed_height_with_a_round_icon(cx: &mut TestAppCont
     let (_, _, beta, _, cx) = open_rail(cx).await;
     let (_, view) = add_terminal(&beta, false, cx);
     let row = bounds_of(&format!("marley-rail-terminal-{}", id(&view)), cx);
-    assert_eq!(row.size.height, rems_in_pixels(2.75, cx));
+    // #796: two lines tall with nothing under its title.
+    assert_eq!(row.size.height, rems_in_pixels(3.5, cx));
     let icon = bounds_of(&format!("marley-rail-terminal-icon-{}", id(&view)), cx);
     let across = rems_in_pixels(1.75, cx);
     assert_eq!(icon.size, gpui::size(across, across));
@@ -1894,9 +1895,9 @@ mod threads {
         let key = rail
             .read_with(cx, |rail, _| rail.snapshot.threads.keys().next().cloned())
             .expect("the seeded thread's row");
-        let terminal_row = bounds_of(&format!("marley-rail-terminal-{}", id(&view)), cx);
+        // #796: a terminal row holds two lines; a thread row's one line never changes.
         let thread_row = bounds_of(&format!("marley-rail-thread-{key}"), cx);
-        assert_eq!(thread_row.size.height, terminal_row.size.height);
+        assert_eq!(thread_row.size.height, rems_in_pixels(2.75, cx));
         let terminal_icon = bounds_of(&format!("marley-rail-terminal-icon-{}", id(&view)), cx);
         let thread_icon = bounds_of(&format!("marley-rail-thread-icon-{key}"), cx);
         assert_eq!(thread_icon.size, terminal_icon.size);

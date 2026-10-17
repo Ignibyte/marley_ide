@@ -6140,39 +6140,45 @@ impl Rail {
             .then(|| Self::interrupted_chip(id, &terminal.workspace, &terminal.view, cx));
         let limited = row.usage.limit.is_some();
         let (quota, usage_tooltip) = usage_parts(&row);
+        let mut lines: Vec<CardLine> = row
+            .subtitle
+            .map(|subtitle| {
+                // A limited agent's line reads as a warning, not a failure (#715).
+                if limited {
+                    RowLine {
+                        text: subtitle,
+                        state: None,
+                        color: Color::Warning,
+                        cut: Cut::End,
+                    }
+                } else {
+                    RowLine::muted(subtitle)
+                }
+            })
+            .into_iter()
+            .chain(row.activity.map(RowLine::muted))
+            .chain(quota)
+            .chain(row.command.map(command_line))
+            .chain(row.running_error.map(|error| RowLine {
+                text: error.line,
+                state: None,
+                color: Color::Error,
+                cut: Cut::End,
+            }))
+            .map(CardLine::from)
+            .chain(interrupted.map(|chip| CardLine::Element(chip.into_any_element())))
+            .collect();
+        // Blank lines make up two, so a command's or an agent's activity line that comes and goes
+        // moves neither the title nor the rows under it (#796).
+        let blanks = 2usize.saturating_sub(lines.len());
+        lines.extend((0..blanks).map(|_| CardLine::from(String::new())));
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
             row.selected,
             icon,
             row_label(row.title, row.highlight, Color::Default),
-            row.subtitle
-                .map(|subtitle| {
-                    // A limited agent's line reads as a warning, not a failure (#715).
-                    if limited {
-                        RowLine {
-                            text: subtitle,
-                            state: None,
-                            color: Color::Warning,
-                            cut: Cut::End,
-                        }
-                    } else {
-                        RowLine::muted(subtitle)
-                    }
-                })
-                .into_iter()
-                .chain(row.activity.map(RowLine::muted))
-                .chain(quota)
-                .chain(row.command.map(command_line))
-                .chain(row.running_error.map(|error| RowLine {
-                    text: error.line,
-                    state: None,
-                    color: Color::Error,
-                    cut: Cut::End,
-                }))
-                .map(CardLine::from)
-                .chain(interrupted.map(|chip| CardLine::Element(chip.into_any_element())))
-                .collect(),
+            lines,
             cx,
         )
         .children(marks)

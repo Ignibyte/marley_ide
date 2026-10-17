@@ -5536,3 +5536,21 @@ Rejected:
   settings;
 - keeping each preference under `marley.*`, as #779 did for its modes: every writer of Zed's
   would need a Marley twin.
+
+## AD-claude-796-a-terminal-row-holds-two-lines-001
+*decided at: 2026-10-17 · status: shipped · amends: AD-claude-468-the-rail-draws-its-own-rows-after-warps-tab-list-001*
+
+A terminal's rail row is never shorter than `row_card`'s two-line height (3.5 rem):
+`render_terminal_row` pads its lines with blank ones until there are two, after the real ones.
+A shell's folder and command lines and an agent's activity line come and go while the row is
+shown, and a row that grew with them moved every row under it. The blanks go last so what the
+row shows starts under its title, and the title sits at the top of the row in every state. A
+third line still grows the row. Chad chose terminal rows only: thread, Browser, port and the
+other rows keep `h_11`, since their lines do not change while they show.
+
+Rejected:
+- every `row_card` at two lines: one height down the rail, but taller rows that never jump and
+  fewer rows on screen;
+- a floor without blank lines: the title would sit centered in a taller row and move up when a
+  line came;
+- the folder and the command on one line: either one cut at the rail's width.
