@@ -10717,6 +10717,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "marley_components"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "schemars 1.0.4",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "ui",
+]
+
+[[package]]
 name = "marley_dcs"
 version = "0.1.0"
 
@@ -10841,6 +10853,7 @@ dependencies = [
  "markdown_preview",
  "marley_agent",
  "marley_browser",
+ "marley_components",
  "marley_dcs",
  "marley_fleet",
  "marley_mcp",

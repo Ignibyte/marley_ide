@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #799 (feature, agent components)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/799-marley-components-and-the-component-library.spec.md
+- **Pipeline doc:** [799-marley-components-and-the-component-library.spec.md](../../pipeline/completed/799-marley-components-and-the-component-library.spec.md)
 - **Source ticket:** Chad, 2026-10-17: "Lets build a gpui component system where if you are talking to an agent in the zed agent panel it can be provided tools that would build tables and stuff like that. In the settings or from the home we could see the component library."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A new crate, `marley_components`, holds a catalog of components an agent can ask for: text,

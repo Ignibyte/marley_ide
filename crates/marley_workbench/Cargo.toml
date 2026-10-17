@@ -46,6 +46,7 @@ markdown.workspace = true
 markdown_preview.workspace = true
 marley_agent.workspace = true
 marley_browser.workspace = true
+marley_components.workspace = true
 marley_dcs.workspace = true
 marley_fleet.workspace = true
 marley_mcp.workspace = true

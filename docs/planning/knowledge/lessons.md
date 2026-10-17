@@ -6080,3 +6080,18 @@ What the #798 scenario learned about driving Marley under sway:
   `pane: split and move right`.
 - **Move Thread to Panel is hidden in the Marley layout.** A check of the Agent Panel switches to
   Zed's layout first (`marley: use zed layout`).
+
+## L-claude-799-checking-a-long-scrolling-page-in-a-scenario-001
+*category: testing · topic: e2e scenarios · from: pipeline 799*
+
+A long page (the Component Library is tens of screens) cannot be checked with fixed scroll counts:
+the same `scroll N` moved the page different distances in two runs. What worked:
+- **Put the thing to check at the top.** A scratch input that draws what is pasted into it shows
+  any component at a fixed place; the callout and the light theme were checked that way.
+- **Shoot a series and find the frame.** For the end of a 500-row table, scroll in chunks with a
+  shot after each, then find the frame with `tesseract shot.png - | grep 'row 499'` and read that
+  one.
+- **Pixels for colors.** A tone that looks grey scaled down can be checked with
+  `magick shot.png -format '%[pixel:p{x,y}]' info:` against the theme's color.
+- **The spelling gate reads fixtures.** A deliberately wrong type name in a scenario must not be a
+  common misspelling (`tabel` failed gate:18); use a real word the catalog lacks (`gauge`).

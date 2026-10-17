@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley components and the Component Library** (#799, 2026-10-17). A catalog of components an
+  agent can ask Marley to draw: text, headings, rows, columns, cards, dividers, tables, key-value
+  lists, stats, badges, progress bars, bar charts, sparklines, code and callouts, described as JSON
+  and drawn with Zed's own pieces in your theme. Colors come from tones, so they follow the theme.
+  - **The Component Library** shows each one beside its JSON, with a Try it box that draws what you
+    paste or points at the mistake by its JSON path. It opens from `marley: open component library`,
+    Home's Components button and the Marley settings page.
+  - The crate is `marley_components`; agents reach it with #800's tools.
+
 - **An agent's width in percent** (#798, 2026-10-17). A thread's message box has a width button
   after the follow toggle that shows how wide the thread is, and a click steps it to a third, half,
   two thirds, the whole window, then a third again. `marley: cycle agent panel width` does the

@@ -144,6 +144,7 @@ members = [
     # Marley: the Marley crates.
     "crates/marley_agent",
     "crates/marley_browser",
+    "crates/marley_components",
     "crates/marley_dcs",
     "crates/marley_fleet",
     "crates/marley_mcp",
@@ -433,6 +434,7 @@ markdown_preview = { path = "crates/markdown_preview" }
 # Marley: the Marley crates other crates depend on.
 marley_agent = { path = "crates/marley_agent" }
 marley_browser = { path = "crates/marley_browser" }
+marley_components = { path = "crates/marley_components" }
 marley_dcs = { path = "crates/marley_dcs" }
 marley_fleet = { path = "crates/marley_fleet" }
 marley_mcp = { path = "crates/marley_mcp" }

@@ -1696,6 +1696,22 @@ front.
   comes back at the same width after a restart.
 - A width you drag to by hand steps to the next size above it: 45% goes to 50%.
 
+### The Component Library (#799)
+
+Marley has a catalog of components an agent can draw: text, headings, rows, columns, cards,
+dividers, tables, key-value lists, stats, badges, progress bars, bar charts, sparklines, code and
+callouts. Each is a JSON object whose `type` names it, and a row, a column or a card holds more in
+`children`. Colors come from your theme: a component names a tone (`default`, `muted`, `accent`,
+`success`, `warning`, `error`), never a color, so it looks right in every theme.
+
+The Component Library tab shows every component drawn beside the JSON that makes it, group by
+group. Its Try it box draws whatever JSON you type or paste, or says what is wrong and where
+(`$.children[1]: The type gauge is not in the catalog`). Open it with `marley: open component
+library`, Home's Components button, or Component Library on the Marley settings page.
+
+A table draws at most 500 rows and says how many more there are; a tree nests at most 12 deep and
+holds at most 2,000 components.
+
 ## Rusty
 
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`

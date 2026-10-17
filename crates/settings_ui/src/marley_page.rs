@@ -190,7 +190,7 @@ fn layout_section() -> [SettingsPageItem; 7] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 23] {
+fn agents_section() -> [SettingsPageItem; 24] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -693,6 +693,28 @@ fn agents_section() -> [SettingsPageItem; 23] {
                 },
             }),
             metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::ActionLink(ActionLink {
+            title: "Component Library".into(),
+            description: Some("The components an agent can draw in a thread with component_show: tables, charts, stats, cards and more, each drawn beside the JSON that makes it, and a box to try your own.".into()),
+            button_text: "Open Component Library".into(),
+            on_click: Arc::new(|settings_window, window, cx| {
+                let Some(original_window) = settings_window.original_window else {
+                    return;
+                };
+                // By its name: this crate depends on no Marley crate.
+                let Some(action) = cx.build_action("marley::OpenComponentLibrary", None).log_err() else {
+                    return;
+                };
+                original_window
+                    .update(cx, |_workspace, original_window, cx| {
+                        original_window.dispatch_action(action, cx);
+                        original_window.activate_window();
+                    })
+                    .log_err();
+                window.remove_window();
+            }),
             files: USER,
         }),
     ]

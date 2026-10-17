@@ -1,7 +1,7 @@
 ---
 pipeline_id: ad5f1731-b85e-4ed6-916f-9e50fdaad500
-ticket: docs/planning/tickets/open/TICKET-799-marley-components-and-the-component-library.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-799-marley-components-and-the-component-library.md
+status: Phase 4 — Complete PASS
 title: Marley components and the Component Library
 type: feature
 slice: Control plane (agent components)
