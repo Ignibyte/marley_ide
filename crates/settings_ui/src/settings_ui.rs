@@ -579,6 +579,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MarleyRailOrder>(render_dropdown)
         // Marley: how blocks are spaced in a terminal (#631).
         .add_basic_renderer::<settings::MarleyBlockDensity>(render_dropdown)
+        .add_basic_renderer::<settings::MarleyBlockTables>(render_dropdown)
         // Marley: how Marley reaches Rusty (#643).
         .add_basic_renderer::<settings::MarleyRustyConnection>(render_dropdown)
         // Marley: what Marley's own agent runs on (#687).

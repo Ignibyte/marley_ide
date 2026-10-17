@@ -6137,3 +6137,11 @@ Zed's `TableView` sorts a column as text (6 after 59), and its JSONL preview sho
 with their quotes. A scenario that proves rows past a point by sorting picks a column whose text
 order says so (a Z-A id sort put file line 10,001 on top), or uses the row numbers, which follow
 the file's lines.
+
+## L-claude-804-place-each-row-at-its-grid-rows-top-001
+*category: code · topic: gpui elements over terminal rows · from: pipeline 804*
+
+An element drawn over a terminal's rows must not stack rows of `line_height` in a flex column:
+the line height is fractional (19.5 px at the default size) and stacked rows drift a fraction of a
+pixel each. Make the container `relative` and place each row `absolute` at `line_height * row`, so
+every row rounds alone and stays on its grid row, however many there are.

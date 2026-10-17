@@ -7,36 +7,53 @@
 //! Open Output as Table open it in a tab in the terminal's pane: a file in Zed's table preview,
 //! whole; output in a `BlockTable`, Zed's table view filled with the parsed cells. A second open
 //! brings the tab forward. The block's text stays as the program printed it.
+//!
+//! Since #804 a block of delimited text whose every output row is one record (the header and the
+//! rows fill its rows, none wrapped) can also show its table in the terminal, over those rows: the
+//! block's Inline toggle, or `marley.block_tables: in_place` as the block finishes. The element
+//! draws one table row per terminal row through `MarleyBlockBody`, and the terminal leaves those
+//! rows' cells out, so copy, find and links still read the text. A row holding a search match is
+//! marked, and a selection being dragged shows the text.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use collections::HashMap;
+use collections::{HashMap, HashSet};
 use editor::Editor;
 use fs::Fs;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, Global, IntoElement as _, ParentElement as _, Render, Styled as _, Subscription,
-    TaskExt as _, WeakEntity, Window, div,
+    Focusable, FontWeight, Global, IntoElement as _, ParentElement as _, Pixels, Render,
+    Styled as _, Subscription, TaskExt as _, WeakEntity, Window, div,
 };
-use marley_terminal::tables::{self, SAMPLE_LINES, Table, TableShape};
-use marley_terminal::{AnchoredBlock, BlockState};
+use marley_terminal::tables::{self, SAMPLE_LINES, Table, TableKind, TableShape};
+use marley_terminal::{AnchoredBlock, BlockState, OutputRows};
+use settings::{MarleyBlockTables, Settings as _};
 use tabular_data_preview::TableView;
 use tabular_data_preview::TabularDataPreviewPane;
 use tabular_data_preview::types::{LineNumber, TableCell, TableLikeContent};
 use terminal::Terminal;
-use terminal_view::{MarleyFooterContext, TerminalView};
+use terminal::terminal_settings::TerminalSettings;
+use terminal_view::{MarleyBlockBody, MarleyFooterContext, TerminalView};
+use theme::ActiveTheme as _;
+use theme_settings::ThemeSettings;
 use ui::table_row::TableRow;
 use ui::{
-    Button, ButtonCommon as _, ButtonStyle, Clickable as _, ContextMenu, Icon, IconName, LabelSize,
-    SharedString, TintColor, Tooltip,
+    Button, ButtonCommon as _, ButtonStyle, Clickable as _, ContextMenu, FluentBuilder as _, Icon,
+    IconName, LabelSize, SharedString, TintColor, Tooltip, h_flex,
 };
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
+use crate::MarleySettings;
+
 /// The longest command a table's tab title shows.
 const TITLE_LIMIT: usize = 40;
+
+/// The narrowest and the widest a column drawn in place starts, in cells.
+const COLUMN_CELLS: (usize, usize) = (3, 40);
 
 /// What each terminal's finished blocks offer as tables.
 #[derive(Default)]
@@ -59,20 +76,18 @@ impl BlockTables {
     }
 }
 
-/// What a block offers, and the tab that shows it once opened.
-#[derive(Clone)]
+/// What a block offers, the tab that shows it once opened, and its table while drawn in place.
+#[derive(Clone, Default)]
 struct Found {
-    source: Source,
+    /// The one tabular file its command read, which a tab opens in place of the output.
+    file: Option<PathBuf>,
+    /// The shape its output's sample had, when that reads as a table.
+    shape: Option<TableShape>,
+    /// The output's row count, when the table can be drawn over it: one record on each row.
+    fits: Option<u64>,
+    /// The table drawn over the block's rows, while it is (#804).
+    inline: Option<Arc<Table>>,
     opened: Option<Opened>,
-}
-
-/// Where a block's table comes from.
-#[derive(Clone)]
-enum Source {
-    /// The one tabular file its command read.
-    File(PathBuf),
-    /// Its own output, with the shape its sample had.
-    Output(TableShape),
 }
 
 /// The tab a block's table opened in.
@@ -89,6 +104,8 @@ struct Unread {
     command: String,
     folder: Option<String>,
     output: Option<(String, bool)>,
+    /// The output's row count.
+    rows: u64,
 }
 
 /// The toasts of a table that would not open.
@@ -98,6 +115,7 @@ struct TableToast;
 /// opens.
 pub fn init(cx: &mut App) {
     cx.set_global(BlockTables::default());
+    cx.set_global(MarleyBlockBody(Arc::new(body)));
     cx.observe_new(
         |view: &mut TerminalView, _, cx: &mut Context<TerminalView>| {
             watch(view, cx);
@@ -173,6 +191,10 @@ fn read_finished(terminal: &Entity<Terminal>, cx: &mut Context<TerminalView>) {
                 command: block.command.clone(),
                 folder: block.prompt.pwd.clone(),
                 output: sample(terminal, block),
+                rows: block
+                    .output_end
+                    .unwrap_or(block.output_start)
+                    .saturating_sub(block.output_start),
             });
         }
         (unread, read_to)
@@ -182,9 +204,11 @@ fn read_finished(terminal: &Entity<Terminal>, cx: &mut Context<TerminalView>) {
     }
     cx.default_global::<BlockTables>().next.insert(id, read_to);
     let fs = <dyn Fs>::global(cx);
+    let in_place = MarleySettings::get_global(cx).block_tables == MarleyBlockTables::InPlace;
     cx.spawn(async move |view, cx| {
         let mut found = Vec::new();
         for block in unread {
+            let mut offer = Found::default();
             let file = block
                 .folder
                 .as_deref()
@@ -197,16 +221,34 @@ fn read_finished(terminal: &Entity<Terminal>, cx: &mut Context<TerminalView>) {
                     .flatten()
                     .is_some_and(|metadata| !metadata.is_dir && !metadata.is_fifo)
             {
-                found.push((block.index, Source::File(file)));
-                continue;
+                offer.file = Some(file);
             }
-            let Some((text, cut)) = block.output else {
-                continue;
-            };
-            let shape = smol::unblock(move || tables::detect(&text)).await;
-            if let Some(mut shape) = shape {
-                shape.more |= cut;
-                found.push((block.index, Source::Output(shape)));
+            if let Some((text, cut)) = block.output {
+                let rows = block.rows;
+                let (shape, fits, inline) = smol::unblock(move || {
+                    let Some(mut shape) = tables::detect(&text) else {
+                        return (None, None, None);
+                    };
+                    shape.more |= cut;
+                    let lines = u64::try_from(text.lines().count()).unwrap_or(u64::MAX);
+                    let fits = (matches!(shape.kind, TableKind::Delimited(_))
+                        && !shape.more
+                        && lines == rows
+                        && u64::try_from(shape.rows + 1).is_ok_and(|records| records == lines))
+                    .then_some(rows);
+                    let inline = fits
+                        .filter(|_| in_place)
+                        .and_then(|_| tables::parse(&text))
+                        .map(Arc::new);
+                    (Some(shape), fits, inline)
+                })
+                .await;
+                offer.shape = shape;
+                offer.fits = fits;
+                offer.inline = inline;
+            }
+            if offer.file.is_some() || offer.shape.is_some() {
+                found.push((block.index, offer));
             }
         }
         if found.is_empty() {
@@ -214,14 +256,8 @@ fn read_finished(terminal: &Entity<Terminal>, cx: &mut Context<TerminalView>) {
         }
         cx.update(|cx| {
             let tables = cx.default_global::<BlockTables>();
-            for (index, source) in found {
-                tables.by_block.insert(
-                    (id, index),
-                    Found {
-                        source,
-                        opened: None,
-                    },
-                );
+            for (index, offer) in found {
+                tables.by_block.insert((id, index), offer);
             }
         });
         view.update(cx, |_, cx| cx.notify()).log_err();
@@ -262,15 +298,14 @@ pub(crate) fn with_menu_item(
     })
 }
 
-/// What `terminal`'s block at `index` offers, while its output is still held when that is the
-/// source.
+/// What `terminal`'s block at `index` offers, while its output is still held when no file is.
 fn found(terminal: &Entity<Terminal>, index: usize, cx: &App) -> Option<Found> {
     let found = cx
         .try_global::<BlockTables>()?
         .by_block
         .get(&(terminal.entity_id(), index))?
         .clone();
-    if matches!(found.source, Source::Output(_)) {
+    if found.file.is_none() {
         let terminal = terminal.read(cx);
         let block = terminal
             .blocks()
@@ -292,31 +327,237 @@ pub(crate) fn chip(
     cx: &App,
 ) -> Option<AnyElement> {
     let found = found(terminal, index, cx)?;
-    let tooltip = match &found.source {
-        Source::File(path) => format!(
+    let tooltip = match (&found.file, &found.shape) {
+        (Some(path), _) => format!(
             "Open {} as a table",
             path.file_name()
                 .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
         ),
-        Source::Output(shape) => format!(
+        (None, Some(shape)) => format!(
             "Open the output as a table: {} columns, {}{} rows",
             shape.columns,
             if shape.more { "over " } else { "" },
             shape.rows
         ),
+        (None, None) => return None,
     };
-    let view = view.clone();
+    let open_view = view.clone();
+    let table = Button::new(("marley-block-table", index), "Table")
+        .style(ButtonStyle::Tinted(TintColor::Accent))
+        .label_size(LabelSize::XSmall)
+        .tooltip(Tooltip::text(tooltip))
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            open(&open_view, index, window, cx);
+        });
+    // A block whose rows each hold one record can show its table over them (#804).
+    let toggle = found.fits.map(|_| {
+        let shown = found.inline.is_some();
+        let view = view.clone();
+        Button::new(
+            ("marley-block-table-inline", index),
+            if shown { "Text" } else { "Inline" },
+        )
+        .style(ButtonStyle::Tinted(TintColor::Accent))
+        .label_size(LabelSize::XSmall)
+        .tooltip(Tooltip::text(if shown {
+            "Show the block's text"
+        } else {
+            "Draw the table over the block's output"
+        }))
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            toggle_inline(&view, index, cx);
+        })
+    });
     Some(
-        Button::new(("marley-block-table", index), "Table")
-            .style(ButtonStyle::Tinted(TintColor::Accent))
-            .label_size(LabelSize::XSmall)
-            .tooltip(Tooltip::text(tooltip))
-            .on_click(move |_, window, cx| {
-                cx.stop_propagation();
-                open(&view, index, window, cx);
-            })
+        h_flex()
+            .gap_1()
+            .child(table)
+            .children(toggle)
             .into_any_element(),
     )
+}
+
+/// Draws the table of `view`'s block at `index` over its rows, parsed off the main thread, or
+/// shows its text again.
+fn toggle_inline(view: &Entity<TerminalView>, index: usize, cx: &mut App) {
+    let terminal = view.read(cx).terminal().clone();
+    let key = (terminal.entity_id(), index);
+    let shown = cx
+        .try_global::<BlockTables>()
+        .and_then(|tables| tables.by_block.get(&key))
+        .is_some_and(|found| found.inline.is_some());
+    if shown {
+        if let Some(found) = cx.default_global::<BlockTables>().by_block.get_mut(&key) {
+            found.inline = None;
+        }
+        view.update(cx, |_, cx| cx.notify());
+        return;
+    }
+    let text = {
+        let terminal = terminal.read(cx);
+        terminal
+            .blocks()
+            .iter()
+            .find(|block| block.index == index)
+            .and_then(|block| terminal.block_output(block))
+    };
+    let Some(text) = text else {
+        return;
+    };
+    let view = view.downgrade();
+    cx.spawn(async move |cx| {
+        let Some(table) = smol::unblock(move || tables::parse(&text)).await else {
+            return;
+        };
+        cx.update(|cx| {
+            if let Some(found) = cx.default_global::<BlockTables>().by_block.get_mut(&key) {
+                found.inline = Some(Arc::new(table));
+            }
+        });
+        view.update(cx, |_, cx| cx.notify()).log_err();
+    })
+    .detach();
+}
+
+/// The element's `MarleyBlockBody` hook (#804): the table of a block drawn in place, for its
+/// output rows on screen, one table row on each terminal row; none while the block's rows no
+/// longer hold one record each (a width change rewrapped them) or a selection is being dragged.
+fn body(
+    _: &Entity<TerminalView>,
+    terminal: &Entity<Terminal>,
+    output: &OutputRows,
+    line_height: Pixels,
+    cx: &App,
+) -> Option<AnyElement> {
+    let found = cx
+        .try_global::<BlockTables>()?
+        .by_block
+        .get(&(terminal.entity_id(), output.index))?;
+    let table = found.inline.clone()?;
+    let fits = found.fits?;
+    let terminal = terminal.read(cx);
+    if terminal.selection_started() {
+        return None;
+    }
+    let block = terminal
+        .blocks()
+        .iter()
+        .find(|block| block.index == output.index)?;
+    if block.output_end?.saturating_sub(block.output_start) != fits {
+        return None;
+    }
+    let content = terminal.last_content();
+    let screen_top = i64::try_from(content.marley_screen_top).ok()?;
+    let output_start = i64::try_from(block.output_start).ok()?;
+    let marked: HashSet<usize> = terminal
+        .matches
+        .iter()
+        .filter_map(|found| {
+            usize::try_from(screen_top + i64::from(found.start().line) - output_start).ok()
+        })
+        .collect();
+    let widths = column_cells(&table, content.terminal_bounds.num_columns());
+    let cell_width = content.terminal_bounds.cell_width;
+    let colors = cx.theme().colors();
+    let (font_family, font_size) = terminal_font(cx);
+    // Each row is placed at its own grid row's top: rows of a rounded height would drift from the
+    // text rows under them, a fraction of a pixel each.
+    let rows = (output.above..output.above + output.rows.len()).map(|line| {
+        let cells = if line == 0 {
+            Some(&table.headers)
+        } else {
+            table.rows.get(line - 1)
+        };
+        let row = f32::from(u16::try_from(line - output.above).unwrap_or(u16::MAX));
+        h_flex()
+            .absolute()
+            .left_0()
+            .right_0()
+            .top(line_height * row)
+            .h(line_height)
+            .when(line == 0, |row| {
+                row.bg(colors.surface_background)
+                    .font_weight(FontWeight::BOLD)
+            })
+            .when(line > 0 && line % 2 == 0, |row| {
+                row.bg(colors.ghost_element_hover)
+            })
+            .when(marked.contains(&line), |row| {
+                row.bg(colors.search_match_background)
+            })
+            .children(
+                cells
+                    .into_iter()
+                    .flatten()
+                    .zip(&widths)
+                    .map(|(text, width)| {
+                        let cells = f32::from(u16::try_from(*width).unwrap_or(u16::MAX));
+                        div()
+                            .w(cell_width * (cells + 1.0))
+                            .flex_none()
+                            .pl(cell_width)
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .child(SharedString::from(text.clone()))
+                    }),
+            )
+    });
+    Some(
+        div()
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .bg(colors.terminal_background)
+            .font_family(font_family)
+            .text_size(font_size)
+            .text_color(colors.text)
+            .children(rows)
+            .into_any_element(),
+    )
+}
+
+/// Each column's width in cells: its widest cell between 3 and 40, shrunk in proportion when the
+/// table is wider than the terminal's `columns`, a cell of padding before each.
+fn column_cells(table: &Table, columns: usize) -> Vec<usize> {
+    let (narrowest, widest) = COLUMN_CELLS;
+    let mut widths: Vec<usize> = (0..table.headers.len())
+        .map(|column| {
+            std::iter::once(&table.headers)
+                .chain(&table.rows)
+                .filter_map(|row| row.get(column))
+                .map(|cell| cell.chars().count())
+                .max()
+                .unwrap_or(0)
+                .clamp(narrowest, widest)
+        })
+        .collect();
+    let total: usize = widths.iter().map(|width| width + 1).sum();
+    if total > columns && total > 0 {
+        for width in &mut widths {
+            *width = ((*width + 1) * columns / total)
+                .saturating_sub(1)
+                .max(narrowest);
+        }
+    }
+    widths
+}
+
+/// The terminal's font family and size, as its element picks them.
+fn terminal_font(cx: &App) -> (SharedString, Pixels) {
+    let terminal = TerminalSettings::get_global(cx);
+    let theme = ThemeSettings::get_global(cx);
+    let family = terminal.font_family.as_ref().map_or_else(
+        || theme.buffer_font.family.clone(),
+        |family| SharedString::from(Arc::clone(&family.0)),
+    );
+    let size = terminal.font_size.map_or_else(
+        || theme.buffer_font_size(cx),
+        |size| theme_settings::adjusted_font_size(size, cx),
+    );
+    (family, size)
 }
 
 /// Opens the table `view`'s block at `index` offers, after the event that asked: adding a tab
@@ -347,9 +588,9 @@ fn open_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
         return;
     }
     let key = (terminal.entity_id(), index);
-    match found.source {
-        Source::File(path) => open_file(&workspace, view, key, path, window, cx),
-        Source::Output(_) => open_output(&workspace, view, &terminal, key, window, cx),
+    match found.file {
+        Some(path) => open_file(&workspace, view, key, path, window, cx),
+        None => open_output(&workspace, view, &terminal, key, window, cx),
     }
 }
 

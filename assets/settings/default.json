@@ -1764,6 +1764,9 @@
     // of two lines over a one-row prompt, or "compact", no gaps and each header in its prompt's
     // own rows (#631).
     "block_density": "comfortable",
+    // What a block whose output reads as a table does: "offer", its text with a Table chip and an
+    // Inline toggle, or "in_place", the table drawn over the block's rows as it finishes (#804).
+    "block_tables": "offer",
     // Whether Marley runs rustal-harness's runtime itself (`rh serve` on a root in Marley's data
     // folder, `rh` from MARLEY_RH or the PATH) and shows its sessions in the rail; a `harness`
     // command, when set, wins (#632).

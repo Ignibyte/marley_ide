@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #804 (feature, the block terminal)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/804-a-blocks-table-in-the-terminal.spec.md
+- **Pipeline doc:** ../../pipeline/completed/804-a-blocks-table-in-the-terminal.spec.md
 - **Source ticket:** Chad, 2026-10-17 (as #803): "it could be formatted automatically in a table"
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The table #803 detects is drawn in the terminal itself, over the block's own output rows, the way

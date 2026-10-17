@@ -721,7 +721,7 @@ fn agents_section() -> [SettingsPageItem; 24] {
 }
 
 // Marley: where a URL clicked in a terminal opens (#503).
-fn terminal_section() -> [SettingsPageItem; 7] {
+fn terminal_section() -> [SettingsPageItem; 8] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -810,6 +810,26 @@ fn terminal_section() -> [SettingsPageItem; 7] {
                         .marley
                         .get_or_insert_default()
                         .block_density = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: what a block whose output reads as a table does (#804).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Block Tables",
+            description: "What a block whose output reads as a table does: offer shows its text with a Table chip and an Inline toggle; in place draws the table over the block's rows as soon as it finishes.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.block_tables"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.block_tables.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().block_tables = value;
                 },
             }),
             metadata: None,

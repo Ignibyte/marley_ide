@@ -910,6 +910,44 @@ pub fn prompt_rows(
         .collect()
 }
 
+/// A finished block's output rows on a viewport (#804): the block's index, its rows from the
+/// viewport's top, and how many of its output lines are above the viewport.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutputRows {
+    /// The block's index.
+    pub index: usize,
+    /// Its output's rows on the viewport, from the viewport's top.
+    pub rows: Range<usize>,
+    /// How many of its output lines are above the viewport.
+    pub above: usize,
+}
+
+/// The rows of a viewport that hold each finished block's output (#804).
+///
+/// The viewport is `screen_lines` from the absolute line `top`. Marley can draw a table over a
+/// block's output rows; a block with none of its output on screen is left out.
+#[must_use]
+pub fn output_rows(blocks: &[AnchoredBlock], top: u64, screen_lines: usize) -> Vec<OutputRows> {
+    let bottom = top.saturating_add(u64::try_from(screen_lines).unwrap_or(u64::MAX));
+    let row = |line: u64| usize::try_from(line - top).ok();
+    blocks
+        .iter()
+        .filter(|block| block.state == BlockState::Finished)
+        .filter_map(|block| {
+            let first = block.output_start.max(top);
+            let last = block.output_end?.min(bottom);
+            if first >= last {
+                return None;
+            }
+            Some(OutputRows {
+                index: block.index,
+                rows: row(first)?..row(last)?,
+                above: usize::try_from(first - block.output_start).ok()?,
+            })
+        })
+        .collect()
+}
+
 /// The scroll offset that shows the previous or the next block from a viewport's top.
 ///
 /// The viewport's top is `display_offset` lines above `screen_top`, the absolute line of the

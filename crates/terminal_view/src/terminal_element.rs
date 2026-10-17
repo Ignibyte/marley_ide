@@ -1768,6 +1768,42 @@ impl Element for TerminalElement {
                     marley_headers.push(element);
                     marley_hidden_rows.push(rows);
                 }
+                // Marley: an element over each finished block's output rows, such as its table,
+                // laid out as the headers are; its rows' cells and search marks go under it (#804).
+                let mut marley_bodies: Vec<AnyElement> = Vec::new();
+                if marley_maps_rows
+                    && let Some(hook) = cx.try_global::<crate::MarleyBlockBody>().cloned()
+                {
+                    let output_rows = {
+                        let terminal = self.terminal.read(cx);
+                        marley_output_rows(terminal.last_content(), terminal.blocks())
+                    };
+                    let line_height = dimensions.line_height();
+                    for output in output_rows {
+                        let Some(mut element) = (hook.0)(
+                            &self.terminal_view,
+                            &self.terminal,
+                            &output,
+                            line_height,
+                            cx,
+                        ) else {
+                            continue;
+                        };
+                        let (top, height) =
+                            marley_rows_extent(&output.rows, &marley_row_map, line_height);
+                        let origin = dimensions.bounds.origin + point(px(0.), top)
+                            - point(px(0.), scroll_top);
+                        let available_space = size(
+                            AvailableSpace::Definite(dimensions.width()),
+                            AvailableSpace::Definite(height),
+                        );
+                        window.with_rem_size(rem_size, |window| {
+                            element.prepaint_as_root(origin, available_space, window, cx);
+                        });
+                        marley_bodies.push(element);
+                        marley_hidden_rows.push(output.rows);
+                    }
+                }
                 let marley_hidden = |line: i32| {
                     usize::try_from(line).is_ok_and(|line| {
                         marley_hidden_rows.iter().any(|rows| rows.contains(&line))
@@ -1847,6 +1883,8 @@ impl Element for TerminalElement {
                 // Marley: the headers go first of the block elements, so the pill and the hover
                 // actions draw over them (#628).
                 marley_blocks.splice(0..0, marley_headers);
+                // Marley: a block's bar, pill and chip draw over its body (#804).
+                marley_blocks.splice(0..0, marley_bodies);
                 // Marley: the newest block's chip on its last row when its first row is above the
                 // screen, so a long failure still offers it (#555).
                 if let Some(span) = marley_spans.last().filter(|span| !span.starts_in_view)
@@ -2541,6 +2579,20 @@ fn marley_prompt_rows(
         .marley_screen_top
         .saturating_sub(content.display_offset as u64);
     marley_terminal::prompt_rows(blocks, top, content.screen_lines)
+}
+
+// Marley: each finished block's output rows on screen, for an element over them (#804).
+fn marley_output_rows(
+    content: &Content,
+    blocks: &[marley_terminal::AnchoredBlock],
+) -> Vec<marley_terminal::OutputRows> {
+    if content.mode.contains(Modes::ALT_SCREEN) {
+        return Vec::new();
+    }
+    let top = content
+        .marley_screen_top
+        .saturating_sub(content.display_offset as u64);
+    marley_terminal::output_rows(blocks, top, content.screen_lines)
 }
 
 // Marley: the viewport row of the prompt the shell waits at, when it is on screen (#631).

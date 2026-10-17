@@ -91,6 +91,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: "comfortable"
     pub block_density: Option<MarleyBlockDensity>,
+    /// What a block whose output reads as a table does: offer it with a chip and a toggle, or
+    /// draw it over the block's rows by itself when the block finishes (#804).
+    ///
+    /// Default: "offer"
+    pub block_tables: Option<MarleyBlockTables>,
     /// The command of rustal-harness's MCP server whose sessions the rail follows, read side
     /// only, in a context server's shape, such as
     /// `{"command": "/path/to/rh", "args": ["--state", "/path/to/root", "mcp"]}` (#534).
@@ -830,6 +835,30 @@ pub enum MarleyBlockDensity {
     Comfortable,
     /// No gaps, and each header in its prompt's own rows.
     Compact,
+}
+
+/// What a block whose output reads as a table does (#804).
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    MergeFrom,
+    strum::VariantArray,
+    strum::VariantNames,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarleyBlockTables {
+    /// The block shows its text, with a Table chip and an Inline toggle.
+    #[default]
+    Offer,
+    /// The table is drawn over the block's rows as the block finishes.
+    InPlace,
 }
 
 /// The order the rail lists projects and rows in (#542).

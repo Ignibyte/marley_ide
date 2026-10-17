@@ -775,6 +775,16 @@ Zed's table view, where a column header's buttons sort and filter. When the comm
 tab is Zed's preview of that file, whole, however much of it the block printed. The block's text
 stays as the program printed it; a second click brings the open tab forward.
 
+A block of comma-, tab-, semicolon- or pipe-separated text whose every output row is one record
+(no wrapped line, no blank line, at most 2,000 lines) also has an Inline button beside its Table
+chip (#804). Inline draws the table in the terminal, over the block's own rows: a bold header row,
+one table row on each terminal row, columns sized to fit the terminal. Text shows the block's text
+again. The rows underneath are unchanged, so copying, Copy Output and links read the text, a search
+marks the table row that holds a match, and dragging a selection shows the text while you drag.
+With `"marley": { "block_tables": "in_place" }` (Settings, Marley, Terminal, Block Tables) such a
+table is drawn as soon as its block finishes; the default, `offer`, waits for Inline. A width
+change that rewraps the block's lines shows its text until they fit again.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

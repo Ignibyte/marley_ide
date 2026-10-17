@@ -1,13 +1,13 @@
 ---
 pipeline_id: 77ed2060-4dd6-45d8-9b83-75db4e460f95
-ticket: docs/planning/tickets/open/TICKET-804-a-blocks-table-in-the-terminal.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-804-a-blocks-table-in-the-terminal.md
+status: Phase 4 — Complete PASS
 title: A block's table drawn in the terminal
 type: feature
 slice: T (the block terminal)
 references:
   - docs/planning/design-notes/terminal-output-as-components-2026-10-17.md
-  - docs/planning/pipeline/queued/803-a-blocks-output-opens-as-a-table.spec.md
+  - docs/planning/pipeline/completed/803-a-blocks-output-opens-as-a-table.spec.md
   - docs/planning/pipeline/completed/628-blocks-with-native-headers-and-ps1-hidden.spec.md
 ---
 
@@ -24,11 +24,17 @@ itself.
   text, rects and search marks, and the element laid over the rows' extent in prepaint, painted
   with the block elements. The element is exactly as tall as the rows and draws the part of the
   table on screen, so scrolling moves it with the text, row by row.
-- **The table:** #799's `table` component (themed, within the rows' height: one table row per
-  terminal row, a header row first; when the parsed table has fewer rows than the output, the rest
-  is blank; columns sized to the terminal's width, cells cut with an ellipsis).
-- **The toggle:** a `Table` / `Text` switch in the block's header, replacing #803's chip on a
-  block in place; the block menu keeps Open Output as Table (#803's tab).
+- **The table:** a grid in the terminal's own font, one table row per terminal row, a header row
+  first, columns sized to their widest cell and shrunk to the terminal's width, cells cut with an
+  ellipsis, themed from the editor's colors; a row holding a search match is marked. (At
+  promotion: #799's `table` component pads its rows taller than a terminal row, so it cannot keep
+  a table row on its text row.)
+- **Which blocks:** delimited text (#803's comma, tab, semicolon or pipe) whose every output row
+  is one record: the header and the rows fill the output rows exactly, no line wrapped, within
+  #803's 2,000-line sample. A wrapped line, a quoted line break or a blank line keeps the block
+  to #803's tab.
+- **The toggle:** an Inline / Text button in the block's header beside #803's Table chip, which
+  keeps opening the tab; the block menu keeps Open Output as Table.
 - **The setting** `marley.block_tables`: `offer` (the default: #803's chip, nothing in place) or
   `in_place` (a detected table opens in place when its block finishes).
 - **The text stays the source:** Copy Output, a selection, Find and links read the rows' text;
@@ -88,7 +94,9 @@ Scenario `script/e2e/804-a-blocks-table-in-the-terminal.sh`, under `compositor s
 | REQ-004 | WHERE `marley.block_tables` is `in_place`, a detected table shall open in place when its block finishes; WHERE it is `offer`, the block shall show its text and the chip | shots `804-01-offer`, `804-06-in-place` |
 
 ## Phase Plan
-- **P1 Plan:** this spec; at promotion, the element's place in prepaint and paint beside #628's.
+- **P1 Plan:** this spec; at promotion, the element is laid out in prepaint after the headers,
+  over the same row map, and painted first among the block elements, so a block's bar, pill and
+  chip draw over it.
 - **P2 Code:** the hook, the element hunks, the toggle, the setting; a review of the diff;
   `script/gates.sh --diff` green.
 - **P3 Test:** the visual check above.

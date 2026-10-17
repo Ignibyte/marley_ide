@@ -72,9 +72,9 @@ pub mod workflow;
 mod session_id;
 
 pub use anchored::{
-    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, PromptShell, Restoring, RowsView,
-    block_lines, block_scroll, bottom_shift, duration_label, prompt_rows, scrollback_fraction,
-    sticky_block, visible_spans,
+    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, OutputRows, PromptShell, Restoring,
+    RowsView, block_lines, block_scroll, bottom_shift, duration_label, output_rows, prompt_rows,
+    scrollback_fraction, sticky_block, visible_spans,
 };
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,

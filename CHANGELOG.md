@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A block's table drawn in the terminal** (#804, 2026-10-17). A block of delimited text with one
+  record on each row gets an Inline button beside its Table chip, which draws the table over the
+  block's own rows, scrolling with them; Text shows the text again. Copy, find and links keep
+  reading the text, and a search marks the matching table row. `marley.block_tables: in_place`
+  draws such tables as their blocks finish; `offer`, the default, waits for the button.
+
 - **A block's output opens as a table** (#803, 2026-10-17). A finished block whose output reads
   as CSV, TSV, semicolon- or pipe-separated text, JSON objects or a markdown table gets a Table
   chip and an Open Output as Table menu item, which open it in Zed's sortable table view in a tab

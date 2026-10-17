@@ -431,6 +431,23 @@ and opens through `window.defer`: a file as Zed's `TabularDataPreviewPane` over 
 `parse` off the main thread, titled with the command), each in the terminal's pane, a second open
 bringing its tab forward.
 
+**Since #804.** `marley_terminal::output_rows(blocks, top, screen_lines)` gives each finished
+block's output rows on the viewport and how many of its lines are above it (`OutputRows`). Zed's
+terminal element, while its row map is on (`marley_maps_rows`: the main screen, no clip from
+above, no inline assist block), asks `terminal_view::MarleyBlockBody` for an element per block,
+lays each over its rows' extent through the row map as the headers are, adds those rows to the
+hidden rows (their cells, text runs, block-element rects and search marks go), and paints the
+elements first among the block elements, so the bar, pill and chips draw over them.
+`block_tables` keeps, beside what #803 found, `fits` (the output's row count when the sample is
+delimited text, not cut, with one record per row: header plus rows equals lines equals rows) and
+`inline` (the parsed table while drawn); the chip adds Inline / Text when it fits, toggling
+`inline` (the output parsed through `smol::unblock`); `marley.block_tables: in_place` parses it as
+the block is read. `body` draws nothing while a drag selection is held or once the block's row
+count differs from `fits`; otherwise an opaque grid in the terminal's font, each row placed at its
+grid row's top (a rounded row height drifted), columns from the widest cell (3 to 40 cells),
+shrunk in proportion to the terminal's width, and a row holding one of `Terminal::matches`
+(grid lines from the live screen's top) in the search color.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

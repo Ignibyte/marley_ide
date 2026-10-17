@@ -460,6 +460,8 @@ pub struct MarleySettings {
     pub block_headers: BlockHeaders,
     /// How blocks are spaced in a terminal (#631).
     pub block_density: settings::MarleyBlockDensity,
+    /// What a block whose output reads as a table does (#804).
+    pub block_tables: settings::MarleyBlockTables,
     /// The command of the harness's MCP server the rail follows, or none (#534).
     pub harness: Option<settings::ContextServerCommand>,
     /// Whether Marley runs the harness's runtime itself (#632).
@@ -772,6 +774,18 @@ fn owned(patterns: &[&str]) -> Vec<String> {
     patterns.iter().map(ToString::to_string).collect()
 }
 
+/// How blocks are spaced (#631), and what a block that reads as a table does (#804).
+fn block_settings(
+    marley: Option<&settings::MarleySettingsContent>,
+) -> (settings::MarleyBlockDensity, settings::MarleyBlockTables) {
+    marley.map_or_else(Default::default, |marley| {
+        (
+            marley.block_density.unwrap_or_default(),
+            marley.block_tables.unwrap_or_default(),
+        )
+    })
+}
+
 impl Settings for MarleySettings {
     // `default.json`'s `marley` block names no layout, so a missing key means the Marley layout,
     // the enum's default; redaction is on unless turned off.
@@ -779,6 +793,7 @@ impl Settings for MarleySettings {
         let marley = content.marley.as_ref();
         let (fleet_providers, fleet_hosts, fleet_agent_processes) =
             fleet_settings(marley.and_then(|marley| marley.fleet.as_ref()));
+        let (block_density, block_tables) = block_settings(marley);
         Self {
             layout: marley.and_then(|marley| marley.layout).unwrap_or_default(),
             redact_secrets: marley
@@ -825,9 +840,8 @@ impl Settings for MarleySettings {
             block_headers: BlockHeaders::from_setting(
                 marley.and_then(|marley| marley.block_headers),
             ),
-            block_density: marley
-                .and_then(|marley| marley.block_density)
-                .unwrap_or_default(),
+            block_density,
+            block_tables,
             long_command_seconds: marley
                 .and_then(|marley| marley.long_command_seconds)
                 .unwrap_or(30),

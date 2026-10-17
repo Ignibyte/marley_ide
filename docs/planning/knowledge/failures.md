@@ -4255,3 +4255,12 @@ the page again after its tab closed opened a new tab and skipped starting a watc
 one was still registered; the old watch then saw the call's own write before the new tab had its
 page, found no tab, and ended, so the new tab never reloaded. Fixed in #802: a watch lasts the
 session, and a reload of no tabs does nothing.
+
+## F-claude-804-table-rows-of-a-rounded-height-drifted-off-the-grid-001
+*severity: medium · found in: pipeline 804's Test phase, the first run · class: a fractional row height stacked in a flex column · prevented by: L-claude-804-place-each-row-at-its-grid-rows-top-001*
+
+The table drawn over a block's rows stacked its rows in a column, each `.h(line_height)`. The
+terminal's line height was 19.5 px and gpui laid each row out at 19 px, so the table crept up half
+a pixel a row: 42 rows down it sat 20 px above the text rows it stood for, and the last row's
+background no longer covered its row. The gate was green; the first shot showed it. Fixed in #804:
+each row is absolutely placed at `line_height * row`, so each rounds on its own and none drifts.

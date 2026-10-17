@@ -204,6 +204,23 @@ pub struct MarleyBlockChip(
 
 impl gpui::Global for MarleyBlockChip {}
 
+// Marley: an element drawn over a finished block's output rows on screen, such as its table, or
+// none, which leaves the rows as the grid has them; Marley's workbench sets it (#804).
+#[derive(Clone)]
+pub struct MarleyBlockBody(
+    pub  Arc<
+        dyn Fn(
+            &Entity<TerminalView>,
+            &Entity<Terminal>,
+            &marley_terminal::OutputRows,
+            Pixels,
+            &App,
+        ) -> Option<AnyElement>,
+    >,
+);
+
+impl gpui::Global for MarleyBlockBody {}
+
 // Marley: the header pinned over the top row of a view scrolled back into a block whose first row
 // is above it, given the block's index, or none; Marley's workbench sets it (#529).
 #[derive(Clone)]
