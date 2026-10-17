@@ -382,7 +382,8 @@ fn block_menu(
         Some(item) => menu.item(item),
         None => menu,
     };
-    menu.item(send_item)
+    // A block whose output reads as a table opens it (#803).
+    crate::block_tables::with_menu_item(menu.item(send_item), context, index, cx)
         .item(bookmark_item)
         .item(find_item)
         .item(copy_item("Copy Command", Copied::Command))

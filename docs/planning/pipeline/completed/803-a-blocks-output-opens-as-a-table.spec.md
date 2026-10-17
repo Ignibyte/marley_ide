@@ -1,7 +1,7 @@
 ---
 pipeline_id: b90b84bc-b986-4740-8e9f-5f8dff7888ce
-ticket: docs/planning/tickets/open/TICKET-803-a-blocks-output-opens-as-a-table.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-803-a-blocks-output-opens-as-a-table.md
+status: Phase 4 — Complete PASS
 title: A block's output opens as a table
 type: feature
 slice: T (the block terminal)
@@ -18,13 +18,14 @@ menu's Open Output as Table opens Zed's table view in a tab beside the terminal.
 ### In
 - **Detection** (`crates/marley_terminal`, a pure function over a block's text and command, run on
   a background task when a block finishes, on at most the first 1 MB and 2,000 lines):
-  - CSV and TSV: a quote-aware parse (the `csv` crate with `flexible`) choosing `,`, tab, `;` or
-    `|` as the delimiter, with at least 2 columns and 3 rows and the same field count in at least
+  - CSV and TSV: a quote-aware parse (RFC 4180's quoting, written in `marley_terminal`) choosing
+    `,`, tab, `;` or `|` as the delimiter, with at least 2 columns and 3 rows and the same field count in at least
     95 percent of rows;
   - JSON lines of objects, or one JSON array of objects;
   - a markdown table: a header row and a delimiter row with the same cell count.
-  - Never for a block whose output holds colors, cursor moves or other escapes, or that ran on
-    the alternate screen; never for a block still running.
+  - Never for a block whose output cells carry colors or text styles (what escapes leave on the
+    grid; a cursor move leaves no mark there), or that ran on the alternate screen; never for a
+    block still running.
 - **The chip:** `Table` with the column and row counts in its tooltip, through
   `MarleyBlockChip` (`marley_workbench/src/bookmarks.rs`), after Ask the agent.
 - **The menu item:** Open Output as Table in the block menu (`marley_workbench/src/blocks.rs`),
@@ -53,8 +54,9 @@ Marley offers a chip that opens a table, leaving the block's text as it is. Upst
 ### Prior art
 - The code we ship: `tabular_data_preview` (CSV, TSV, PSV, SSV and JSONL parsing by extension, a
   sortable and filterable `TableView` that draws only the rows on screen); `Terminal::block_output`
-  and `block_output_kept`; `MarleyBlockChip` and the block menu; the `csv` crate in `Cargo.lock`
-  (check at promotion; else `tabular_data_preview`'s parser, made public by a small hunk).
+  and `block_output_kept`; `MarleyBlockChip` and the block menu. At promotion: no `csv` crate in
+  `Cargo.lock`, and `tabular_data_preview`'s parser is a GPL Zed function body that reads a
+  `BufferSnapshot`, so §20 keeps it out of a Marley crate; the reader is Marley's own.
 - Behavior maps: `docs/warp_architecture/subsystems/03-terminal-session-core.md` §6 (blocks).
 - Published material: Wave's `wsh view` (CSV by MIME type, files to 1 MB), Python's
   `csv.Sniffer`, VisiData, qsv's `sniff`, RFC 4180: in the design note.
@@ -91,7 +93,9 @@ field with a comma), `data.jsonl`, `notes.md` with a table, and a 3 MB `big.csv`
 | REQ-005 | WHEN the command reads one tabular file, the tab shall show the whole file | shot `803-06-big` |
 
 ## Phase Plan
-- **P1 Plan:** this spec; at promotion, the parser choice and the background task's shape.
+- **P1 Plan:** this spec; at promotion, the parser is Marley's own (above), detection runs on
+  `smol::unblock` from the terminal's observer, as #620 reads failures, and its summary is
+  cached per block.
 - **P2 Code:** detection, the chip, the menu item, the tab; a review of the diff;
   `script/gates.sh --diff` green.
 - **P3 Test:** the visual check above.

@@ -10808,6 +10808,7 @@ dependencies = [
  "rand 0.9.4",
  "regex",
  "rustix",
+ "serde_json",
  "tempfile",
  "uuid",
 ]
@@ -10890,6 +10891,7 @@ dependencies = [
  "sidebar",
  "smallvec",
  "smol",
+ "tabular_data_preview",
  "task",
  "tempfile",
  "terminal",

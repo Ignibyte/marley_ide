@@ -408,6 +408,29 @@ command (its text and folder) last published, and a successful run clears them; 
 project, only files in its worktrees. A view's watch follows its terminal (`watch`, re-armed from
 `observe_self` when the terminal changes), since Zed's task rerun gives a tab a new `Terminal`.
 
+**Since #803.** `marley_terminal::tables` is pure: `detect(text)` reads the first 1 MB and
+2,000 lines (a JSON array read whole while under 1 MB) and gives a `TableShape` (kind, columns,
+rows, whether more follow); `parse(text)` reads all of it into a `Table` (headers and rows, every
+row padded to the widest); both try JSON (an array of at least two objects, or at least two lines
+each an object, keys in first-seen order), then a markdown table (a header row, a delimiter row of
+as many cells, at least one row; `\|` is a pipe in a cell), then delimited text: per delimiter
+(`,`, tab, `;`, `|`), RFC 4180 records (quoted fields across delimiters and line breaks, `""` a
+quote, blank lines dropped, fields trimmed), taken when the commonest field count is at least 2 and
+held by 95 percent of at least 3 records, the widest such delimiter winning. `tabular_file(command,
+folder)` names the one `.csv`, `.tsv`, `.psv`, `.ssv` or `.jsonl` file a `cat`, `head`, `tail`,
+`bat` or `batcat` reads, refusing pipes, redirects, lists, substitutions and globs, skipping
+options (and the value of `-n`, `-c`, bat's `-l`, `-r`, `-H`, `--style`, `--theme`, `-m`).
+`Terminal::block_output_styled` (`alacritty::absolute_lines_styled`) says whether a cell of a
+block's first 2,000 lines has a non-default color or a style flag. The workbench's `block_tables`
+reads each block once as it finishes (from `next` and `restored_count`, as `failures` does): the
+file a command reads, checked with `Fs::metadata`, else the output's first 2,000 lines unless they
+are styled or gone, detected through `smol::unblock`; it keeps what it found by `(terminal,
+index)`, draws the Table chip after Ask the agent, adds Open Output as Table to the Block menu,
+and opens through `window.defer`: a file as Zed's `TabularDataPreviewPane` over an
+`Editor::for_buffer` that no pane shows, output as a `BlockTable` (a `TableView` filled from
+`parse` off the main thread, titled with the command), each in the terminal's pane, a second open
+bringing its tab forward.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

@@ -81,6 +81,7 @@ shlex.workspace = true
 sidebar.workspace = true
 smallvec.workspace = true
 smol.workspace = true
+tabular_data_preview.workspace = true
 task.workspace = true
 terminal.workspace = true
 terminal_view.workspace = true

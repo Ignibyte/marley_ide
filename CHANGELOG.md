@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A block's output opens as a table** (#803, 2026-10-17). A finished block whose output reads
+  as CSV, TSV, semicolon- or pipe-separated text, JSON objects or a markdown table gets a Table
+  chip and an Open Output as Table menu item, which open it in Zed's sortable table view in a tab
+  beside the terminal. A command that only reads one tabular file opens that file's preview,
+  whole. Colored output gets no chip, and the block's text is never changed.
+
 - **An agent's HTML page in a Browser tab** (#802, 2026-10-17). A Marley MCP tool,
   `browser_show_page`, shows a page an agent writes in a Browser tab of its project: the page's
   HTML, written to a scratch folder in Marley's data folder, or an HTML file already in the

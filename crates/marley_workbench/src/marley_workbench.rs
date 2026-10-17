@@ -38,6 +38,7 @@ pub mod assistant;
 pub mod autosuggest;
 pub mod block_filter;
 pub mod block_headers;
+pub mod block_tables;
 pub mod blocks;
 pub mod bookmarks;
 pub mod browser;
@@ -1085,6 +1086,7 @@ pub fn init(cx: &mut App) {
     component_library::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);
+    block_tables::init(cx);
     pane_splits::init(cx);
     observe_workspaces(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))

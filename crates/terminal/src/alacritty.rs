@@ -1031,6 +1031,43 @@ pub(super) fn absolute_lines_text(
     ))
 }
 
+// Marley: whether a block's output is colored, which keeps it from being offered as a table (#803).
+/// Whether a cell of the absolute lines from `start` up to `end`, at most 2,000 of them, has a
+/// color other than the default foreground and background, or a text style. False once `start`
+/// has left the scrollback.
+pub(super) fn absolute_lines_styled(term: &Term<ZedListener>, start: u64, end: u64) -> bool {
+    const MOST_LINES: u64 = 2_000;
+    let grid = term.main_grid();
+    let oldest = grid.evicted_lines();
+    let history = grid.history_size() as u64;
+    let to_line = |absolute: u64| -> Option<Line> {
+        let held = absolute.checked_sub(oldest)?;
+        Some(Line(
+            i32::try_from(held).ok()? - i32::try_from(history).ok()?,
+        ))
+    };
+    let end = end.min(start.saturating_add(MOST_LINES));
+    let (Some(first), Some(last)) = (to_line(start), end.checked_sub(1).and_then(to_line)) else {
+        return false;
+    };
+    let last = last.min(grid.bottommost_line());
+    let styles = Flags::BOLD
+        | Flags::DIM
+        | Flags::ITALIC
+        | Flags::UNDERLINE
+        | Flags::DOUBLE_UNDERLINE
+        | Flags::UNDERCURL
+        | Flags::INVERSE
+        | Flags::STRIKEOUT;
+    (first.0..=last.0).any(|line| {
+        grid[Line(line)][..].iter().any(|cell| {
+            cell.fg != Color::Named(crate::NamedColor::Foreground)
+                || cell.bg != Color::Named(crate::NamedColor::Background)
+                || cell.flags.intersects(styles)
+        })
+    })
+}
+
 // Marley: the main screen's rows as a rewrap sees them, for the blocks' anchors (#544).
 /// Every row of the main screen, from the top of its history to the bottom of the screen: whether
 /// it continues into the next, the cursor's row, and the absolute line of the first.

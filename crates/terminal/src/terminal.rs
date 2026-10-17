@@ -2169,6 +2169,15 @@ impl Terminal {
         )
     }
 
+    // Marley: a colored block is not offered as a table (#803).
+    /// Whether a finished block's output, its first 2,000 lines, has a cell with a color or a text
+    /// style; false for a running block or one whose first line has left the scrollback.
+    pub fn block_output_styled(&self, block: &marley_terminal::AnchoredBlock) -> bool {
+        block.output_end.is_some_and(|end| {
+            crate::alacritty::absolute_lines_styled(&self.term.lock(), block.output_start, end)
+        })
+    }
+
     // Marley: the rows a block's lines start on, for its failures (#620).
     /// The main screen's rows: each one's wrap flag from the absolute line of the first, so a
     /// line of [`Self::block_output`] can be found on the screen.

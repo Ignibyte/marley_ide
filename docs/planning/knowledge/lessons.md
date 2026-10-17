@@ -6119,3 +6119,21 @@ font family to another program (a stylesheet, a terminal profile, an export) res
 To follow one file's edits, watch its folder with `Fs::watch` and filter the events to the
 file's path. `sed -i`, editors' atomic saves and Zed's own `Fs::atomic_write` all replace the
 file by rename, which a watch on the file's inode does not survive.
+
+## L-claude-803-a-blocks-chip-moves-with-its-output-001
+*category: test · topic: block chips in a scenario · from: pipeline 803*
+
+In the Marley layout a terminal's blocks stack from the bottom: after a `clear` the prompt's row
+sits at y 920 of a 1600 × 1000 shot and each row is 19.5 px, so a new block's first row, where its
+chip and pill sit (x 1538 for the first chip), is at about 911 − 19.5 × (output lines + 2). A block
+whose first row is off screen draws its chip at its last row's right end instead (x 1565, y 891).
+A right-click above the blocks lands on empty terminal and gets Zed's menu without the Block
+section. Compute a chip's point from the line count; do not guess one.
+
+## L-claude-803-zeds-table-view-sorts-text-001
+*category: code · topic: tabular_data_preview · from: pipeline 803*
+
+Zed's `TableView` sorts a column as text (6 after 59), and its JSONL preview shows string values
+with their quotes. A scenario that proves rows past a point by sorting picks a column whose text
+order says so (a Z-A id sort put file line 10,001 on top), or uses the row numbers, which follow
+the file's lines.

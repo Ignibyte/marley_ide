@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #803 (feature, the block terminal)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/803-a-blocks-output-opens-as-a-table.spec.md
+- **Pipeline doc:** ../../pipeline/completed/803-a-blocks-output-opens-as-a-table.spec.md
 - **Source ticket:** Chad, 2026-10-17: "i'd like to spec out and research from alacritty how we may be able to transform command line output into gpui components if possible. For example if we read an output from a csv it could be formatted automatically in a table."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A finished command whose output reads as a table (CSV, TSV, JSON lines, a JSON array of objects,

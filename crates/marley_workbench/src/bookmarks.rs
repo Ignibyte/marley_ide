@@ -185,6 +185,8 @@ fn chip(
     cx: &App,
 ) -> Option<AnyElement> {
     let ask = crate::send_block::chip(view, terminal, index, cx);
+    // A block whose output reads as a table offers it after asking the agent (#803).
+    let table = crate::block_tables::chip(view, terminal, index, cx);
     // A failed block's place to jump to comes before asking the agent about it (#620).
     let jump = crate::failures::chip(view, terminal, index, cx);
     // A block an agent ran carries its mark first (#556).
@@ -194,7 +196,7 @@ fn chip(
             .size(IconSize::XSmall)
             .color(Color::Accent)
     });
-    if agent.is_none() && bookmark.is_none() && jump.is_none() {
+    if agent.is_none() && bookmark.is_none() && jump.is_none() && table.is_none() {
         return ask;
     }
     Some(
@@ -204,6 +206,7 @@ fn chip(
             .children(bookmark)
             .children(jump)
             .children(ask)
+            .children(table)
             .into_any_element(),
     )
 }

@@ -765,6 +765,16 @@ A failed block's errors and warnings in the project's files are also the project
 editor underlines them. The next run of the same command in the same folder replaces them, and a
 run that succeeds clears them.
 
+A finished block whose output reads as a table carries a Table chip, and its right-click menu Open
+Output as Table (#803). Marley looks for comma-, tab-, semicolon- or pipe-separated text (quoted
+fields may hold the separator), JSON (an array of objects, or one object per line), and markdown
+tables, in the first 2,000 lines of the output. Output with colors or text styles gets no chip, so
+`ls --color` and `git log` stay plain. The chip opens the table in a tab beside the terminal, in
+Zed's table view, where a column header's buttons sort and filter. When the command only reads one
+`.csv`, `.tsv`, `.psv`, `.ssv` or `.jsonl` file (`cat data.csv`, `head -n 50 big.csv`, `bat`), the
+tab is Zed's preview of that file, whole, however much of it the block printed. The block's text
+stays as the program printed it; a second click brings the open tab forward.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

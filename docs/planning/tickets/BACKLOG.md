@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-803](open/TICKET-803-a-blocks-output-opens-as-a-table.md) | feature | A finished block that reads as CSV, TSV, JSON or a markdown table gets a Table chip that opens Zed's table view in a tab |
 | [TICKET-804](open/TICKET-804-a-blocks-table-in-the-terminal.md) | feature | The detected table drawn in the terminal over the block's rows, toggled per block; `marley.block_tables` |
 | [TICKET-805](open/TICKET-805-show-a-file-or-stdin-from-a-terminal.md) | feature | `show <file\|->` through `marley-agent`: a table, a component, markdown or an image in a tab |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |

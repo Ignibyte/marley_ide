@@ -66,6 +66,7 @@ pub mod session;
 pub mod shell_integration;
 pub mod styled;
 pub mod suggest;
+pub mod tables;
 pub mod workflow;
 
 mod session_id;
