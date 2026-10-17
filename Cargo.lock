@@ -10721,6 +10721,7 @@ name = "marley_components"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "jsonschema",
  "schemars 1.0.4",
  "serde",
  "serde_json",

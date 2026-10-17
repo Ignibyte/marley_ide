@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Component templates from files** (#801, 2026-10-17). A JSON file in
+  `~/.config/marley/components/` defines a component from the built-in ones, with placeholders for
+  the inputs its schema names. Marley loads the folder at start and again when a file changes, with
+  no rebuild or restart. Templates show in the Component Library (with any refused file and why) and
+  in `component_list`, and agents use them like built-ins; inputs of the wrong shape answer with the
+  schema error and its path.
+
 - **Agents draw components** (#800, 2026-10-17). Two Marley MCP tools: `component_list` gives
   the catalog, and `component_show` draws a tree. In an agent thread the component appears in the
   call's row for Claude Code, Codex and Zed's agent alike; from an agent in a Marley terminal it

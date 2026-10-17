@@ -12,7 +12,7 @@ use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, EventEmitter, FocusHandle,
     Focusable, SharedString, Window,
 };
-use marley_components::{Tree, catalog, parse, render, render_error};
+use marley_components::{Tree, catalog, parse_with, render, render_error};
 use marley_mcp::{AppCall, Caller, Refusal, ToolAnswer};
 use serde_json::{Value, json};
 use ui::prelude::*;
@@ -47,10 +47,12 @@ pub(crate) fn tool_call_view(
         input => input,
     };
     let component = input.get("component")?;
-    Some(match parse(component) {
-        Ok(tree) => render(&tree, id, cx),
-        Err(error) => render_error(&error),
-    })
+    Some(
+        match parse_with(component, &crate::component_library::templates(cx)) {
+            Ok(tree) => render(&tree, id, cx),
+            Err(error) => render_error(&error),
+        },
+    )
 }
 
 /// Whether an agent's name for a tool is Marley's `component_show`: Claude Code reports
@@ -67,7 +69,7 @@ fn is_component_show(tool_name: &str) -> bool {
 pub(crate) fn answer(call: AppCall, cx: &mut App) {
     let verb = call.tool.strip_prefix("component_").unwrap_or_default();
     let answer = match verb {
-        "list" => Ok(list()),
+        "list" => Ok(list(cx)),
         "show" => show(&call.arguments, call.caller(), cx),
         _ => Err(Refusal::new(
             "unknown_tool",
@@ -77,8 +79,9 @@ pub(crate) fn answer(call: AppCall, cx: &mut App) {
     call.answer(answer);
 }
 
-fn list() -> ToolAnswer {
+fn list(cx: &App) -> ToolAnswer {
     let entries = catalog();
+    let templates = crate::component_library::templates(cx);
     let components = entries
         .iter()
         .map(|entry| {
@@ -90,10 +93,25 @@ fn list() -> ToolAnswer {
                 "example": entry.example,
             })
         })
+        .chain(templates.templates().iter().map(|template| {
+            json!({
+                "type": template.name,
+                "group": "Templates",
+                "description": template.description,
+                "schema": template.schema(),
+                "example": template.example_tree(),
+            })
+        }))
         .collect::<Vec<_>>();
     let names = entries
         .iter()
-        .map(|entry| entry.name)
+        .map(|entry| entry.name.to_owned())
+        .chain(
+            templates
+                .templates()
+                .iter()
+                .map(|template| template.name.clone()),
+        )
         .collect::<Vec<_>>()
         .join(", ");
     ToolAnswer {
@@ -101,7 +119,7 @@ fn list() -> ToolAnswer {
         text: Some(format!(
             "Marley draws {} component types: {names}. Each entry gives its fields' JSON Schema \
              and an example tree.",
-            entries.len()
+            components.len()
         )),
         image: None,
     }
@@ -113,7 +131,7 @@ fn show(arguments: &Value, caller: &Caller, cx: &mut App) -> Result<ToolAnswer, 
             .next("set `component` to one JSON object with a `type`")
             .next("component_list gives each type's fields and an example")
     })?;
-    let tree = match parse(component) {
+    let tree = match parse_with(component, &crate::component_library::templates(cx)) {
         Ok(tree) => tree,
         Err(error) => {
             return Ok(ToolAnswer {

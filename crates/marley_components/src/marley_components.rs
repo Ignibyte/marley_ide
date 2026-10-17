@@ -26,6 +26,8 @@
 )]
 
 use std::fmt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use gpui::{FontWeight, Hsla, PathBuilder, canvas, point};
 use schemars::{JsonSchema, schema_for};
@@ -500,9 +502,30 @@ pub const TYPES: [&str; 15] = [
 ///
 /// A [`ParseError`] names the first component or field the catalog refuses, by its JSON path.
 pub fn parse(value: &Value) -> Result<Tree, ParseError> {
-    let mut nodes = 0;
-    let root = parse_node(value, "$", 1, &mut nodes)?;
+    parse_with(value, &Templates::default())
+}
+
+/// Checks `value` as [`parse`] does, with `templates`' types beside the catalog's (#801).
+///
+/// # Errors
+///
+/// A [`ParseError`] names the first component, field or template input refused, by its JSON path.
+pub fn parse_with(value: &Value, templates: &Templates) -> Result<Tree, ParseError> {
+    let mut walk = Walk {
+        nodes: 0,
+        templates,
+        expanding: Vec::new(),
+    };
+    let root = parse_node(value, "$", 1, &mut walk)?;
     Ok(Tree { root })
+}
+
+/// What a parse carries down the tree: the components counted so far, the templates it may use, and
+/// the templates it is expanding, outermost first.
+struct Walk<'a> {
+    nodes: usize,
+    templates: &'a Templates,
+    expanding: Vec<String>,
 }
 
 /// Reads `text` as JSON and checks it as [`parse`] does.
@@ -511,16 +534,25 @@ pub fn parse(value: &Value) -> Result<Tree, ParseError> {
 ///
 /// A [`ParseError`] at `$` when the text is not JSON, or [`parse`]'s error.
 pub fn parse_str(text: &str) -> Result<Tree, ParseError> {
+    parse_str_with(text, &Templates::default())
+}
+
+/// Reads `text` as JSON and checks it as [`parse_with`] does.
+///
+/// # Errors
+///
+/// A [`ParseError`] at `$` when the text is not JSON, or [`parse_with`]'s error.
+pub fn parse_str_with(text: &str, templates: &Templates) -> Result<Tree, ParseError> {
     let value: Value = serde_json::from_str(text)
         .map_err(|error| refuse("$", format!("The text is not JSON: {error}.")))?;
-    parse(&value)
+    parse_with(&value, templates)
 }
 
 fn parse_node(
     value: &Value,
     path: &str,
     depth: usize,
-    nodes: &mut usize,
+    walk: &mut Walk<'_>,
 ) -> Result<Node, ParseError> {
     if depth > MAX_DEPTH {
         return Err(refuse(
@@ -528,8 +560,8 @@ fn parse_node(
             format!("The tree nests deeper than {MAX_DEPTH} levels. Use fewer levels."),
         ));
     }
-    *nodes += 1;
-    if *nodes > MAX_NODES {
+    walk.nodes += 1;
+    if walk.nodes > MAX_NODES {
         return Err(refuse(
             path,
             format!("The tree holds more than {MAX_NODES} components. Show less data."),
@@ -548,6 +580,9 @@ fn parse_node(
         ));
     };
     if !TYPES.contains(&type_name) {
+        if let Some(template) = walk.templates.get(type_name) {
+            return expand(template, object, path, depth, walk);
+        }
         return Err(refuse(
             path,
             format!(
@@ -566,12 +601,7 @@ fn parse_node(
                 .iter()
                 .enumerate()
                 .map(|(index, child)| {
-                    parse_node(
-                        child,
-                        &format!("{path}.children[{index}]"),
-                        depth + 1,
-                        nodes,
-                    )
+                    parse_node(child, &format!("{path}.children[{index}]"), depth + 1, walk)
                 })
                 .collect::<Result<Vec<_>, _>>()?,
             Some(_) => {
@@ -621,6 +651,354 @@ fn parse_node(
         _ => Kind::Callout(fields_of(fields, path)?),
     };
     Ok(Node { kind, children })
+}
+
+/// How deep templates may use other templates.
+pub const MAX_TEMPLATE_DEPTH: usize = 4;
+
+/// A template's use, `{"type": "<name>", "inputs": {...}}`: the inputs checked against its schema,
+/// put in its body's placeholders, and the result checked as any tree is.
+fn expand(
+    template: &Template,
+    object: &Map<String, Value>,
+    path: &str,
+    depth: usize,
+    walk: &mut Walk<'_>,
+) -> Result<Node, ParseError> {
+    if let Some(field) = object.keys().find(|key| *key != "type" && *key != "inputs") {
+        return Err(refuse(
+            &format!("{path}.{field}"),
+            format!(
+                "A template takes only `type` and `inputs`. Put `{field}` in `inputs` if the template \
+                 names it."
+            ),
+        ));
+    }
+    let inputs = object
+        .get("inputs")
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    if let Err(error) = template.validator.validate(&inputs) {
+        let at = error.instance_path().to_string();
+        return Err(refuse(
+            &format!("{path}.inputs{}", pointer_as_path(&at)),
+            sentence(&error.to_string()),
+        ));
+    }
+    if walk.expanding.contains(&template.name) {
+        return Err(refuse(
+            path,
+            format!(
+                "The template `{}` uses itself through {}. A template cannot use itself.",
+                template.name,
+                walk.expanding.join(", ")
+            ),
+        ));
+    }
+    if walk.expanding.len() >= MAX_TEMPLATE_DEPTH {
+        return Err(refuse(
+            path,
+            format!("Templates use other templates deeper than {MAX_TEMPLATE_DEPTH} levels."),
+        ));
+    }
+    let body = substitute(&template.body, &inputs);
+    walk.expanding.push(template.name.clone());
+    let node = parse_node(&body, path, depth, walk);
+    walk.expanding.pop();
+    node
+}
+
+/// A JSON Pointer (`/rows/0`) as the path's tail (`.rows[0]`).
+fn pointer_as_path(pointer: &str) -> String {
+    pointer
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            if part.chars().all(|character| character.is_ascii_digit()) {
+                format!("[{part}]")
+            } else {
+                format!(".{part}")
+            }
+        })
+        .collect()
+}
+
+/// The body with each `{"$input": "<name>"}` replaced by that input, or null when it is not given.
+fn substitute(body: &Value, inputs: &Value) -> Value {
+    match body {
+        Value::Object(object) => {
+            if object.len() == 1
+                && let Some(Value::String(name)) = object.get("$input")
+            {
+                return inputs.get(name).cloned().unwrap_or(Value::Null);
+            }
+            Value::Object(
+                object
+                    .iter()
+                    .map(|(key, value)| (key.clone(), substitute(value, inputs)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => {
+            Value::Array(items.iter().map(|item| substitute(item, inputs)).collect())
+        }
+        other => other.clone(),
+    }
+}
+
+/// The names a body's placeholders use.
+fn placeholders(body: &Value, names: &mut Vec<String>) {
+    match body {
+        Value::Object(object) => {
+            if object.len() == 1
+                && let Some(Value::String(name)) = object.get("$input")
+            {
+                names.push(name.clone());
+                return;
+            }
+            for value in object.values() {
+                placeholders(value, names);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                placeholders(item, names);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A component defined in a file (#801): built-in components laid out with placeholders for the
+/// inputs its schema names.
+#[derive(Clone)]
+pub struct Template {
+    /// The value of `type` that uses it.
+    pub name: String,
+    /// What it shows, for an agent and for the user.
+    pub description: String,
+    /// The file it came from.
+    pub path: PathBuf,
+    /// The JSON Schema of its inputs.
+    pub inputs: Value,
+    /// Inputs the library draws it with.
+    pub example: Value,
+    body: Value,
+    validator: Arc<jsonschema::Validator>,
+}
+
+impl fmt::Debug for Template {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Template")
+            .field("name", &self.name)
+            .field("path", &self.path)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Template {
+    /// The JSON Schema of a use of the template: its `type` and its `inputs`.
+    #[must_use]
+    pub fn schema(&self) -> Value {
+        json!({
+            "title": self.name,
+            "description": self.description,
+            "type": "object",
+            "properties": {
+                "type": { "const": self.name },
+                "inputs": self.inputs,
+            },
+            "required": ["type", "inputs"],
+            "additionalProperties": false,
+        })
+    }
+
+    /// A tree that uses the template with its example inputs.
+    #[must_use]
+    pub fn example_tree(&self) -> Value {
+        json!({ "type": self.name, "inputs": self.example })
+    }
+}
+
+/// A template file that could not be used, and why.
+#[derive(Clone, Debug)]
+pub struct BrokenTemplate {
+    /// The file.
+    pub path: PathBuf,
+    /// Why it is not used, in a sentence.
+    pub error: String,
+}
+
+/// The templates of a folder (#801): the ones in use, and the files refused with their errors.
+#[derive(Clone, Debug, Default)]
+pub struct Templates {
+    templates: Vec<Template>,
+    broken: Vec<BrokenTemplate>,
+}
+
+/// One template file as written.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TemplateFile {
+    name: String,
+    description: String,
+    inputs: Value,
+    #[serde(default)]
+    example: Value,
+    body: Value,
+}
+
+impl Templates {
+    /// Reads every `*.json` file in `dir`, in name order. A missing folder holds no templates.
+    #[must_use]
+    pub fn load_in(dir: &Path) -> Self {
+        let mut files = std::fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .map(|entry| entry.path())
+                    .filter(|path| {
+                        path.extension()
+                            .is_some_and(|extension| extension == "json")
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        files.sort();
+        let mut loaded = Self::default();
+        for path in files {
+            match std::fs::read_to_string(&path)
+                .map_err(|error| format!("Marley could not read the file: {error}."))
+                .and_then(|text| template_of(&path, &text))
+            {
+                Ok(template) => loaded.templates.push(template),
+                Err(error) => loaded.broken.push(BrokenTemplate { path, error }),
+            }
+        }
+        loaded.refuse_duplicates();
+        loaded.check_examples();
+        loaded
+    }
+
+    /// The templates in use, in file name order.
+    #[must_use]
+    pub fn templates(&self) -> &[Template] {
+        &self.templates
+    }
+
+    /// The files refused, with why.
+    #[must_use]
+    pub fn broken(&self) -> &[BrokenTemplate] {
+        &self.broken
+    }
+
+    fn get(&self, name: &str) -> Option<&Template> {
+        self.templates.iter().find(|template| template.name == name)
+    }
+
+    /// Two files with one name are both refused, each naming the other.
+    fn refuse_duplicates(&mut self) {
+        let mut kept = Vec::new();
+        let templates = std::mem::take(&mut self.templates);
+        for template in &templates {
+            let others = templates
+                .iter()
+                .filter(|other| other.name == template.name && other.path != template.path)
+                .map(|other| other.path.display().to_string())
+                .collect::<Vec<_>>();
+            if others.is_empty() {
+                kept.push(template.clone());
+            } else {
+                self.broken.push(BrokenTemplate {
+                    path: template.path.clone(),
+                    error: format!(
+                        "Another file defines `{}` too: {}. Give each template its own name.",
+                        template.name,
+                        others.join(", ")
+                    ),
+                });
+            }
+        }
+        self.templates = kept;
+    }
+
+    /// A template whose example does not draw is refused, so the library never shows a broken one
+    /// and agents are never offered one.
+    fn check_examples(&mut self) {
+        let checking = self.clone();
+        let mut kept = Vec::new();
+        for template in std::mem::take(&mut self.templates) {
+            match parse_with(&template.example_tree(), &checking) {
+                Ok(_) => kept.push(template),
+                Err(error) => self.broken.push(BrokenTemplate {
+                    path: template.path.clone(),
+                    error: format!("The example does not draw. {error}"),
+                }),
+            }
+        }
+        self.templates = kept;
+    }
+}
+
+/// One file's template, or why it cannot be used.
+fn template_of(path: &Path, text: &str) -> Result<Template, String> {
+    let file: TemplateFile = serde_json::from_str(text).map_err(|error| {
+        format!(
+            "The file is not a template: {}",
+            sentence(&error.to_string())
+        )
+    })?;
+    let valid_name = file
+        .name
+        .chars()
+        .next()
+        .is_some_and(|first| first.is_ascii_lowercase())
+        && file.name.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+        });
+    if !valid_name {
+        return Err(format!(
+            "The name `{}` is not valid. A name starts with a lowercase letter and holds only \
+             lowercase letters, digits and `_`.",
+            file.name
+        ));
+    }
+    if TYPES.contains(&file.name.as_str()) {
+        return Err(format!(
+            "The name `{}` is a built-in type. Give the template another name.",
+            file.name
+        ));
+    }
+    let validator = jsonschema::validator_for(&file.inputs).map_err(|error| {
+        format!(
+            "`inputs` is not a valid JSON Schema: {}",
+            sentence(&error.to_string())
+        )
+    })?;
+    let named = file
+        .inputs
+        .get("properties")
+        .and_then(Value::as_object)
+        .map(|properties| properties.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let mut used = Vec::new();
+    placeholders(&file.body, &mut used);
+    if let Some(missing) = used.iter().find(|name| !named.contains(name)) {
+        return Err(format!(
+            "The body uses the input `{missing}`, which `inputs` does not name. Add it to \
+             `inputs.properties` or remove the placeholder."
+        ));
+    }
+    Ok(Template {
+        name: file.name,
+        description: file.description,
+        path: path.to_path_buf(),
+        inputs: file.inputs,
+        example: file.example,
+        body: file.body,
+        validator: Arc::new(validator),
+    })
 }
 
 /// Reads a component's own fields, the error at the field's path under the component's.

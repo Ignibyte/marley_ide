@@ -1,7 +1,7 @@
 ---
 pipeline_id: da1112c3-de32-4177-8aab-72df4f146b14
-ticket: docs/planning/tickets/open/TICKET-801-component-templates-from-files.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-801-component-templates-from-files.md
+status: Phase 4 — Complete PASS
 title: Component templates from files
 type: feature
 slice: Control plane (agent components)

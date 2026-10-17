@@ -10,6 +10,7 @@ path = "src/marley_components.rs"
 
 [dependencies]
 gpui.workspace = true
+jsonschema.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

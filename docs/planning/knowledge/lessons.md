@@ -6095,3 +6095,12 @@ the same `scroll N` moved the page different distances in two runs. What worked:
   `magick shot.png -format '%[pixel:p{x,y}]' info:` against the theme's color.
 - **The spelling gate reads fixtures.** A deliberately wrong type name in a scenario must not be a
   common misspelling (`tabel` failed gate:18); use a real word the catalog lacks (`gauge`).
+
+## L-claude-801-a-blocking-call-off-the-main-thread-under-dylint-001
+*category: code · topic: gpui async · from: pipeline 801*
+
+Zed's dylint lint `async_block_without_await` (denied in the Marley crates) refuses
+`cx.background_spawn(async move { blocking_call() })`. Run a plain blocking call off the main
+thread as `smol::unblock(move || blocking_call()).await` inside the foreground task, or give the
+async block a real `.await` (Zed's async `Fs`). A folder a template loader watches is watched with
+`Fs::watch` after `Fs::create_dir`, so a first run has a folder to watch.

@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #801 (feature, agent components)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/801-component-templates-from-files.spec.md
+- **Pipeline doc:** [801-component-templates-from-files.spec.md](../../pipeline/completed/801-component-templates-from-files.spec.md)
 - **Source ticket:** Chad, 2026-10-17: "Maybe even research how we could make this pluggable to add outside components without recompile."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 A JSON file in `~/.config/marley/components/` defines a new component: its name, description,

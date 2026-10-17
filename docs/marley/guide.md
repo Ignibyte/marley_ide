@@ -1722,6 +1722,30 @@ terminal has no row to draw into, so its tree opens in a tab beside its terminal
 call's `title` (a second call with the same title replaces it). A tree with a mistake draws
 nothing; the agent gets the error and its JSON path, and the thread shows the same error.
 
+### Component templates (#801)
+
+You can add your own components without rebuilding Marley. A JSON file in `components/` of Marley's
+config folder (`~/.config/marley/components/`) defines one from the built-in ones, with
+placeholders for the inputs it takes:
+
+```json
+{
+  "name": "deploy_status",
+  "description": "Shows one environment's deploy.",
+  "inputs": {"type": "object", "properties": {"environment": {"type": "string"}, "version": {"type": "string"}}},
+  "example": {"environment": "staging", "version": "1.4.0"},
+  "body": {"type": "card", "title": {"$input": "environment"}, "children": [
+    {"type": "stat", "label": "Version", "value": {"$input": "version"}}]}
+}
+```
+
+`inputs` is a JSON Schema; `{"$input": "<name>"}` anywhere in `body` takes that input's value.
+Agents use it as `{"type": "deploy_status", "inputs": {...}}`, and `component_list` offers it after
+the built-ins. Marley reads the folder at start and again whenever a file in it changes. The
+Component Library's Templates group draws each template from its `example`, lists any file it
+refused with the reason, and has Open Folder. A name must be new (not a built-in type), and two
+files with one name are both refused; templates may use other templates, four levels deep.
+
 ## Rusty
 
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`

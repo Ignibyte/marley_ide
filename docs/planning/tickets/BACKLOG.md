@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-801](open/TICKET-801-component-templates-from-files.md) | feature | Component templates from `~/.config/marley/components/`, no recompile |
 | [TICKET-802](open/TICKET-802-an-agents-html-page-in-a-browser-tab.md) | feature | `browser_show_page`: an agent's HTML page in a Browser tab, themed, reloaded on change |
 | [TICKET-803](open/TICKET-803-a-blocks-output-opens-as-a-table.md) | feature | A finished block that reads as CSV, TSV, JSON or a markdown table gets a Table chip that opens Zed's table view in a tab |
 | [TICKET-804](open/TICKET-804-a-blocks-table-in-the-terminal.md) | feature | The detected table drawn in the terminal over the block's rows, toggled per block; `marley.block_tables` |

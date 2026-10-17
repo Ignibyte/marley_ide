@@ -793,7 +793,8 @@ const REGISTRY: &[ToolSpec] = &[
         grant_class: "",
         description: "List the components that component_show draws. Each entry gives the `type` \
                       name, the group, a description, the JSON Schema of the fields and an \
-                      example tree.",
+                      example tree. The user's templates follow the built-in types. Use a \
+                      template as {\"type\": \"<name>\", \"inputs\": {...}}.",
     },
     ToolSpec {
         family: Family::Component,
