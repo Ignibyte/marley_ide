@@ -22,5 +22,7 @@ On the Mac, the install leaves a `Marley.app` that starts Marley, shows Marley a
 id, and opens a remote folder on the Linux box with the server staged for its commit.
 
 ## After close
-REQ-004 (a remote folder on the Linux box opened from the Mac) waits on the Mac's Local
-Network permission for Marley, which only the user grants.
+REQ-004 (a remote folder on the Linux box opened from the Mac) waited on the Mac's Local
+Network permission for Marley, which only the user grants. Seen on 2026-10-16 at 21:36 once Chad
+allowed it: the box's `/srv/stacks/marley_ide` opened in the Mac's Marley through the remote
+server staged for `5fd021ee44` (the pipeline notes' last entry).

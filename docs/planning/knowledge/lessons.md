@@ -5938,6 +5938,14 @@ The rule is matched by signing identifier (`AllowEmptyDesignatedRequirement`), s
 rebuild keeps the decision. Watch that rule instead of retrying a connection, which raises an
 error in the app each time.
 
+Corrected 2026-10-16 (#791's evening): the plist is an NSKeyedArchiver, and a rule's keys come
+before or after the identifier's string in `plutil -p`'s output. An awk that read the values
+after the line naming `com.ignibyte.marley` read the next rule's, a game's. Read it as XML
+(`sudo plutil -convert xml1 -o -`), find each dictionary with a `SigningIdentifier`, and follow
+that UID to its string. The Mac had two rules, `com.ignibyte.marley` (an earlier signing) and
+`com.ignibyte.Marley` (the app's); System Settings lists both as Marley, and the first allow went
+to the wrong one. Check the identifier `codesign -dv` gives the app (`Identifier=`).
+
 ## L-claude-788-drive-a-mac-marley-through-its-own-mcp-server-001
 *category: e2e · topic: macOS checks over ssh · from: pipeline 788*
 

@@ -229,3 +229,20 @@ has it, System Events and the box's record stand in, and the notes say so.
 - **Open after close:** REQ-004's remote open, once Chad allows Local Network. Its result goes to
   this entry and to the ticket.
 
+## After close — REQ-004 seen (2026-10-16, 21:36)
+- Chad allowed Marley under Local Network. The allow first went to `com.ignibyte.marley`, an
+  earlier signing; the app signs as `com.ignibyte.Marley` (`codesign -dv`), and that rule turned
+  to `DenyMulticast false`, `MulticastPreferenceSet true` once he switched the second entry on
+  (read as XML, by `SigningIdentifier`; see the corrected L-claude-787 lesson).
+- The Mac's `Marley.app` at `5fd021ee44`, its cache holding the server for that commit
+  (`--remote-server-from dev`); the box had no `~/.zed_server`.
+- `open "marley://ssh/dev/srv/stacks/marley_ide"` on the Mac: within a minute the box had
+  `~/.zed_server/zed-remote-server-dev-5fd021ee447fa7910cd7e60e97eed162086f24ee` (114 MB, uploaded
+  from the Mac's cache), running as `proxy --identifier dev-workspace-3` and `run --log-file …`.
+  The Mac's log: the remote server set its environment from `/usr/bin/bash`, loaded the HTML
+  language server, and opened the git repository at `/srv/stacks/marley_ide/.git`.
+- `787-mac-remote.png` (scratchpad, not kept): a new Marley window, the title bar's remote icon,
+  `dev`, `marley_ide`, `main / marley/workbench-shell`, and Zed's Restricted Mode for a folder
+  not yet trusted; the rail with Default's Home and the `marley_ide` group.
+- **REQ-004 seen.** Every criterion of #787 is now met.
+
