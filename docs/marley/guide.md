@@ -1681,6 +1681,21 @@ your own in `context_servers` replaces Marley's. Without `rusty-mcp`, nothing is
 `"rusty_tools": true` is carried into the block: Zed reads it as Rusty and its tools on, and offers
 to update the file.
 
+### An agent's width in percent (#798)
+
+A thread's message box has a width button in its bottom row, after the follow toggle: it shows
+how wide the thread's place is, and a click steps it to a third, half, two thirds, the whole window
+(zoomed), then back to a third. `marley: cycle agent panel width` does the same for the thread in
+front.
+
+- **A thread tab** (the Marley layout): the button reads the pane's share of its row, the same
+  value a drag between two panes changes, and the other panes in the row keep their proportions in
+  what is left. A pane alone in its row has nothing to share its width with and shows no button.
+- **The Agent Panel**: the button reads the dock's share of the window. With the panel's flexible
+  size on (`agent.flexible`, the default) the dock keeps that share as the window resizes, and it
+  comes back at the same width after a restart.
+- A width you drag to by hand steps to the next size above it: 45% goes to 50%.
+
 ## Rusty
 
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`

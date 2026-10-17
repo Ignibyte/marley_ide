@@ -227,6 +227,24 @@ impl PaneGroup {
         self.root.mark_positions(self.is_center, cx);
     }
 
+    // Marley: a thread's width button reads and steps its pane's share of the nearest row that
+    // holds it (#798). It reads the flexes, never the bounding boxes, which the axis element holds
+    // locked while it lays out the panes, the thread's among them.
+    pub fn marley_row_share(&self, pane: &Entity<Pane>) -> Option<f32> {
+        match &self.root {
+            Member::Pane(_) => None,
+            Member::Axis(axis) => axis.marley_row_share(pane),
+        }
+    }
+
+    // Marley: see `marley_row_share` (#798).
+    pub fn marley_set_row_share(&mut self, pane: &Entity<Pane>, share: f32, cx: &mut App) {
+        if let Member::Axis(axis) = &self.root {
+            axis.marley_set_row_share(pane, share);
+        }
+        self.mark_positions(cx);
+    }
+
     pub fn render(
         &self,
         zoomed: Option<&AnyWeakView>,
@@ -907,6 +925,53 @@ impl PaneAxis {
                     }
                 }
             }
+        }
+    }
+
+    // Marley: the nearest row that holds `pane`, and the index of its member that does (#798).
+    fn marley_row(&self, pane: &Entity<Pane>) -> Option<(&Self, usize)> {
+        let index = self
+            .members
+            .iter()
+            .position(|member| member.contains_pane(pane))?;
+        if let Member::Axis(inner) = &self.members[index]
+            && let Some(row) = inner.marley_row(pane)
+        {
+            return Some(row);
+        }
+        (self.axis == Axis::Horizontal && self.members.len() > 1).then_some((self, index))
+    }
+
+    // Marley: see `PaneGroup::marley_row_share` (#798).
+    fn marley_row_share(&self, pane: &Entity<Pane>) -> Option<f32> {
+        let (row, index) = self.marley_row(pane)?;
+        let flexes = row.flexes.lock();
+        Some(flexes.get(index)? / flexes.len() as f32)
+    }
+
+    // Marley: the member takes `share` of the row, and the others keep their proportions in what
+    // is left, so the flexes still sum to their count (#798).
+    fn marley_set_row_share(&self, pane: &Entity<Pane>, share: f32) {
+        let Some((row, index)) = self.marley_row(pane) else {
+            return;
+        };
+        let mut flexes = row.flexes.lock();
+        let count = flexes.len() as f32;
+        let Some(&current) = flexes.get(index) else {
+            return;
+        };
+        let others = count - current;
+        if others <= 0.0 {
+            return;
+        }
+        let target = (share * count).clamp(0.05, count - 0.05 * (count - 1.0));
+        let scale = (count - target) / others;
+        for (member, flex) in flexes.iter_mut().enumerate() {
+            *flex = if member == index {
+                target
+            } else {
+                *flex * scale
+            };
         }
     }
 

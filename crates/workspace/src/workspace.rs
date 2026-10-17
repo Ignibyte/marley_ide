@@ -2788,6 +2788,54 @@ impl Workspace {
         });
     }
 
+    // Marley: the agent panel's width button reads a dock's width as a share of the workspace's
+    // and steps it (#798), through the same sizing a drag of the dock's edge goes through.
+    pub fn marley_dock_width_share(
+        &self,
+        position: DockPosition,
+        window: &Window,
+        cx: &App,
+    ) -> Option<f32> {
+        let workspace_width = self.bounds.size.width;
+        if workspace_width <= Pixels::ZERO {
+            return None;
+        }
+        let dock = self.dock_at_position(position).read(cx);
+        if !dock.is_open() {
+            return None;
+        }
+        Some(self.dock_size(dock, window, cx)? / workspace_width)
+    }
+
+    // Marley: see `marley_dock_width_share` (#798).
+    pub fn marley_set_dock_width_share(
+        &mut self,
+        position: DockPosition,
+        share: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let size = self.bounds.size.width * share;
+        self.resize_dock(position, size, window, cx);
+    }
+
+    // Marley: the same for a pane of the center (#798): its share of the nearest row that holds
+    // it, `None` for a pane alone in its row.
+    pub fn marley_pane_row_share(&self, pane: &Entity<Pane>) -> Option<f32> {
+        self.center.marley_row_share(pane)
+    }
+
+    // Marley: see `marley_pane_row_share` (#798).
+    pub fn marley_set_pane_row_share(
+        &mut self,
+        pane: &Entity<Pane>,
+        share: f32,
+        cx: &mut Context<Self>,
+    ) {
+        self.center.marley_set_row_share(pane, share, cx);
+        cx.notify();
+    }
+
     fn dock_size(&self, dock: &Dock, window: &Window, cx: &App) -> Option<Pixels> {
         let panel = dock.active_panel()?;
         let size_state = dock

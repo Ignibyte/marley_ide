@@ -140,6 +140,7 @@ pub(crate) fn init(cx: &mut App) {
         shows: shows_view,
         reveal: reveal_for,
         attention: crate::push::on_thread,
+        width: crate::agent_panel_width::width_label,
     });
     cx.observe_global::<SettingsStore>(filter_palette).detach();
     // New Thread with Context, the tab menu's other item (#717).
@@ -169,6 +170,11 @@ pub(crate) fn init(cx: &mut App) {
 }
 
 impl ThreadTab {
+    /// The entity id of the thread view the tab shows (#798).
+    pub(crate) fn conversation_view_id(&self) -> EntityId {
+        self.conversation_view.entity_id()
+    }
+
     /// The key of the thread the tab shows, as the rail keys its thread rows (#702).
     pub(crate) fn thread_key(&self, cx: &App) -> String {
         self.conversation_view.read(cx).parent_id().to_key_string()

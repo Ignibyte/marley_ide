@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-798](open/TICKET-798-agent-panel-width-in-percent.md) | feature | A button in the agent panel steps its width: 33, 50, 66 percent, the whole window |
 | [TICKET-799](open/TICKET-799-marley-components-and-the-component-library.md) | feature | `marley_components`, a catalog drawn natively, and the Component Library tab |
 | [TICKET-800](open/TICKET-800-agent-tools-show-components-in-the-thread.md) | feature | `component_list` and `component_show`: agents draw components in the thread, or a tab |
 | [TICKET-801](open/TICKET-801-component-templates-from-files.md) | feature | Component templates from `~/.config/marley/components/`, no recompile |

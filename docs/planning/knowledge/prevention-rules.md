@@ -3147,3 +3147,13 @@ on for every crate the dylint check builds: `no_std` crates refuse a std feature
 A gate step whose tool has a time limit, and treats running out as a failure, sets the limit for a
 box that other projects are loading, never the tool's default. When a gate step fails with no
 finding, run its command without `--quiet` before changing code.
+
+## PR-claude-798-read-no-pane-bounds-in-render-001
+*severity: high · prevents: F-claude-798-a-pane-bounds-read-in-render-deadlocked-the-app-001*
+
+Code that runs while a view renders, or anything a render calls, never calls
+`PaneGroup::bounding_box_for_pane`, `pane_at_pixel_position` or anything else that locks a
+`PaneAxis`'s `bounding_boxes`: the axis element holds that lock while its panes lay out, and a view
+inside a pane renders then. Read the row's `flexes` (unlocked before the layout) or a value saved
+outside render. A window that freezes on its last frame with nothing in the log is a deadlock;
+look for a lock taken in render first.

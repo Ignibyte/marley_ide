@@ -4227,3 +4227,14 @@ another project's test suite holding 15 cores, `command-injection` timed out twi
 `marley_workbench/src/rail.rs` (10,600 lines), and both semgrep gates failed with no finding. Each
 crate passed alone, which hid the cause until a run without `--quiet` named the timeouts. Fixed in
 #797: `SEMGREP_TIMEOUT=60` for both semgrep calls, so the rule runs to its end.
+
+## F-claude-798-a-pane-bounds-read-in-render-deadlocked-the-app-001
+*severity: high · found in: pipeline 798's Test phase (the visual check) · class: a lock taken in render that layout holds · prevented by: PR-claude-798-read-no-pane-bounds-in-render-001*
+
+The width button's label read its pane's share through `PaneGroup::bounding_box_for_pane`, which
+locks the `PaneAxis`'s `bounding_boxes`. The pane axis element takes that lock in prepaint and
+holds it while it lays out each pane (`layout_as_root` inside the guard), and the thread view
+renders inside that layout. Once a thread's pane shared its row, every frame deadlocked on the
+lock: the window froze on its last frame, "Loading…" or an open palette, with nothing in the log.
+The gate was green; only the visual check saw it. Fixed in #798: the label reads the row's flexes,
+which the element clones and unlocks before the layout (`PaneGroup::marley_row_share`).

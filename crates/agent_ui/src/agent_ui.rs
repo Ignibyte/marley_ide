@@ -525,6 +525,10 @@ pub struct MarleyThreadHost {
     // Marley: the phone push, told each time Zed decides the user should hear of a thread (#752).
     /// Told what the thread asks, whether the user can see it, its agent's id and its folders.
     pub attention: fn(MarleyAttention, bool, &str, &[PathBuf], &mut Window, &mut App),
+    // Marley: the label of the width button in a thread's message editor (#798).
+    /// The width of the place that shows the view with this id, as Marley labels it ("50%"), or
+    /// `None` to show no width button.
+    pub width: fn(&Workspace, gpui::EntityId, &Window, &App) -> Option<SharedString>,
 }
 
 impl gpui::Global for MarleyThreadHost {}

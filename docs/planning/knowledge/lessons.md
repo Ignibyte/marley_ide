@@ -6064,3 +6064,19 @@ How the 2026-10-17 merge of 110 upstream commits went, after #695's:
   minutes; repairing the set waits for the testing phase.
 - **Builds beside another project.** Chad allowed Marley's cargo beside elephc's, which keeps its
   own target folder; `just idle` waits on any cargo, so the gate ran as `script/gates.sh --diff`.
+
+## L-claude-798-driving-menus-and-the-palette-in-a-scenario-001
+*category: testing · topic: e2e scenarios · from: pipeline 798*
+
+What the #798 scenario learned about driving Marley under sway:
+- **A frozen frame is not lost keys.** Three tries at the tab menu and the palette looked like
+  dropped keys; the app was deadlocked (F-claude-798-a-pane-bounds-read-in-render-deadlocked-the-app-001).
+  When a step seems to do nothing, take a shot a few seconds later and compare: an identical frame
+  with a stale cursor means the main thread is stuck.
+- **The palette in one `wtype`.** `wtype -d 20 "<name>" -s 800 -k Return` types, waits for the list
+  and confirms with one keymap; the scenario's `palette` does that.
+- **A thread tab does not clone.** `pane: split right` does nothing for it; split the terminal's
+  pane first (the Marley layout opens Home in the new pane, #785) and start the thread there, or use
+  `pane: split and move right`.
+- **Move Thread to Panel is hidden in the Marley layout.** A check of the Agent Panel switches to
+  Zed's layout first (`marley: use zed layout`).

@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's width in percent** (#798, 2026-10-17). A thread's message box has a width button
+  after the follow toggle that shows how wide the thread is, and a click steps it to a third, half,
+  two thirds, the whole window, then a third again. `marley: cycle agent panel width` does the
+  same for the thread in front.
+  - **In a thread tab** the button reads and sets the pane's share of its row; the other panes keep
+    their proportions. A pane alone in its row shows no button.
+  - **In the Agent Panel** it reads and sets the dock's share of the window, which the panel keeps
+    as the window resizes and across a restart.
+
 - **Upstream Zed through 2026-10-17** (#797). Marley now carries the 110 upstream commits since
   #695, which includes everything in Zed v1.24.3 and v1.25.0-pre. Upstream's changes that show:
   - Claude Sonnet 5.5 and Haiku 5.5 in the Anthropic provider, and Gemini 4 Argon in Google's.

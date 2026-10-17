@@ -28,6 +28,7 @@ pub mod agent_control;
 pub mod agent_editor;
 pub mod agent_events;
 pub mod agent_notify;
+pub mod agent_panel_width;
 pub mod agent_reports;
 pub mod agent_tab;
 pub mod agent_trust;
@@ -1077,6 +1078,7 @@ pub fn init(cx: &mut App) {
     stall::init(cx);
     fleet::init(cx);
     rail::containers::init(cx);
+    agent_panel_width::init(cx);
     pane_splits::init(cx);
     observe_workspaces(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))

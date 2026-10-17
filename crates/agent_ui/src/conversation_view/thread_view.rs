@@ -5094,6 +5094,7 @@ impl ThreadView {
                                     .gap_0p5()
                                     .child(self.render_add_context_button(cx))
                                     .child(self.render_follow_toggle(cx))
+                                    .children(self.render_marley_panel_width(window, cx))
                                     .children(self.render_fast_mode_control(cx))
                                     .children(self.render_thinking_control(cx)),
                             )
@@ -6355,6 +6356,34 @@ impl ThreadView {
                     editor.insert_skill_crease(&skill, window, cx);
                 });
             })
+    }
+
+    // Marley: the width of this thread's place in percent, as Marley labels it; a click runs
+    // `marley::CycleAgentPanelWidth` for this thread, by name since this crate names no Marley
+    // crate (#798).
+    fn render_marley_panel_width(&self, window: &Window, cx: &App) -> Option<AnyElement> {
+        let host = cx.try_global::<crate::MarleyThreadHost>()?;
+        let workspace = self.workspace.upgrade()?;
+        let view = self.server_view.entity_id();
+        let label = (host.width)(workspace.read(cx), view, window, cx)?;
+        Some(
+            Button::new("marley-agent-panel-width", label)
+                .label_size(LabelSize::Small)
+                .color(Color::Muted)
+                .tooltip(Tooltip::text(
+                    "Agent width: click for 33%, 50%, 67%, then the whole window",
+                ))
+                .on_click(move |_, window, cx| {
+                    let thread = serde_json::json!({ "thread": view.as_u64() });
+                    if let Some(action) = cx
+                        .build_action("marley::CycleAgentPanelWidth", Some(thread))
+                        .log_err()
+                    {
+                        window.dispatch_action(action, cx);
+                    }
+                })
+                .into_any_element(),
+        )
     }
 
     fn render_follow_toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
