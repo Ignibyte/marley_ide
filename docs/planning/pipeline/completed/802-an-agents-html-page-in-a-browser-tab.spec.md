@@ -1,7 +1,7 @@
 ---
 pipeline_id: be71c2e1-c737-4a6f-a31a-ccedde1f3d45
-ticket: docs/planning/tickets/open/TICKET-802-an-agents-html-page-in-a-browser-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+ticket: docs/planning/tickets/closed/TICKET-802-an-agents-html-page-in-a-browser-tab.md
+status: Phase 4 — Complete PASS
 title: An agent's HTML page in a Browser tab
 type: feature
 slice: Browser service (agent components)
@@ -29,7 +29,7 @@ reloads when the file changes, and a stylesheet of Marley's theme lets the page 
     names the tab, the file's path and the stylesheet's `file:` URL.
 - **Reload:** while a tab the tool opened still shows its file, a change to the file reloads the
   tab.
-- **The stylesheet** (`marley-theme.css` in Marley's data directory): the active theme's
+- **The stylesheet** (`pages/marley-theme.css` in Marley's data directory): the active theme's
   colors and Marley's UI and monospace fonts as CSS variables (`--marley-background`,
   `--marley-surface`, `--marley-text`, `--marley-text-muted`, `--marley-border`,
   `--marley-accent`, `--marley-success`, `--marley-warning`, `--marley-error`, `--marley-font`,
@@ -88,8 +88,9 @@ Browser tab), with a terminal stand-in that calls the tool through the bridge:
 | REQ-005 | IF `path` is outside the caller's project or not an HTML file, THEN the tool shall answer `opened: false` with the reason | shot `802-05-outside` |
 
 ## Phase Plan
-- **P1 Plan:** this spec; at promotion, the scratch folder's naming per project and how the
-  stylesheet is kept current.
+- **P1 Plan:** this spec; at promotion, the scratch folder is `pages/<project key>/`, the key
+  that names the project's browser folder, and the stylesheet is kept current by an observer of
+  the active theme. Stylesheet: `pages/marley-theme.css`, beside the project folders.
 - **P2 Code:** the tool, the writer, the stylesheet, the reload; a review of the diff;
   `script/gates.sh --diff` green.
 - **P3 Test:** the visual check above.

@@ -6104,3 +6104,18 @@ Zed's dylint lint `async_block_without_await` (denied in the Marley crates) refu
 thread as `smol::unblock(move || blocking_call()).await` inside the foreground task, or give the
 async block a real `.await` (Zed's async `Fs`). A folder a template loader watches is watched with
 `Fs::watch` after `Fs::create_dir`, so a first run has a folder to watch.
+
+## L-claude-802-zed-font-names-are-aliases-001
+*category: code · topic: fonts outside gpui · from: pipeline 802*
+
+`ThemeSettings::ui_font.family` and `buffer_font.family` can hold gpui's virtual names:
+`.ZedSans`, `.ZedMono`, `.SystemUIFont`, and the old "Zed Plex Sans" and "Zed Plex Mono". gpui
+resolves them only when it loads a font (`gpui::font_name_with_fallbacks`). Anything that hands a
+font family to another program (a stylesheet, a terminal profile, an export) resolves it first.
+
+## L-claude-802-watch-the-folder-to-follow-one-file-001
+*category: code · topic: file watching · from: pipeline 802*
+
+To follow one file's edits, watch its folder with `Fs::watch` and filter the events to the
+file's path. `sed -i`, editors' atomic saves and Zed's own `Fs::atomic_write` all replace the
+file by rename, which a watch on the file's inode does not survive.

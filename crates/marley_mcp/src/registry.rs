@@ -378,6 +378,19 @@ const REGISTRY: &[ToolSpec] = &[
          says why it opened nothing.",
     ),
     browser_write(
+        "show_page",
+        "Show an HTML page to the user in a Browser tab of your project. Use it for what \
+         component_show cannot draw. Send `html` and a `name`: Marley writes the page to a \
+         scratch folder of your project and opens it. Or send `path`, an `.html` or `.htm` file \
+         in your project: Marley opens the file and writes nothing. A call for a page that is \
+         open brings its tab to the front. When the file changes, its tab reloads. Marley adds a \
+         stylesheet of the user's theme to the page's head unless `theme` is false. The \
+         stylesheet gives CSS variables: --marley-background, --marley-surface, --marley-text, \
+         --marley-text-muted, --marley-border, --marley-accent, --marley-success, \
+         --marley-warning, --marley-error, --marley-font and --marley-mono-font. Use them, and \
+         the page follows the theme. `opened: false` gives the reason when no tab opened.",
+    ),
+    browser_write(
         "back",
         "Go back in a Browser tab's history; answers once the page has loaded.",
     ),
@@ -937,6 +950,7 @@ const DESTRUCTIVE: &[&str] = &[
 const IDEMPOTENT: &[&str] = &[
     "editor_open",
     "browser_open_url",
+    "browser_show_page",
     "browser_resize",
     "browser_color_scheme",
 ];
@@ -1280,6 +1294,7 @@ fn browser_schemas(verb: &str) -> (Value, Value) {
         "pick" => pick_schemas(),
         "check_pick" => check_pick_schemas(),
         "open_url" => open_url_schemas(),
+        "show_page" => show_page_schemas(),
         "wait" => wait_schemas(),
         _ => browser_write_schemas(verb),
     }
@@ -1329,6 +1344,35 @@ fn open_url_schemas() -> (Value, Value) {
             "properties": {
                 "opened": { "type": "boolean" },
                 "project": { "type": "string", "description": "The project whose Browser tab shows the URL." },
+                "reason": { "type": "string", "description": "Why no tab opened." }
+            },
+            "required": ["opened"]
+        }),
+    )
+}
+
+/// `browser_show_page` (#802): a page's HTML and name, or a project file's path; whether a tab
+/// opened, with the page's tab, file and stylesheet, or why not.
+fn show_page_schemas() -> (Value, Value) {
+    (
+        json!({
+            "type": "object",
+            "properties": {
+                "html": { "type": "string", "description": "The page's HTML. Send `name` with it." },
+                "name": { "type": "string", "description": "The page's file name in the scratch folder, such as `report`: letters, digits, `-`, `_` and `.`." },
+                "path": { "type": "string", "description": "An .html or .htm file in your project: an absolute path, or a path from the project's folder." },
+                "theme": { "type": "boolean", "description": "Whether Marley adds the theme stylesheet to the page's head. True when left out. Not used with `path`." }
+            },
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "opened": { "type": "boolean" },
+                "project": { "type": "string", "description": "The project whose Browser tab shows the page." },
+                "tab": { "type": "string", "description": "The tab's id for the other browser tools, once its page is attached." },
+                "path": { "type": "string", "description": "The page's file." },
+                "stylesheet": { "type": "string", "description": "The theme stylesheet's file: URL." },
                 "reason": { "type": "string", "description": "Why no tab opened." }
             },
             "required": ["opened"]

@@ -4238,3 +4238,20 @@ renders inside that layout. Once a thread's pane shared its row, every frame dea
 lock: the window froze on its last frame, "Loading…" or an open palette, with nothing in the log.
 The gate was green; only the visual check saw it. Fixed in #798: the label reads the row's flexes,
 which the element clones and unlocks before the layout (`PaneGroup::marley_row_share`).
+
+## F-claude-802-a-stylesheet-named-zeds-font-aliases-001
+*severity: low · found in: pipeline 802's Test phase (the visual check) · class: an internal name leaked to another program · prevented by: none (a one-off; the lesson L-claude-802-zed-font-names-are-aliases-001 records the trap)*
+
+`browser_show_page`'s theme stylesheet wrote `ThemeSettings`' font families as they are stored:
+`.ZedSans` and `.ZedMono`, names gpui maps to IBM Plex Sans and Lilex when it loads a font. To
+Chromium they name no font, so every page fell back to its defaults. The gate was green; the
+stylesheet printed in the run's log showed it. Fixed in #802 with `gpui::font_name_with_fallbacks`.
+
+## F-claude-802-a-file-watch-that-ended-raced-a-new-tab-001
+*severity: low · found in: pipeline 802's Code phase (the review) · class: a watch ending on a stale observation · prevented by: none (fixed before any run)*
+
+The first draft of a page's watch ended when a change found no tab on the file. A call that wrote
+the page again after its tab closed opened a new tab and skipped starting a watch, since the old
+one was still registered; the old watch then saw the call's own write before the new tab had its
+page, found no tab, and ended, so the new tab never reloaded. Fixed in #802: a watch lasts the
+session, and a reload of no tabs does nothing.

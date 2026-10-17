@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's HTML page in a Browser tab** (#802, 2026-10-17). A Marley MCP tool,
+  `browser_show_page`, shows a page an agent writes in a Browser tab of its project: the page's
+  HTML, written to a scratch folder in Marley's data folder, or an HTML file already in the
+  project. The tab reloads when the file changes. A stylesheet of the theme's colors and fonts as
+  CSS variables is linked into every page Marley writes, and when the theme changes the pages
+  reload in its colors.
+
 - **Component templates from files** (#801, 2026-10-17). A JSON file in
   `~/.config/marley/components/` defines a component from the built-in ones, with placeholders for
   the inputs its schema names. Marley loads the folder at start and again when a file changes, with

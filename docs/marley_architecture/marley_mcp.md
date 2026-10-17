@@ -90,6 +90,11 @@ OR Apache-2.0, with the Marley crates' lint table.
   each schema), `browser_navigate` takes `new_tab`, and every answer from a page names its tab.
   Since #574 the `tab` argument's and the tools' descriptions say that a call naming none acts in
   the project the agent runs in, and `browser_tabs`' output adds `project` and `default`.
+- Since #802 `browser_show_page`, a write in `IDEMPOTENT`, takes `html` and `name`, or `path`, and
+  an optional `theme`, and answers `opened` with the `project`, the `tab`, the page's `path` and
+  the theme `stylesheet`'s `file:` URL, or a `reason`, through `show_page_schemas`; its
+  description tells an agent to choose it for what `component_show` cannot draw and names the
+  stylesheet's variables.
 - Since #766 every entry of `tools_list_for` carries `annotations` (`annotations(spec)`): a
   `title` ("Browser: click", `tool_title`) and all four hints, derived from the row's tier, its
   family, and three lists in the registry: `DESTRUCTIVE` (writes the user cannot take back from

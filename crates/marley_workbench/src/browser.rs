@@ -9116,6 +9116,26 @@ pub(crate) fn show_tab_where(
     Some(view)
 }
 
+/// Loads again the page of each Browser tab whose address is `url` (#802).
+pub(crate) fn reload_tabs_on(url: &url::Url, cx: &mut App) {
+    let hub = BrowserHub::global(cx);
+    let targets: Vec<String> = live_views(cx)
+        .iter()
+        .filter_map(|view| view.read(cx).target.clone())
+        .filter(|target| {
+            hub.read(cx)
+                .address(target)
+                .and_then(|address| url::Url::parse(&address).ok())
+                .is_some_and(|address| &address == url)
+        })
+        .collect();
+    hub.update(cx, |hub, cx| {
+        for target in &targets {
+            hub.reload(target, cx);
+        }
+    });
+}
+
 /// Opens `url` in a Browser tab of `workspace` with the focus, or brings forward the tab of
 /// `workspace` already on it (#503), and gives that tab (#527).
 pub(crate) fn open_url_tab(

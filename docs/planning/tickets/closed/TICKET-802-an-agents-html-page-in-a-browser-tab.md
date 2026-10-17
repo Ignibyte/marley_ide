@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #802 (feature, agent components)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/802-an-agents-html-page-in-a-browser-tab.spec.md
+- **Pipeline doc:** ../../pipeline/completed/802-an-agents-html-page-in-a-browser-tab.spec.md
 - **Source ticket:** Chad, 2026-10-17: "So the options can be inline editing for agents to show components or static html in a scratch file or existing project for that sort of style."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 For what the catalog cannot draw, an agent writes a page. A tool, `browser_show_page`, takes the

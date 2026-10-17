@@ -38,8 +38,8 @@ use ui::SharedString;
 use workspace::{MultiWorkspace, ProjectGroup, Workspace};
 
 use crate::browser::{
-    BrowserHub, BrowserProject, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page, open_url_tab,
-    recordings_dir, settled, show_for_agent, tab_workspaces, window_of,
+    BrowserHub, BrowserProject, BrowserView, Maker, Pick, SCROLL_SETTLE, TabSummary, new_page,
+    open_url_tab, recordings_dir, settled, show_for_agent, tab_workspaces, window_of,
 };
 use crate::click_pause::{self, Checked, Click, Who};
 use crate::links;
@@ -293,6 +293,10 @@ async fn run(
         "browser_draft_test" => return draft_test(arguments, cx).await.map_err(Refusal::from),
         // Before the browser is up: a new tab waits for it by itself.
         "browser_open_url" => return Ok(open_url(arguments, cx).await),
+        "browser_show_page" => {
+            let home = scope.and_then(|scope| scope.home.upgrade());
+            return Ok(crate::browser_pages::show_page(arguments, home, cx).await);
+        }
         _ => {}
     }
     // Each project's browser has its own pages (#507): a call sees them once none starts.
@@ -404,9 +408,20 @@ fn open_in_tab(url: String, directory: &str, cx: &mut App) -> ToolAnswer {
     let Some(workspace) = holding(directory, cx) else {
         return declined("no project of Marley's holds the directory");
     };
-    let Some(window) = window_of(&workspace, cx) else {
-        return declined("the project's window is gone");
-    };
+    match open_in_workspace(url, &workspace, cx) {
+        Ok((project, _)) => open_answer(json!({ "opened": true, "project": project })),
+        Err(reason) => declined(reason),
+    }
+}
+
+/// Opens `url` in a Browser tab of `workspace`, shown in its window, with the focus, or brings
+/// forward its tab already on `url`: the project's name, as the rail shows it, and the tab.
+pub(crate) fn open_in_workspace(
+    url: String,
+    workspace: &Entity<Workspace>,
+    cx: &mut App,
+) -> Result<(String, Entity<BrowserView>), &'static str> {
+    let window = window_of(workspace, cx).ok_or("the project's window is gone")?;
     let project = window
         .read(cx)
         .ok()
@@ -414,24 +429,23 @@ fn open_in_tab(url: String, directory: &str, cx: &mut App) -> ToolAnswer {
         .unwrap_or_default();
     // Through the window's handle, which leaves its root alone, so the workspace is shown and its
     // tab added each in an update of its own.
-    let shown = AnyWindowHandle::from(window).update(cx, |_, window, cx| {
-        if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
-            && multi_workspace.read(cx).workspace() != &workspace
-        {
-            multi_workspace.update(cx, |multi_workspace, cx| {
-                multi_workspace.activate(workspace.clone(), None, window, cx);
-            });
-        }
-        workspace.update(cx, |workspace, cx| open_url_tab(workspace, url, window, cx));
-    });
-    match shown {
-        Ok(()) => open_answer(json!({ "opened": true, "project": project })),
-        Err(_) => declined("the project's window is gone"),
-    }
+    AnyWindowHandle::from(window)
+        .update(cx, |_, window, cx| {
+            if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
+                && multi_workspace.read(cx).workspace() != workspace
+            {
+                multi_workspace.update(cx, |multi_workspace, cx| {
+                    multi_workspace.activate(workspace.clone(), None, window, cx);
+                });
+            }
+            workspace.update(cx, |workspace, cx| open_url_tab(workspace, url, window, cx))
+        })
+        .map(|view| (project, view))
+        .map_err(|_| "the project's window is gone")
 }
 
 /// `browser_open_url`'s answer, which has no text or image of its own.
-const fn open_answer(structured: Value) -> ToolAnswer {
+pub(crate) const fn open_answer(structured: Value) -> ToolAnswer {
     ToolAnswer {
         structured,
         text: None,
@@ -440,7 +454,7 @@ const fn open_answer(structured: Value) -> ToolAnswer {
 }
 
 /// `browser_open_url`'s answer when it opens nothing, with why.
-fn declined(reason: &str) -> ToolAnswer {
+pub(crate) fn declined(reason: &str) -> ToolAnswer {
     open_answer(json!({ "opened": false, "reason": reason }))
 }
 

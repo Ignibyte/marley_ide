@@ -42,6 +42,7 @@ pub mod blocks;
 pub mod bookmarks;
 pub mod browser;
 pub mod browser_actions;
+pub mod browser_pages;
 pub mod browser_tools;
 pub mod claude_ide;
 pub mod claude_plugin;
@@ -1083,6 +1084,7 @@ pub fn init(cx: &mut App) {
     agent_panel_width::init(cx);
     component_library::init(cx);
     component_tools::init(cx);
+    browser_pages::init(cx);
     pane_splits::init(cx);
     observe_workspaces(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))

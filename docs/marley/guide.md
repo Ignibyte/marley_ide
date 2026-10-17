@@ -1746,6 +1746,27 @@ Component Library's Templates group draws each template from its `example`, list
 refused with the reason, and has Open Folder. A name must be new (not a built-in type), and two
 files with one name are both refused; templates may use other templates, four levels deep.
 
+### An agent's HTML page (#802)
+
+For what the catalog cannot draw, an agent can write a page. `browser_show_page` takes the page's
+`html` and a `name`, writes `<name>.html` into the project's scratch folder (`pages/<project key>/`
+in Marley's data folder, `~/.local/share/marley/`), and opens it in a Browser tab of the agent's
+project. Or it takes `path`, an `.html` or `.htm` file inside the project, and opens that file as
+it is; Marley writes nothing into your project. A file outside the project, or one that is not
+HTML, opens nothing, and the agent gets the reason.
+
+A call for a page that is already open brings its tab forward. The tab loads the page again
+whenever the file changes, whether the agent calls again with the same `name` or edits a project
+file on disk.
+
+Marley keeps a stylesheet of your theme beside the scratch folders, `pages/marley-theme.css`, and
+links it into the head of every page it writes (an agent can pass `theme: false` to leave it
+out). It holds the theme's colors and your UI and monospace fonts as CSS variables:
+`--marley-background`, `--marley-surface`, `--marley-text`, `--marley-text-muted`,
+`--marley-border`, `--marley-accent`, `--marley-success`, `--marley-warning`, `--marley-error`,
+`--marley-font` and `--marley-mono-font`. A page that uses them looks like Marley, and when you
+change the theme, Marley rewrites the stylesheet and the agent's pages reload in the new colors.
+
 ## Rusty
 
 Marley can connect to Rusty, Ignibyte's local assistant store, through its MCP server, `rusty-mcp`
@@ -2679,8 +2700,8 @@ The browser family, reading:
 | `browser_wait` | Waits until the page shows `text`, stops showing `text_gone`, has an element of `role` (and `name`), or is at a URL holding `url`: every condition given, looked for every 250 ms for up to `timeout_ms` (10 s by default, 20 s at most). Refused `not_met`, with what did not hold, when time runs out (#756) |
 
 The browser family, acting. These need the `browser.write` grant. Each but `browser_open_url`
-brings its page's tab forward and shows on the Agent chip, and is refused in a tab you have taken
-over (#767):
+and `browser_show_page` brings its page's tab forward and shows on the Agent chip, and is refused
+in a tab you have taken over (#767):
 
 | Tool | What it does |
 |---|---|
@@ -2693,6 +2714,7 @@ over (#767):
 | `browser_annotate` | Draws a box with a note around an element or over an area, marked as the agent's; `clear` removes the agent's own boxes |
 | `browser_check_pick` | Finds a pick's element again after a change, by its most durable locator, and says what changed: its box, styles, text, role and name, or HTML, with a new crop (#505) |
 | `browser_open_url` | Opens a URL a program in `directory` asked to open, in a Browser tab of that folder's project, as Marley's `BROWSER` opener does (#561) |
+| `browser_show_page` | Shows an agent's HTML page in a Browser tab of its project: `html` and a `name`, written to the project's scratch folder, or `path` to an `.html` file in the project; the tab reloads when the file changes (#802) |
 | `browser_hover` | Moves your mouse onto an element by its ref, or a point, and leaves it there (#756) |
 | `browser_select` | Chooses options of a select list by `values` or `labels`; the page gets its input and change events, and Marley's list stays shut. An option not there is refused `no_option`, naming the options there |
 | `browser_drag` | Drags from one element or point to another; a page's HTML drag and drop is finished with its drop events |

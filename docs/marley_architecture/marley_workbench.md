@@ -5020,6 +5020,35 @@ One agent of the fleet in full, in the center, read-only and not serialized.
   their own tabs). Each part checks the handshake's capability as the snapshot does.
 - **Item.** The tab's title is the agent's name, its icon `IconName::Server`; `type Event = ()`.
 
+## An agent's HTML page (`src/browser_pages.rs`, #802)
+
+- `browser_tools::run` routes `browser_show_page` before the browser settles, as it does
+  `browser_open_url`, and passes the caller's workspace (`Scope::home`); a caller in no project
+  is declined.
+- `show_page` writes the stylesheet first, then the page: with `html` and `name` (checked by
+  `page_file_name`: letters, digits, `-`, `_`, `.`, no leading dot, 100 at most) into
+  `<data_dir>/pages/<BrowserProject key>/<name>.html`, the stylesheet's `<link>` put into the
+  head by `with_stylesheet` unless `theme: false` or the text names the stylesheet already; with
+  `path`, `project_page` reads it as `address::local_page` does, `canonicalize`s it and each of
+  the workspace's roots, and takes it only inside one, as a file. Nothing is written for `path`.
+- The tab opens through `browser_tools::open_in_workspace`, the half of `open_in_tab` that
+  shows the workspace and calls `open_url_tab`, which brings forward a tab already on the URL.
+  The answer waits up to 5 s for the tab's page id (`BrowserView::target`) and leaves `tab` out
+  after that.
+- `watch` follows each page file for the rest of the session through its folder's `Fs::watch`
+  (a write by rename replaces the file, which a watch on the file would lose), filtered to the
+  file; each change calls `browser::reload_tabs_on(url)`, which reloads every live tab whose
+  address is the file's URL. A watch that ended when no tab showed the file raced a call opening
+  a new tab on it.
+- The stylesheet (`<data_dir>/pages/marley-theme.css`): `stylesheet_text` writes
+  `color-scheme` and eleven variables from `cx.theme()` (editor background, surface, text, muted
+  text, border, accent text, and the success, warning and error status colors, as CSS `rgb()` in
+  percentages) and `ThemeSettings`' UI and buffer font families, Zed's aliases resolved by
+  `gpui::font_name_with_fallbacks` (`.ZedSans` is IBM Plex Sans, `.ZedMono` Lilex). `ShownPages`
+  keeps the text last written; `restyle`, on every `GlobalTheme` and `SettingsStore` change,
+  rewrites it only when the tool has written it before and the text differs, then reloads the
+  tabs of every watched page.
+
 ## Tests
 
 `src/marley_workbench_tests.rs` (the switch, the keymap loader, persistence and the docks across
@@ -5089,6 +5118,9 @@ prints each byte.
 
 ## Known limits
 
+- `browser_show_page`'s scratch folders and watches are never pruned. The stylesheet names Zed's
+  UI and monospace fonts, which Zed carries inside its binary; Chromium finds them only where
+  they are installed, and otherwise uses `system-ui` and `monospace`.
 - A key Zed binds above the Browser tab goes to Zed, not the page: Ctrl-S saves, Ctrl-W closes
   the tab. Escape reaches the page since #496. Pick mode runs in the page's own session, not a
   cross-site iframe's, so picking inside such an iframe is outside #496. A page whose framework
