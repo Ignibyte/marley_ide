@@ -63,6 +63,10 @@ pub const BRAIN_DELETE_FOLDER: &str = "brain_delete_folder";
 /// Rusty's setting for the vault's folder; unset, Rusty uses `.rusty/brain` in the home folder.
 pub const VAULT_PATH_KEY: &str = "brain_vault_path";
 
+/// The tool that counts the vault and names its folder, `vault_root`, on Rusty's own machine
+/// (#791).
+pub const BRAIN_STATS: &str = "brain_stats";
+
 /// How many hits the Brain view asks brain search for.
 pub const SEARCH_LIMIT: usize = 50;
 
@@ -165,6 +169,22 @@ pub fn page_slug_from_answer(text: &str) -> Result<String, serde_json::Error> {
         slug: String,
     }
     serde_json::from_str::<Page>(text).map(|page| page.slug)
+}
+
+/// The vault's folder `brain_stats` answers as `vault_root`, a path on the machine Rusty runs on;
+/// none when the answer has none.
+///
+/// # Errors
+///
+/// When the answer is not an object.
+pub fn vault_root_from_answer(text: &str) -> Result<Option<String>, serde_json::Error> {
+    #[derive(Deserialize)]
+    struct Stats {
+        #[serde(default)]
+        vault_root: String,
+    }
+    serde_json::from_str::<Stats>(text)
+        .map(|stats| Some(stats.vault_root).filter(|root| !root.is_empty()))
 }
 
 /// What `brain_rename` reports: the path renamed and the path it has now.

@@ -16,6 +16,10 @@ watcher sees. Since #658 it serves Rusty's twelve task tools over `$RUSTY_STAND_
 each task write that succeeds; it does not watch that file, so a scenario's own edit of it stands
 for a write another `rusty-mcp` makes, which reaches no other process. Search matches words, not
 embeddings, and `brain_render` gives no HTML: Marley reads `raw`, `properties`, `file` and `links`.
+Since #791 it answers `brain_stats` (`vault_root`) and `brain_write_page`, and with
+`$RUSTY_STAND_IN_ELSEWHERE` it names that folder as its vault's, in `vault_root`, `brain_vault_path`
+and each page's `file`, as a Rusty on another machine names a folder this one does not have; its
+own vault stays where it is, and nothing makes the named folder.
 """
 
 import json
@@ -39,6 +43,7 @@ STATE = os.environ.get("RUSTY_STAND_IN_STATE") or os.path.join(os.getcwd(), "rus
 SETTINGS = os.path.join(STATE, "settings.json")
 CALLS = os.path.join(STATE, "calls")
 VAULT = os.path.join(STATE, "vault")
+ELSEWHERE = os.environ.get("RUSTY_STAND_IN_ELSEWHERE") or None
 LOCK = threading.Lock()
 
 TOOL_NAMES = [
@@ -73,6 +78,8 @@ TOOL_NAMES = [
     "brain_delete_page",
     "brain_delete_folder",
     "brain_render",
+    "brain_stats",
+    "brain_write_page",
     "brain_get_links",
     "brain_graph",
     "brain_page_types",
@@ -145,7 +152,7 @@ def seed():
         with open(FIXTURE, encoding="utf-8") as fixture:
             settings = {entry["key"]: entry["value"] for entry in json.load(fixture)}
     if "brain_vault_path" not in settings:
-        settings["brain_vault_path"] = VAULT
+        settings["brain_vault_path"] = ELSEWHERE or VAULT
         save(settings)
     elif not os.path.exists(SETTINGS):
         save(settings)
@@ -184,6 +191,14 @@ def refuse(message):
 
 def clean(path):
     return "/".join(part for part in str(path).strip().split("/") if part and part != ".")
+
+
+def shown(path):
+    """Where Marley is told the vault's file `path` is: itself, or under the elsewhere folder."""
+    path = os.path.abspath(path)
+    if ELSEWHERE is None:
+        return path
+    return os.path.join(ELSEWHERE, os.path.relpath(path, os.path.abspath(VAULT)))
 
 
 def in_vault(rel):
@@ -1979,7 +1994,7 @@ def render(slug):
         "page_type": str(values.get("type") or slug.split("/", 1)[0]),
         "properties": [{"key": key, "value": value} for key, value in properties],
         "raw": raw,
-        "file": os.path.abspath(path),
+        "file": shown(path),
         "html": "",
         "outline": outline(body),
         "links": links,
@@ -1990,8 +2005,38 @@ def render(slug):
     }
 
 
+def stats():
+    """Rusty's `brain_stats`: the page count, the counts Marley does not read as nothing, and
+    `vault_root`, the vault's folder as Marley is told it (#791)."""
+    return {
+        "pages": len(pages()),
+        "links": 0,
+        "tags": 0,
+        "timeline_entries": 0,
+        "vault_root": ELSEWHERE or os.path.abspath(VAULT),
+    }
+
+
+def write_raw(slug, content):
+    """Rusty's `brain_write_page`: the page's whole file replaced as an editor saves it (#791),
+    answered with the page as `brain_read_page` reads it."""
+    slug = clean(slug)
+    if not slug:
+        raise Refused("A page needs a slug")
+    refuse_archive(slug)
+    path = in_vault(slug + ".md")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as page:
+        page.write(content)
+    return read_page(slug)
+
+
 VAULT_TOOLS = {
     "brain_tree": lambda arguments: tree(),
+    "brain_stats": lambda arguments: stats(),
+    "brain_write_page": lambda arguments: write_raw(
+        str(arguments.get("slug") or ""), str(arguments.get("content") or "")
+    ),
     "brain_list_pages": lambda arguments: list_pages(
         arguments.get("limit"), arguments.get("page_type"), arguments.get("properties") or ()
     ),

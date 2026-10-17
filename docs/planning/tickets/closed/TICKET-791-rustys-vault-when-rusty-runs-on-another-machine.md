@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #791 (feature, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [791-rustys-vault-on-another-machine.spec.md](../../pipeline/completed/791-rustys-vault-on-another-machine.spec.md)
 - **Source ticket:** seen while setting up the Mac, 2026-10-16. The Mac's Marley reaches Rusty
   on the Linux box through `connection: "service"` and an SSH tunnel to `127.0.0.1:4174`.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley reads Rusty's vault tree through the `brain_tree` tool, so the Brain view works from any

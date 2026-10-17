@@ -5499,3 +5499,22 @@ Rejected:
 - a `terminal.shell` setting for the user to write.
 
 VS Code starts a macOS shell the same way, with `-l`.
+
+## AD-claude-791-a-page-whose-vault-is-elsewhere-is-edited-through-rustys-tools-001
+*decided at: 2026-10-16 · status: shipped · amends: AD-claude-780-marley-and-rusty-start-in-folders-their-settings-give-never-asked-001*
+
+Marley learns where Rusty's vault is from Rusty (`brain_stats`'s `vault_root`) and takes it for
+this machine's when that folder is a folder here. A brain page's Edit opens the file in Zed's
+editor only with the vault here and a local project. Otherwise the tab edits the page's text from
+`brain_render` (`raw`) in a buffer of its own and saves it with `brain_write_page`, after a fresh
+render shows the page unchanged since Edit began; a page changed meanwhile is never written over.
+Rusty's agent with no `agent_folder` starts in the vault folder when it is here, else in the home
+folder, and neither is made. Chad, 2026-10-16: "port all of rusty data over keep it here for
+now", so the Mac reaches the box's Rusty through a tunnel while a copy waits on the Mac.
+
+Rejected:
+- opening `page.file` through an SSH project on Rusty's host: Marley cannot tell which host a
+  tunnel reaches, and a stale copy at the same path on another host would take the edit;
+- rebuilding the file from `brain_read_page`'s parsed frontmatter: lossy;
+- a setting for where this machine sees the vault: Rusty already says, and a mount would still
+  need the write to go through Rusty to keep its index and history.

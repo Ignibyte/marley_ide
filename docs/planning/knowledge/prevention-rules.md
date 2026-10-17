@@ -3113,3 +3113,12 @@ shell to Zed's and alacritty's defaults, and on macOS that default wraps it in `
 an argument (`-l` on macOS keeps the login-shell startup files), so it goes through
 `Shell::WithArguments` and is started as given. Check a new platform's process tree
 (`ps -o pid,ppid,command`) before trusting any foreground or prompt logic there.
+
+## PR-claude-791-an-error-zed-may-show-ends-without-a-full-stop-001
+*severity: low · prevents: F-claude-791-zeds-save-prompt-doubled-a-full-stop-001*
+
+An error that an `Item` method returns (`save`, `reload`, `save_as`), or that any task passes to
+`detach_and_prompt_err` or `detach_and_notify_err`, is worded as Zed words its own: one clause,
+lowercase after any name it starts with, and no full stop. Zed's prompt adds the full stop
+(`workspace/src/notifications.rs`, `display.push('.')`). Where Marley shows the same error in a
+line of its own, the line adds the full stop when the error has none.

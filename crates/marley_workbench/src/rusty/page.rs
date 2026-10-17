@@ -4,6 +4,8 @@
 //! crate after `marley_rusty::page::page_markdown` turns each wikilink into a link with Rusty's
 //! address. A link opens its page in the same tab, with Back and Forward of the tab's own; Edit
 //! shows the page's file in a Zed editor inside the tab, and Read, Back and Forward save it first.
+//! When the vault is not on this machine, or the project is on another one, Edit shows the page's
+//! text as Rusty gave it and saves it through Rusty (#791).
 //! `open_later` is the one way to open a page: the rail's Brain view and `rusty::OpenPage` call
 //! it, and it follows Zed's preview tabs as the project panel's clicks do.
 
@@ -14,17 +16,18 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::anyhow;
 use editor::{Editor, EditorEvent};
 use gpui::{
     Action, AnyElement, AnyEntity, App, Context, Entity, EntityId, EventEmitter, FocusHandle,
     Focusable, Global, Point, ScrollHandle, SharedString, Subscription, Task, TextStyleRefinement,
     WeakEntity, Window, actions,
 };
-use language::LanguageRegistry;
+use language::{Buffer, LanguageRegistry};
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownOptions, MarkdownStyle};
 use marley_rusty::page::{
-    BRAIN_REMOVE_PROPERTY, BRAIN_RENDER, Heading, NewPage, PageHistory, PageLink, Property,
-    PropertyKind, RenderedPage, Visit, body_of, line_offset, outline_label, page_file_in,
+    BRAIN_REMOVE_PROPERTY, BRAIN_RENDER, BRAIN_WRITE_PAGE, Heading, NewPage, PageHistory, PageLink,
+    Property, PropertyKind, RenderedPage, Visit, body_of, line_offset, outline_label, page_file_in,
     page_markdown,
 };
 use marley_rusty::project::BRAIN_SET_PROPERTY;
@@ -275,13 +278,24 @@ enum Shown {
     Failed(SharedString),
 }
 
-/// Read, or Edit with the page's file in an editor.
+/// Read, or Edit with the page's text in an editor.
 enum Mode {
     Read,
     Edit {
         editor: Entity<Editor>,
+        source: EditSource,
         _events: Subscription,
     },
+}
+
+/// Where an Edit's text comes from and is saved to.
+enum EditSource {
+    /// The page's file in the window's project, saved by Zed's editor (#645).
+    File,
+    /// The page's text as `brain_render` gave it, saved with `brain_write_page`: the vault is not
+    /// on this machine, or the project is on another one (#791). `began` is the text the edit
+    /// started from, or last saved, which the page must still have in Rusty for a save to write.
+    Rusty { slug: String, began: String },
 }
 
 /// The tab's events, which Zed's pane reads as item events.
@@ -513,20 +527,21 @@ impl PageView {
             then(self, window, cx);
             return;
         };
-        let workspace = self.workspace.upgrade();
-        let saving = match workspace {
-            Some(workspace) if editor.read(cx).is_dirty(cx) => {
-                let project = workspace.read(cx).project().clone();
-                // Prettier may format Markdown on save; a brain page Marley saves by itself is
-                // written as typed.
-                let options = SaveOptions {
-                    format: false,
-                    force_format: false,
-                    autosave: true,
-                };
-                editor.update(cx, |editor, cx| editor.save(options, project, window, cx))
-            }
-            _ => Task::ready(Ok(())),
+        let saving = if editor.read(cx).is_dirty(cx) {
+            let project = self
+                .workspace
+                .upgrade()
+                .map(|workspace| workspace.read(cx).project().clone());
+            // Prettier may format Markdown on save; a brain page Marley saves by itself is
+            // written as typed.
+            let options = SaveOptions {
+                format: false,
+                force_format: false,
+                autosave: true,
+            };
+            self.save_edit(options, project, window, cx)
+        } else {
+            Task::ready(Ok(()))
         };
         cx.spawn_in(window, async move |this, cx| {
             let saved = saving.await;
@@ -538,13 +553,106 @@ impl PageView {
                         cx.emit(PageEvent::UpdateTab);
                         then(this, window, cx);
                     }
-                    Err(error) => this.problem = Some(format!("Could not save: {error}").into()),
+                    Err(error) => this.problem = Some(could_not_save(&error)),
                 }
                 cx.notify();
             })
             .log_err();
         })
         .detach();
+    }
+
+    /// Saves the edit to where its text came from: the file through Zed's editor, or the page
+    /// through Rusty (#791). With no edit, or a file edit and no project, there is nothing to do.
+    fn save_edit(
+        &self,
+        options: SaveOptions,
+        project: Option<Entity<Project>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<anyhow::Result<()>> {
+        let Mode::Edit { editor, source, .. } = &self.mode else {
+            return Task::ready(Ok(()));
+        };
+        let editor = editor.clone();
+        match source {
+            EditSource::File => project.map_or_else(
+                || Task::ready(Ok(())),
+                |project| editor.update(cx, |editor, cx| editor.save(options, project, window, cx)),
+            ),
+            EditSource::Rusty { slug, began } => {
+                Self::write_through_rusty(&editor, slug.clone(), began.clone(), cx)
+            }
+        }
+    }
+
+    /// Writes a Rusty edit's text with `brain_write_page` once a fresh render shows the page still
+    /// as the edit began from it, so a change made in Rusty meanwhile is never written over; the
+    /// buffer is then saved as far as Zed knows, and `began` is the text written.
+    fn write_through_rusty(
+        editor: &Entity<Editor>,
+        slug: String,
+        began: String,
+        cx: &Context<Self>,
+    ) -> Task<anyhow::Result<()>> {
+        let Some(buffer) = editor.read(cx).buffer().read(cx).as_singleton() else {
+            return Task::ready(Err(anyhow!("the edit holds no page to save")));
+        };
+        let (text, version) = {
+            let buffer = buffer.read(cx);
+            (buffer.text(), buffer.version())
+        };
+        let rendering = super::call_tool(BRAIN_RENDER, json!({ "slug": slug }), cx);
+        cx.spawn(async move |this, cx| {
+            let written = async {
+                let answer = rendering.await.map_err(anyhow::Error::msg)?;
+                let now = cx
+                    .background_spawn(futures::future::lazy(move |_| {
+                        RenderedPage::from_answer(&answer)
+                    }))
+                    .await
+                    .map_err(|error| anyhow!("{BRAIN_RENDER}'s answer did not parse: {error}"))?;
+                match now {
+                    None => return Err(anyhow!("{slug} is no longer in Rusty's brain")),
+                    Some(page) if page.raw != began => {
+                        return Err(anyhow!(
+                            "{slug} changed in Rusty since Edit began, so nothing was written; \
+                             to drop the edit, close the tab without saving"
+                        ));
+                    }
+                    Some(_) => {}
+                }
+                let writing = this.update(cx, |_, cx| {
+                    super::call_tool(
+                        BRAIN_WRITE_PAGE,
+                        json!({ "slug": slug, "content": text }),
+                        cx,
+                    )
+                })?;
+                writing.await.map_err(anyhow::Error::msg)?;
+                buffer.update(cx, |buffer, cx| buffer.did_save(version, None, cx));
+                anyhow::Ok(text)
+            }
+            .await;
+            // The tab says why a save failed, whether Read or Ctrl-S asked for it.
+            this.update(cx, |this, cx| {
+                match &written {
+                    Ok(text) => {
+                        if let Mode::Edit {
+                            source: EditSource::Rusty { began, .. },
+                            ..
+                        } = &mut this.mode
+                        {
+                            began.clone_from(text);
+                        }
+                        this.problem = None;
+                    }
+                    Err(error) => this.problem = Some(could_not_save(error)),
+                }
+                cx.notify();
+            })?;
+            written.map(|_| ())
+        })
     }
 
     /// Shows `visit`, saving an edit first, and puts it in the tab's history.
@@ -1027,8 +1135,9 @@ impl PageView {
             .log_err();
     }
 
-    /// Edit: the page's file in an editor in the tab. Read: the editor saved and dropped, the page
-    /// read again.
+    /// Edit: the page's file in an editor in the tab, or, when the vault is not on this machine or
+    /// the project is on another one, the page's text as Rusty gave it (#791). Read: the editor
+    /// saved and dropped, the page read again.
     fn toggle_edit(&mut self, _: &TogglePageEdit, window: &mut Window, cx: &mut Context<Self>) {
         if self.editor().is_some() {
             self.leave_edit_then(window, cx, |this, window, cx| this.load(window, cx));
@@ -1041,16 +1150,33 @@ impl PageView {
             return;
         };
         let project = workspace.read(cx).project().clone();
-        if !project.read(cx).is_local() {
-            self.problem = Some(SharedString::new_static(
-                "Edit needs a local project: Rusty's vault is on this machine.",
-            ));
-            cx.notify();
+        let vault = if project.read(cx).is_local() {
+            super::vault_here(cx)
+        } else {
+            None
+        };
+        let Some(vault) = vault else {
+            // A Rusty that gave no text would have the save write the page over with only what
+            // was typed.
+            if page.raw.is_empty() {
+                self.problem = Some(
+                    format!(
+                        "Rusty gave no text for {}, and its vault is not on this machine, so \
+                         there is nothing to edit here.",
+                        page.slug
+                    )
+                    .into(),
+                );
+                cx.notify();
+                return;
+            }
+            let (slug, raw) = (page.slug.clone(), page.raw.clone());
+            self.edit_through_rusty(slug, raw, &project, window, cx);
             return;
-        }
+        };
         // Rusty gives the file since its TICKET-042; before it, the vault's folder and the slug.
         let file = if page.file.is_empty() {
-            page_file_in(&super::vault_folder(cx), &page.slug)
+            page_file_in(&vault, &page.slug)
         } else {
             Some(PathBuf::from(&page.file))
         };
@@ -1067,21 +1193,7 @@ impl PageView {
                     Ok(buffer) => {
                         let editor =
                             cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
-                        let events =
-                            cx.subscribe(&editor, |_, _, event: &EditorEvent, cx| match event {
-                                EditorEvent::BufferEdited => cx.emit(PageEvent::Edited),
-                                EditorEvent::DirtyChanged
-                                | EditorEvent::Saved
-                                | EditorEvent::TitleChanged => cx.emit(PageEvent::UpdateTab),
-                                _ => {}
-                            });
-                        window.focus(&editor.focus_handle(cx), cx);
-                        this.mode = Mode::Edit {
-                            editor,
-                            _events: events,
-                        };
-                        this.problem = None;
-                        cx.emit(PageEvent::UpdateTab);
+                        this.enter_edit(editor, EditSource::File, window, cx);
                     }
                     Err(error) => {
                         this.problem = Some(format!("Could not open the file: {error}").into());
@@ -1092,6 +1204,57 @@ impl PageView {
             .log_err();
         })
         .detach();
+    }
+
+    /// Edit over the page's text in a buffer of the tab's own, Markdown once the language loads;
+    /// no file on this machine holds it, so a save goes to Rusty (#791).
+    fn edit_through_rusty(
+        &mut self,
+        slug: String,
+        raw: String,
+        project: &Entity<Project>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let buffer = cx.new(|cx| Buffer::local(raw.clone(), cx));
+        let markdown = project.read(cx).languages().language_for_name("Markdown");
+        cx.spawn({
+            let buffer = buffer.clone();
+            async move |_, cx| {
+                if let Some(language) = markdown.await.log_err() {
+                    buffer.update(cx, |buffer, cx| buffer.set_language(Some(language), cx));
+                }
+            }
+        })
+        .detach();
+        let editor = cx.new(|cx| Editor::for_buffer(buffer, None, window, cx));
+        self.enter_edit(editor, EditSource::Rusty { slug, began: raw }, window, cx);
+        cx.notify();
+    }
+
+    /// Shows `editor` in the tab, focused, its unsaved state the tab's.
+    fn enter_edit(
+        &mut self,
+        editor: Entity<Editor>,
+        source: EditSource,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let events = cx.subscribe(&editor, |_, _, event: &EditorEvent, cx| match event {
+            EditorEvent::BufferEdited => cx.emit(PageEvent::Edited),
+            EditorEvent::DirtyChanged | EditorEvent::Saved | EditorEvent::TitleChanged => {
+                cx.emit(PageEvent::UpdateTab);
+            }
+            _ => {}
+        });
+        window.focus(&editor.focus_handle(cx), cx);
+        self.mode = Mode::Edit {
+            editor,
+            source,
+            _events: events,
+        };
+        self.problem = None;
+        cx.emit(PageEvent::UpdateTab);
     }
 
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1752,9 +1915,16 @@ impl Item for PageView {
             .is_some_and(|editor| editor.read(cx).has_conflict(cx))
     }
 
+    // An edit through Rusty has no file Zed's editor could save, so the tab saves it (#791).
     fn can_save(&self, cx: &App) -> bool {
-        self.editor()
-            .is_some_and(|editor| editor.read(cx).can_save(cx))
+        match &self.mode {
+            Mode::Edit {
+                source: EditSource::Rusty { .. },
+                ..
+            } => true,
+            Mode::Edit { editor, .. } => editor.read(cx).can_save(cx),
+            Mode::Read => false,
+        }
     }
 
     fn save(
@@ -1764,22 +1934,27 @@ impl Item for PageView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        self.editor().cloned().map_or_else(
-            || Task::ready(Ok(())),
-            |editor| editor.update(cx, |editor, cx| editor.save(options, project, window, cx)),
-        )
+        self.save_edit(options, Some(project), window, cx)
     }
 
+    // An edit through Rusty has no file to read again; it never has a conflict Zed would reload.
     fn reload(
         &mut self,
         project: Entity<Project>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
-        self.editor().cloned().map_or_else(
-            || Task::ready(Ok(())),
-            |editor| editor.update(cx, |editor, cx| editor.reload(project, window, cx)),
-        )
+        match &self.mode {
+            Mode::Edit {
+                editor,
+                source: EditSource::File,
+                ..
+            } => {
+                let editor = editor.clone();
+                editor.update(cx, |editor, cx| editor.reload(project, window, cx))
+            }
+            Mode::Edit { .. } | Mode::Read => Task::ready(Ok(())),
+        }
     }
 
     fn for_each_project_item(
@@ -1800,6 +1975,17 @@ impl Item for PageView {
     ) {
         // L-613: an item moved to another workspace follows it.
         self.workspace = workspace.weak_handle();
+    }
+}
+
+/// The tab's line for a save that failed. An error ends without a full stop, as Zed's own "Failed
+/// to save" prompt adds one to the same error after a Ctrl-S.
+fn could_not_save(error: &anyhow::Error) -> SharedString {
+    let line = format!("Could not save: {error}");
+    if line.ends_with('.') {
+        line.into()
+    } else {
+        format!("{line}.").into()
     }
 }
 

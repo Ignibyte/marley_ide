@@ -10,9 +10,9 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-793](open/TICKET-793-a-default-mode-hides-marleys-agent-entry.md) | bug | A mode made the default writes a registry entry over Marley's Rusty (or Marley) agent entry, and the entry leaves the New Agent picker |
 
 ## Deliberate (picked explicitly, never auto-next)
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-791](open/TICKET-791-rustys-vault-when-rusty-runs-on-another-machine.md) | feature | Waits on Chad: whether Rusty's store stays on the Linux box (then the Mac needs this) or moves to the Mac (then it is moot) |

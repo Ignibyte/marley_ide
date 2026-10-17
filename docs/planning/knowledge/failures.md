@@ -4177,3 +4177,21 @@ Fixed in #792: zsh and fish get `-l` on macOS, so they start directly as login s
 so `marley-edit` was never published there: each start logged the warning, and #649's agent
 prompts in a tab stayed off. Fixed in #790: a link without spaces in Marley's state folder, which
 `marley-edit` resolves back to its endpoint through `realpath`.
+
+## F-claude-791-an-edit-through-rusty-with-no-text-would-write-the-page-over-001
+*severity: high · found in: pipeline 791's review of the diff · class: a default value taken for the data · prevented by: the review; fixed before it shipped*
+
+Edit through Rusty (#791) starts its buffer from `brain_render`'s `raw`, which
+`marley_rusty::page::RenderedPage` reads with `#[serde(default)]`. A Rusty whose answer had no
+`raw` would give an empty buffer, and the save's check compares a fresh `raw` (empty again) with
+the text Edit began from (empty), so it would pass, and `brain_write_page` would write the page
+over with only what was typed. Fixed in #791 before the commit: Edit through Rusty refuses a page
+whose `raw` is empty and says so.
+
+## F-claude-791-zeds-save-prompt-doubled-a-full-stop-001
+*severity: low · found in: pipeline 791's visual check (`791-05-changed`) · class: an error worded as a sentence · prevented by: PR-claude-791-an-error-zed-may-show-ends-without-a-full-stop-001*
+
+A refused save through Rusty returned "…, so nothing was written. To drop the edit, close the tab
+without saving." After Ctrl-S, Zed's `detach_and_prompt_err` showed it in its "Failed to save"
+prompt with a full stop of its own added: "…without saving..". Fixed in #791: the error is one
+clause with no full stop, and the tab's own line adds one (`could_not_save`).

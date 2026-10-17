@@ -21,6 +21,10 @@ pub const BRAIN_RENDER: &str = "brain_render";
 /// Rusty's tool for one frontmatter property's removal (#656).
 pub const BRAIN_REMOVE_PROPERTY: &str = "brain_remove_property";
 
+/// Rusty's tool that replaces a page's whole file as an editor saves it, keeping the old text as
+/// a version (#791).
+pub const BRAIN_WRITE_PAGE: &str = "brain_write_page";
+
 /// How many pages Back keeps.
 const HISTORY_LIMIT: usize = 100;
 

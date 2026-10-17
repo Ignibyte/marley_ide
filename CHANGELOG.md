@@ -13,6 +13,23 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Brain pages edit through Rusty when its vault is on another machine** (#791, 2026-10-16).
+  When Marley reaches a Rusty that runs elsewhere (a Mac on the Linux box's Rusty through a
+  tunnel), or the window's project is remote, a page's Edit shows the page's whole file as Rusty
+  gives it, and saving (Ctrl+S, Read, Back, Forward) writes it through Rusty, which keeps the old
+  text as a version. Before #791, Edit opened a path that machine does not have, or was refused in
+  a remote project.
+  - **A page changed meanwhile.** When the page changed in Rusty since Edit began, the save writes
+    nothing, says so, and the edit stays unsaved.
+  - **Rusty's agent.** With no Rusty Agent's Folder set, it starts in the vault folder when the
+    vault is on this machine, else in the home folder. Before, a Mac would have started it in
+    `~/.rusty/brain`, which there holds a copy that nothing keeps current.
+  - **Where the vault is.** Marley asks Rusty (`brain_stats`) instead of guessing from settings.
+  - The Linux box, with its vault and a local project, edits the file as before.
+  - `.cargo/audit.toml` lists RUSTSEC-2026-0367, -0368 and -0369, against `zip` 0.6.6 in the
+    build script of Zed's LiveKit pin, under its upstream-tree policy: no fixed version is in
+    range, and upstream's main has the same pin.
+
 - **Cmd keys on a Mac** (#789, 2026-10-16). On macOS, Marley's own actions also answer Cmd, as
   Zed's do there:
   - Cmd+Shift+T: Undo Close Terminal;

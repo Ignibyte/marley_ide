@@ -488,7 +488,9 @@ Wave 2 was specced on 2026-09-25, once wave 1 had landed (#496 to #499; the shel
   `aarch64-apple-darwin` since #786, and `just install` writes `Marley.app` there since #787.
   The Ports list reads `lsof` there since #788, and zsh starts as a login shell of its own since
   #792, so the block terminal works. Marley's own keys answer Cmd there since #789, and the agent
-  editor works since #790; #791 (Rusty's vault on another machine) is open. Until their own
+  editor works since #790. Rusty's store stays on the box for now, reached through a tunnel, and
+  a brain page's Edit and Rusty's agent folder work with the vault on another machine since #791;
+  the store was copied to the Mac on 2026-10-16 for a later move. Until their own
   tickets land, these do nothing on macOS, because they need `/proc` or systemd:
   - agent reports' process chain and the stall checks;
   - the Containers list;

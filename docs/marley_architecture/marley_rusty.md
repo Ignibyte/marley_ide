@@ -38,7 +38,8 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   are ported from Ely's `src/lists/tree/model.rs` at `2f8b2f6`, on vault paths in place of Ely's
   keys; Ely's rendering, lazy children, checkboxes and before/after drop places are not taken,
   since Zed's `ui` draws the tree. The tool names `BRAIN_*`, `VAULT_PATH_KEY` (`brain_vault_path`)
-  and `SEARCH_LIMIT`.
+  and `SEARCH_LIMIT`. Since #791 `BRAIN_STATS` and `vault_root_from_answer`, `brain_stats`'s
+  `vault_root` (the vault's folder on Rusty's machine; empty is none).
 - `page` (#645): `RenderedPage` (`brain_render`'s `slug`, `title`, `properties` as `Property { key,
   value }`, `raw`, `file` since Rusty's TICKET-042, `links` as `LinkOut { target, slug }`), read
   with `from_answer`, `None` for Rusty's `null`; `body_of` (Rusty's `split_raw` rule),
@@ -48,7 +49,8 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   front, the text's punctuation escaped and `%`, `<`, `>` and `\` percent-encoded in the address;
   `PageLink::parse` (`Page`, `Missing`, `Heading`, `Local`, `External`), which decodes them;
   `Visit` and `PageHistory` (a tab's Back and Forward, 100 behind); `page_file_in` (a slug's file
-  in a vault, `None` for one that would leave it); `BRAIN_RENDER`. Since #656 `RenderedPage.outline`,
+  in a vault, `None` for one that would leave it); `BRAIN_RENDER`; since #791 `BRAIN_WRITE_PAGE`
+  (Rusty's whole-file write). Since #656 `RenderedPage.outline`,
   Rusty's headings as `Heading { level, text, line }` (`line` from 0 in `body_of`'s text, which
   `page_markdown` keeps line for line), with `line_offset` and `outline_label` (a heading's text as
   drawn, from pulldown-cmark's text and code events with wikilinks on); `PropertyKind` (`Text`,
@@ -212,7 +214,10 @@ program (R-D1); Rusty's agent sessions are not rebuilt (R-D6).
   outside fences, `line` from 0 in the body), `brain_set_property` keeping a replaced key in its
   place, `brain_remove_property`, and `brain_rename` rewriting `[[from]]`, `[[from|` and `[[from#`
   in the other pages (a folder's pages by prefix), counting them, and moving a title equal to the
-  old name, as Rusty's TICKET-046 does. Since #659 `brain_due` sorts `all` as Rusty does (decided
+  old name, as Rusty's TICKET-046 does. Since #791 `brain_stats` (the page count and `vault_root`)
+  and `brain_write_page` (the whole file, as Rusty's `write_raw`); with `RUSTY_STAND_IN_ELSEWHERE`
+  it names that folder, never made, as its vault's in `vault_root`, the seeded `brain_vault_path`
+  and each page's `file`, as a Rusty on another machine does. Since #659 `brain_due` sorts `all` as Rusty does (decided
   descending, then slug), a `today` file in the state folder fixes the day it counts from, and a
   `fail` file (a tool's name, then a message) makes that tool answer a JSON-RPC error. Since #660
   it serves `brain_follow_up` as Rusty does (its five refusals in Rusty's words; the follow-up

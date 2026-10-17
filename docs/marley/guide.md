@@ -176,6 +176,9 @@ visual checks: none of the e2e scenarios runs on a Mac.
 - **Agent prompts in a tab.** With `marley.agent_editor_in_tab` on, the agents get a link to
   `marley-edit` in `~/.local/state/Marley`, since their editor path cannot hold the space in
   `Application Support` (#790).
+- **Rusty on the Linux box.** With `marley.rusty.connection` set to `"service"` and an SSH
+  forward of `127.0.0.1:4174` to the box, the Mac's Marley uses the box's Rusty. A brain page's
+  Edit then goes through Rusty, and Rusty's agent starts in the home folder (#791).
 - **Ports.** A project's port rows, the agents' `ports_list` and a terminal's offer of a printed
   URL read the listening sockets from `lsof` and `ps` (#788). Stop signals the process, since a
   Mac has no systemd services to stop.
@@ -1815,6 +1818,14 @@ tab does.
   first, without formatting, then show the page as saved. Rusty's watcher sees the save and
   indexes it; Rusty commits it on its own since its TICKET-043, and with older Rusty binaries the
   commit comes with Rusty's next write.
+- **Edit when the vault is elsewhere** (#791). When Rusty runs on another machine (a Mac reaching
+  the box's Rusty through a tunnel), or the window's project is a remote one, Edit shows the page's
+  whole file as Rusty gives it, and a save (Ctrl+S, Read, Back, Forward or the close prompt's
+  Save) writes it through Rusty (`brain_write_page`), which keeps the old text as a version and
+  commits. Marley learns where the vault is from Rusty (`brain_stats`). Before a save writes, it
+  reads the page again: when the page changed in Rusty since Edit began, nothing is written, the
+  tab says so, and the edit stays unsaved; close the tab without saving to drop it. Two machines
+  with the vault at the same path (the same user and layout) look like one to Marley.
 - **Live.** While a tab shows a page, a change Rusty announces (one Rusty makes, or one it sees in
   the vault's folder) shows with no click, on the embedded connection.
 - **Not connected.** With Rusty off or its connection lost, the tab keeps the page it shows and
@@ -2271,10 +2282,11 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
 - **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
 - **In a tab, anywhere** (#738): `marley: talk to rusty` and `marley: new rusty conversation`, as the
-  Marley agent's, and the Rusty button in the title bar (#778). Rusty works in the vault folder
-  Rusty itself stores (`brain_vault_path`, else `~/.rusty/brain`); Rusty Agent's Folder on the
-  Marley page (`marley.rusty.agent_folder`) moves it, and New Agent… starts it there without
-  asking where (#780).
+  Marley agent's, and the Rusty button in the title bar (#778). Rusty works in its vault folder,
+  as Rusty names it (`brain_stats`, else `brain_vault_path`, else `~/.rusty/brain`), or in the home
+  folder when that vault is on another machine (#791); Rusty Agent's Folder on the Marley page
+  (`marley.rusty.agent_folder`) moves it, and New Agent… starts it there without asking where
+  (#780).
 - **Zed's agent:** a **Rusty** profile with no built-in tools and the context servers' tools. While
   that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
   as **Rusty's Tools for Agents** does, and Zed asks before each call.

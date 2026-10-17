@@ -3536,8 +3536,9 @@ below describe what #743 retired.
   the agent id its threads carry) comes forward through `window.defer` +
   `threads_page::open_thread`; otherwise `thread_tab::start_thread` on `made(folder_of(entry))`
   (#780: `marley.assistant.folder` or `marley.rusty.agent_folder` through
-  `system_one::folder_path`, else `paths::config_dir()` or `rusty::vault_folder`, made when
-  missing; it replaced #738's `assistant/marley|rusty` under the data folder), on Zed's agent with
+  `system_one::folder_path`, else `paths::config_dir()` or `rusty::vault_here`, else, since #791,
+  the home folder; a set folder is made when missing; it replaced #738's `assistant/marley|rusty`
+  under the data folder), on Zed's agent with
   the entry's profile,
   which `build_view` sets on the native thread once it exists. `filter_talk` shows each pair in
   the palette only while its entry is there (`talk_shown`).
@@ -3655,7 +3656,10 @@ below describe what #743 retired.
   dropped, and the tree clears when the source changes. `call_tool` calls a tool on Marley's
   connection with Rusty's own message as a refusal's error; `is_connected`, `is_on` and
   `unavailable` (the toast's words) give the connection's state; `vault_folder` is
-  `brain_vault_path` from `settings_list`, else `$HOME/.rusty/brain`, Rusty's own default.
+  `Rusty.vault_root`, the folder `brain_stats` names (#791, read by `read_settings` after the
+  settings and the embedding status, cleared with them), else `brain_vault_path` from
+  `settings_list`, else `$HOME/.rusty/brain`, Rusty's own default, and `vault_here` is that folder
+  when it is a folder on this machine, none when Rusty runs on another.
 - **`BrainView`** (`rusty/brain.rs`, a `pub` module of `rusty`, so its `pub(crate)` items satisfy
   both `unreachable_pub` and clippy's `redundant_pub_crate`). Its search `Editor`, the last query
   and its hits (`Found`), the tree as last read, the open folders, the rows from
@@ -3716,11 +3720,20 @@ below describe what #743 retired.
   style, a `link_callback` that mutes `rusty:new/` links, the same `ScrollHandle` for heading
   scrolls, and an `on_url_click` that defers to `follow` (`PageLink::parse`: navigate, toast,
   scroll, or `cx.open_url`). In Edit, the editor fills the body.
-- **Edit.** `toggle_edit` opens `brain_render`'s `file` (Rusty's TICKET-042), else
-  `page_file_in(rusty::vault_folder, slug)`, with `Project::open_local_buffer` (refused in a
-  remote project) into `Editor::for_buffer`, whose `BufferEdited` becomes `ItemEvent::Edit` (a
-  preview tab is kept) and whose dirty, saved and title events update the tab. `leave_edit_then`
-  saves a dirty buffer with `SaveOptions { format: false, autosave: true, .. }` before Read, Back,
+- **Edit.** `Mode::Edit` carries an `EditSource`. With a local project and `rusty::vault_here`,
+  `toggle_edit` opens `brain_render`'s `file` (Rusty's TICKET-042), else
+  `page_file_in(vault, slug)`, with `Project::open_local_buffer` into `Editor::for_buffer`
+  (`EditSource::File`). Otherwise (#791: the vault on another machine, or a remote project) it
+  makes `Buffer::local(raw)`, Markdown from the project's registry once it loads, in
+  `Editor::for_buffer(buffer, None)` (`EditSource::Rusty { slug, began }`); an empty `raw` is
+  refused, since a save would write the page over. `enter_edit` subscribes both: `BufferEdited`
+  becomes `ItemEvent::Edit` (a preview tab is kept), the dirty, saved and title events update the
+  tab. `save_edit` is the one save: the file through the editor's `save`; Rusty's through
+  `write_through_rusty`, which renders the page, writes nothing when `raw` is no longer `began`,
+  else calls `brain_write_page`, `did_save`s the buffer at the version it read and sets `began`
+  to the text written; its failure goes in the tab's line (`could_not_save`, one full stop, as
+  Zed's "Failed to save" prompt adds one to the same error after Ctrl-S). `leave_edit_then` saves
+  a dirty edit with `SaveOptions { format: false, autosave: true, .. }` before Read, Back,
   Forward or a link; a failed save stays in Edit and says why.
 - **`Item`.** `tab_content` draws the title (the slug's last part until it loads) in italics while
   `TabContentParams::preview`; `FileMarkdown` icon; the slug as tooltip; while in Edit,

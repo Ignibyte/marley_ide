@@ -71,7 +71,9 @@ use marley_rusty::settings::{
     BRAIN_SEMANTIC_STATUS, KNOWN, KnownSetting, MASK, SETTING_SET, SETTINGS_LIST, SemanticStatus,
     setting_set_arguments, value_to_write,
 };
-use marley_rusty::vault::{BRAIN_TREE, VAULT_PATH_KEY, VaultNode};
+use marley_rusty::vault::{
+    BRAIN_STATS, BRAIN_TREE, VAULT_PATH_KEY, VaultNode, vault_root_from_answer,
+};
 use marley_rusty::{EmbeddingProvider, ServerSettings};
 use serde_json::{Value, json};
 use settings::settings_content::ContextServerSettingsContent;
@@ -198,6 +200,8 @@ pub(crate) struct Rusty {
     state: State,
     /// Rusty's settings as last read, or why they could not be.
     settings: Option<Result<ServerSettings, SharedString>>,
+    /// The vault's folder on the machine Rusty runs on, as `brain_stats` last named it (#791).
+    vault_root: Option<PathBuf>,
     /// How far Rusty's brain search has its pages embedded, as last read (#666).
     semantic: Option<Result<SemanticStatus, SharedString>>,
     /// The last write Rusty refused, its first line.
@@ -300,6 +304,7 @@ fn follow_setting(cx: &mut App) {
             rusty.server = None;
             rusty.agent_server = None;
             rusty.settings = None;
+            rusty.vault_root = None;
             rusty.refused = None;
             rusty.state = if source == Source::Off {
                 State::Off
@@ -560,8 +565,8 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
     }
 }
 
-/// Reads Rusty's settings with `settings_list`, and its embedding status, into the `Rusty`
-/// global.
+/// Reads Rusty's settings with `settings_list`, its embedding status, and its vault's folder
+/// (`brain_stats`, #791) into the `Rusty` global.
 async fn read_settings(server: &ContextServer, cx: &AsyncApp) {
     let read = call(server, SETTINGS_LIST, json!({}), cx)
         .await
@@ -575,10 +580,24 @@ async fn read_settings(server: &ContextServer, cx: &AsyncApp) {
             SemanticStatus::from_answer(&text)
                 .map_err(|error| format!("{BRAIN_SEMANTIC_STATUS}'s answer did not parse: {error}"))
         });
+    let vault_root = call(server, BRAIN_STATS, json!({}), cx)
+        .await
+        .and_then(|text| {
+            vault_root_from_answer(&text)
+                .map_err(|error| format!("{BRAIN_STATS}'s answer did not parse: {error}"))
+        });
+    let vault_root = match vault_root {
+        Ok(root) => root.map(PathBuf::from),
+        Err(error) => {
+            log::warn!("rusty: the vault's folder: {error}");
+            None
+        }
+    };
     cx.update(|cx| {
         update(cx, |rusty| {
             rusty.settings = Some(read.map_err(SharedString::from));
             rusty.semantic = Some(semantic.map_err(SharedString::from));
+            rusty.vault_root = vault_root;
         });
     });
 }
@@ -723,14 +742,25 @@ pub(crate) fn unavailable(cx: &App) -> Option<SharedString> {
     }
 }
 
-/// The vault's folder: `brain_vault_path` as Rusty stores it, else Rusty's own default,
+/// The vault's folder: the one Rusty names (`brain_stats`, #791), a path on the machine Rusty runs
+/// on; before that is read, `brain_vault_path` as Rusty stores it, else Rusty's own default,
 /// `.rusty/brain` in the home folder.
 pub(crate) fn vault_folder(cx: &App) -> PathBuf {
-    let stored = match &cx.global::<Rusty>().settings {
+    let rusty = cx.global::<Rusty>();
+    if let Some(root) = &rusty.vault_root {
+        return root.clone();
+    }
+    let stored = match &rusty.settings {
         Some(Ok(settings)) => settings.get(VAULT_PATH_KEY).map(PathBuf::from),
         _ => None,
     };
     stored.unwrap_or_else(|| paths::home_dir().join(".rusty").join("brain"))
+}
+
+/// The vault's folder when it is a folder on this machine; none when Rusty runs on another one,
+/// whose vault this machine does not have (#791).
+pub(crate) fn vault_here(cx: &App) -> Option<PathBuf> {
+    Some(vault_folder(cx)).filter(|folder| folder.is_dir())
 }
 
 /// Asks for the vault once a Brain view shows: it is read now, and again on each change.

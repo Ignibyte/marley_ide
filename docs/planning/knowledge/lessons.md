@@ -5989,3 +5989,34 @@ installed helpers live: `marley-edit`, the opener and the shell integration. Cod
 a path to a shell or an agent's `$EDITOR` unquoted fails on a Mac only. Marley's state folder
 (`~/.local/state/Marley` on macOS) has no space; link from there, as #790 does, rather than copy,
 when the program finds its siblings through its real path.
+
+## L-claude-791-a-scenarios-profile-copies-the-users-agent-servers-001
+*category: e2e · topic: the Marley and Rusty agent entries · from: pipeline 791*
+
+`script/e2e.sh` copies the user's settings into the run's profile. A user's own
+`agent_servers.<name>` stands in place of the entry Marley puts in the defaults under that name,
+and Zed writes one there when a mode is made a thread's default (`set_default_config_option`,
+a `registry` entry when the user's file had none). With the box's settings holding
+`agent_servers.Rusty`, New Agent found no Rusty in #791's run and in #780's own scenario run
+again. A scenario that starts the Marley or the Rusty entry drops those keys from its copy, as
+#791's does, until #793 keeps the entries whole.
+
+## L-claude-791-an-advisory-with-no-fix-in-range-001
+*category: tooling · topic: cargo-audit and the lockfile · from: pipeline 791*
+
+Three advisories against `zip` 0.6.6 (RUSTSEC-2026-0367 to -0369) turned gate:7 red during #791.
+Unlike the rustls and wasmtime advisories (L-claude-642), no `cargo update` helps: `zip` is a
+build dependency of `webrtc-sys-build` in Zed's LiveKit fork pin, which asks `zip = "0.6"`, and
+the fix is 9.0. Before listing such an advisory, check upstream's main (`git fetch upstream main`,
+then `git show upstream/main:Cargo.lock`): when it has the same pin and lock, the advisory is in
+upstream's tree, and `.cargo/audit.toml` lists it under its own policy, with the crate, why no
+version fixes it, and the upstream commit checked.
+
+## L-claude-791-clippy-after-every-fix-before-the-gate-001
+*category: gate · topic: the order of checks · from: pipeline 791*
+
+A one-line fix made in the Test phase (`could_not_save(&error)`, where `error` was already a
+reference) went straight to `just gate-diff`, and gate:2 failed on `needless_borrow` after the
+gate's other checks had run. `just clippy <crate>` takes a minute after a source edit; the gate
+takes twenty. Run clippy on the touched crate after every source edit, the Test phase's too,
+before the gate.

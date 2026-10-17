@@ -1095,8 +1095,9 @@ fn latest_conversation(name: &AgentId, cx: &App) -> Option<agent_ui::ThreadId> {
 }
 
 /// The folder `entry`'s conversations start in (#780): its setting, `~/` for the home folder;
-/// unset, Marley's settings folder, where the agent can read the settings it changes, or the vault
-/// folder Rusty stores, as Rusty itself chose.
+/// unset, Marley's settings folder, where the agent can read the settings it changes, or Rusty's
+/// vault folder, as Rusty itself chose; the home folder when Rusty runs on another machine and the
+/// vault is not on this one (#791).
 fn folder_of(entry: Entry, cx: &App) -> PathBuf {
     let marley = cx
         .global::<SettingsStore>()
@@ -1114,7 +1115,9 @@ fn folder_of(entry: Entry, cx: &App) -> PathBuf {
     set.and_then(crate::system_one::folder_path)
         .unwrap_or_else(|| match entry {
             Entry::Marley => paths::config_dir().clone(),
-            Entry::Rusty => crate::rusty::vault_folder(cx),
+            Entry::Rusty => {
+                crate::rusty::vault_here(cx).unwrap_or_else(|| paths::home_dir().clone())
+            }
         })
 }
 
