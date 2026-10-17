@@ -4195,3 +4195,15 @@ A refused save through Rusty returned "…, so nothing was written. To drop the 
 without saving." After Ctrl-S, Zed's `detach_and_prompt_err` showed it in its "Failed to save"
 prompt with a full stop of its own added: "…without saving..". Fixed in #791: the error is one
 clause with no full stop, and the tab's own line adds one (`could_not_save`).
+
+## F-claude-793-a-default-mode-hid-marleys-own-agent-entries-001
+*severity: high · found in: pipeline 791's visual check (New Agent found no Rusty) · class: a default Zed's own writers shadow · prevented by: PR-claude-793-a-default-marley-puts-in-zed-settings-survives-zeds-writers-001*
+
+Marley puts its Marley and Rusty agents in the settings' defaults as `custom` agent servers
+(#683, #696). Zed's thread writers of a default mode, config option or favourite
+(`agent_servers/src/custom.rs`) write `agent_servers.<name>` into the user's file, made as a
+`registry` entry when the file has none, and `CustomAgentServerSettings`' derived merge replaced
+the default whole. The entry became a registry agent the registry does not have, and left New
+Agent and the title bar. The box's settings had one for Rusty (`"mode": "bypassPermissions"`), so
+the installed Marley had no Rusty agent, and #780's scenario failed on any profile copied from
+them. Fixed in #793: a hand-written merge lays such an entry's preferences over the custom one.

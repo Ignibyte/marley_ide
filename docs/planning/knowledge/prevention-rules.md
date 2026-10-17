@@ -3122,3 +3122,13 @@ An error that an `Item` method returns (`save`, `reload`, `save_as`), or that an
 lowercase after any name it starts with, and no full stop. Zed's prompt adds the full stop
 (`workspace/src/notifications.rs`, `display.push('.')`). Where Marley shows the same error in a
 line of its own, the line adds the full stop when the error has none.
+
+## PR-claude-793-a-default-marley-puts-in-zed-settings-survives-zeds-writers-001
+*severity: high · prevents: F-claude-793-a-default-mode-hid-marleys-own-agent-entries-001*
+
+Before Marley puts a value in Zed's settings defaults (`update_default_settings`), find every
+writer Zed has for the same key (`update_settings_file` and `or_insert_with` under that key),
+and how the key merges (`MergeFrom`; an enum's derive replaces whole). A Zed writer that makes the
+user's entry from its own default can shadow Marley's value with one of a different shape. Either
+the merge keeps Marley's value under the user's preferences, as #793's does for
+`CustomAgentServerSettings`, or the value lives under `marley.*`, as #779's modes do.

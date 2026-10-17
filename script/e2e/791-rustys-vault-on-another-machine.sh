@@ -66,9 +66,6 @@ marley["assistant"] = {"enabled": True, "agent": "claude_code"}
 # Rusty on, its own settings dropped: no `agent_folder`.
 marley["rusty"] = {"enabled": True}
 marley["list_cli_sessions"] = False
-# A user's own `agent_servers.Rusty` (Zed writes a registry entry there when a mode is made the
-# default) stands in place of the entry Marley gives, and no registry agent has that name.
-(settings.get("agent_servers") or {}).pop("Rusty", None)
 json.dump(settings, open(path, "w"), indent=2)
 PY2
   # The run's profile is a copy of the user's, conversations and all: the copy's list is emptied,

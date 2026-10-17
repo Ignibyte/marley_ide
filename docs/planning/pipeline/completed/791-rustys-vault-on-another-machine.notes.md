@@ -210,3 +210,18 @@ page shows its text; nothing typed or saved (Chad's data). Shot with `screencapt
 - **New ticket:** TICKET-793 (a default mode hides Marley's own agent entry), queued, from the
   Test phase's pre-existing finding.
 - **Ticket closed, pipeline archived, committed** with the gate's green receipt (`gate-791c.log`).
+
+## After the commit — the Mac and the real Rusty
+- The Mac's clone moved to `dfd970f5f3`; `cargo clippy -p marley_rusty -p marley_workbench -- -D
+  warnings` passed there, and `just install` wrote `Marley.app` at that commit (`MarleyCommit`
+  `dfd970f5f3`). The box staged the remote server for it, and the Mac copied it
+  (`--remote-server-only --remote-server-from dev`).
+- **Driving the Mac's Marley was not possible from here:** `action_run` refuses the `rusty`
+  namespace by design, no `marley://` link opens one page, and System Events keystrokes, sent from
+  the SSH session and again from an iTerm window, did not reach Marley (the shot showed its
+  terminal untouched, nothing typed). The Mac's Edit through Rusty is left for Chad to see.
+- **The real Rusty answers as the stand-in does** (the box's `rusty-mcp` 0.1.1, read-only, over
+  `127.0.0.1:4174`): `brain_stats` gives `vault_root` `/home/cpeppers/.rusty/brain`, which the Mac
+  does not have, so the Mac's Marley takes the Rusty path; `brain_render` of the decision page
+  gives `file` under that folder and `raw` of 1770 characters starting with the frontmatter's
+  `---`; `tools/list` offers `brain_write_page`.

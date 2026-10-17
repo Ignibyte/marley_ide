@@ -838,7 +838,8 @@ impl From<bool> for AgentConfigOptionValue {
 }
 
 #[with_fallible_options]
-#[derive(Deserialize, Serialize, Clone, JsonSchema, MergeFrom, Debug, PartialEq)]
+// Marley: `MergeFrom` is written out below (#793).
+#[derive(Deserialize, Serialize, Clone, JsonSchema, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CustomAgentServerSettings {
     Custom {
@@ -899,6 +900,54 @@ pub enum CustomAgentServerSettings {
         #[serde(default, skip_serializing_if = "HashMap::is_empty")]
         favorite_config_option_values: HashMap<String, Vec<String>>,
     },
+}
+
+// Marley: an enum's derived merge replaces the value whole. Marley's own agents are `custom`
+// entries in the defaults, and Zed's writers of a default mode, config option or favourite
+// (`agent_servers::custom`) put a `registry` entry for them in the user's file, which carries only
+// those preferences; replacing whole lost the command and hid the agent (#793). Such an entry now
+// lays its preferences over the custom one, the user's winning key by key. Every other pair
+// replaces whole, as the derive did.
+impl crate::merge_from::MergeFrom for CustomAgentServerSettings {
+    fn merge_from(&mut self, other: &Self) {
+        match (&mut *self, other) {
+            (
+                Self::Custom {
+                    env,
+                    default_mode,
+                    default_config_options,
+                    favorite_config_option_values,
+                    ..
+                },
+                Self::Registry {
+                    env: user_env,
+                    default_mode: user_mode,
+                    default_config_options: user_options,
+                    favorite_config_option_values: user_favorites,
+                },
+            ) => {
+                env.extend(
+                    user_env
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+                if user_mode.is_some() {
+                    default_mode.clone_from(user_mode);
+                }
+                default_config_options.extend(
+                    user_options
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+                favorite_config_option_values.extend(
+                    user_favorites
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+            }
+            (this, other) => *this = other.clone(),
+        }
+    }
 }
 
 /// A persisted sandbox writable-path grant. Deserializes from either a bare

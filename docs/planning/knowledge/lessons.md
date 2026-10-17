@@ -6020,3 +6020,14 @@ reference) went straight to `just gate-diff`, and gate:2 failed on `needless_bor
 gate's other checks had run. `just clippy <crate>` takes a minute after a source edit; the gate
 takes twenty. Run clippy on the touched crate after every source edit, the Test phase's too,
 before the gate.
+
+## L-claude-793-zed-drops-a-sessions-modes-when-it-has-config-options-001
+*category: e2e · topic: scripted ACP agents · from: pipeline 793*
+
+`agent_servers::acp::config_state` keeps a new session's config options and drops its `modes`
+when the agent sends both, so an agent server's `default_mode` has no mode to set and no
+`session/set_mode` goes out. A scripted agent that should prove a `default_mode` offers modes
+only; one that proves a `default_config_options` value offers that option. #793's agent tells its
+sessions apart by `_meta` (`claudeCode.options.mcpServers.rusty` marks Rusty's). The run's work
+folder is removed when it ends, so a scenario prints from the agent's log what its checks rest on
+before the checks.

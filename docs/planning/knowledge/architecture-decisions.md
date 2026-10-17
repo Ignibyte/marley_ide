@@ -5518,3 +5518,21 @@ Rejected:
 - rebuilding the file from `brain_read_page`'s parsed frontmatter: lossy;
 - a setting for where this machine sees the vault: Rusty already says, and a mount would still
   need the write to go through Rusty to keep its index and history.
+
+## AD-claude-793-a-user-registry-entry-adds-its-preferences-to-a-default-custom-agent-001
+*decided at: 2026-10-16 · status: shipped · amends: AD-claude-683-marleys-own-agent-is-claude-code-with-session-meta-from-marleys-settings-001*
+
+`CustomAgentServerSettings` merges by hand in `settings_content`: a user's `registry` entry over
+a default `custom` one keeps the default's command and arguments and takes the user's `env`,
+`default_mode`, `default_config_options` and `favorite_config_option_values`, key by key. Every
+other pair replaces whole, as the derive did. Zed's own built-in agents are `registry` defaults,
+so the rule changes nothing for them; it lets Zed's writers of a thread's defaults work on
+Marley's own agents, which are the only `custom` defaults.
+
+Rejected:
+- Zed's writers making a `custom` entry when the merged one is custom: it would copy Marley's
+  command, a path on this machine, into the user's file, frozen there;
+- Marley moving the user's entry out of the settings file: Marley does not edit the user's
+  settings;
+- keeping each preference under `marley.*`, as #779 did for its modes: every writer of Zed's
+  would need a Marley twin.

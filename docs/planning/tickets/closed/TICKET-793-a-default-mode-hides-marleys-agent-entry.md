@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #793 (bug, the Marley and Rusty agents)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [793-a-default-mode-keeps-marleys-agent-entry.spec.md](../../pipeline/completed/793-a-default-mode-keeps-marleys-agent-entry.spec.md)
 - **Source ticket:** found in #791's Test phase, 2026-10-16: #780's own scenario fails on this
   build ("Rusty started in its vault: FAIL"), and the New Agent picker finds no Rusty.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley puts its Marley and Rusty entries in the settings' defaults (`assistant.rs`, `put_in`,

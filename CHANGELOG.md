@@ -1554,6 +1554,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A default mode no longer hides Rusty or Marley from New Agent** (#793, 2026-10-16). Picking a
+  mode in a Rusty or Marley thread, or making a setting a thread's default, makes Zed save it in
+  your settings under `agent_servers.Rusty` or `agent_servers.Marley`. That entry took the place
+  of the agent Marley gives, so the agent left the New Agent picker and the title bar's Rusty
+  button found nothing. The box's settings had one for Rusty (`"mode": "bypassPermissions"`).
+  Now such an entry only adds its preferences to Marley's agent: the agent stays, and its threads
+  start with the mode and settings you chose. Settings that already have the entry work as they
+  are; nothing needs editing.
+
 - **Agent prompts in a tab on a Mac** (#790, 2026-10-16). With `marley.agent_editor_in_tab` on,
   the agents Marley starts get `marley-edit` as their editor. Its path was in the data folder,
   which is `~/Library/Application Support/Marley` on a Mac. The agents split their editor setting

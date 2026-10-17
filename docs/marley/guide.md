@@ -2281,6 +2281,10 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   the `rusty-mcp` Marley found, or Rusty's service URL, so Rusty's tools reach this entry alone. It
   may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
 - **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
+- **Your defaults for it** (#793): a mode picked in a Rusty or Marley thread, or a setting made a
+  thread's default, is saved by Zed under `agent_servers.Rusty` or `agent_servers.Marley` in your
+  settings. That entry adds its mode and settings to Marley's agent and leaves the agent itself
+  as Marley gives it; Marley's permission settings (#779) still come first.
 - **In a tab, anywhere** (#738): `marley: talk to rusty` and `marley: new rusty conversation`, as the
   Marley agent's, and the Rusty button in the title bar (#778). Rusty works in its vault folder,
   as Rusty names it (`brain_stats`, else `brain_vault_path`, else `~/.rusty/brain`), or in the home

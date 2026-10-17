@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-793](open/TICKET-793-a-default-mode-hides-marleys-agent-entry.md) | bug | A mode made the default writes a registry entry over Marley's Rusty (or Marley) agent entry, and the entry leaves the New Agent picker |
 
 ## Deliberate (picked explicitly, never auto-next)
 
