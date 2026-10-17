@@ -10,6 +10,14 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-798](open/TICKET-798-agent-panel-width-in-percent.md) | feature | A button in the agent panel steps its width: 33, 50, 66 percent, the whole window |
+| [TICKET-799](open/TICKET-799-marley-components-and-the-component-library.md) | feature | `marley_components`, a catalog drawn natively, and the Component Library tab |
+| [TICKET-800](open/TICKET-800-agent-tools-show-components-in-the-thread.md) | feature | `component_list` and `component_show`: agents draw components in the thread, or a tab |
+| [TICKET-801](open/TICKET-801-component-templates-from-files.md) | feature | Component templates from `~/.config/marley/components/`, no recompile |
+| [TICKET-802](open/TICKET-802-an-agents-html-page-in-a-browser-tab.md) | feature | `browser_show_page`: an agent's HTML page in a Browser tab, themed, reloaded on change |
+| [TICKET-803](open/TICKET-803-a-blocks-output-opens-as-a-table.md) | feature | A finished block that reads as CSV, TSV, JSON or a markdown table gets a Table chip that opens Zed's table view in a tab |
+| [TICKET-804](open/TICKET-804-a-blocks-table-in-the-terminal.md) | feature | The detected table drawn in the terminal over the block's rows, toggled per block; `marley.block_tables` |
+| [TICKET-805](open/TICKET-805-show-a-file-or-stdin-from-a-terminal.md) | feature | `show <file\|->` through `marley-agent`: a table, a component, markdown or an image in a tab |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 | [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | The first command in a new zsh on a Mac has no block header |
 
