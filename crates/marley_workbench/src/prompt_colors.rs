@@ -80,7 +80,6 @@ fn colors(terminal: &Entity<Terminal>, cx: &App) -> Option<MarleyPromptColors> {
     let syntax = cx.theme().syntax();
     let runs = language
         .highlight_text(&Rope::from(typed.as_str()), 0..typed.len())
-        .into_iter()
         .filter_map(|(range, id)| {
             let color = syntax.get(id)?.color?;
             Some((column_of(range.start)..column_of(range.end), color))

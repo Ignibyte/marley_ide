@@ -4207,3 +4207,23 @@ the default whole. The entry became a registry agent the registry does not have,
 Agent and the title bar. The box's settings had one for Rusty (`"mode": "bypassPermissions"`), so
 the installed Marley had no Rusty agent, and #780's scenario failed on any profile copied from
 them. Fixed in #793: a hand-written merge lays such an entry's preferences over the custom one.
+
+## F-claude-797-a-std-feature-turned-on-for-every-crate-broke-no-std-crates-001
+*severity: low · found in: pipeline 797's Code phase (gate:21, run 2) · class: a build flag wider than its need · prevented by: PR-claude-797-a-lint-nightly-gap-is-fixed-at-its-call-001*
+
+Upstream's `agent` crate began calling `Path::is_empty` (its `PathStyle::strip_prefix` gives a
+`&Path` since #65503). The API is stable on the tree's 1.98.1 but not on the `nightly-2026-03-21`
+that `tooling/lints` pins, so gate:21's dylint check could not build `agent`. The first fix turned
+the feature on for every crate the check builds (`-Zcrate-attr=feature(path_is_empty)` in a
+`--config` rustflags array). `no_std` crates (`cfg-if`, `equivalent`, `foldhash`) do not know a std
+library feature, and each failed with E0635. Fixed in #797: the one call reads
+`subpath.as_os_str().is_empty()`, with its touchpoints row, and the gate script is as it was.
+
+## F-claude-797-semgrep-timed-out-on-rail-rs-under-a-loaded-box-001
+*severity: low · found in: pipeline 797's Code phase (gates 20 and 22, run 2) · class: a check's time limit sized for an idle machine · prevented by: PR-claude-797-a-gate-check-with-a-time-limit-allows-a-loaded-box-001*
+
+Semgrep gives a rule 5 seconds on a file by default, and `--strict` makes a timeout an error. With
+another project's test suite holding 15 cores, `command-injection` timed out twice on
+`marley_workbench/src/rail.rs` (10,600 lines), and both semgrep gates failed with no finding. Each
+crate passed alone, which hid the cause until a run without `--quiet` named the timeouts. Fixed in
+#797: `SEMGREP_TIMEOUT=60` for both semgrep calls, so the rule runs to its end.

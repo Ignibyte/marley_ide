@@ -6039,3 +6039,28 @@ only; one that proves a `default_config_options` value offers that option. #793'
 sessions apart by `_meta` (`claudeCode.options.mcpServers.rusty` marks Rusty's). The run's work
 folder is removed when it ends, so a scenario prints from the agent's log what its checks rest on
 before the checks.
+
+## L-claude-797-merging-upstream-zed-001
+*category: process · topic: upstream merges · from: pipeline 797*
+
+How the 2026-10-17 merge of 110 upstream commits went, after #695's:
+- **A trial merge sizes it in seconds.** `git merge-tree --write-tree HEAD upstream/main` names the
+  conflicted files without touching the work tree; here two, against #695's eight.
+- **Upstream moves code, not only lines.** Both conflicts came from upstream moving its legacy ACP
+  adapter into `acp/v1.rs` on the way to ACP v2. The fix was to take upstream's file and carry
+  Marley's hooks to where the code went, moving the touchpoints row with them. A count of
+  `Marley:` markers per file before and after, and a check that every line Marley added to a file
+  both sides changed is still there, proved nothing was lost.
+- **API breaks were ACP v2's ids**: session, tool call and permission types moved from
+  `schema::v1` to `schema::v2`, and v2's `PermissionOptionKind` is not `Copy`. The stub connection
+  in tests takes v2 ids and v1 updates, as upstream's own tests do.
+- **The gate's tools lag too.** The lint library's nightly could not build an upstream call
+  (PR-claude-797-a-lint-nightly-gap-is-fixed-at-its-call-001), a new upstream git source needed its
+  `deny.toml` organization, and a RUSTSEC advisory published the day before failed the audit on
+  Marley's own lockfile.
+- **The golden set had drifted.** 29 of 53 failed on the merged build and all 29 on the build
+  before it, each at the same check. The scenarios' steps predate the rail's Default group and
+  #785's splits. Comparing failing checks line by line between the two runs settles a merge in
+  minutes; repairing the set waits for the testing phase.
+- **Builds beside another project.** Chad allowed Marley's cargo beside elephc's, which keeps its
+  own target folder; `just idle` waits on any cargo, so the gate ran as `script/gates.sh --diff`.

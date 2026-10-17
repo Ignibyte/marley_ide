@@ -3132,3 +3132,18 @@ and how the key merges (`MergeFrom`; an enum's derive replaces whole). A Zed wri
 user's entry from its own default can shadow Marley's value with one of a different shape. Either
 the merge keeps Marley's value under the user's preferences, as #793's does for
 `CustomAgentServerSettings`, or the value lives under `marley.*`, as #779's modes do.
+
+## PR-claude-797-a-lint-nightly-gap-is-fixed-at-its-call-001
+*severity: low · prevents: F-claude-797-a-std-feature-turned-on-for-every-crate-broke-no-std-crates-001*
+
+When upstream code uses a std API that is stable on `rust-toolchain.toml`'s stable but not on the
+nightly `tooling/lints` pins, change that call to an equivalent the nightly builds, with a
+`// Marley:` comment and a touchpoints row that says when to drop it. Never turn a library feature
+on for every crate the dylint check builds: `no_std` crates refuse a std feature (E0635).
+
+## PR-claude-797-a-gate-check-with-a-time-limit-allows-a-loaded-box-001
+*severity: low · prevents: F-claude-797-semgrep-timed-out-on-rail-rs-under-a-loaded-box-001*
+
+A gate step whose tool has a time limit, and treats running out as a failure, sets the limit for a
+box that other projects are loading, never the tool's default. When a gate step fails with no
+finding, run its command without `--quiet` before changing code.

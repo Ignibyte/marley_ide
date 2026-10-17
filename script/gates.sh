@@ -346,7 +346,11 @@ typos_g() { need typos "cargo install typos-cli" || return 1; typos --config .co
 # The pin is the engine the rules were proven on. The version check and metrics
 # stay off, so the gate makes no network call, and `--no-git-ignore` scans a new
 # file before it is tracked (semgrep otherwise reads only what git lists).
+# `--timeout` is the seconds a rule may take on one file. Semgrep's default of 5 is too short for
+# rail.rs under a loaded box, and `--strict` makes a timeout an error, so the rule runs to its end
+# instead (#797).
 SEMGREP_PIN="1.156.0"
+SEMGREP_TIMEOUT=60
 semgrep_pinned() {
   need semgrep "pipx install semgrep==$SEMGREP_PIN" || return 1
   local version
@@ -359,7 +363,7 @@ semgrep_g() {
   local d
   while IFS= read -r d; do dirs+=( "$d" ); done < <(marley_dirs)
   SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --config .semgrep.yml --error --quiet --strict --metrics=off \
-    --no-git-ignore "${dirs[@]}"
+    --timeout "$SEMGREP_TIMEOUT" --no-git-ignore "${dirs[@]}"
 }
 
 # ── 21. dylint — Zed's own lints (tooling/lints) on the Marley crates ─────────
@@ -389,7 +393,7 @@ SPAWN_SITES_PIN=7
 SPAWN_SCAN_FLOOR=120
 spawn_scan() {
   SEMGREP_ENABLE_VERSION_CHECK=0 semgrep --config .config/spawn-sites.yml --json --quiet --strict \
-    --metrics=off --no-git-ignore "$@"
+    --metrics=off --timeout "$SEMGREP_TIMEOUT" --no-git-ignore "$@"
 }
 spawn_self_test() {
   local dir file json found want

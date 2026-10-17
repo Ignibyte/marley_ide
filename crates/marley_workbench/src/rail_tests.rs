@@ -1627,7 +1627,7 @@ fn a_thread_rows_second_line_names_its_agent_and_what_it_does() {
 
 mod threads {
     use acp_thread::{PermissionOptions, StubAgentConnection};
-    use agent_client_protocol::schema::v1 as acp;
+    use agent_client_protocol::schema::{v1 as acp_v1, v2 as acp};
     use agent_ui::test_support::{
         active_session_id, active_thread_id, open_thread_with_connection, send_message,
     };
@@ -1924,7 +1924,7 @@ mod threads {
         assert_eq!(status_of(&rail, &key, cx), Some(ThreadStatus::Running));
         connection.end_turn(
             active_session_id(&alpha_panel, cx),
-            acp::StopReason::EndTurn,
+            acp_v1::StopReason::EndTurn,
         );
         cx.run_until_parked();
         assert_eq!(status_of(&rail, &key, cx), Some(ThreadStatus::Done));
@@ -1938,7 +1938,7 @@ mod threads {
         let key = start_thread(&alpha_panel, &connection, cx);
         connection.end_turn(
             active_session_id(&alpha_panel, cx),
-            acp::StopReason::EndTurn,
+            acp_v1::StopReason::EndTurn,
         );
         cx.run_until_parked();
         multi_workspace.update_in(cx, |multi_workspace, window, cx| {
@@ -1965,7 +1965,7 @@ mod threads {
         let key = start_thread(&alpha_panel, &connection, cx);
         connection.end_turn(
             active_session_id(&alpha_panel, cx),
-            acp::StopReason::EndTurn,
+            acp_v1::StopReason::EndTurn,
         );
         cx.run_until_parked();
         // The rail lists beta's header, then alpha's header and its thread.
@@ -2045,7 +2045,7 @@ mod threads {
         let key = start_thread(&alpha_panel, &connection, cx);
         connection.end_turn(
             active_session_id(&alpha_panel, cx),
-            acp::StopReason::EndTurn,
+            acp_v1::StopReason::EndTurn,
         );
         cx.run_until_parked();
         // Shown in turn: alpha's terminal, beta's, then the thread, which leaves focus in alpha's
@@ -2140,7 +2140,7 @@ mod threads {
         assert!(!has_notifications(&rail, cx));
         connection.end_turn(
             active_session_id(&alpha_panel, cx),
-            acp::StopReason::EndTurn,
+            acp_v1::StopReason::EndTurn,
         );
         cx.run_until_parked();
         assert!(attention_of(&rail, &key, cx));
@@ -2163,8 +2163,9 @@ mod threads {
                     acp::PermissionOptionKind::AllowOnce,
                 )]),
             )]));
-        connection.set_next_prompt_updates(vec![acp::SessionUpdate::ToolCall(
-            acp::ToolCall::new(tool_call_id, "Edit a file").kind(acp::ToolKind::Edit),
+        connection.set_next_prompt_updates(vec![acp_v1::SessionUpdate::ToolCall(
+            acp_v1::ToolCall::new(acp_v1::ToolCallId::new(tool_call_id.0), "Edit a file")
+                .kind(acp_v1::ToolKind::Edit),
         )]);
         let key = start_thread(&alpha_panel, &connection, cx);
         assert_eq!(status_of(&rail, &key, cx), Some(ThreadStatus::Waiting));

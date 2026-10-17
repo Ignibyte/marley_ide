@@ -9,7 +9,7 @@
 //! Reject Once, never for a sandbox escalation.
 
 use acp_thread::{SelectedPermissionOutcome, ThreadStatus};
-use agent_client_protocol::schema::v1 as acp;
+use agent_client_protocol::schema::v2 as acp;
 use agent_ui::{AgentPanel, ConversationView};
 use gpui::{App, Entity};
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
@@ -365,7 +365,7 @@ fn give_answer(call: AppCall, cx: &mut App) {
     };
     let Some(option) = options
         .first_option_of_kind(kind)
-        .map(|option| (option.option_id.clone(), option.kind))
+        .map(|option| (option.option_id.clone(), option.kind.clone()))
     else {
         call.answer(Err(Refusal::new(
             "no_option",

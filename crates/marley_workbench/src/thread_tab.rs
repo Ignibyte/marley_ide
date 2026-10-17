@@ -37,7 +37,7 @@ use std::time::Duration;
 
 use acp_thread::AgentSessionListRequest;
 use agent::ThreadStore;
-use agent_client_protocol::schema::v1 as acp;
+use agent_client_protocol::schema::v2 as acp;
 use agent_settings::AgentProfileId;
 use agent_ui::thread_metadata_store::{
     ThreadId, ThreadMetadata, ThreadMetadataStore, ThreadMetadataStoreEvent,

@@ -13,6 +13,19 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Upstream Zed through 2026-10-17** (#797). Marley now carries the 110 upstream commits since
+  #695, which includes everything in Zed v1.24.3 and v1.25.0-pre. Upstream's changes that show:
+  - Claude Sonnet 5.5 and Haiku 5.5 in the Anthropic provider, and Gemini 4 Argon in Google's.
+  - Pyrefly as a built-in Python language server.
+  - In the Agent Panel, a pasted screenshot goes in once, and mentioning a file with a line break
+    in its name no longer crashes.
+  - The tab switcher can leave out its file preview, and the project panel's menu previews an SVG.
+  - ACP SDK 3.4, with upstream's v2 sessions in the tree but not yet switched on.
+
+  Underneath: wgpu at a git commit for a Vulkan teardown fix, and `ammonia` 4.1.8 for
+  RUSTSEC-2026-0373. The gate gives semgrep 60 seconds a file, so a busy machine no longer fails
+  it.
+
 - **Brain pages edit through Rusty when its vault is on another machine** (#791, 2026-10-16).
   When Marley reaches a Rusty that runs elsewhere (a Mac on the Linux box's Rusty through a
   tunnel), or the window's project is remote, a page's Edit shows the page's whole file as Rusty

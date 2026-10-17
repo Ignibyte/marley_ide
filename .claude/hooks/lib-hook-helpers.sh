@@ -204,7 +204,7 @@ ZED_LEDGER="docs/marley/zed-touchpoints.md"
 # MARLEY_UPSTREAM_BASE when set (a value that names no commit fails closed), else
 # the commit this fork was cut from, moved at each upstream merge (the ledger's
 # merge checklist). Prints nothing when none resolves.
-UPSTREAM_BASE_FALLBACK="78648aaf7d"
+UPSTREAM_BASE_FALLBACK="56934ec056"
 upstream_base() {
     # While upstream is being merged in, the fork point is the upstream commit the merge brings:
     # the tree about to be committed holds upstream through it, and only Marley's changes on

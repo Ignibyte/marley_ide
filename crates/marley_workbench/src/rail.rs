@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent, SelectedPermissionOutcome};
-use agent_client_protocol::schema::v1 as acp;
+use agent_client_protocol::schema::v2 as acp;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::thread_worktree_archive::{self, RootPlan};
 use agent_ui::threads_archive_view::fuzzy_match_positions;
@@ -8601,7 +8601,7 @@ fn thread_entry(
     let option = |kind| {
         options
             .first_option_of_kind(kind)
-            .map(|option| (option.option_id.clone(), option.kind))
+            .map(|option| (option.option_id.clone(), option.kind.clone()))
     };
     let answers = option(acp::PermissionOptionKind::AllowOnce)
         .zip(option(acp::PermissionOptionKind::RejectOnce))
