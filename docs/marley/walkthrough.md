@@ -3,7 +3,8 @@
 A hands-on tour of all of Marley, one stop at a time, in an order where each stop needs only
 what came before it. Every stop says what to do and what you should see, and names the ticket
 that shipped it. The tour follows the tree at #778 (2026-10-12) on Linux, as built and tested on
-Omarchy with Hyprland.
+Omarchy with Hyprland, with stops added for #798 to #805 (2026-10-17): 4.26 to 4.28, 6.10, 7.18
+and 14.13 to 14.15.
 
 [guide.md](guide.md) is the reference behind this tour, with the rules and edge cases a stop
 leaves out. [tutorial-outline.md](tutorial-outline.md) is the plan for a longer tutorial, and
@@ -1349,6 +1350,76 @@ Needs a host in your settings' `ssh_connections` with tmux 3.3 or later.
 
 The restart stopped the dev server from 2.8: run `npm run dev` in the `server` terminal again.
 
+Stops 4.18 to 4.25 are on the Feature Map only. The next three come with #803 to #805.
+
+### 4.26 A block's output as a table (#803)
+
+In a `marley-tour` terminal:
+
+1. Run `python3 -c "print('city,temp'); print('Austin,31'); print('Denver,18'); print('Boston,15')"`.
+2. Click Table at the right end of the block's first row.
+3. Back in the terminal, right-click the block and choose Open Output as Table.
+4. Run `python3 -c "print('n,square'); [print(f'{n},{n*n}') for n in range(1, 5001)]" > squares.csv`,
+   then `head -n 20 squares.csv`, and click that block's Table.
+5. Run `ls --color=always` and `git log --oneline -3`.
+
+- [ ] Step 1: the block shows a Table chip at its right end, beside its pill. Pointing at it says
+  `Open the output as a table: 2 columns, 3 rows`.
+- [ ] Step 2: a tab titled with the command opens beside the terminal: city and temp, three rows,
+  sortable by the buttons that show when you point at a column's header.
+- [ ] Step 3: the menu's Block section has Open Output as Table, after Send to Agent, and it brings
+  the same tab forward.
+- [ ] Step 4: the chip's tooltip says `Open squares.csv as a table`, and the tab is `Preview
+  squares.csv`, Zed's table preview of the whole file: 5,000 rows, though the block printed 20.
+- [ ] Step 5: neither block has a Table chip. Colored output never gets one.
+
+### 4.27 The table in the terminal (#804)
+
+1. Run the `python3 -c` command from 4.26 step 1 again, and click Inline beside its Table chip.
+2. Scroll up and down over the block.
+3. Press Escape (keys go to the shell's grid), press Ctrl+Shift+F, type `Denver`, then press
+   Escape.
+4. Right-click the block and choose Copy Output, then paste at the prompt with Ctrl+V and clear the
+   line.
+5. Click Text.
+6. Set Block Tables to in place (Settings, Marley, Terminal), run the command once more, and set it
+   back to offer.
+
+- [ ] Step 1: the block's rows become a table in the terminal's font: a bold header row, then one
+  table row on each terminal row, in columns. The prompt under it has not moved, and the button
+  reads Text.
+- [ ] Step 2: the table scrolls with the rows, line by line.
+- [ ] Step 3: the search finds the match, and the table marks the Denver row.
+- [ ] Step 4: the paste is the CSV text, commas and all: the terminal's text is unchanged under the
+  table.
+- [ ] Step 5: the block shows its text again, and the button reads Inline.
+- [ ] Step 6: the new block shows its table as soon as it finishes, with no click.
+- [ ] A block whose lines wrap, or that has a blank line, has no Inline button: its table opens in
+  a tab only.
+
+### 4.28 `show` a file in a tab (#805)
+
+In a `marley-tour` terminal (if your shell already has a `show` of its own, type
+`"$MARLEY_BIN" show` wherever this stop says `show`):
+
+1. Run `show squares.csv`.
+2. Run `python3 -c "print('city,temp'); print('Austin,31')" | show --as csv --title Cities -`.
+3. Run `printf '{"type": "card", "title": "Deploy", "tone": "success", "children": [{"type": "stat", "label": "Deploys today", "value": 4}]}' > card.json`,
+   then `show card.json`.
+4. Run `show README.md`.
+5. Run `show missing.csv; echo "exit $?"`.
+6. Run `env -u MARLEY_TERMINAL_ID "$MARLEY_BIN" show README.md`.
+7. Delete `squares.csv` and `card.json`.
+
+- [ ] Step 1: `Preview squares.csv` opens beside the terminal, as in 4.26.
+- [ ] Step 2: a table tab titled Cities, city and temp, one row. Running it again with other rows
+  replaces that tab's rows.
+- [ ] Step 3: a Component tab titled `card.json` with the green Deploy card and its stat.
+- [ ] Step 4: `Preview README.md`, Zed's markdown preview.
+- [ ] Step 5: `show: missing.csv: no such file`, then `exit 1`.
+- [ ] Step 6: with no terminal id, as a script outside Marley runs it, `show` prints README.md in
+  the terminal and exits 0.
+
 ## Part 5. Agent CLIs in terminals
 
 ### 5.1 Start Claude Code from the rail (#440, #477, #744)
@@ -1828,6 +1899,24 @@ Ask the thread's agent to do something that needs your confirmation, such as run
   line.
 - [ ] `marley: new thread with context` from the palette does the same for the thread in front.
 
+### 6.10 The agent's width in percent (#798)
+
+1. Start a thread from New Agent… while a terminal is in front, so the thread opens in a tab
+   beside it: if it opens in the same pane, drag its tab to the right edge.
+2. Look at the thread's bottom row, after its follow icon.
+3. Click the percentage four times.
+4. Close the other panes so the thread's tab is alone.
+5. Run `marley: use zed layout`, move the thread to the Agent Panel, and click the percentage
+   there. Run `marley: use marley layout` after.
+
+- [ ] Step 2: the bottom row shows the thread pane's share of its row, such as `50%`. Pointing at
+  it says `Agent width: click for 33%, 50%, 67%, then the whole window`.
+- [ ] Step 3: each click steps the pane: 67%, then the whole window (`100%`), then 33%, then 50%.
+- [ ] Step 4: a thread alone in its row shows no percentage.
+- [ ] Step 5: in the Agent Panel the percentage is the panel's share of the window, and the same
+  steps apply. After a restart the panel keeps its width.
+- [ ] `marley: cycle agent panel width` from the palette steps the thread in front the same way.
+
 ## Part 7. The Browser tab
 
 The dev server from 2.8 should still serve `site/` on port 8000. If it stopped, run `npm run
@@ -2129,6 +2218,24 @@ On `localhost:8000/tools.html`:
 - [ ] Take Over (or Ctrl+I in the tab) turns it to `You have control: agents' actions in this
   page are refused`, with Hand Back, and the agent's click is refused with `taken_over`. After
   Hand Back its click works.
+
+### 7.18 An agent's own page (#802)
+
+1. Ask Claude Code in a `marley-tour` terminal: "Use browser_show_page to show me a one-page
+   status report of this project, named status, styled with the --marley- CSS variables."
+2. Ask it to change one line of the page and show it again under the same name.
+3. Switch the theme (`theme selector: toggle`) to a light one and back.
+4. Ask it: "Show tools.html from this project with browser_show_page."
+5. Ask it to show `/etc/hostname` the same way.
+
+- [ ] Step 1: a Browser tab of `marley-tour` opens on a page under
+  `~/.local/share/marley/pages/`, drawn in your theme's colors and fonts.
+- [ ] Step 2: the same tab shows the change; no second tab opens.
+- [ ] Step 3: the page reloads in the light theme's colors without the agent doing anything, and
+  back again.
+- [ ] Step 4: `tools.html` opens as it is, and Marley writes nothing into the project. Editing the
+  file reloads its tab.
+- [ ] Step 5: the tool answers `opened: false` and says the file is outside the project.
 
 ## Part 8. Launch configs
 
@@ -2916,6 +3023,48 @@ echo "$MARLEY_TERMINAL_ID ${#MARLEY_TERMINAL_TOKEN}"
 - [ ] Each prints its own id and `32`, the length of the token Marley gives that terminal for this
   run. Marley's tools take a terminal as the caller only with its own token, so an agent in one
   terminal cannot pass for another.
+
+Stops 14.10 to 14.12 are on the Feature Map only. The next three come with #799 to #801.
+
+### 14.13 The Component Library (#799)
+
+1. Click Components on Home, or run `marley: open component library`.
+2. Scroll down the tab.
+3. Paste this into the scratch box at the top:
+   `{"type": "table", "columns": ["Service", "State"], "rows": [["api", {"type": "badge", "text": "up", "tone": "success"}]]}`
+4. Change `table` to `tabel` in the box.
+
+- [ ] Step 1: a Component Library tab opens. The Marley page's Agents section also has a Component
+  Library link.
+- [ ] Step 2: every component an agent can draw, by group (layout, text and data, charts, status),
+  each with what it is for, its example drawn and the example's JSON.
+- [ ] Step 3: the table is drawn under the box, the badge green.
+- [ ] Step 4: the error names the JSON path and the types that exist, and nothing is drawn.
+
+### 14.14 Agents draw components (#800)
+
+1. Ask Claude Code in a `marley-tour` terminal: "Use component_show to show me this repository's
+   last three commits as a table."
+2. In a Claude Agent thread, ask the same.
+3. Ask it to call component_show with a component of type `gauge`.
+
+- [ ] Step 1: a Component tab opens beside the terminal with the table.
+- [ ] Step 2: the table is drawn in the tool call's row of the thread.
+- [ ] Step 3: the agent gets `shown: false` with the error's JSON path, and the thread's row shows
+  the same error.
+
+### 14.15 Component templates (#801)
+
+1. In the Component Library's Templates group, click Open Folder.
+2. Save this as `deploy_status.json` in that folder (`~/.config/marley/components/`):
+   `{"name": "deploy_status", "description": "One environment's deploy.", "inputs": {"type": "object", "properties": {"environment": {"type": "string"}, "version": {"type": "string"}}, "required": ["environment"]}, "example": {"environment": "staging", "version": "1.4.0"}, "body": {"type": "card", "title": {"$input": "environment"}, "children": [{"type": "stat", "label": "Version", "value": {"$input": "version"}}]}}`
+3. Ask Claude Code: "Use component_show to show a deploy_status for production at version 2.0."
+4. Delete the file.
+
+- [ ] Step 2: with no restart, the Templates group draws deploy_status from its example.
+- [ ] Step 3: the agent finds the template in component_list and the card shows production and
+  2.0. Inputs of the wrong shape answer with the schema's error and its path.
+- [ ] Step 4: the template leaves the library.
 
 ## Part 15. The harness and other hosts
 
