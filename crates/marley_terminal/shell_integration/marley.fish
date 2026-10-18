@@ -84,4 +84,13 @@ if status is-interactive; and not set -q __marley_hooks
         printf '\033Pqpreexec;command=%s;nonce=%s\033\\\\' \
             "$(__marley_quote (string trim -l -- $argv[1]))" "$__marley_nonce"
     end
+
+    # Marley's show (#805): a file or stdin shown in a tab beside this terminal, through the
+    # program Marley names as MARLEY_BIN. A show command on the PATH leaves it undefined, and a
+    # user's own function, defined after this file runs, replaces it.
+    if set -q MARLEY_BIN; and test -n "$MARLEY_BIN"; and not type -q show
+        function show
+            $MARLEY_BIN show $argv
+        end
+    end
 end

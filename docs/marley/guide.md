@@ -785,6 +785,34 @@ With `"marley": { "block_tables": "in_place" }` (Settings, Marley, Terminal, Blo
 table is drawn as soon as its block finishes; the default, `offer`, waits for Inline. A width
 change that rewraps the block's lines shows its text until they fit again.
 
+### Showing a file in a tab (#805)
+
+`show FILE` in a Marley terminal opens the file in a tab beside the terminal, and `show -` does the
+same with what a command pipes into it:
+
+```
+show data.csv
+show card.json
+python3 report.py | show --as csv --title Report -
+```
+
+The type comes from `--as` (`table`, `csv`, `tsv`, `jsonl`, `component`, `markdown` or `image`),
+else from the file's extension: `.csv`, `.tsv`, `.psv`, `.ssv` and `.jsonl` are tables, `.md` is
+markdown, `.png`, `.jpg`, `.gif`, `.svg`, `.webp` and `.bmp` are images, and `.json` is a component
+tree (see Component templates) when it parses as one, else a table. A table file opens in Zed's
+table preview, whole; a table from stdin, or from a file with another extension, opens in a table
+tab titled with `--title` or the file's name, and a second `show` with that title replaces its
+contents. Markdown opens in Zed's markdown preview, an image in Zed's image viewer, and a tree in a
+Component tab. Stdin can be up to 16 MB. A missing file, a type `show` cannot name, or content that
+is not of its type prints the reason and exits 1, such as `show: missing.csv: no such file`, or
+for a tree with a type the catalog lacks, `show: $.children[0]: The type gauge is not in the
+catalog`.
+
+`show` is a shell function Marley's integration defines in bash, zsh and fish, and only when your
+shell has no `show` of its own (a command, a function or an alias); `"$MARLEY_BIN" show` is the same
+thing by its full name. Where no Marley answers, in a script run elsewhere, it prints its input
+unchanged and exits 0.
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next
@@ -1452,6 +1480,9 @@ hook events, and a restart resumes the session the report named, in the agent's 
 The program exits 0 when Marley took the report. Otherwise it exits 1 and prints why, such as
 `agent_report_stale: seq 6 is not past 7`, or `marley_not_running` when no Marley answers.
 Tasks, remote terminals and terminals of remote projects get `MARLEY_BIN` empty.
+
+The same program carries `show` (#805), which opens a file or stdin in a tab beside the terminal;
+see "Showing a file in a tab".
 
 **The shared Claude Code plugin** (#709) is what reports for Claude Code. It's the plugin Marley
 shares with rustal-harness, off until you turn on **Shared Claude Code Plugin** in Settings →

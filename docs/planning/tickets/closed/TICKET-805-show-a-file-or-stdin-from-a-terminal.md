@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #805 (feature, the block terminal)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** ../../pipeline/queued/805-show-a-file-or-stdin-from-a-terminal.spec.md
+- **Pipeline doc:** ../../pipeline/completed/805-show-a-file-or-stdin-from-a-terminal.spec.md
 - **Source ticket:** Chad, 2026-10-17 (as #803)
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 The explicit way, with nothing guessed: `show data.csv`, `some-command | show --as csv` or

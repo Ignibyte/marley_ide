@@ -218,6 +218,12 @@ if [ -z "${__MARLEY_HOOKS-}" ]; then
         }
     fi
 
+    # Marley's show (#805): a file or stdin shown in a tab beside this terminal, through the
+    # program Marley names as MARLEY_BIN. A user's own show, a command, function or alias, leaves
+    # it undefined.
+    if [ -n "${MARLEY_BIN-}" ] && ! type -t show >/dev/null 2>&1; then
+        show() { "$MARLEY_BIN" show "$@"; }
+    fi
     builtin printf '\033Pqinit;id=%d;nonce=%s\033\134' "$$" "${__MARLEY_NONCE-}"
     # The file bash keeps its history in, which Marley's autosuggestions read.
     if [ -n "${HISTFILE-}" ]; then

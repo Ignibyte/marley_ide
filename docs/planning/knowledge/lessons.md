@@ -6145,3 +6145,12 @@ An element drawn over a terminal's rows must not stack rows of `line_height` in 
 the line height is fractional (19.5 px at the default size) and stacked rows drift a fraction of a
 pixel each. Make the container `relative` and place each row `absolute` at `line_height * row`, so
 every row rounds alone and stays on its grid row, however many there are.
+
+## L-claude-805-the-agent-socket-takes-one-short-line-001
+*category: design · topic: the agent socket · from: pipeline 805*
+
+Marley's agent socket (#652) reads one JSON line of at most 64 KB per connection and answers
+within 3.5 s (565 s for `approve`). A request that carries more (`show`'s stdin, up to 16 MB)
+writes it to a mode 0600 file in the socket's own private runtime folder and sends the path, and
+Marley deletes that copy once read. A request whose answer depends on reading the file is handed
+off in `agent_reports::take`, before `accept`, as `approve` is, so it can answer after the read.

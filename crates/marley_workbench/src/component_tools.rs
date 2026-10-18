@@ -180,7 +180,7 @@ fn show(arguments: &Value, caller: &Caller, cx: &mut App) -> Result<ToolAnswer, 
 
 /// Opens the tree in a Component tab in the terminal's pane, or replaces the tree of the tab with
 /// the same title.
-fn open_tab(
+pub(crate) fn open_tab(
     workspace: &mut Workspace,
     terminal: &Entity<terminal_view::TerminalView>,
     title: String,

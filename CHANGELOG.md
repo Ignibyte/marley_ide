@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **`show` a file or stdin in a tab** (#805, 2026-10-17). In a Marley terminal, `show FILE` or
+  `command | show -` opens a tab beside the terminal: a table (Zed's preview for a table file), a
+  component tree, markdown or an image, typed by `--as` or the file's extension. Bad input prints
+  the reason and exits 1, and outside Marley `show` prints its input unchanged. Marley defines
+  `show` only when your shell has none of its own.
+
 - **A block's table drawn in the terminal** (#804, 2026-10-17). A block of delimited text with one
   record on each row gets an Inline button beside its Table chip, which draws the table over the
   block's own rows, scrolling with them; Text shows the text again. Copy, find and links keep

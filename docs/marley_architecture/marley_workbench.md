@@ -3018,6 +3018,29 @@ below describe what #743 retired.
   before the write); `deliver` pastes the one-line `prompt` with `send_text(…, submit: false, …)`
   or copies it.
 
+## `show` from a terminal (`src/terminal_show.rs`, `bin/marley-agent`, #805)
+
+- `marley-agent show [--as KIND] [--title TEXT] FILE|-` types the file by `--as`, else its
+  extension; a missing file or a type it cannot name prints the reason and exits 1. With no
+  `MARLEY_TERMINAL_ID` it prints its input and exits 0. Stdin (16 MB at most) is written mode 0600
+  to `show-<pid>-<ns><ext>` in the socket's private runtime folder, its extension from `--as` or,
+  for an image, its first bytes; the request names that copy with `stdin: true`. An `ok` exits 0;
+  `show_invalid` prints its reason and exits 1; any other answer, or none in 4 s, deletes the copy
+  and prints the input, exit 0.
+- `agent_reports::take` hands a show to `terminal_show::arrived` once `terminal_of` finds its
+  terminal, as it hands an approve to its review; `accept` refuses one that gets there.
+- `arrived` reads the file through `smol::unblock` (`read_as`: a file, at most 16 MB; a table file
+  Zed's preview reads stays a path, any other table goes through `tables::parse`, a component
+  through `parse_str_with` and the user's templates, JSON a component else a table else the
+  component's error, markdown read as text to check it), answers, deletes a stdin copy read into a
+  table or a tree, and opens the tab through the window: `block_tables::open_file` (no block key),
+  `block_tables::show_table` (a `BlockTable` of the same title reused), `component_tools::open_tab`,
+  Zed's `MarkdownPreviewView::open_preview_in_pane` over an `Editor::for_buffer` no pane shows, or
+  `open_abs_path` with an invisible worktree for an image.
+- Marley's bash, zsh and fish integrations define `show` as `"$MARLEY_BIN" show` when `MARLEY_BIN`
+  is set and the shell has no `show` (`type -t`, `whence`, `type -q`); fish's is replaced by a
+  user's own function defined after it.
+
 ## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, `src/last_reply.rs`, #726 to #729)
 
 - `plan_review::init` (from `agent_reports::start`) follows `marley.plan_review`: on, it hands

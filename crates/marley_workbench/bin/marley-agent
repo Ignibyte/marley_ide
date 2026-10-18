@@ -15,18 +15,35 @@ on stdin, asks the user to decide a tool call, as `rh approve` does: it waits fo
 prints it on stdout as one JSON line (`{"decision": "approve"}` or `{"decision": "deny", "reason":
 ...}`), exiting 0. Refused, unanswered in time, or with no Marley, it prints nothing on stdout and
 exits 1, so the plugin leaves the call to the agent's own dialog.
+
+Since #805, `"$MARLEY_BIN" show [--as KIND] [--title TEXT] FILE|-` asks Marley to show a file, or
+stdin for `-`, in a tab beside the terminal: a table, a component tree, markdown or an image, by
+`--as`, else by the file's extension (`.json` is a tree when it parses as one, else a table). Stdin
+(16 MB at most) is copied to a private file beside the socket first. A missing file, a type it
+cannot name, or content Marley refuses (`show_invalid`) prints the reason on stderr and exits 1.
+Where no Marley answers, it prints its input unchanged and exits 0, so a script may use it anywhere.
 """
 
 import argparse
 import json
 import os
+import shutil
 import socket
 import sys
 import time
 
 # Within the plugin's budgets: a release must end inside Claude Code's `session.end`, and an
 # approve inside the plugin's ten minutes for a decision.
-DEADLINES = {"report": 4.0, "release": 0.9, "approve": 570.0}
+DEADLINES = {"report": 4.0, "release": 0.9, "approve": 570.0, "show": 4.0}
+
+# What `show` shows a file as, by `--as` and by its extension (#805).
+SHOW_AS = {"table": "table", "csv": "table", "tsv": "table", "jsonl": "table",
+           "component": "component", "markdown": "markdown", "image": "image"}
+SHOW_EXTENSIONS = {"csv": "table", "tsv": "table", "psv": "table", "ssv": "table",
+                   "jsonl": "table", "md": "markdown", "markdown": "markdown", "png": "image",
+                   "jpg": "image", "jpeg": "image", "gif": "image", "svg": "image",
+                   "webp": "image", "bmp": "image", "json": "json"}
+SHOW_STDIN_LIMIT = 16 * 1024 * 1024
 
 
 def quota_window(text):
@@ -80,6 +97,10 @@ def parser():
     approve.add_argument("--source", required=True)
     approve.add_argument("--call", required=True)
     approve.add_argument("--tool", required=True)
+    show = verbs.add_parser("show")
+    show.add_argument("--as", dest="kind", choices=sorted(SHOW_AS))
+    show.add_argument("--title")
+    show.add_argument("source", metavar="FILE")
     return top
 
 
@@ -141,9 +162,86 @@ def send(request, deadline):
         return None
 
 
+def stdin_suffix(kind, named, data):
+    """The extension of the stdin copy, which Zed's viewers read the type from."""
+    if named in ("csv", "tsv", "jsonl"):
+        return "." + named
+    if kind == "image":
+        for magic, suffix in ((b"\x89PNG", ".png"), (b"\xff\xd8", ".jpg"), (b"GIF8", ".gif")):
+            if data.startswith(magic):
+                return suffix
+        return ".svg" if data.lstrip().startswith((b"<svg", b"<?xml")) else ".png"
+    return {"component": ".json", "markdown": ".md"}.get(kind, ".txt")
+
+
+def show(args):
+    """`show` (#805): the file or stdin in a tab beside the terminal, or printed where no Marley
+    answers."""
+    data = path = None
+    if args.source == "-":
+        data = sys.stdin.buffer.read(SHOW_STDIN_LIMIT + 1)
+        if len(data) > SHOW_STDIN_LIMIT:
+            sys.stderr.write("show: stdin is larger than 16 MB\n")
+            return 1
+    else:
+        path = os.path.abspath(args.source)
+        if not os.path.isfile(path):
+            sys.stderr.write(f"show: {args.source}: no such file\n")
+            return 1
+
+    def printed():
+        if data is not None:
+            sys.stdout.buffer.write(data)
+        else:
+            with open(path, "rb") as file:
+                shutil.copyfileobj(file, sys.stdout.buffer)
+        sys.stdout.flush()
+        return 0
+
+    if args.kind:
+        kind = SHOW_AS[args.kind]
+    else:
+        kind = SHOW_EXTENSIONS.get(os.path.splitext(path or "")[1].lstrip(".").lower())
+    if kind is None:
+        sys.stderr.write("show: name the type with --as: table, component, markdown or image\n")
+        return 1
+    terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
+    if not terminal:
+        return printed()
+    copy = None
+    if data is not None:
+        try:
+            folder = os.path.dirname(socket_path())
+            copy = os.path.join(folder, f"show-{os.getpid()}-{time.time_ns()}"
+                                + stdin_suffix(kind, args.kind, data))
+            descriptor = os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as file:
+                file.write(data)
+        except OSError:
+            return printed()
+    request = {"verb": "show", "terminal": terminal, "path": copy or path, "kind": kind,
+               "stdin": copy is not None}
+    if args.title:
+        request["title"] = args.title
+    answer = send(request, time.monotonic() + DEADLINES["show"])
+    if isinstance(answer, dict) and answer.get("ok") is True:
+        return 0
+    if copy is not None:
+        try:
+            os.remove(copy)
+        except OSError:
+            pass
+    if isinstance(answer, dict) and answer.get("refused") == "show_invalid":
+        sys.stderr.write(f"show: {answer.get('reason', '')}\n")
+        return 1
+    return printed()
+
+
 def main():
     top = parser()
     args = top.parse_args()
+    if args.verb == "show":
+        return show(args)
     deadline = time.monotonic() + DEADLINES[args.verb]
     terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
     if args.verb == "report":

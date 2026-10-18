@@ -209,6 +209,29 @@ fn take(incoming: Incoming, cx: &mut App) {
         }
         return;
     }
+    // A show is answered once its file is read (#805).
+    if let Ok(Request::Show {
+        terminal,
+        path,
+        kind,
+        title,
+        stdin,
+    }) = parsed
+    {
+        match terminal_of(&chain, &terminal, cx) {
+            Ok((workspace, view, _)) => {
+                let show = crate::terminal_show::Show {
+                    path: PathBuf::from(path),
+                    kind,
+                    title,
+                    stdin,
+                };
+                crate::terminal_show::arrived(request, workspace, view, show, cx);
+            }
+            Err((refusal, reason)) => request.answer(report::answer_refused(refusal, &reason)),
+        }
+        return;
+    }
     let reply = match parsed {
         Err(error) => report::answer_refused(Refusal::Shape, &error.to_string()),
         Ok(parsed) => match accept(parsed, &chain, folder.as_deref(), cx) {
@@ -353,6 +376,11 @@ fn accept(
         Request::Approve { .. } => Err((
             Refusal::Shape,
             "an approve is answered by its review".to_string(),
+        )),
+        // And a show to `terminal_show` (#805).
+        Request::Show { .. } => Err((
+            Refusal::Shape,
+            "a show is answered once its file is read".to_string(),
         )),
     }
 }

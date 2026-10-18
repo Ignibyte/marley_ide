@@ -120,6 +120,10 @@ if [[ -o interactive && -z ${__MARLEY_HOOKS-} ]]; then
         fi
         builtin printf '\033Pqbootstrapped;subshell=%d;nonce=%s\033\\' \
             "${__MARLEY_REMOTE:-0}" "${__MARLEY_NONCE-}"
+        # Marley's show (#805), here after the user's files too, so a user's own show is seen.
+        if [[ -n ${MARLEY_BIN-} ]] && ! whence show >/dev/null 2>&1; then
+            show() { "$MARLEY_BIN" show "$@" }
+        fi
         # Here, after the user's files, so a user's own ssh function is seen (#526).
         if [[ -z ${__MARLEY_REMOTE-} && -n ${__MARLEY_SSH_COMMAND-} ]] \
             && (( ! ${+functions[ssh]} )); then

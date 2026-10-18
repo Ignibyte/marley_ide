@@ -150,6 +150,8 @@ pub enum Refusal {
     ReleaseNone,
     /// An approve for a tool Marley takes no decision on, or while its review is off (#726).
     ApproveTool,
+    /// A file to show that is missing, too large, or not of its kind (#805).
+    Show,
 }
 
 impl Refusal {
@@ -171,6 +173,7 @@ impl Refusal {
             Self::ReleaseAuthority => "agent_release_authority",
             Self::ReleaseNone => "agent_release_none",
             Self::ApproveTool => "agent_approve_tool",
+            Self::Show => "show_invalid",
         }
     }
 }
@@ -404,6 +407,38 @@ pub enum Request {
         /// The tool's input, as the agent gave it.
         input: serde_json::Value,
     },
+    /// A file a command asks Marley to show in a tab beside its terminal (#805); it is answered
+    /// once the file is read.
+    Show {
+        /// The `MARLEY_TERMINAL_ID` the program runs under.
+        terminal: String,
+        /// The file's absolute path.
+        path: String,
+        /// What to show it as.
+        kind: ShowKind,
+        /// The tab's title; the file's name when left out.
+        #[serde(default)]
+        title: Option<String>,
+        /// Whether the file is the program's copy of its stdin, Marley's to delete once read.
+        #[serde(default)]
+        stdin: bool,
+    },
+}
+
+/// What `show` shows a file as (#805): by `--as`, else by the file's extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShowKind {
+    /// Rows and columns: CSV, TSV, JSON lines.
+    Table,
+    /// A component tree (#799).
+    Component,
+    /// Markdown.
+    Markdown,
+    /// An image.
+    Image,
+    /// JSON: a component tree when it parses as one, else a table.
+    Json,
 }
 
 /// The answer to an accepted request.

@@ -589,17 +589,17 @@ fn open_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: 
     }
     let key = (terminal.entity_id(), index);
     match found.file {
-        Some(path) => open_file(&workspace, view, key, path, window, cx),
+        Some(path) => open_file(&workspace, view, Some(key), path, window, cx),
         None => open_output(&workspace, view, &terminal, key, window, cx),
     }
 }
 
 /// Opens `path` in Zed's table preview in the terminal's pane: the preview reads an editor, so a
-/// buffer of the file gets one that no pane shows.
-fn open_file(
+/// buffer of the file gets one that no pane shows. A block's open, `key`, remembers the tab.
+pub(crate) fn open_file(
     workspace: &Entity<Workspace>,
     view: &Entity<TerminalView>,
-    key: (EntityId, usize),
+    key: Option<(EntityId, usize)>,
     path: PathBuf,
     window: &Window,
     cx: &mut App,
@@ -629,7 +629,7 @@ fn open_file(
                     .read(cx)
                     .active_item()
                     .and_then(|item| item.downcast::<TabularDataPreviewPane>());
-                if let Some(preview) = preview {
+                if let (Some(key), Some(preview)) = (key, preview) {
                     remember(key, Opened::Preview(preview.downgrade()), cx);
                 }
             })
@@ -664,14 +664,36 @@ fn open_output(
         });
         return;
     };
+    let tooltip = SharedString::from(format!("The output of {command} as a table"));
+    let (tab, table_view) = add_table_tab(workspace, view, title_of(&command), tooltip, window, cx);
+    remember(key, Opened::Table(tab.downgrade()), cx);
+    cx.spawn(async move |cx| {
+        let table = smol::unblock(move || tables::parse(&text)).await;
+        table_view.update(cx, |table_view, cx| match table {
+            Some(table) => table_view.set_contents(content_of(table), cx),
+            None => table_view.set_loading(false, cx),
+        });
+    })
+    .detach();
+}
+
+/// A new `BlockTable` titled `title`, its table loading, in the terminal's pane.
+fn add_table_tab(
+    workspace: &Entity<Workspace>,
+    view: &Entity<TerminalView>,
+    title: SharedString,
+    tooltip: SharedString,
+    window: &mut Window,
+    cx: &mut App,
+) -> (Entity<BlockTable>, Entity<TableView>) {
     let table_view = cx.new(|cx| {
         let mut table = TableView::new(window, cx);
         table.set_loading(true, cx);
         table
     });
     let tab = cx.new(|cx| BlockTable {
-        title: title_of(&command),
-        command: SharedString::from(command),
+        title,
+        tooltip,
         _table_changed: cx.observe(&table_view, |_, _, cx| cx.notify()),
         table: table_view.clone(),
     });
@@ -683,15 +705,35 @@ fn open_output(
             workspace.add_item_to_center(Box::new(tab.clone()), window, cx);
         }
     });
-    remember(key, Opened::Table(tab.downgrade()), cx);
-    cx.spawn(async move |cx| {
-        let table = smol::unblock(move || tables::parse(&text)).await;
-        table_view.update(cx, |table_view, cx| match table {
-            Some(table) => table_view.set_contents(content_of(table), cx),
-            None => table_view.set_loading(false, cx),
+    (tab, table_view)
+}
+
+/// Shows `table`, which `show` read (#805), in the table tab titled `title`, reused, else a new one
+/// in the terminal's pane.
+pub(crate) fn show_table(
+    workspace: &Entity<Workspace>,
+    view: &Entity<TerminalView>,
+    title: SharedString,
+    table: Table,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let open = workspace
+        .read(cx)
+        .items_of_type::<BlockTable>(cx)
+        .find(|tab| tab.read(cx).title == title);
+    let table_view = if let Some(tab) = open {
+        workspace.update(cx, |workspace, cx| {
+            workspace.activate_item(&tab, true, true, window, cx);
         });
-    })
-    .detach();
+        tab.read(cx).table.clone()
+    } else {
+        let tooltip = SharedString::from(format!("{title}, shown from a terminal"));
+        add_table_tab(workspace, view, title, tooltip, window, cx).1
+    };
+    table_view.update(cx, |table_view, cx| {
+        table_view.set_contents(content_of(table), cx);
+    });
 }
 
 /// Keeps the tab `key`'s table opened in, so the next open brings it forward.
@@ -741,7 +783,7 @@ fn content_of(table: Table) -> TableLikeContent {
 /// A block's output as a table: Zed's table view over the parsed cells.
 pub(crate) struct BlockTable {
     title: SharedString,
-    command: SharedString,
+    tooltip: SharedString,
     table: Entity<TableView>,
     _table_changed: Subscription,
 }
@@ -772,10 +814,7 @@ impl Item for BlockTable {
     }
 
     fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {
-        Some(SharedString::from(format!(
-            "The output of {} as a table",
-            self.command
-        )))
+        Some(self.tooltip.clone())
     }
 
     fn to_item_events(event: &ItemEvent, f: &mut dyn FnMut(ItemEvent)) {

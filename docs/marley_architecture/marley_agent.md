@@ -448,6 +448,10 @@ pub fn route_of_choice(option: &str) -> Route;
   (`agent_approve_tool`) refuses a tool Marley does not decide. `PlanNote` and `plan_feedback`
   (in `marley_agent.rs`) write a plan's deny reason: a lead line, each note's quote and comment,
   then the overall note, escaped as a review note's words are.
+- Since #805 `Request::Show { terminal, path, kind, title, stdin }` asks Marley to show a file in a
+  tab beside the terminal, `ShowKind` being `table`, `component`, `markdown`, `image` or `json`;
+  `stdin` marks the program's copy of its stdin, Marley's to delete once read. `Refusal::Show`
+  (`show_invalid`) refuses a file that is missing, larger than 16 MB, or not of its kind.
 - `plan_questions` (#728) reads plannotator's `:::question`, `:::question-multi` and
   `:::question-text` blocks. `plan_parts(source)` splits a plan into `PlanPart::Text` runs (with
   their byte start) and `PlanPart::Question`s; a block counts only when a line `:::` closes it and
