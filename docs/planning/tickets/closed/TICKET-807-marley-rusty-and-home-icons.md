@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #807 (feature, the Marley layout)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/807-marley-rusty-and-home-icons.spec.md
 - **Source ticket:** Chad, 2026-10-17: "Also i have agent-icons folder. one for home, rusty, and
   marley. lets add those as well", then "ok lets build 3 and 4 then reinstall".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Chad drew three 16 × 16 monochrome icons (`agent-icons/` at the repository's top): a house for

@@ -68,7 +68,7 @@ impl Render for HomeButton {
         // A plain closure over the weak workspace: opening a tab updates the workspace, which reads
         // its items (PR-claude-701).
         let workspace = self.workspace.clone();
-        IconButton::new("marley-status-home", IconName::ListTree)
+        IconButton::new("marley-status-home", IconName::MarleyHome)
             .icon_size(IconSize::Small)
             .shape(IconButtonShape::Square)
             .tooltip(Tooltip::text("Home"))
@@ -262,7 +262,7 @@ impl Render for TitleButtons {
             })
             .when(marley, |buttons| {
                 buttons.child(
-                    IconButton::new("marley-title-marley", IconName::Sparkle)
+                    IconButton::new("marley-title-marley", IconName::MarleyCat)
                         .icon_size(IconSize::Small)
                         .tooltip(|_, cx| {
                             Tooltip::for_action(

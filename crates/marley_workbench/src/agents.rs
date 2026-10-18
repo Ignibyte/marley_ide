@@ -138,6 +138,10 @@ pub fn thread_icon(agent: &AgentId, project: &Entity<Project>, cx: &App) -> Agen
     if Agent::from(agent.clone()) == Agent::NativeAgent {
         return AgentIcon::Named(IconName::ZedAgent);
     }
+    // Marley's and Rusty's own (#807).
+    if let Some(icon) = crate::assistant::assistant_icon(agent) {
+        return AgentIcon::Named(icon);
+    }
     project
         .read(cx)
         .agent_server_store()

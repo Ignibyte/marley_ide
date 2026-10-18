@@ -86,7 +86,7 @@ use ui::{
 use crate::MarleySettings;
 
 /// Rusty's icon in the title bar: a placeholder until Rusty has one of its own (#675, #679).
-pub(crate) const RUSTY_ICON: IconName = IconName::Blocks;
+pub(crate) const RUSTY_ICON: IconName = IconName::RustyButler;
 
 /// The context server Zed's agents know Rusty's tools by.
 pub(crate) const CONTEXT_SERVER: &str = "rusty";

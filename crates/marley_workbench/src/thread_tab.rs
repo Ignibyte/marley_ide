@@ -257,8 +257,12 @@ impl Item for ThreadTab {
         self.conversation_view.read(cx).title(cx)
     }
 
-    fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
-        Some(Icon::new(IconName::ZedAssistant))
+    fn tab_icon(&self, _window: &Window, cx: &App) -> Option<Icon> {
+        // A Marley or Rusty thread draws its own icon (#807).
+        let agent = self.conversation_view.read(cx).agent_key().id();
+        Some(Icon::new(
+            crate::assistant::assistant_icon(&agent).unwrap_or(IconName::ZedAssistant),
+        ))
     }
 
     fn tab_tooltip_text(&self, cx: &App) -> Option<SharedString> {

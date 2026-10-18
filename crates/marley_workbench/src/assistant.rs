@@ -58,6 +58,7 @@ use settings::{
     AgentProfileContent, ContextServerPresetContent, CustomAgentServerSettings,
     MarleyAssistantAgent, SettingsStore,
 };
+use ui::IconName;
 use workspace::notifications::NotificationId;
 use workspace::{MultiWorkspace, Toast, Workspace};
 
@@ -168,6 +169,18 @@ pub(crate) fn is_assistant(agent: &AgentId) -> bool {
     Entry::ALL
         .iter()
         .any(|entry| agent.0.as_ref() == entry.name())
+}
+
+/// The icon of Marley's or Rusty's entry, by the id their threads carry (#807); none for any other
+/// agent.
+pub(crate) fn assistant_icon(agent: &AgentId) -> Option<IconName> {
+    Entry::ALL
+        .into_iter()
+        .find(|entry| agent.0.as_ref() == entry.name())
+        .map(|entry| match entry {
+            Entry::Marley => IconName::MarleyCat,
+            Entry::Rusty => IconName::RustyButler,
+        })
 }
 
 /// The Agent Panel entries Marley adds.

@@ -690,7 +690,7 @@ impl Item for MarleyHome {
     }
 
     fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
-        Some(Icon::new(IconName::ListTree))
+        Some(Icon::new(IconName::MarleyHome))
     }
 
     fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {

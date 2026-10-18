@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley's own icons** (#807, 2026-10-17). Chad's drawings take the places of Zed's: a house for
+  Home (its tab, its rail row and the status bar's button), a cat for the Marley agent and a butler
+  for Rusty (the title bar's buttons, their threads' tabs and rail rows, and the New Agent picker).
+  They tint with the theme like every other icon.
+
 - **`show` a file or stdin in a tab** (#805, 2026-10-17). In a Marley terminal, `show FILE` or
   `command | show -` opens a tab beside the terminal: a table (Zed's preview for a table file), a
   component tree, markdown or an image, typed by `--as` or the file's extension. Bad input prints

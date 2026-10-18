@@ -193,6 +193,9 @@ pub enum IconName {
     Lock,
     LockOff,
     MagnifyingGlass,
+    // Marley: the Marley agent's and Home's own icons (#807).
+    MarleyCat,
+    MarleyHome,
     Maximize,
     MaximizeAlt,
     Menu,
@@ -229,6 +232,8 @@ pub enum IconName {
     Return,
     RotateCcw,
     RotateCw,
+    // Marley: Rusty's own icon (#807).
+    RustyButler,
     Scissors,
     Screen,
     SelectAll,
