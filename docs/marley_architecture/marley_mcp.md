@@ -286,14 +286,24 @@ OR Apache-2.0, with the Marley crates' lint table.
   version on the client's thread. Dropping `IdeServer` closes every client and wakes the accept
   loop so it ends.
 
-## Outside clients (`clients.rs`, #524)
+## Outside clients (`clients.rs`, #524, #811)
 
-- `Principal` is who holds a request's bearer: `Marley` for the per-boot bearer, or
-  `Client(ClientGrant { name, write })` for a program the user allowed. It sits beside
+- `Principal` is who holds a request's bearer: `Marley`, `Unpaired` (#811), or
+  `Client(ClientGrant { name, write, power })` for a program the user let in. It sits beside
   `Caller`, which says where a call comes from and grants nothing. `ClientTable` keeps each
   client's grant, token and last call; its `Debug` names no token. `resolve(presented,
-  marley_bearer)` compares with `ct_eq` against the bearer and every token, with no early exit.
-- `permits(principal, tool)`: Marley calls every tool; a client only `CLIENT_READ_TOOLS`
+  shared_bearer, own_bearer, proven_terminal)` compares with `ct_eq` against both bearers and
+  every token, with no early exit: the own bearer is `Marley`; the shared one is `Marley` with a
+  proven terminal and `Unpaired` without; a token is its client.
+- **Powers (#811).** `Power { Read, Write, Run }`, ordered, serialized lowercase. `power_needed`:
+  a read tool needs `Read`; a write tool of `RUN_CLASSES` (`terminal.write`, `harness.write`,
+  `agents.write`) or `RUN_TOOLS` (`thread_answer`) needs `Run`; any other write tool `Write`.
+  `ClientTable::set_power` changes a client's power and its `write`.
+- `permits(principal, tool) -> Result<(), Refusal>`: Marley calls every tool, and anyone calls
+  `PAIRING_TOOLS` (`client_pair`, `client_pair_status`, the unlisted `Family::Client`). Otherwise
+  only a tool of a served family: an unpaired program the `Read` ones, else `not_paired` with the
+  pair command in its next steps; a paired client those its power covers, else `not_granted`
+  naming the power; a client allowed by name (`power: None`) only `CLIENT_READ_TOOLS`
   (`browser_tabs`, `look`, `snapshot`, `console`, `network`, `picks`, `pick`, `annotations`,
   `recordings`, `recording`) and, with `write`, `CLIENT_WRITE_TOOLS` (`navigate`, `back`,
   `click`, `type`, `press`, `scroll`, `annotate`, `check_pick`). The lists are explicit, so a tool
@@ -302,11 +312,13 @@ OR Apache-2.0, with the Marley crates' lint table.
   would show as Marley's own.
 - The transport keeps the table apart from the data lock (`Clients`, an `RwLock`), so resolving
   a bearer never touches the session registry; `ServerHandle::clients` hands it to the app, and
-  `allow_client` (mints a token) and `cut_off_client` (takes the client out, then ends its
-  sessions, one lock at a time) change it. For a client, the `Marley-*` headers are dropped, a
-  GET gets 405, `resources/*` a JSON-RPC error, `tools/list` names its grant's tools
-  (`tools_list_for`), and `tools/call` runs `permits` after `lookup`, so an unlisted tool is
-  refused too.
+  `allow_client` (mints a token; a power for a paired client), `set_client_power` and
+  `cut_off_client` (takes the client out, then ends its sessions, one lock at a time) change it.
+  `spawn` mints a second bearer, `ServerHandle::own_bearer` (#811). The terminal proof (#755)
+  runs before the principal, since it decides what the shared bearer is. For a client, the
+  `Marley-*` headers are dropped; for anyone but Marley a GET gets 405, `resources/*` a JSON-RPC
+  error, `tools/list` names the tools `permits` allows (`tools_list_for`), and `tools/call` runs
+  `permits` after `lookup`, so an unlisted tool is refused too.
 - Sessions record their owner: another principal's session id is unknown (404); a client holds
   at most `CLIENT_SESSION_CAP` (4), and its fifth `initialize` ends its own least recently used
   one, since a client opens no standing stream whose hang-up would reap it; `terminate_owned_by`

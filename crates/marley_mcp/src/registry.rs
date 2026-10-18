@@ -51,6 +51,9 @@ pub enum Family {
     /// Components an agent draws for the user: the catalog, and a tree drawn in its thread or a
     /// tab (#800).
     Component,
+    /// A program's request to pair with Marley, and its answer (#811); never listed, and open to
+    /// every caller.
+    Client,
 }
 
 impl Family {
@@ -76,6 +79,7 @@ impl Family {
             Self::Review => "review",
             Self::Agent => "agent",
             Self::Component => "component",
+            Self::Client => "client",
         }
     }
 
@@ -824,6 +828,23 @@ const REGISTRY: &[ToolSpec] = &[
                       again. component_list gives the fields of each type.",
     },
     ToolSpec {
+        family: Family::Client,
+        verb: "pair",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "Ask the user to pair this program with Marley as `name`. Marley shows the \
+                      name and the `code` this answers with, and the user picks what the program \
+                      may do or refuses. client_pair_status gives the answer.",
+    },
+    ToolSpec {
+        family: Family::Client,
+        verb: "pair_status",
+        tier: Tier::Read,
+        grant_class: "",
+        description: "The answer to the pairing `id`: `waiting`, `trusted` with the power and the \
+                      endpoint file to run Marley's bridge with, `refused` or `expired`.",
+    },
+    ToolSpec {
         family: Family::Actions,
         verb: "list",
         tier: Tier::Read,
@@ -1014,6 +1035,7 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
         Family::Review => review_schemas(spec.verb),
         Family::Agent => agent_schemas(spec.verb),
         Family::Component => component_schemas(spec.verb),
+        Family::Client => client_schemas(spec.verb),
         Family::Fleet => (
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             fleet_snapshot_schema(),
@@ -1032,6 +1054,55 @@ fn tool_schemas(spec: &ToolSpec) -> (Value, Value) {
 
 /// The schemas of the `component` family (#800): `component_list`, no input, the catalog in the
 /// answer; `component_show`, a tree and a title, the answer saying where it showed or why not.
+/// The pairing tools' schemas (#811).
+fn client_schemas(verb: &str) -> (Value, Value) {
+    if verb == "pair" {
+        return (
+            json!({
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The client's name: 1 to 32 letters, digits, - and _."
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "code": { "type": "string" },
+                    "expires_in_seconds": { "type": "integer" }
+                },
+                "required": ["id", "code", "expires_in_seconds"]
+            }),
+        );
+    }
+    (
+        json!({
+            "type": "object",
+            "properties": { "id": { "type": "string" } },
+            "required": ["id"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "properties": {
+                "state": { "type": "string", "enum": ["waiting", "trusted", "refused", "expired"] },
+                "name": { "type": "string" },
+                "power": { "type": "string", "enum": ["read", "write", "run"] },
+                "endpoint": { "type": "string" },
+                "command": { "type": "string" },
+                "over_ssh": { "type": "string" },
+                "reason": { "type": "string" }
+            },
+            "required": ["state", "name"]
+        }),
+    )
+}
+
 fn component_schemas(verb: &str) -> (Value, Value) {
     if verb == "list" {
         return (

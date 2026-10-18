@@ -5573,3 +5573,28 @@ Rejected:
 - a tmux control-mode client per host: a process held open per host for a list that changes
   rarely;
 - hosts from `~/.ssh/config`: a second host list beside the one Zed's settings already keep.
+
+## AD-claude-811-programs-outside-marley-pair-before-they-act-001
+*decided at: 2026-10-18 · status: shipped · amends: AD-claude-524-outside-clients-reach-a-list-of-browser-tools-by-name-001 · Rusty: decisions/programs-outside-marley-pair-with-a-code-before-they-act*
+
+The bearer in `mcp-endpoint.json` opens every tool only with a proven Marley terminal (#755);
+without one its holder is `Principal::Unpaired` and calls the read tools of the served families.
+Zed's agents, which Marley starts itself, get a second per-run bearer through
+`<data>/mcp/own-endpoint.json`. A program gains more by pairing: `marley-mcp-bridge pair NAME`
+calls `client_pair`, Marley shows the name and a six-digit code in every window for two
+minutes, and the user picks `Read`, `Write` or `Run` or refuses; the client then lives in
+`clients.json` with its power and gets a token per start in its own endpoint file, as AD-524's
+clients do. A power is a level derived from the registry: the read tier is `Read`; the write
+classes that run things (`terminal.write`, `harness.write`, `agents.write`) and `thread_answer`
+are `Run`; every other write tool is `Write`. A client allowed by name keeps the browser lists.
+Chad chose pairing over a list kept in settings (2026-10-18).
+
+Rejected:
+- a list of trusted programs in settings: a program's name is its own claim, and making the list
+  safe means a secret per program in a file a project can add settings to;
+- a variable for Marley's own bearer in every terminal: the terminal token already proves a
+  Marley terminal, and a new variable would be a Zed hunk;
+- explicit tool lists per power, as AD-524 keeps for the browser: every tool added later would
+  need a list entry, where a tier and a grant class already say what it does;
+- pairing from an agent's conversation: the agent could not show the code before the user
+  clicked.

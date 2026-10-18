@@ -1,11 +1,16 @@
-//! PURE — outside clients (#524): programs the user allowed by name to reach Marley's browser tools,
-//! each with a token of its own, minted at each start, and a grant to read pages or also to act in
-//! them. The transport mints the tokens and asks [`ClientTable::resolve`] who holds a bearer; every
-//! decision about what a client may call is [`permits`].
+//! PURE — outside clients (#524, #811): programs the user let in, each with a token of its own,
+//! minted at each start. One allowed by name in Browser Clients reaches the browser tools, to read
+//! pages or also to act in them; one that paired holds a [`Power`] over every tool. A program that
+//! holds the shared endpoint's bearer without proving a Marley terminal has not paired, and reads
+//! alone. The transport mints the tokens and asks [`ClientTable::resolve`] who holds a bearer;
+//! every decision about what a caller may call is [`permits`].
 
 use std::fmt;
 
+use crate::Refusal;
 use crate::auth::ct_eq;
+use crate::permission::Tier;
+use crate::registry::{ToolSpec, lookup};
 
 /// The tools a client may call with the grant to read pages. The list is explicit, so a tool added
 /// to the registry later reaches no client until it is named here.
@@ -34,8 +39,80 @@ pub const CLIENT_WRITE_TOOLS: [&str; 8] = [
     "browser_check_pick",
 ];
 
+/// The grant classes whose tools run a command or a program, or start or stop an agent: they need
+/// [`Power::Run`] (#811).
+pub const RUN_CLASSES: [&str; 3] = ["terminal.write", "harness.write", "agents.write"];
+
+/// The write tools of other classes that need [`Power::Run`]: answering an agent's waiting tool
+/// call runs that call (#811).
+pub const RUN_TOOLS: [&str; 1] = ["thread_answer"];
+
+/// The tools a program pairs with, open to every caller (#811).
+pub const PAIRING_TOOLS: [&str; 2] = ["client_pair", "client_pair_status"];
+
 /// The longest name a client may have.
 const MAX_NAME: usize = 32;
+
+/// What a paired client may do (#811), each power holding the ones before it.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Power {
+    /// The read tools.
+    Read,
+    /// The read tools and every write tool that runs nothing.
+    Write,
+    /// Every tool Marley lists, the ones that run a command or an agent too.
+    Run,
+}
+
+impl Power {
+    /// Every power, weakest first.
+    pub const ALL: [Self; 3] = [Self::Read, Self::Write, Self::Run];
+
+    /// The power's word, as `clients.json` and the tools write it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Run => "run",
+        }
+    }
+
+    /// The power `word` names.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|power| power.as_str() == word)
+    }
+
+    /// What a client with this power may do, in words.
+    #[must_use]
+    pub const fn words(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "read and write",
+            Self::Run => "read, write and run",
+        }
+    }
+}
+
+/// The power `spec` needs of a paired client: [`Power::Read`] for a read tool, [`Power::Run`] for
+/// one of [`RUN_CLASSES`] or [`RUN_TOOLS`], and [`Power::Write`] for any other write tool.
+#[must_use]
+pub fn power_needed(spec: &ToolSpec) -> Power {
+    match spec.tier {
+        Tier::Read => Power::Read,
+        Tier::Write
+            if RUN_CLASSES.contains(&spec.grant_class)
+                || RUN_TOOLS.contains(&spec.name().as_str()) =>
+        {
+            Power::Run
+        }
+        Tier::Write => Power::Write,
+    }
+}
 
 /// A client's name and what it may do.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,51 +121,112 @@ pub struct ClientGrant {
     pub name: String,
     /// Whether it may act in pages, beside reading them.
     pub write: bool,
+    /// The power it paired with (#811); none for a client allowed by name in Browser Clients, which
+    /// reaches the browser tools alone.
+    pub power: Option<Power>,
 }
 
 /// Who holds the bearer of a request.
 ///
-/// Marley's own agents hold the per-boot bearer; a client the user allowed holds its own token.
-/// Beside [`Caller`](crate::Caller), which says where a call comes from and grants nothing, this is
-/// what a call may do.
+/// Marley's own agents hold the shared bearer and prove a Marley terminal, or hold Marley's own
+/// bearer; a program that holds the shared bearer alone has not paired; a client the user let in
+/// holds its own token. Beside [`Caller`](crate::Caller), which says where a call comes from and
+/// grants nothing, this is what a call may do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Principal {
-    /// The per-boot bearer's holder: Marley's own bridge and helpers, with every tool.
+    /// Marley's own: its terminals' programs, Zed's agents and its helpers, with every tool.
     Marley,
-    /// A client the user allowed by name.
+    /// A program with the shared bearer and no proven Marley terminal (#811): the read tools.
+    Unpaired,
+    /// A client the user let in, by name or by pairing.
     Client(ClientGrant),
 }
 
 impl Principal {
-    /// The client's name, or `None` for Marley's own.
+    /// The client's name, or `None` for Marley's own and an unpaired program.
     #[must_use]
     pub fn client_name(&self) -> Option<&str> {
         match self {
-            Self::Marley => None,
+            Self::Marley | Self::Unpaired => None,
             Self::Client(grant) => Some(&grant.name),
         }
     }
+
+    /// Whether it is Marley's own.
+    #[must_use]
+    pub const fn is_marley(&self) -> bool {
+        matches!(self, Self::Marley)
+    }
 }
 
-/// Whether `principal` may call `tool` (a wire name): Marley may call every tool; a client only a
-/// tool its grant's list names.
+/// Whether `principal` may call `tool` (a wire name).
+///
+/// Marley may call every tool. Anyone else calls only tools that `tools/list` lists, besides
+/// [`PAIRING_TOOLS`]: an unpaired program the read tools, a paired client those its power covers,
+/// and a client allowed by name its grant's browser tools.
 ///
 /// # Errors
 ///
-/// Why the client may not, as its tool error reads.
-pub fn permits(principal: &Principal, tool: &str) -> Result<(), String> {
-    let Principal::Client(grant) = principal else {
+/// The refusal: `not_paired` for an unpaired program, `not_granted` for a client.
+pub fn permits(principal: &Principal, tool: &str) -> Result<(), Refusal> {
+    if principal.is_marley() || PAIRING_TOOLS.contains(&tool) {
         return Ok(());
-    };
-    if CLIENT_READ_TOOLS.contains(&tool) || (grant.write && CLIENT_WRITE_TOOLS.contains(&tool)) {
-        Ok(())
-    } else if CLIENT_WRITE_TOOLS.contains(&tool) {
-        Err(format!(
-            "{tool} needs the grant to act in pages; the client {} may only read them",
-            grant.name
-        ))
-    } else {
-        Err(format!("{tool} is not open to outside clients"))
+    }
+    let needed = lookup(tool)
+        .filter(|spec| spec.family.is_served())
+        .map(|spec| power_needed(&spec));
+    match principal {
+        Principal::Marley => Ok(()),
+        Principal::Unpaired => match needed {
+            Some(Power::Read) => Ok(()),
+            Some(_) => Err(Refusal::new(
+                "not_paired",
+                format!(
+                    "{tool} acts, and this program has not paired with Marley, so it may only \
+                     read"
+                ),
+            )
+            .next(
+                "ask the user to pair this program: they run `marley-mcp-bridge pair NAME` and \
+                 pick what it may do when Marley shows the code",
+            )
+            .next("the read tools answer without pairing; tools/list names them")),
+            None => Err(Refusal::new(
+                "not_paired",
+                format!("{tool} is Marley's own, and this program has not paired with Marley"),
+            )),
+        },
+        Principal::Client(grant) => match (grant.power, needed) {
+            (Some(power), Some(needed)) if needed <= power => Ok(()),
+            (Some(power), Some(needed)) => Err(Refusal::new(
+                "not_granted",
+                format!(
+                    "{tool} needs the power to {}; the client {} may {}",
+                    needed.as_str(),
+                    grant.name,
+                    power.words()
+                ),
+            )
+            .next(format!(
+                "ask the user to give {} that power in Outside Clients (marley: outside clients)",
+                grant.name
+            ))),
+            (None, _) if CLIENT_READ_TOOLS.contains(&tool) => Ok(()),
+            (None, _) if grant.write && CLIENT_WRITE_TOOLS.contains(&tool) => Ok(()),
+            (None, _) if CLIENT_WRITE_TOOLS.contains(&tool) => Err(Refusal::new(
+                "not_granted",
+                format!(
+                    "{tool} needs the grant to act in pages; the client {} may only read them",
+                    grant.name
+                ),
+            )
+            .next("tools/list names the tools this client may call")),
+            _ => Err(Refusal::new(
+                "not_granted",
+                format!("{tool} is not open to the client {}", grant.name),
+            )
+            .next("tools/list names the tools this client may call")),
+        },
     }
 }
 
@@ -209,17 +347,43 @@ impl ClientTable {
         self.entries.len() != before
     }
 
-    /// Who holds `presented`: Marley's own `marley_bearer`, or an allowed client's token. Every
-    /// token is compared with [`ct_eq`] and none stops the loop, so the time taken does not say
-    /// which one matched. An empty token matches nothing.
+    /// Who holds `presented` (#811): Marley's own `own_bearer`, the `shared_bearer` of the endpoint
+    /// file (Marley's own with a `proven_terminal`, else an unpaired program), or a client's
+    /// token. Every token is compared with [`ct_eq`] and none stops the loop, so the time taken
+    /// does not say which one matched. An empty token matches nothing.
     #[must_use]
-    pub fn resolve(&self, presented: Option<&str>, marley_bearer: &str) -> Option<Principal> {
+    pub fn resolve(
+        &self,
+        presented: Option<&str>,
+        shared_bearer: &str,
+        own_bearer: &str,
+        proven_terminal: bool,
+    ) -> Option<Principal> {
         let presented = presented?;
-        let mut found = (!marley_bearer.is_empty() && ct_eq(presented, marley_bearer))
-            .then_some(Principal::Marley);
+        let own = !own_bearer.is_empty() && ct_eq(presented, own_bearer);
+        let shared = !shared_bearer.is_empty() && ct_eq(presented, shared_bearer);
+        let mut found = match (own, shared) {
+            (true, _) => Some(Principal::Marley),
+            (false, true) if proven_terminal => Some(Principal::Marley),
+            (false, true) => Some(Principal::Unpaired),
+            (false, false) => None,
+        };
         for entry in &self.entries {
             if ct_eq(presented, &entry.token) && !entry.token.is_empty() && found.is_none() {
                 found = Some(Principal::Client(entry.grant.clone()));
+            }
+        }
+        found
+    }
+
+    /// Gives the client `name` the power `power` (#811); whether it was allowed.
+    pub fn set_power(&mut self, name: &str, power: Power) -> bool {
+        let mut found = false;
+        for entry in &mut self.entries {
+            if entry.grant.name == name {
+                entry.grant.power = Some(power);
+                entry.grant.write = power >= Power::Write;
+                found = true;
             }
         }
         found

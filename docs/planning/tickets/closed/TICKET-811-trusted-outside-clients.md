@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #811 (feature, Marley's MCP server)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/811-trusted-outside-clients.spec.md
 - **Source ticket:** Chad, 2026-10-17: "we need a way to have a trusted device that can perform
   write actions as well. So registering a mcp server to marley needs to be trusted not just open
   and then given permissions (read, write, execute etc)".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Outside clients (Browser Clients, #524 and #584) are registered by name and granted the browser

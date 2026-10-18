@@ -320,11 +320,15 @@ actions!(
         /// tray.
         #[derive(Eq)]
         NewPlaywrightScript,
-        /// Opens Browser Clients: the programs outside Marley allowed to read or act in its
-        /// Browser tabs, each with a token of its own, and a form to allow another.
+        /// Opens Outside Clients, which this name opened as Browser Clients: the programs outside
+        /// Marley let in, each with a token of its own, and a form to allow a browser client.
         #[derive(Eq)]
         BrowserClients,
-        /// Allows the client named in Browser Clients.
+        /// Opens Outside Clients: the programs that paired with Marley and what each may do, the
+        /// browser clients allowed by name, and a form to allow another.
+        #[derive(Eq)]
+        OutsideClients,
+        /// Allows the client named in Outside Clients.
         #[derive(Eq)]
         AllowBrowserClient,
         /// Puts the focus in the Browser tab's address bar, with its text selected.

@@ -3,7 +3,7 @@
 //! app-side effect. Never panics; every business refusal is a typed `isError` result (D6), every unknown
 //! method/tool a protocol error.
 
-use crate::clients::{Principal, permits};
+use crate::clients::permits;
 use crate::jsonrpc::RpcRequest;
 use crate::permission::Decision;
 use crate::registry::Family;
@@ -25,17 +25,19 @@ pub fn handle_message(ctx: &RequestCtx, subs: &mut Subscriptions, message: &str)
         }
     };
     let id = request.response_id();
-    // An outside client (#524) reads no resource: the fleet snapshot carries every agent's prompt
-    // and folder.
-    if let Principal::Client(grant) = ctx.principal
-        && request.method.starts_with("resources/")
-    {
+    // An outside client (#524), or a program that has not paired (#811), reads no resource: the
+    // fleet snapshot carries every agent's prompt and folder.
+    if !ctx.principal.is_marley() && request.method.starts_with("resources/") {
+        let who = ctx.principal.client_name().map_or_else(
+            || "a program that has not paired".to_string(),
+            str::to_string,
+        );
         return respond(jsonrpc::error_response(
             &id,
             jsonrpc::METHOD_NOT_FOUND,
             &format!(
-                "{} is not open to outside clients such as {}",
-                request.method, grant.name
+                "{} is not open to outside clients such as {who}",
+                request.method
             ),
         ));
     }
@@ -213,11 +215,9 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
             &format!("unknown tool: {name}"),
         ));
     };
-    // An outside client calls only its grant's tools (#524), listed or not: `lookup` finds unlisted
-    // ones too.
-    if let Err(reason) = permits(ctx.principal, &spec.name()) {
-        let refusal = Refusal::new("not_granted", reason)
-            .next("tools/list names the tools this client may call");
+    // An outside client calls only its grant's tools (#524), and a program that has not paired the
+    // read tools (#811), listed or not: `lookup` finds unlisted ones too.
+    if let Err(refusal) = permits(ctx.principal, &spec.name()) {
         return respond(jsonrpc::result_response(id, tools::tool_refusal(&refusal)));
     }
     // A conditional tool the user has not turned on is refused by name as well (#567).
@@ -260,7 +260,8 @@ fn tools_call(ctx: &RequestCtx, request: &RpcRequest, id: &Value) -> Handled {
         | Family::Draft
         | Family::Review
         | Family::Agent
-        | Family::Component => Handled {
+        | Family::Component
+        | Family::Client => Handled {
             outgoing: vec![Outgoing::Deferred(PendingCall {
                 id: id.clone(),
                 tool: spec.name(),

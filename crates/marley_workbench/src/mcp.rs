@@ -142,7 +142,7 @@ pub fn start(cx: &mut App) {
                     Arc::clone(handle.clients()),
                     cx,
                 );
-                offer_to_zeds_agents(data_dir.clone(), cx);
+                offer_to_zeds_agents(data_dir.clone(), &handle, cx);
                 offer_browser_opener(data_dir.clone(), cx);
                 offer_agent_editor(data_dir.clone(), cx);
                 crate::agent_reports::start(data_dir.clone(), cx);
@@ -173,6 +173,7 @@ pub fn start(cx: &mut App) {
         let data_dir = data_dir.clone();
         cx.background_spawn(futures::future::lazy(move |_| {
             discovery::remove_discovery_file_in(&data_dir).log_err();
+            discovery::remove_endpoint_file_in(&data_dir.join("mcp"), OWN_ENDPOINT).log_err();
         }))
     })
     .detach();
@@ -182,7 +183,7 @@ pub fn start(cx: &mut App) {
     .detach();
     cx.spawn(async move |cx| {
         while let Some(call) = incoming.next().await {
-            cx.update(|cx| answer(call, cx));
+            cx.update(|cx| route(call, cx));
         }
     })
     .detach();
@@ -273,15 +274,23 @@ fn enabler(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<BTreeSe
 /// The context server Zed's own agents know Marley's server by (#501).
 pub(crate) const CONTEXT_SERVER: &str = "marley";
 
+/// The endpoint file, in `<data>/mcp`, of the programs Marley starts itself, which holds Marley's
+/// own bearer (#811).
+pub(crate) const OWN_ENDPOINT: &str = "own-endpoint.json";
+
 /// Registers Marley's server as the context server `marley` among Zed's default settings (#501),
 /// so the Zed Agent lists its tools and each external agent's new session is handed it: a stdio
-/// server running the bridge, which reads the endpoint file, so no bearer goes into a setting
-/// and a restart of Marley is followed. The bridge is written off the main thread first; a user's
-/// own `context_servers.marley` wins, as settings do.
-fn offer_to_zeds_agents(data_dir: PathBuf, cx: &App) {
+/// server running the bridge, which reads an endpoint file, so no bearer goes into a setting and
+/// a restart of Marley is followed. Zed's agents are Marley's own, so their file is
+/// [`OWN_ENDPOINT`] with `handle`'s own bearer (#811). The bridge and that file are written off
+/// the main thread first; a user's own `context_servers.marley` wins, as settings do.
+fn offer_to_zeds_agents(data_dir: PathBuf, handle: &transport::ServerHandle, cx: &App) {
+    let own_json = transport::discovery_json(handle.url(), handle.own_bearer());
     let written = cx.background_spawn(futures::future::lazy(move |_| {
         let bridge = write_bridge_in(&data_dir)?;
-        anyhow::Ok((bridge, data_dir.join("mcp-endpoint.json")))
+        let mcp = data_dir.join("mcp");
+        discovery::write_endpoint_file_in(&mcp, OWN_ENDPOINT, &own_json)?;
+        anyhow::Ok((bridge, mcp.join(OWN_ENDPOINT)))
     }));
     cx.spawn(async move |cx| match written.await {
         Ok((bridge, endpoint)) => cx.update(|cx| {
@@ -536,6 +545,16 @@ pub(crate) fn for_agents(text: &str, redactor: Option<&Redactor>) -> Redacted {
         },
         |redactor| redactor.redact(text),
     )
+}
+
+/// Hands `call` to [`answer`], or a pairing tool's to `clients`: those are open to every caller
+/// and act on nothing (#811).
+fn route(call: AppCall, cx: &mut App) {
+    if call.tool.starts_with("client_") {
+        crate::clients::answer(call, cx);
+    } else {
+        answer(call, cx);
+    }
 }
 
 /// Answers `call` from the app's state; a browser call answers from its own task.

@@ -11,6 +11,11 @@ one; when Marley starts or quits, it tells the client that its tool list changed
 The endpoint file is `$MARLEY_MCP_ENDPOINT`, else
 `${XDG_DATA_HOME:-~/.local/share}/marley/mcp-endpoint.json`. The bearer in it goes only to a
 loopback URL, and nothing here prints it.
+
+Outside a Marley terminal that file's bearer reads Marley's tools and does nothing more (#811).
+`marley-mcp-bridge pair NAME` asks to pair this program with Marley as NAME: it prints the code
+Marley shows the user, waits for the user's answer, and prints the line to run the bridge with
+once Marley trusts it.
 """
 
 import json
@@ -38,13 +43,21 @@ NOT_RUNNING = "Marley is not running, so its tools are not there. Start Marley a
 
 REFUSED = (
     "Marley refused this endpoint file's token: the user cut this client off, or the file is "
-    "older than the Marley that runs. Ask the user to allow the client again in Browser Clients."
+    "older than the Marley that runs. Ask the user to let the client in again: pair it with "
+    "`marley-mcp-bridge pair NAME`, or allow it in Outside Clients."
 )
 
 NOT_ALLOWED = (
-    "Marley does not allow this client: the user cut it off in Browser Clients, or never allowed "
-    "it. Ask the user to allow the client again in Browser Clients."
+    "Marley does not allow this client: the user cut it off in Outside Clients, or never let it "
+    "in. Ask the user to let the client in again: pair it with `marley-mcp-bridge pair NAME`, or "
+    "allow it in Outside Clients."
 )
+
+# How often `pair` asks Marley for the user's answer, in seconds.
+PAIR_POLL_SECONDS = 1
+
+# What each power lets a client do, as `pair` says it.
+POWER_WORDS = {"read": "read", "write": "read and write", "run": "read, write and run"}
 
 output_lock = threading.Lock()
 
@@ -382,7 +395,97 @@ class Bridge:
                 send({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
 
 
+class PairingFailed(Exception):
+    """Marley refused the pairing, or gave no answer to read."""
+
+
+def call_tool(endpoint, session, number, name, arguments):
+    """A tool's structured answer, in `session`."""
+    replies, _ = request(
+        endpoint,
+        "POST",
+        {"jsonrpc": "2.0", "id": number, "method": "tools/call",
+         "params": {"name": name, "arguments": arguments}},
+        session,
+    )
+    reply = next((reply for reply in replies if reply.get("id") == number), None)
+    if reply is None:
+        raise PairingFailed(f"Marley gave no answer to {name}")
+    if "error" in reply:
+        raise PairingFailed(reply["error"].get("message", f"{name} failed"))
+    result = reply.get("result") or {}
+    structured = result.get("structuredContent") or {}
+    if result.get("isError"):
+        reason = structured.get("reason") or result.get("content", [{}])[0].get("text", "")
+        steps = "".join(f" {step[:1].upper()}{step[1:]}." for step in structured.get("next_steps", []))
+        raise PairingFailed(f"{reason}.{steps}")
+    return structured
+
+
+def pair(name):
+    """Asks Marley to pair this program as `name` and waits for the user (#811); the exit status."""
+    endpoint = read_endpoint()
+    if endpoint is None:
+        print(f"Not paired: {NOT_RUNNING}", file=sys.stderr)
+        return 1
+    session = None
+    try:
+        _, session = request(endpoint, "POST", {
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
+                       "clientInfo": {"name": "marley-mcp-bridge pair", "version": "1"}},
+        })
+        request(endpoint, "POST", {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                session)
+        asked = call_tool(endpoint, session, 2, "client_pair", {"name": name})
+        print(f'Marley asks you to pair "{name}". Check that Marley shows the code '
+              f'{asked["code"]}, then choose what it may do.', flush=True)
+        deadline = time.monotonic() + asked.get("expires_in_seconds", 120) + 10
+        number = 3
+        while time.monotonic() < deadline:
+            time.sleep(PAIR_POLL_SECONDS)
+            status = call_tool(endpoint, session, number, "client_pair_status",
+                               {"id": asked["id"]})
+            number += 1
+            state = status.get("state")
+            if state == "waiting":
+                continue
+            if state == "trusted":
+                words = POWER_WORDS.get(status.get("power"), status.get("power"))
+                print(f"Paired: {name} may {words}.")
+                print("Run Marley's bridge with its endpoint file:")
+                print(f"  {status.get('command')}")
+                print("From another machine, run it over SSH:")
+                print(f"  {status.get('over_ssh')}")
+                return 0
+            if state == "refused":
+                print(f"Not paired: {status.get('reason', 'the user refused')}.", file=sys.stderr)
+                return 1
+            print("Not paired: nobody answered in Marley within two minutes.", file=sys.stderr)
+            return 1
+        print("Not paired: Marley gave no answer in time.", file=sys.stderr)
+        return 1
+    except (Unreachable, SessionGone) as error:
+        print(f"Not paired: {getattr(error, 'why', 'Marley started over while it waited.')}",
+              file=sys.stderr)
+        return 1
+    except PairingFailed as error:
+        print(f"Not paired: {error}", file=sys.stderr)
+        return 1
+    finally:
+        if session:
+            try:
+                request(endpoint, "DELETE", session=session)
+            except (Unreachable, SessionGone):
+                pass
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "pair":
+        if len(sys.argv) != 3:
+            print("Usage: marley-mcp-bridge pair NAME", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(pair(sys.argv[2]))
     bridge = Bridge()
     threading.Thread(target=bridge.watch, daemon=True).start()
     for line in sys.stdin:

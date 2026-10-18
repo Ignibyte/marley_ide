@@ -2664,19 +2664,51 @@ the server or the file fails, Marley logs it, shows it once as a toast, and runs
 
 ### How agents reach it
 
-| Agent | Route |
-|---|---|
-| Claude Code, in any terminal on the machine | The plugin's MCP server `marley`, which runs the bridge |
-| The Zed Agent and the external agents of the Agent Panel | The context server `marley`, which runs the same bridge |
-| Any other MCP client | Run the bridge as a stdio server, or read the endpoint file (its URL and token change at every start) |
+| Agent | Route | What it may do |
+|---|---|---|
+| Claude Code or Codex in a Marley terminal | The plugin's MCP server `marley`, which runs the bridge | Every tool |
+| The Zed Agent and the external agents of the Agent Panel | The context server `marley`, which runs the same bridge on Marley's own endpoint file | Every tool |
+| Claude Code or any MCP client anywhere else on the machine | The bridge, or the endpoint file | The read tools, until it pairs |
+| A program that paired, here or on another machine | The bridge, on the client's own endpoint file | What you chose when it paired |
 
-A client allowed in Browser Clients (`marley: browser clients`) can run on another machine. Its
-MCP client runs, as its stdio server, the line Browser Clients shows under "From another
-machine, run it over SSH", `ssh -T -o BatchMode=yes <you>@<this machine> 'env
-MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge'`. The line holds no token and still works after
-Marley restarts. SSH must log in without a prompt, with a key or an agent, so connect once by
+Every tool still asks where it asks (Agent Control, the terminal's write card, a consequential
+click), and the kill switch stops every caller's write tools.
+
+### Pairing a program (#811)
+
+A program outside Marley's terminals (Claude Code in tmux or another terminal app, a harness
+seat, an MCP client on another machine) holds only the endpoint file's token, so it reads
+Marley's tools and does nothing more. A write tool answers it `not_paired`. To let it write or
+run, pair it:
+
+1. Run `marley-mcp-bridge pair NAME` where it runs: on this machine,
+   `~/.local/share/marley/mcp/marley-mcp-bridge pair laptop`, or from another machine over SSH,
+   `ssh <you>@<this machine> '~/.local/share/marley/mcp/marley-mcp-bridge pair laptop'`. A name is
+   1 to 32 letters, digits, `-` and `_`.
+2. The command prints a six-digit code, and Marley shows a notification in every window:
+   `A program asks to pair with Marley as "laptop"`, the code, and the folder it asked from.
+3. Check that the codes match, then choose what it may do:
+   - **Read**: the read tools, as before pairing.
+   - **Read and Write**: also every tool that acts without running anything: the editors, the
+     Browser tab, threads, palette actions, settings and keymap proposals, drafts and review
+     notes.
+   - **Read, Write and Run**: also `terminal_type` and `terminal_run`, the harness's seats,
+     `agent_start` and `thread_answer`.
+   - **Refuse**, or no answer within two minutes, pairs nothing.
+4. The command prints `Paired: laptop may …` and the line its MCP client runs as its stdio server:
+   `MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge` here, or `ssh -T -o BatchMode=yes <you>@<this
+   machine> 'env MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge'` from another machine. For Claude
+   Code with Marley's plugin, setting `MARLEY_MCP_ENDPOINT` to that file where it starts is enough.
+
+The line holds no token and still works after Marley restarts: Marley writes the client a new
+token at each start. SSH must log in without a prompt, with a key or an agent, so connect once by
 hand first to accept the host key. If the other machine knows this one by another name (an SSH
 alias, a tailnet name), change the host in the line.
+
+**Outside Clients** (`marley: outside clients`; `marley: browser clients` opens it too) lists the
+clients: a paired one with what it may do, Read, Write and Run to change that from its next call,
+and Cut Off, which refuses its token at once. A program allowed there by name, with or without
+"May act in pages", reaches the Browser tab's tools alone, as before #811.
 
 ### The bridge
 
@@ -2688,7 +2720,9 @@ alias, a tailnet name), change the host in the line.
 - In a Marley terminal it names that terminal with `MARLEY_TERMINAL_ID` and proves it with
   `MARLEY_TERMINAL_TOKEN`, a secret Marley gives each terminal for the run (#755). A call that
   names a terminal without that terminal's token counts as from no terminal, so an agent in one
-  terminal cannot pass for another's, nor use the approvals given there.
+  terminal cannot pass for another's, nor use the approvals given there. Since #811 that proof is
+  also what lets the endpoint file's token do more than read.
+- `marley-mcp-bridge pair NAME` pairs the program it runs for, as "Pairing a program" says.
 - It opens a session of its own with Marley, replays the client's `initialize` when Marley starts
   over, and closes its session when its input ends.
 - With no Marley running, it answers `initialize` itself and lists no tools, and a tool call

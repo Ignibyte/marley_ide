@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A program pairs before it acts** (#811, 2026-10-18). Marley's MCP server no longer gives every
+  tool to whatever reads its endpoint file. Agents in Marley's terminals and Zed's agents keep
+  every tool; any other program (Claude Code in tmux or another terminal app, a harness seat, an
+  MCP client elsewhere) reads, and its other calls answer `not_paired`. To let it do more,
+  `marley-mcp-bridge pair NAME` asks Marley, which shows the name and a six-digit code in every
+  window; you check the code and choose Read; Read and Write; or Read, Write and Run. The command
+  prints the line to run the bridge with, here or over SSH. Browser Clients is now Outside Clients
+  (`marley: outside clients`), where a paired client's power can change and Cut Off ends it.
+
 - **tmux sessions in the rail** (#808, 2026-10-17). `marley.tmux_hosts` names hosts: `local`
   for this machine, or a saved host from `ssh_connections`. The rail lists each host's tmux
   sessions under `TMUX · <host>`, every 10 seconds, with an agent CLI's icon and name on a session

@@ -3,8 +3,8 @@
 A hands-on tour of all of Marley, one stop at a time, in an order where each stop needs only
 what came before it. Every stop says what to do and what you should see, and names the ticket
 that shipped it. The tour follows the tree at #778 (2026-10-12) on Linux, as built and tested on
-Omarchy with Hyprland, with stops added for #798 to #805 and #808 (2026-10-17): 4.26 to 4.29,
-6.10, 7.18 and 14.13 to 14.15.
+Omarchy with Hyprland, with stops added for #798 to #805, #808 and #811 (2026-10-17 and 18): 4.26
+to 4.29, 6.10, 7.18, 7.19 and 14.13 to 14.15.
 
 [guide.md](guide.md) is the reference behind this tour, with the rules and edge cases a stop
 leaves out. [tutorial-outline.md](tutorial-outline.md) is the plan for a longer tutorial, and
@@ -2124,8 +2124,8 @@ After Claude Code's change, reload the tab with Ctrl+R and click Check on Pick 1
 
 ### 7.15 Browser Clients (#524, #584), optional
 
-1. Run `marley: browser clients`, type a name such as `playwright-mcp`, choose read or act, and
-   press Enter.
+1. Run `marley: outside clients` (`marley: browser clients` opens the same list), type a name such
+   as `playwright-mcp`, choose read or act, and press Enter.
 
 - [ ] The client gets its own token in an endpoint file only you can read.
 - [ ] A tab it acts in shows `Driven by playwright-mcp` with Cut Off, which refuses its token at
@@ -2262,6 +2262,33 @@ On `localhost:8000/tools.html`:
 - [ ] Step 4: `tools.html` opens as it is, and Marley writes nothing into the project. Editing the
   file reloads its tab.
 - [ ] Step 5: the tool answers `opened: false` and says the file is outside the project.
+
+### 7.19 Pair a program before it acts (#811)
+
+Use a terminal outside Marley (Alacritty, or a tmux session that was not started in a Marley
+terminal), with Claude Code and Marley's plugin installed.
+
+1. Start `claude` there and ask: "List my Marley terminals." Then: "Type print(1) into the python in
+   my Marley terminal." (Start `python3` in a `marley-tour` terminal first.)
+2. In that outside terminal, run `~/.local/share/marley/mcp/marley-mcp-bridge pair laptop`.
+3. Compare the code it prints with Marley's notification, and click Read and Write.
+4. Run `marley: outside clients`. Click Run on `laptop`'s row.
+5. Quit that `claude`, and start it again with the endpoint the command printed:
+   `MARLEY_MCP_ENDPOINT=~/.local/share/marley/mcp/clients/laptop.json claude`. Ask it the second
+   question of step 1 again.
+6. In Outside Clients, click Cut Off on `laptop`.
+
+- [ ] Step 1: the terminals are listed; the typing is refused with `not_paired`, and the refusal
+  names the pair command.
+- [ ] Step 2: the command prints a six-digit code, and every Marley window shows "A program asks to
+  pair with Marley as "laptop"" with the same code, the folder it asked from, and Read, Read and
+  Write, Read Write and Run, Refuse.
+- [ ] Step 3: the command prints `Paired: laptop may read and write.` and the line to run the
+  bridge with, here and over SSH.
+- [ ] Step 4: `laptop` reads "may read and write", and Run is pressed after the click.
+- [ ] Step 5: `print(1)` runs in the REPL, and the bar under it names `laptop`.
+- [ ] Step 6: `laptop`'s next call answers that Marley does not allow this client.
+- [ ] Claude Code inside a Marley terminal kept every tool throughout.
 
 ## Part 8. Launch configs
 

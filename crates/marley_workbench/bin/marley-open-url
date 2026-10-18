@@ -16,6 +16,7 @@ loopback URL, and nothing here prints it.
 import http.client
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -28,6 +29,9 @@ PROTOCOL_VERSION = "2025-06-18"
 DEADLINE = 5
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+TERMINAL_ID = re.compile(r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+TOKEN = re.compile(r"^[0-9a-f]{32}$")
 
 # What an exchange with Marley can fail with; each sends the URL to `xdg-open` instead.
 FAILURES = (OSError, ValueError, http.client.HTTPException, urllib.error.URLError)
@@ -85,13 +89,20 @@ def messages_in(body, kind):
 
 def request(endpoint, deadline, method, message=None, session=None):
     """One HTTP request to Marley within the deadline: the messages it answered with, and the
-    session it gave."""
+    session it gave. The terminal this runs in goes with it, as the bridge sends it: without it
+    the endpoint's bearer opens the read tools alone (#811)."""
     url, authorization = endpoint
     headers = {
         "Authorization": authorization,
         "Accept": "application/json, text/event-stream",
         "MCP-Protocol-Version": PROTOCOL_VERSION,
     }
+    terminal = os.environ.get("MARLEY_TERMINAL_ID", "")
+    if TERMINAL_ID.match(terminal):
+        headers["Marley-Terminal"] = terminal
+        token = os.environ.get("MARLEY_TERMINAL_TOKEN", "")
+        if TOKEN.match(token):
+            headers["Marley-Terminal-Token"] = token
     body = None
     if message is not None:
         headers["Content-Type"] = "application/json"

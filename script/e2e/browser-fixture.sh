@@ -45,8 +45,9 @@
 #   block's index, exit code, whether it still runs, and its output's last lines (#556). `fleet`
 #   lists `fleet_snapshot`'s seats: each one's id, state and
 #   the labels an agent row shows, or `no seats` (#547). `open-url <url> <directory>` asks
-#   `browser_open_url` to open a URL for a program in that folder (#561). `--endpoint <file>`,
-#   first, points the bridge at another endpoint file, an outside client's (#524).
+#   `browser_open_url` to open a URL for a program in that folder (#561). It runs on Marley's own
+#   endpoint file, as Zed's agents do (#811); `--endpoint <file>`, first, points the bridge at
+#   another endpoint file: an outside client's (#524), or the shared one an unpaired program reads.
 #   `terminal-page <text> [--before <n>]` prints one page of the newest block whose command holds
 #   the text, with the answer's size; `terminal-pages <text> <file>` reads every page from the
 #   newest and saves them joined; `read-refusal <text> <json>` and `refusal <tool> <json>` print a
@@ -153,7 +154,8 @@ agent() {
 }
 
 mcp_agent() {
-  local endpoint=$E2E_PROFILE/mcp-endpoint.json
+  # Marley's own endpoint (#811): the stand-in plays an agent Marley started, as Zed's are.
+  local endpoint=$E2E_PROFILE/mcp/own-endpoint.json
   if [[ ${1:-} == --endpoint ]]; then
     endpoint=$2
     shift 2

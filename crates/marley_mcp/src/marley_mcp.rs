@@ -60,7 +60,8 @@ pub mod transport;
 pub use auth::{bearer_ok, ct_eq, is_loopback, origin_allowed};
 pub use clients::{
     CLIENT_READ_TOOLS, CLIENT_WRITE_TOOLS, ClientError, ClientGrant, ClientInfo, ClientTable,
-    Principal, check_client_name, permits,
+    PAIRING_TOOLS, Power, Principal, RUN_CLASSES, RUN_TOOLS, check_client_name, permits,
+    power_needed,
 };
 pub use config::{McpConfigError, McpServerConfig, McpTransport};
 pub use dispatch::{deferred_response, handle_message, snapshot_changed};

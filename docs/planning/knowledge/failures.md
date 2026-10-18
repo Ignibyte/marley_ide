@@ -4274,3 +4274,18 @@ that program stayed in the foreground; Hand Back only went back to Take Over. Th
 bar (#530) did the same for the life of the page. Each design had two states, agents in control
 and the user in control, and no state for "nobody needs the bar". Fixed in #810: a third state,
 reached by the bar's close button and by Hand Back, draws no bar until an agent acts again.
+
+## F-claude-811-marley-open-url-proved-no-terminal-001
+*severity: medium · found in: pipeline 811's Code phase (the review of the diff) · class: a helper on the shared bearer that relied on the bearer alone · prevented by: none (fixed before any run; AD-claude-811 names the rule)*
+
+`marley-open-url`, the `$BROWSER` Marley gives its terminals (#561), called `browser_open_url`
+with the endpoint file's bearer and no `Marley-Terminal` headers. Once that bearer alone opened the
+read tools only, every URL a program in a Marley terminal opened would have been refused and gone
+to `xdg-open`. Fixed in #811: it sends the terminal and its token, as the bridge and `marley-edit`
+do.
+
+## F-claude-811-a-label-printed-markdown-backticks-001
+*severity: low · found in: pipeline 811's Test phase, the second run · class: markdown in a plain label · prevented by: none (a one-off)*
+
+Outside Clients' first line named the pair command in backticks, and a `Label` draws text as it
+is, so the window showed the backticks. Fixed in #811: plain words.

@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use marley_fleet::FleetSnapshot;
 
-use crate::clients::{ClientError, ClientGrant, ClientTable, Principal};
+use crate::clients::{ClientError, ClientGrant, ClientTable, Power, Principal};
 use crate::permission::GrantTable;
 use crate::session::{SessionDecision, SessionRegistry, client_name_of, session_gate};
 use crate::{
@@ -59,11 +59,12 @@ pub type Shared = Arc<(Mutex<ServerData>, Condvar)>;
 /// unauthenticated request still never touches the session registry (#375 REQ-012).
 pub type Clients = Arc<RwLock<ClientTable>>;
 
-/// A handle to a running server (its loopback URL, the per-boot bearer, and its outside clients).
-/// The bearer's `Debug` is redacted so it can never leak into a log.
+/// A handle to a running server (its loopback URL, the per-boot bearers, and its outside clients).
+/// The bearers' `Debug` is redacted so they can never leak into a log.
 pub struct ServerHandle {
     url: String,
     bearer: String,
+    own_bearer: String,
     clients: Clients,
 }
 
@@ -72,6 +73,7 @@ impl std::fmt::Debug for ServerHandle {
         f.debug_struct("ServerHandle")
             .field("url", &self.url)
             .field("bearer", &"***")
+            .field("own_bearer", &"***")
             .field("clients", &self.clients)
             .finish()
     }
@@ -84,10 +86,18 @@ impl ServerHandle {
         &self.url
     }
 
-    /// The per-boot bearer (for the discovery file only — never log it).
+    /// The per-boot bearer (for the discovery file only — never log it). Without a proven Marley
+    /// terminal it opens the read tools alone (#811).
     #[must_use]
     pub fn bearer(&self) -> &str {
         &self.bearer
+    }
+
+    /// Marley's own per-boot bearer (#811), for the endpoint file of the programs Marley starts
+    /// itself, Zed's agents' bridge: it opens every tool. Never log it.
+    #[must_use]
+    pub fn own_bearer(&self) -> &str {
+        &self.own_bearer
     }
 
     /// The outside clients the server lets in (#524), for [`allow_client`] and
@@ -98,13 +108,19 @@ impl ServerHandle {
     }
 }
 
-/// Lets the client `name` in (#524), with the grant to act in pages when `write`: a new token,
-/// returned for its endpoint file only.
+/// Lets the client `name` in (#524): one allowed by name, with the grant to act in pages when
+/// `write`, or one that paired, with its `power` (#811). A new token, returned for its endpoint
+/// file only.
 ///
 /// # Errors
 ///
 /// A name the table refuses, one allowed already, or no OS entropy for the token.
-pub fn allow_client(clients: &Clients, name: &str, write: bool) -> Result<String, ClientError> {
+pub fn allow_client(
+    clients: &Clients,
+    name: &str,
+    write: bool,
+    power: Option<Power>,
+) -> Result<String, ClientError> {
     let token = mint_secret(read_entropy()).map_err(|_| ClientError::NoEntropy)?;
     clients
         .write()
@@ -112,11 +128,21 @@ pub fn allow_client(clients: &Clients, name: &str, write: bool) -> Result<String
         .allow(
             ClientGrant {
                 name: name.to_string(),
-                write,
+                write: write || power.is_some_and(|power| power >= Power::Write),
+                power,
             },
             token.clone(),
         )?;
     Ok(token)
+}
+
+/// Gives the paired client `name` the power `power` (#811), from its next request on; whether it
+/// was allowed.
+pub fn set_client_power(clients: &Clients, name: &str, power: Power) -> bool {
+    clients
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .set_power(name, power)
 }
 
 /// Turns on the conditional tools `enabled` names, and off the others (#567). A client sees the
@@ -188,6 +214,7 @@ pub fn spawn(
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
     let bearer = mint_secret(read_entropy()).map_err(std::io::Error::other)?;
+    let own_bearer = mint_secret(read_entropy()).map_err(std::io::Error::other)?;
     let url = format!("http://{addr}/mcp");
     let clients: Clients = Arc::default();
     let server = Server {
@@ -196,6 +223,7 @@ pub fn spawn(
         effects,
         caller,
         bearer: bearer.clone(),
+        own_bearer: own_bearer.clone(),
         terminal_check,
     };
     // The accept loop runs for the life of the process; dropping its handle detaches it.
@@ -207,6 +235,7 @@ pub fn spawn(
     Ok(ServerHandle {
         url,
         bearer,
+        own_bearer,
         clients,
     })
 }
@@ -215,7 +244,7 @@ pub fn spawn(
 pub type TerminalCheck = Arc<dyn Fn(&str, &str) -> bool + Send + Sync>;
 
 /// What every connection's thread shares: the state, the clients, the app's channels, the
-/// per-boot bearer and the terminal check. Cloning it clones the handles, never the state.
+/// per-boot bearers and the terminal check. Cloning it clones the handles, never the state.
 #[derive(Clone)]
 struct Server {
     shared: Shared,
@@ -223,6 +252,7 @@ struct Server {
     effects: Sender<Effect>,
     caller: AppCaller,
     bearer: String,
+    own_bearer: String,
     terminal_check: TerminalCheck,
 }
 
@@ -252,6 +282,7 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
         shared,
         clients,
         bearer,
+        own_bearer,
         terminal_check,
         ..
     } = server;
@@ -274,27 +305,9 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
     if !auth::origin_allowed(request.origin.as_deref()) {
         return write_status(&mut stream, 403, "Forbidden");
     }
-    let principal = clients
-        .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .resolve(request.bearer.as_deref(), bearer);
-    let Some(principal) = principal else {
-        return write_status(&mut stream, 403, "Forbidden");
-    };
-    if let Principal::Client(grant) = &principal {
-        clients
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .touch(&grant.name, now_epoch_ms());
-        // Its `Marley-*` headers name a Marley terminal, which an outside client is not (#524).
-        request.caller = Caller::default();
-        // A client gets no standing stream: the fleet's pushes are not its to see.
-        if request.method == "GET" {
-            return write_status(&mut stream, 405, "Method Not Allowed");
-        }
-    }
     // A terminal is the caller only with its own token; without it the call runs as one from no
-    // terminal, as a malformed id does (#755).
+    // terminal, as a malformed id does (#755). The proof comes first: it is what makes the shared
+    // bearer Marley's own (#811).
     if let Some(terminal) = request.caller.terminal.as_deref() {
         let proven = request
             .terminal_token
@@ -307,6 +320,31 @@ fn serve_connection(mut stream: std::net::TcpStream, server: &Server) -> std::io
             );
             request.caller.terminal = None;
         }
+    }
+    let principal = clients
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .resolve(
+            request.bearer.as_deref(),
+            bearer,
+            own_bearer,
+            request.caller.terminal.is_some(),
+        );
+    let Some(principal) = principal else {
+        return write_status(&mut stream, 403, "Forbidden");
+    };
+    if let Principal::Client(grant) = &principal {
+        clients
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .touch(&grant.name, now_epoch_ms());
+        // Its `Marley-*` headers name a Marley terminal, which an outside client is not (#524).
+        request.caller = Caller::default();
+    }
+    // A client, or a program that has not paired, gets no standing stream: the fleet's pushes are
+    // not its to see.
+    if !principal.is_marley() && request.method == "GET" {
+        return write_status(&mut stream, 405, "Method Not Allowed");
     }
     // Session gate (#375, MCP §Session Management) — POST-auth: [`gate`].
     let parsed = parse_request(&request.body).ok();

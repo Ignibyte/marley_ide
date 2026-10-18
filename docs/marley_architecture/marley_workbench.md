@@ -3533,6 +3533,11 @@ below describe what #743 retired.
   each local project, where the Zed Agent's Write profile (`enable_all_context_servers`) takes
   its tools from, and `mcp_servers_for_project` hands it to each external agent's `session/new`.
   No bearer goes into a setting; a user's own `context_servers.marley` replaces the default.
+  Since #811 the file it names is `<data>/mcp/own-endpoint.json` (`OWN_ENDPOINT`, 0600, written
+  beside the bridge and removed at quit), which holds `ServerHandle::own_bearer`: Zed's agents are
+  Marley's own, and the shared `mcp-endpoint.json` opens the read tools alone without a proven
+  terminal. `route` hands a `client_*` call to `clients::answer` before `answer`, since the
+  pairing tools are open to every caller and act on nothing.
 - **The Marley agent (#683, `src/assistant.rs`).** `init` follows `marley.assistant.enabled`:
   `sync` acts only when the switch moved, since the defaults it writes fire the settings observer
   again. On, it puts `marley.agent_session_meta.Marley` (`session_meta`: the `INSTRUCTIONS` as a
@@ -4547,7 +4552,24 @@ below describe what #743 retired.
   `resize` leaves an emulated page's layout alone and only refits its stream; the toolbar's
   emulation chip (`render_emulation`) has Reset, `reset_emulation`.
 
-## Outside clients (`src/clients.rs`, #524)
+## Outside clients (`src/clients.rs`, #524, #811)
+
+- **Pairing (#811).** `clients::answer` serves `client_pair` and `client_pair_status`.
+  `begin_pairing` checks the name (`check_client_name`), refuses one in the registry
+  (`already_paired`), one already waiting (`pairing_pending`) and a fourth waiting pairing
+  (`too_many_pairings`, `MAX_PAIRINGS`), then mints a 32-hex id and a six-digit code (`rand`),
+  shows the notification in every window (`show_pairing`, `show_app_notification`: the name, the
+  code, "Asked from" the caller's `cwd`, and Read, Read and Write, Read Write and Run, Refuse) and
+  keeps a `Pairing` in `ClientsState::pairings`. Its task waits on a one-shot slot or `PAIR_WAIT`
+  (two minutes), dismisses the notification, and on a power runs `allow(name, false,
+  Some(power))`; the state becomes `Trusted { power, file }`, `Refused` or `Expired`.
+  `pairing_status` answers `waiting`, or the final state once (the trusted one with the endpoint
+  file and `client_lines`' two commands) and drops the pairing; an unread final state is dropped
+  at the next pairing once twice `PAIR_WAIT` old.
+- `RegisteredClient::power` (`Option<Power>`, left out of the file when none) marks a paired
+  client; `start` and `allow` pass it to `transport::allow_client`. `set_power` changes the
+  registry on the main thread, then the server's table (`transport::set_client_power`) and the
+  file off it.
 
 - The registry is `<data>/mcp/clients.json` (0600, written through a file renamed into place):
   each client's name, grant (`write`) and when it was allowed, and no token. A file Marley cannot
@@ -4557,10 +4579,13 @@ below describe what #743 retired.
   and writes `<data>/mcp/clients/<name>.json` (0600, the folder 0700) in the shape of
   `mcp-endpoint.json`; the files go at quit. The main thread never takes the server's locks:
   the token and file work runs in background tasks.
-- Browser Clients (`marley: browser clients`, `BrowserClientsModal`): each client with "reads" or
-  "reads and acts", its last call (read off the main thread every five seconds) and Cut Off;
+- Outside Clients (`marley: outside clients`, and `marley: browser clients` since #524,
+  `BrowserClientsModal`): a paired client with "may read", "may read and write" or "may read, write
+  and run" and the Read, Write and Run buttons (`change_power`), a client allowed by name with
+  "browser: reads" or "browser: reads and acts"; each with its last call (read off the main thread
+  every five seconds) and Cut Off;
   a name field (Enter allows), "May act in pages" (`ui::Checkbox`) and Allow; after an Allow,
-  the client's endpoint file, the line that points Marley's bridge at it
+  the client's endpoint file, `client_lines`: the line that points Marley's bridge at it
   (`MARLEY_MCP_ENDPOINT=<file> <data>/mcp/marley-mcp-bridge`), and the line that runs that bridge
   here from another machine (#584): `ssh -T -o BatchMode=yes <user>@<host> 'env
   MARLEY_MCP_ENDPOINT=<file> <bridge>'`, the names from `whoami::fallible` (`this_machine`), a
