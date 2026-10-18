@@ -2698,8 +2698,10 @@ the terminal names the agent, the program and what it would type, with Allow and
 with Show points to it. Allow holds for that program until it exits; the Agents section's **Agent
 Terminal Writes** makes Marley ask for every write, or never. An unanswered question refuses the
 write after 25 seconds. Once an agent has typed, a bar under the terminal shows what it typed:
-**Take Over**, or Ctrl-I in the terminal, stops its writes until you choose **Hand Back**. Without
-an agent's writes, Ctrl-I reaches the program as it always did.
+**Take Over**, or Ctrl-I in the terminal, stops its writes until you choose **Hand Back**, which
+also closes the bar. The bar's close button hides it until an agent types again; the Browser tab's
+bar under its toolbar works the same way (#810). Without an agent's writes, Ctrl-I reaches the
+program as it always did.
 
 The ports family (#521):
 

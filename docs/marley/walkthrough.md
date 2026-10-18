@@ -1536,6 +1536,8 @@ Click the microphone, speak, and click it again.
 - [ ] A card under the terminal names the agent, the program and the text, with Allow and Deny.
 - [ ] After Allow, `42` appears: the Enter ran the line instead of leaving it at `...` (#594).
 - [ ] A bar shows what it typed, with Take Over; Ctrl+I takes over until Hand Back.
+- [ ] Hand Back closes the bar. Before that, the bar's close button hides it until the agent types
+  again (#810).
 - [ ] The bar goes once Python exits (#595).
 
 ### 5.12 Send the editor's selection (#549)
@@ -2217,7 +2219,8 @@ On `localhost:8000/tools.html`:
   Take Over.
 - [ ] Take Over (or Ctrl+I in the tab) turns it to `You have control: agents' actions in this
   page are refused`, with Hand Back, and the agent's click is refused with `taken_over`. After
-  Hand Back its click works.
+  Hand Back the bar closes and its click works. The bar's close button also hides it until the
+  agent acts again (#810).
 
 ### 7.18 An agent's own page (#802)
 

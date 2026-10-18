@@ -4264,3 +4264,13 @@ terminal's line height was 19.5 px and gpui laid each row out at 19 px, so the t
 a pixel a row: 42 rows down it sat 20 px above the text rows it stood for, and the last row's
 background no longer covered its row. The gate was green; the first shot showed it. Fixed in #804:
 each row is absolutely placed at `line_height * row`, so each rounds on its own and none drifts.
+
+## F-claude-810-the-take-over-bar-had-no-way-out-001
+*severity: medium · found in: Chad's use of the installed build, 2026-10-17 · class: a bar drawn for an agent's action that the user could not end · prevented by: PR-claude-810-a-bar-for-an-agents-action-has-a-way-out-001*
+
+An outside MCP client typed into a terminal's program once (#525). The bar under the terminal then
+showed Take Over, and after Take Over it showed "You have control" and Hand Back, for as long as
+that program stayed in the foreground; Hand Back only went back to Take Over. The Browser tab's
+bar (#530) did the same for the life of the page. Each design had two states, agents in control
+and the user in control, and no state for "nobody needs the bar". Fixed in #810: a third state,
+reached by the bar's close button and by Hand Back, draws no bar until an agent acts again.

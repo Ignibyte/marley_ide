@@ -1628,6 +1628,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The Take Over bar can be closed** (#810, 2026-10-17). The bar an agent's writes leave under a
+  terminal, and the one under a Browser tab's toolbar, has a close button that hides it until an
+  agent acts again, and Hand Back now closes it too. Before, after an outside client typed into a
+  terminal once, Take Over and Hand Back stayed there for good.
+
 - **A terminal's row in the rail no longer jumps** (#796, 2026-10-17). A terminal's row grew
   when a second line came under its name: a shell's command (#551) under its folder, or an
   agent's tool or last message (#519) under its status. The row and every row under it moved down,

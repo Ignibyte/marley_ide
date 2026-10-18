@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #810 (bug, agents in terminals and the Browser tab)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/810-the-take-over-bar-can-be-closed.spec.md
 - **Source ticket:** Chad, 2026-10-17: "i had the mcp from outside type something into manager.
   Now i have a button that is take over, hand back, and never leaves. It should be able to exit it."
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Once an agent types into a terminal's program (#525), the bar under the terminal says what it

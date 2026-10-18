@@ -1372,10 +1372,12 @@ alike.
   (Allow and Deny first, since the toast stacks over the footer's right end (#593); then the
   caller, the program, what it would type) or the bar (who typed what, while that program is
   still in the foreground, read through `program_of(context.terminal)` since the footer renders
-  inside its view (#595); Take Over,
-  or "You have control" and Hand Back). `marley::TakeOverTerminal` (Ctrl-I in `Terminal`) toggles
-  the take-over, advancing the generation, while an agent has typed into the focused terminal's
-  program, and otherwise propagates so the key reaches the program.
+  inside its view (#595); Take Over and a close button,
+  or "You have control" and Hand Back). `Drive::control` is `Control::Agents`, `Quiet` or `Taken`
+  (#810): the close button (`close_bar`) and Hand Back leave `Quiet`, where the footer draws
+  nothing, and the next write or run turns it back to `Agents`. `marley::TakeOverTerminal`
+  (Ctrl-I in `Terminal`) toggles the take-over, advancing the generation, while an agent has typed
+  into the focused terminal's program, and otherwise propagates so the key reaches the program.
 - `mcp.rs` grants `terminal.write` at start beside `browser.write`, answers `terminal_screen` in
   line and hands `terminal_type` to its own task; a closed terminal's state goes on release.
 - `run_at_prompt` (for `terminal_run`, #556): `check_run` refuses an empty, long or multi-line
@@ -4497,10 +4499,13 @@ below describe what #743 retired.
   (`reveal_path`). `follow_navigation` hands `Page.fileChooserOpened` to `file_chooser_opened`,
   which emits `ChooserOpened`; the view opens `prompt_for_open_path` when its press is within
   `USER_PRESS` (#495's rule), else the chooser bar waits (Choose…, Cancel) for the person or
-  `browser_upload` with no `ref` (`answer_chooser`, else `no_chooser`). The control bar (Take Over,
-  or Hand Back) and `TakeOverBrowser` (Ctrl-I in `MarleyBrowser`, propagated when no agent acted)
-  toggle `taken_over`; `run` refuses `WRITES` there with `taken_over`, and `not_paused` refuses
-  `browser_navigate` and `browser_check_pick` with the same words.
+  `browser_upload` with no `ref` (`answer_chooser`, else `no_chooser`). The control bar (Take Over
+  and a close button, or Hand Back) and `TakeOverBrowser` (Ctrl-I in `MarleyBrowser`, propagated
+  when no agent acted) move `PageState::control` between `PageControl::Agents`, `Quiet` and
+  `Taken` (#810): the close button (`close_control_bar`) and Hand Back leave `Quiet`, which draws
+  no bar until the next agent action sets `last_agent`. `run` refuses `WRITES` while `Taken` with
+  `taken_over`, and `not_paused` refuses `browser_navigate` and `browser_check_pick` with the same
+  words.
 - `browser.rs` keeps `emulated`, `scheme`, `tab_pixels` and the drag's one-shot in `PageState`;
   `resize` leaves an emulated page's layout alone and only refits its stream; the toolbar's
   emulation chip (`render_emulation`) has Reset, `reset_emulation`.

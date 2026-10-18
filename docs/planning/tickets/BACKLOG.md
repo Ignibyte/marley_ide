@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-810](open/TICKET-810-the-take-over-bar-can-be-closed.md) | bug | The Take Over / Hand Back bar under a terminal or a page can be closed, and goes at Hand Back |
 | [TICKET-808](open/TICKET-808-tmux-sessions-in-the-rail.md) | feature | The rail lists the tmux sessions on named ssh hosts and this machine; attach, agents marked, + new |
 | [TICKET-811](open/TICKET-811-trusted-outside-clients.md) | feature | Register an outside client or device as trusted, with the powers chosen (read, write, run) |
 | [TICKET-812](open/TICKET-812-a-restored-blocks-header-takes-the-panes-click.md) | bug | A click on a block header in another pane focuses that pane |

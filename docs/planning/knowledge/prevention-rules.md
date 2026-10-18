@@ -3157,3 +3157,11 @@ Code that runs while a view renders, or anything a render calls, never calls
 inside a pane renders then. Read the row's `flexes` (unlocked before the layout) or a value saved
 outside render. A window that freezes on its last frame with nothing in the log is a deadlock;
 look for a lock taken in render first.
+
+## PR-claude-810-a-bar-for-an-agents-action-has-a-way-out-001
+*severity: medium · prevents: F-claude-810-the-take-over-bar-had-no-way-out-001*
+
+A bar, card or chip that Marley draws because an agent acted gives the user a way to end it: a
+close button, or an answer that removes it. Its state has a value in which it draws nothing, and
+the plan names what brings it back. A toggle between two shown states (Take Over and Hand Back) is
+not a way out.

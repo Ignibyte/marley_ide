@@ -364,6 +364,18 @@ struct SelectState {
 }
 
 /// One page of Marley's Chromium, as its tab shows it (#493).
+/// Who controls a page, and whether its control bar shows (#767, #810).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum PageControl {
+    /// Agents may act, and once one has, the bar says so, with Take Over.
+    #[default]
+    Agents,
+    /// Agents may act; the user closed the bar or handed the page back, until the next action.
+    Quiet,
+    /// The user took the page over, and the agents' actions are refused.
+    Taken,
+}
+
 struct PageState {
     page: Page,
     /// The start of its project's browser that attached it (#507).
@@ -436,8 +448,8 @@ struct PageState {
     drag: Option<oneshot::Sender<Value>>,
     /// The file chooser the page opened and no one answered yet (#767).
     chooser: Option<Chooser>,
-    /// Whether the person took the page over from agents (#767).
-    taken_over: bool,
+    /// Who controls the page, and whether its control bar shows (#767, #810).
+    control: PageControl,
     /// Who acted in the page last, kept after the Agent chip goes: Take Over has something to
     /// take (#767).
     last_agent: Option<SharedString>,
@@ -589,7 +601,7 @@ impl PageState {
             tab_pixels: None,
             drag: None,
             chooser: None,
-            taken_over: false,
+            control: PageControl::default(),
             last_agent: None,
             downloads: Vec::new(),
             favicon: None,
@@ -2761,6 +2773,9 @@ impl BrowserHub {
                 .clone()
                 .unwrap_or_else(|| SharedString::new_static("An agent")),
         );
+        if page.control == PageControl::Quiet {
+            page.control = PageControl::Agents;
+        }
         page.agent = Some(AgentAction {
             text,
             ended: Some(Instant::now()),
@@ -3309,7 +3324,8 @@ impl BrowserHub {
     /// Whether the person took `target` over from agents (#767).
     #[must_use]
     pub fn is_taken(&self, target: &str) -> bool {
-        self.page_state(target).is_some_and(|page| page.taken_over)
+        self.page_state(target)
+            .is_some_and(|page| page.control == PageControl::Taken)
     }
 
     /// Takes `target` over, or hands it back; false when no agent has acted there and nothing
@@ -3318,15 +3334,36 @@ impl BrowserHub {
         let Some(page) = self.page_state_mut(target) else {
             return false;
         };
-        if !page.taken_over && page.last_agent.is_none() {
+        if page.control != PageControl::Taken && page.last_agent.is_none() {
             return false;
         }
-        page.taken_over = !page.taken_over;
+        // Handing the page back ends what the control bar had to say (#810).
+        page.control = if page.control == PageControl::Taken {
+            PageControl::Quiet
+        } else {
+            PageControl::Taken
+        };
         cx.emit(BrowserEvent::PageStatusChanged {
             target: target.to_string(),
         });
         cx.notify();
         true
+    }
+
+    /// Hides `target`'s control bar until an agent next acts there (#810).
+    pub fn close_control_bar(&mut self, target: &str, cx: &mut Context<Self>) {
+        if let Some(page) = self.page_state_mut(target)
+            && page.control == PageControl::Agents
+        {
+            page.control = PageControl::Quiet;
+            cx.notify();
+        }
+    }
+
+    /// Whether the user closed `target`'s control bar (#810).
+    fn control_closed(&self, target: &str) -> bool {
+        self.page_state(target)
+            .is_some_and(|page| page.control == PageControl::Quiet)
     }
 
     /// Who acted in `target` last, as the control bar names them (#767).
@@ -5663,6 +5700,11 @@ impl BrowserView {
     fn control_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
         let target = self.target.as_deref()?;
         let hub = self.hub.read(cx);
+        // A closed bar stays closed, but never while the user holds the page, which refuses the
+        // agents' actions (#810).
+        if hub.control_closed(target) {
+            return None;
+        }
         let (sentence, button) = if hub.is_taken(target) {
             (
                 SharedString::new_static(
@@ -5707,6 +5749,20 @@ impl BrowserView {
                             this.toggle_control(cx);
                         })),
                 )
+                .when(!hub.is_taken(target), |bar| {
+                    bar.child(
+                        IconButton::new("marley-browser-control-close", IconName::Close)
+                            .icon_size(IconSize::Small)
+                            .tooltip(Tooltip::text("Close until an agent acts again"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                if let Some(target) = this.target.clone() {
+                                    this.hub.update(cx, |hub, cx| {
+                                        hub.close_control_bar(&target, cx);
+                                    });
+                                }
+                            })),
+                    )
+                })
                 .into_any_element(),
         )
     }

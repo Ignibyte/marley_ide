@@ -34,7 +34,7 @@ use serde_json::{Value, json};
 use settings::{MarleyAgentCommandsOutsideLists, MarleyAgentTerminalWrites, Settings as _};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
-use ui::{Button, ButtonStyle, Label, LabelSize, Tooltip, prelude::*};
+use ui::{Button, ButtonStyle, IconButton, Label, LabelSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
@@ -80,7 +80,7 @@ struct Drive {
     program: Option<u32>,
     /// Whether the user allowed writes to this program.
     approved: bool,
-    taken_over: bool,
+    control: Control,
     /// Who typed last, into which program, and what.
     last_write: Option<Written>,
     pending: Option<Pending>,
@@ -98,6 +98,19 @@ struct Drive {
 struct Ran {
     who: String,
     command: String,
+}
+
+/// Who controls a terminal's program, and whether the bar of the agents' writes shows (#525,
+/// #810).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Control {
+    /// Agents may write, and the bar says what they did, with Take Over.
+    #[default]
+    Agents,
+    /// Agents may write; the user closed the bar or handed control back, until the next write.
+    Quiet,
+    /// The user took over, and the agents' writes are refused.
+    Taken,
 }
 
 struct Written {
@@ -221,7 +234,7 @@ pub(crate) fn screen(call: &AppCall, cx: &mut App) -> Result<ToolAnswer, Refusal
     {
         let drive = drive(&view, cx);
         generation = drive.generation;
-        taken_over = drive.taken_over;
+        taken_over = drive.control == Control::Taken;
         approved = drive.approved;
     }
     let running = foreground_program(&view, cx).is_some();
@@ -393,7 +406,7 @@ fn check_in(call: &AppCall, view: Entity<TerminalView>, cx: &mut App) -> Result<
             drive.generation
         ));
     }
-    if drive.taken_over {
+    if drive.control == Control::Taken {
         return Err(
             "the user has taken over this terminal; wait until they hand it back".to_string(),
         );
@@ -497,7 +510,7 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
         match answer {
             Some(true) => {
                 let drive = drive(&typing.view, cx);
-                if drive.generation != typing.generation || drive.taken_over {
+                if drive.generation != typing.generation || drive.control == Control::Taken {
                     return Err(
                         "the terminal's program changed, or the user took over, while Marley \
                          asked; nothing was typed"
@@ -540,7 +553,11 @@ async fn write(typing: &Typing, cx: &gpui::AsyncApp) -> ToolAnswer {
     }
     cx.update(|cx| {
         let text = shown(typing);
-        drive(&typing.view, cx).last_write = Some(Written {
+        let drive = drive(&typing.view, cx);
+        if drive.control == Control::Quiet {
+            drive.control = Control::Agents;
+        }
+        drive.last_write = Some(Written {
             who: typing.who.clone(),
             program: typing.program.clone(),
             text,
@@ -611,13 +628,27 @@ fn answer(view: EntityId, allowed: bool, cx: &mut App) {
 /// hands it back; false when no agent has done either, so the key goes on to the program.
 fn toggle_control(view: &Entity<TerminalView>, cx: &mut App) -> bool {
     let drive = drive(view, cx);
-    if drive.last_write.is_none() && drive.runs.is_empty() && !drive.taken_over {
+    if drive.last_write.is_none() && drive.runs.is_empty() && drive.control != Control::Taken {
         return false;
     }
-    drive.taken_over = !drive.taken_over;
+    // Handing control back ends what the bar had to say (#810).
+    drive.control = if drive.control == Control::Taken {
+        Control::Quiet
+    } else {
+        Control::Taken
+    };
     drive.generation += 1;
     view.update(cx, |_, cx| cx.notify());
     true
+}
+
+/// Hides the bar of the agents' writes until an agent next types or runs (#810).
+fn close_bar(view: &Entity<TerminalView>, cx: &mut App) {
+    let drive = drive(view, cx);
+    if drive.control == Control::Agents {
+        drive.control = Control::Quiet;
+    }
+    view.update(cx, |_, cx| cx.notify());
 }
 
 /// The card of a pending write, or the bar of an agent's writes, under the terminal; none while
@@ -666,7 +697,12 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                 .into_any_element(),
         );
     }
-    let (words, action) = if drive.taken_over {
+    // A closed bar stays closed, but never while the user holds control, which refuses the
+    // agents' writes (#810).
+    if drive.control == Control::Quiet {
+        return None;
+    }
+    let (words, action) = if drive.control == Control::Taken {
         ("You have control".to_string(), "Hand Back")
     } else if let Some(ran) = running_run(drive, context.terminal.read(cx)) {
         (format!("{} ran {}", ran.who, ran.command), "Take Over")
@@ -694,14 +730,29 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
                     .truncate(),
             )
             .child(div().flex_1())
-            .child(
+            .child({
+                let view = view.clone();
                 Button::new(("marley-terminal-take-over", id.as_u64()), action)
                     .style(ButtonStyle::Subtle)
                     .on_click(move |_, _, cx| {
                         cx.stop_propagation();
                         toggle_control(&view, cx);
+                    })
+            })
+            .when(drive.control != Control::Taken, |bar| {
+                bar.child(
+                    IconButton::new(
+                        ("marley-terminal-drive-close", id.as_u64()),
+                        IconName::Close,
+                    )
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Close until an agent acts again"))
+                    .on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        close_bar(&view, cx);
                     }),
-            )
+                )
+            })
             .into_any_element(),
     )
 }
@@ -787,7 +838,7 @@ fn check_run_in(
         }
     };
     let drive = drive(&view, cx);
-    if drive.taken_over {
+    if drive.control == Control::Taken {
         return Err(
             "the user has taken over this terminal; wait until they hand it back".to_string(),
         );
@@ -902,7 +953,11 @@ async fn run_then_wait(
             // The block the typing opened is the agent's: its mark, and what `terminal_blocks`
             // says of it (D8).
             cx.update(|cx| {
-                drive(&run.view, cx).runs.insert(
+                let drive = drive(&run.view, cx);
+                if drive.control == Control::Quiet {
+                    drive.control = Control::Agents;
+                }
+                drive.runs.insert(
                     index,
                     Ran {
                         who: run.who.clone(),
@@ -939,7 +994,7 @@ fn type_run(run: &Run, cx: &mut App) -> Result<(Entity<Terminal>, usize), String
     prompt_refusal(&run.view, cx)?;
     let terminal = run.view.read(cx).terminal().clone();
     let drive = drive(&run.view, cx);
-    if drive.taken_over {
+    if drive.control == Control::Taken {
         return Err(
             "the user took over this terminal while Marley asked; nothing was typed".to_string(),
         );
