@@ -116,7 +116,7 @@ impl HarnessHost {
 /// `ssh`'s arguments up to and including the destination: no terminal, never a password prompt
 /// (`BatchMode`), Marley's keepalive (#641), the port, and `--` before the destination so it can
 /// never be read as an option.
-fn ssh_arguments(target: &SshTarget) -> Vec<String> {
+pub(crate) fn ssh_arguments(target: &SshTarget) -> Vec<String> {
     let mut arguments = vec![
         "-T".to_string(),
         "-o".to_string(),

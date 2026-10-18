@@ -6154,3 +6154,21 @@ within 3.5 s (565 s for `approve`). A request that carries more (`show`'s stdin,
 writes it to a mode 0600 file in the socket's own private runtime folder and sends the path, and
 Marley deletes that copy once read. A request whose answer depends on reading the file is handed
 off in `agent_reports::take`, before `accept`, as `approve` is, so it can answer after the read.
+
+## L-claude-808-a-scenarios-tmux-socket-must-be-short-001
+*category: validate · topic: tmux in e2e scenarios · from: pipeline 808*
+
+A Unix socket path holds at most 107 bytes, and tmux puts its socket at
+`$TMUX_TMPDIR/tmux-<uid>/default`. A scenario's work folder under the scratchpad is already longer
+than that, so a `TMUX_TMPDIR` there fails. A scenario that runs its own tmux server sets
+`TMUX_TMPDIR` under `$XDG_RUNTIME_DIR`, starts the server with `-f /dev/null` so the user's
+config stays out, and kills the server and removes the folder in `teardown`.
+
+## L-claude-808-zed-holds-a-second-run-of-a-running-task-001
+*category: design · topic: Zed's task terminals · from: pipeline 808*
+
+`TerminalPanel::spawn_task` with `allow_concurrent_runs: false` and a terminal of the same label
+still running waits for that run to end before it starts the next, and shows nothing meanwhile.
+Code that schedules a task the user may click twice, such as an attach, first looks for a terminal
+whose task has the same resolved id and `TaskStatus::Running`, and activates it
+(`remote::open_words`).

@@ -38,7 +38,7 @@ use project::TaskSourceKind;
 use recent_projects::RemoteSettings;
 use settings::Settings as _;
 use task::{RevealStrategy, RevealTarget, SpawnInTerminal, TaskContext, TaskId, TaskTemplate};
-use terminal::Terminal;
+use terminal::{TaskStatus, Terminal};
 use terminal_view::MarleyFooterContext;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
@@ -51,6 +51,10 @@ use crate::OpenRemoteTerminal;
 
 /// The id base of a remote terminal's task, which [`is_remote`] looks for.
 const ID_BASE: &str = "marley-remote";
+
+/// The id base of a tmux attach on a host (#808): under [`ID_BASE`], so its link is supervised and
+/// its terminal counts as remote.
+pub(crate) const TMUX_ID_BASE: &str = "marley-remote-tmux";
 
 /// ssh's exit status for an error of its own: a remote terminal's ssh that ends with it lost its
 /// link (#641).
@@ -136,14 +140,14 @@ fn open_remote_terminal(
 
 /// A saved host the picker lists: its nickname or host, and where ssh goes.
 #[derive(Clone)]
-struct Host {
-    label: SharedString,
-    target: SshTarget,
+pub(crate) struct Host {
+    pub(crate) label: SharedString,
+    pub(crate) target: SshTarget,
 }
 
 /// The SSH hosts saved in Zed's settings whose host, user and port pass `parse_ssh_target`'s
 /// checks; an entry that fails them is left out, so nothing in it reaches ssh.
-fn saved_hosts(cx: &App) -> Vec<Host> {
+pub(crate) fn saved_hosts(cx: &App) -> Vec<Host> {
     RemoteSettings::get_global(cx)
         .ssh_connections()
         .filter_map(|connection| {
@@ -173,15 +177,47 @@ fn open(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> anyhow::Result<()> {
+    let session = SessionName::from_bits(rand::random());
+    open_words(
+        Some(host),
+        format!("{} · {}", host.label, session.as_str()),
+        ID_BASE,
+        remote_terminal_command(&host.target, &session),
+        workspace,
+        window,
+        cx,
+    )
+}
+
+/// Opens a task terminal running the argv `words` under `label`, as a task Rerun can run again,
+/// or shows the tab where that task still runs. With a `host`, `words` starts with ssh, which
+/// `MARLEY_SSH` replaces when set, and an `id_base` that starts with [`ID_BASE`] has its link
+/// supervised (#641); tmux's attaches use it too (#808).
+///
+/// # Errors
+///
+/// When the project is not on this machine, where a task would run on the project's host, or a
+/// word cannot be quoted for the shell.
+pub(crate) fn open_words(
+    host: Option<&Host>,
+    label: String,
+    id_base: &str,
+    words: Vec<String>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
     anyhow::ensure!(
         workspace.project().read(cx).is_local(),
-        "A remote terminal opens from a project on this machine"
+        "This terminal opens from a project on this machine"
     );
-    let session = SessionName::from_bits(rand::random());
-    let mut words = remote_terminal_command(&host.target, &session).into_iter();
-    let ssh = words.next().unwrap_or_else(|| "ssh".to_string());
+    let mut words = words.into_iter();
+    let program = words.next().context("the terminal's command is empty")?;
     // A scenario's fake must not lose to the real ssh on a PATH the login shell set.
-    let command = std::env::var("MARLEY_SSH").unwrap_or(ssh);
+    let command = match host {
+        Some(_) => std::env::var("MARLEY_SSH").unwrap_or(program),
+        None => program,
+    };
     // A task's command and arguments reach its shell as shell text, unquoted
     // (`ShellBuilder::build_no_quote`), so each word is quoted for that shell.
     let shell = ShellKind::system();
@@ -192,7 +228,7 @@ fn open(
             .with_context(|| format!("{word:?} cannot be quoted for the shell"))
     };
     let template = TaskTemplate {
-        label: format!("{} · {}", host.label, session.as_str()),
+        label,
         command: quote(command)?,
         args: words.map(quote).collect::<anyhow::Result<_>>()?,
         reveal_target: RevealTarget::Center,
@@ -203,12 +239,30 @@ fn open(
         ..TaskTemplate::default()
     };
     let resolved = template
-        .resolve_task(ID_BASE, &TaskContext::default())
-        .context("the remote terminal's task did not resolve")?;
-    // The host is checked by its target when the link drops (#641).
-    cx.default_global::<Links>()
-        .hosts
-        .insert(resolved.id.clone(), host.clone());
+        .resolve_task(id_base, &TaskContext::default())
+        .context("the terminal's task did not resolve")?;
+    // Zed holds a second run of a task that may not run twice until the first ends.
+    let running = workspace
+        .items_of_type::<terminal_view::TerminalView>(cx)
+        .find(|view| {
+            view.read(cx)
+                .terminal()
+                .read(cx)
+                .task()
+                .is_some_and(|task| {
+                    task.spawned_task.id == resolved.id && task.status == TaskStatus::Running
+                })
+        });
+    if let Some(view) = running {
+        workspace.activate_item(&view, true, true, window, cx);
+        return Ok(());
+    }
+    if let Some(host) = host {
+        // The host is checked by its target when the link drops (#641).
+        cx.default_global::<Links>()
+            .hosts
+            .insert(resolved.id.clone(), host.clone());
+    }
     workspace.schedule_resolved_task(TaskSourceKind::UserInput, resolved, false, window, cx);
     Ok(())
 }

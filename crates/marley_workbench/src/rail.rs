@@ -85,6 +85,7 @@ use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, Slot, S
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::rusty::{self};
 use crate::system_one::{self, Asking};
+use crate::tmux_sessions::{Listing, TmuxHost, TmuxHosts, TmuxSession};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
 use crate::{MarleySettings, browser, launch, worktree_agents};
@@ -218,7 +219,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 13],
+    _agent_events: [Subscription; 14],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -993,8 +994,9 @@ impl Rail {
     /// (#538), a running command's failure (#572), the projectless groups (#600), the harnesses'
     /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
     /// while the Threads view shows, the CLI sessions it lists (#754), the delegations that
-    /// ended after their caller closed (#716), and the harnesses' scheduled tasks (#719).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 13] {
+    /// ended after their caller closed (#716), the harnesses' scheduled tasks (#719), and the
+    /// tmux sessions' hosts (#808).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 14] {
         [
             cx.observe_global_in::<crate::schedule_runs::Schedules>(window, Self::refresh),
             cx.observe_global_in::<crate::plan_review::PendingPlans>(window, Self::refresh),
@@ -1013,6 +1015,7 @@ impl Rail {
             cx.observe_global_in::<crate::notifications::Attention>(window, Self::refresh),
             cx.observe_global_in::<crate::running_errors::ErrorMarks>(window, Self::refresh),
             cx.observe_global_in::<groups::Groups>(window, Self::groups_changed),
+            cx.observe_global_in::<TmuxHosts>(window, |_, _, cx| cx.notify()),
         ]
     }
 
@@ -2381,6 +2384,50 @@ impl Rail {
             window,
             cx,
             move |workspace, window, cx| crate::harness::open(workspace, &slot, &id, window, cx),
+        );
+    }
+
+    /// Attaches the tmux session `session` of the host `host` in a tab of the Home group (#808).
+    fn attach_tmux(&self, host: &str, session: &str, window: &Window, cx: &mut Context<Self>) {
+        let Some(shown) = self
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
+        else {
+            return;
+        };
+        let (host, session) = (host.to_string(), session.to_string());
+        groups::in_group(
+            groups::GroupKind::Home,
+            shown,
+            window,
+            cx,
+            move |workspace, window, cx| {
+                let opened = crate::tmux_sessions::attach(&host, &session, workspace, window, cx);
+                crate::tmux_sessions::report(opened, window, cx);
+            },
+        );
+    }
+
+    /// Starts a tmux session on the host `host` in a tab of the Home group (#808).
+    fn new_tmux_session(&self, host: &str, window: &Window, cx: &mut Context<Self>) {
+        let Some(shown) = self
+            .multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
+        else {
+            return;
+        };
+        let host = host.to_string();
+        groups::in_group(
+            groups::GroupKind::Home,
+            shown,
+            window,
+            cx,
+            move |workspace, window, cx| {
+                let opened = crate::tmux_sessions::new_session(&host, workspace, window, cx);
+                crate::tmux_sessions::report(opened, window, cx);
+            },
         );
     }
 
@@ -4917,6 +4964,7 @@ impl Rail {
             .map(|(header, drag, rows)| Self::header_block(header, rows, drag, cx))
             .collect();
         rendered.extend(self.render_harness(cx));
+        rendered.extend(self.render_tmux(cx));
         rendered
     }
 
@@ -4969,6 +5017,78 @@ impl Rail {
             ));
         }
         sections
+    }
+
+    /// The tmux sessions of each host `marley.tmux_hosts` names (#808), each host under its own
+    /// header after the harnesses': TMUX · the host, what its listing says, and a + that starts a
+    /// session there. A click on the header folds the rows under it, and a row attaches its
+    /// session in a tab. Outside the keys and the filter.
+    fn render_tmux(&self, cx: &Context<Self>) -> Vec<AnyElement> {
+        if self.snapshot.rail.filtering {
+            return Vec::new();
+        }
+        cx.try_global::<TmuxHosts>().map_or_else(Vec::new, |tmux| {
+            tmux.hosts
+                .iter()
+                .map(|host| Self::tmux_section(host, cx))
+                .collect()
+        })
+    }
+
+    /// One tmux host's section: its header, and its sessions' rows unless it is folded.
+    fn tmux_section(host: &TmuxHost, cx: &Context<Self>) -> AnyElement {
+        let (says, says_color) = crate::tmux_sessions::heading_words(&host.listing);
+        let label = host.label();
+        let name = host.name.clone();
+        let rows: Vec<AnyElement> = match &host.listing {
+            Listing::Sessions(sessions) if !host.folded => sessions
+                .iter()
+                .map(|session| tmux_row(&name, session, cx))
+                .collect(),
+            _ => Vec::new(),
+        };
+        let key = format!("marley-rail-tmux-{name}");
+        let selector = key.clone();
+        let (fold, new_in) = (name.clone(), name);
+        v_flex()
+            .debug_selector(move || selector)
+            .pt_2()
+            .gap_0p5()
+            .child(
+                h_flex()
+                    .id(SharedString::from(format!("{key}-header")))
+                    .pl_3()
+                    .pr_1p5()
+                    .py_1()
+                    .gap_2()
+                    .cursor_pointer()
+                    .child(
+                        Label::new(format!("TMUX · {label}"))
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        div().min_w_0().flex_1().child(
+                            Label::new(says.clone())
+                                .size(LabelSize::XSmall)
+                                .color(says_color)
+                                .truncate(),
+                        ),
+                    )
+                    .tooltip(Tooltip::text(says))
+                    .on_click(move |_, _, cx| TmuxHosts::toggle_folded(&fold, cx))
+                    .child(
+                        IconButton::new(SharedString::from(format!("{key}-new")), IconName::Plus)
+                            .icon_size(IconSize::XSmall)
+                            .tooltip(Tooltip::text(format!("New tmux session on {label}")))
+                            .on_click(cx.listener(move |rail, _, window, cx| {
+                                cx.stop_propagation();
+                                rail.new_tmux_session(&new_in, window, cx);
+                            })),
+                    ),
+            )
+            .children(rows)
+            .into_any_element()
     }
 
     /// One harness's section: its header, and its sessions' rows unless it is folded.
@@ -7650,6 +7770,32 @@ fn harness_row(
         return row.into_any_element();
     }
     with_seat_menu(row, menu_slot, profile, manager, &element, cx)
+}
+
+/// A tmux session's row under its host's header (#808): the agent CLI's icon when one of its panes
+/// runs one, its name, and the agent, its windows and whether a client has it; a click attaches it.
+fn tmux_row(host: &SharedString, session: &TmuxSession, cx: &Context<Rail>) -> AnyElement {
+    let icon = Icon::new(session.agent.map_or(IconName::Terminal, agents::cli_icon))
+        .size(IconSize::Small)
+        .color(Color::Muted)
+        .into_any_element();
+    let title = Label::new(session.name.clone())
+        .size(LabelSize::Small)
+        .truncate()
+        .into_any_element();
+    let element = format!("{host}-{}", session.name);
+    let (host, name) = (host.clone(), session.name.clone());
+    row_card(
+        SharedString::from(format!("marley-rail-tmux-{element}")),
+        format!("marley-rail-tmux-icon-{element}"),
+        false,
+        icon,
+        title,
+        vec![RowLine::muted(crate::tmux_sessions::session_words(session))],
+        cx,
+    )
+    .on_click(cx.listener(move |rail, _, window, cx| rail.attach_tmux(&host, &name, window, cx)))
+    .into_any_element()
 }
 
 /// A scheduled task's row under its harness's sessions (#719): its schedule and next run, and its

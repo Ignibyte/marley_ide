@@ -5554,3 +5554,22 @@ Rejected:
 - a floor without blank lines: the title would sit centered in a taller row and move up when a
   line came;
 - the folder and the command on one line: either one cut at the rail's width.
+
+## AD-claude-808-the-rail-lists-each-named-hosts-own-tmux-sessions-001
+*decided at: 2026-10-17 · status: shipped · Rusty: decisions/marley-lists-each-named-hosts-own-tmux-sessions-in-the-rail-by-polling*
+
+`marley.tmux_hosts` names hosts: `local`, or an `ssh_connections` entry by its nickname or host, so
+the rail, Open Remote and the remote terminal share one list of hosts. Every 10 seconds Marley
+runs `tmux list-panes -a -F` on each host's default server through `process::output`, here or
+behind a `BatchMode` ssh with its connect timeout, each raced against 20 seconds. A session's row
+attaches it in a task terminal; on a host the task runs `ssh -t` under `marley-remote-tmux`, a
+child of the remote terminal's id base, so #641's link checks and reattach apply. The + runs
+`tmux new-session -A -s marley-<8 hex>`, so a Rerun after a drop attaches rather than starts
+another. A click on a session whose attach still runs shows that tab.
+
+Rejected:
+- Marley's own `-L marley` server, as #543 uses: it never shows the sessions started outside
+  Marley, which are the ones Chad asked to reach;
+- a tmux control-mode client per host: a process held open per host for a list that changes
+  rarely;
+- hosts from `~/.ssh/config`: a second host list beside the one Zed's settings already keep.

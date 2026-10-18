@@ -1856,6 +1856,43 @@ alike.
   line. `rich_input::send` leaves a held terminal's prompt in the editor. Any other exit removes
   the task's backoff.
 
+- Since #808 `open`'s second half is `open_words(host, label, id_base, words, …)`, which
+  `tmux_sessions` calls too: with a host it puts `MARLEY_SSH` in the first word's place and records
+  the host in `Links`; before scheduling it shows a terminal whose task has the same resolved id
+  and still runs (`TaskStatus::Running`), since Zed's `spawn_task` holds a second run of such a
+  task until the first ends. `Host` and `saved_hosts` are `pub(crate)`, and `TMUX_ID_BASE`
+  (`marley-remote-tmux`) sits under `ID_BASE`.
+
+## tmux sessions in the rail (`src/tmux_sessions.rs`, `src/rail.rs`, #808)
+
+- `init` sets the `TmuxHosts` global and runs `follow` now and on each `SettingsStore` change:
+  `marley.tmux_hosts` from the merged settings, each name trimmed and deduplicated, placed by
+  `place_of` as `Place::Here` (`local`), `Place::Host` (the `saved_hosts` entry whose label, then
+  whose host, it is) or `Place::Unknown` (a `Listing::Failed` at once). An unchanged list returns
+  without touching the global; a host whose name and place are unchanged keeps its `TmuxHost`
+  (listing and fold). The poll task runs only while a host is named.
+- `list_all`, every `LIST_EVERY` (10 s) and once `LIST_AFTER_NEW` after a +, lists every host at
+  once (`join_all`), each `list` raced against `LIST_TIMEOUT` (20 s): `tmux list-panes -a -F
+  PANE_FORMAT` through `process::output`, here, or behind `MARLEY_SSH` or `ssh` with a connect
+  timeout and `harness_hosts::ssh_arguments` (`-T`, `BatchMode`, the keepalive, `--`), the remote
+  words through `shell_word`. `read_listing` takes "no server running" and "error connecting to"
+  as no sessions, and any other failure as its first printed line. `parse` groups the panes by
+  session in tmux's order and marks the session with the first pane whose command
+  `marley_agent::agent_kind_of` names. Only a listing that differs, for a host still at the place
+  it was listed for, is written, so an idle poll redraws nothing.
+- `attach` (`tmux attach-session -t =NAME`) and `new_session` (`tmux new-session -A -s` a
+  `SessionName`, then `list_soon`) go through `open`: here `env -u TMUX` and the tmux words under
+  the id base `marley-tmux`; on a host `ssh -t`, the keepalive, the connect timeout,
+  `ssh_command`'s port and destination, and the tmux words through `shell_word`, under
+  `remote::TMUX_ID_BASE`, so #641's supervision and `is_remote` apply. The tab's label is the host's
+  label and the session's name.
+- The rail observes `TmuxHosts` (`observe_marks`, a notify) and `render_tmux` puts a
+  `tmux_section` per host after `render_harness`'s sections, none while filtering: a header
+  (`TMUX · label`, `heading_words`, a `+` `IconButton` that stops the header's fold click) and a
+  `tmux_row` per session unless folded: `row_card` with `agents::cli_icon` or
+  `IconName::Terminal` and `session_words`. A row runs `attach_tmux`, the + `new_tmux_session`,
+  each in the Home group (`groups::in_group`), an error shown by `report`'s prompt.
+
 ## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
 
 - `icon_in(root)`, blocking: Orca's fifteen names by extension (PNG, SVG, WebP, ICO), then the

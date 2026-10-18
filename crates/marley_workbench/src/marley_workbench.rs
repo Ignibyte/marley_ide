@@ -132,6 +132,7 @@ pub mod terminal_size;
 pub mod thread_tab;
 pub mod thread_tools;
 pub mod threads_page;
+pub mod tmux_sessions;
 pub mod turn_git;
 pub mod turn_undo;
 pub mod turns;
@@ -1041,6 +1042,7 @@ pub fn init(cx: &mut App) {
     routing::init(cx);
     agents::init(cx);
     remote::init(cx);
+    tmux_sessions::init(cx);
     blocks::init(cx);
     block_filter::init(cx);
     workflows::init(cx);

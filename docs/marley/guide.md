@@ -887,6 +887,37 @@ than when the network finally gives up.
   that no longer matches), Marley stops checking and the line says why; Rerun logs in by hand.
 - `exit` in the session, or anything else that ends ssh normally, ends the tab as before.
 
+### tmux sessions in the rail (#808)
+
+`marley.tmux_hosts` names the hosts whose tmux sessions the rail lists: `local` for this machine,
+or a host from `ssh_connections` by its nickname or its host. For example, with a saved host
+nicknamed `build-box`:
+
+```json
+"marley": {
+  "tmux_hosts": ["local", "build-box"]
+}
+```
+
+Each host gets a section after the harnesses', `TMUX · this machine` or `TMUX · build-box`, with
+how many sessions it has. Marley lists them every 10 seconds, from the host's own tmux server and
+with your tmux config, over an ssh that never asks for a password (`BatchMode`). A host it cannot
+list says why in red, such as ssh's `Connection refused`.
+
+- Each session's row shows its name, its windows and `attached` when a tmux client has it. A
+  session with Claude Code, Codex, Gemini CLI or OpenCode in one of its panes shows that agent's
+  icon and name.
+- A click on a row attaches the session in a terminal tab named after the host and the session.
+  If that tab is still attached, the click shows it instead of opening another.
+- The + on a section's header starts a new session there, named `marley-` and eight letters and
+  digits, in a tab; its row comes a second later.
+- A click on the header folds its rows.
+- On another host the tab runs `ssh -t`, so a dropped link dims it and Marley attaches it again
+  once the host answers, as a remote terminal does.
+
+Unlike `marley: open remote terminal`, which keeps its sessions on a tmux server of Marley's own,
+these are the host's own sessions, and any tmux client there sees them too.
+
 ### The prompt at the bottom
 
 While the screen has room to spare, as in a new terminal or one you just cleared, Marley draws its

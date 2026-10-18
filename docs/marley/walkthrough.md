@@ -3,8 +3,8 @@
 A hands-on tour of all of Marley, one stop at a time, in an order where each stop needs only
 what came before it. Every stop says what to do and what you should see, and names the ticket
 that shipped it. The tour follows the tree at #778 (2026-10-12) on Linux, as built and tested on
-Omarchy with Hyprland, with stops added for #798 to #805 (2026-10-17): 4.26 to 4.28, 6.10, 7.18
-and 14.13 to 14.15.
+Omarchy with Hyprland, with stops added for #798 to #805 and #808 (2026-10-17): 4.26 to 4.29,
+6.10, 7.18 and 14.13 to 14.15.
 
 [guide.md](guide.md) is the reference behind this tour, with the rules and edge cases a stop
 leaves out. [tutorial-outline.md](tutorial-outline.md) is the plan for a longer tutorial, and
@@ -1419,6 +1419,29 @@ In a `marley-tour` terminal (if your shell already has a `show` of its own, type
 - [ ] Step 5: `show: missing.csv: no such file`, then `exit 1`.
 - [ ] Step 6: with no terminal id, as a script outside Marley runs it, `show` prints README.md in
   the terminal and exits 0.
+
+### 4.29 tmux sessions in the rail (#808)
+
+Needs tmux on this machine. A host from your `ssh_connections` with tmux is optional.
+
+1. In a terminal, run `tmux new-session -d -s tour` and
+   `tmux new-session -d -s tour-agent claude`.
+2. Add `"tmux_hosts": ["local"]` to the `marley` block of your settings, and the nickname or host
+   of a saved host after `"local"` if you have one.
+3. Click `tour` in the rail. Click it again.
+4. Click the + on the `TMUX · this machine` header.
+5. Click the header. Click it again.
+6. Run `tmux kill-session -t tour`, `tmux kill-session -t tour-agent` and
+   `tmux kill-session -t` with the new session's name, then remove `tmux_hosts`.
+
+- [ ] After step 2, within 10 seconds, `TMUX · this machine` is under the rail's harness sections
+  with `tour` (a terminal icon, `1 window`) and `tour-agent` (Claude Code's icon, `Claude Code ·
+  1 window`). A saved host has its own `TMUX ·` section, or the reason it could not be listed.
+- [ ] Step 3: a tab `this machine · tour` attached to the session, and `tour`'s row says
+  `attached`. The second click shows the same tab.
+- [ ] Step 4: a tab in a new session `marley-` and eight characters, and its row a second later.
+- [ ] Step 5: the header folds its rows, then shows them again.
+- [ ] After step 6, the sessions' rows go, and without `tmux_hosts` the section goes.
 
 ## Part 5. Agent CLIs in terminals
 

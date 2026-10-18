@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **tmux sessions in the rail** (#808, 2026-10-17). `marley.tmux_hosts` names hosts: `local`
+  for this machine, or a saved host from `ssh_connections`. The rail lists each host's tmux
+  sessions under `TMUX · <host>`, every 10 seconds, with an agent CLI's icon and name on a session
+  that runs one. A click attaches a session in a terminal tab, and the header's + starts a new
+  session there; on another host both run over `ssh -t`, so a dropped link reattaches as a remote
+  terminal does.
+
 - **Marley's own icons** (#807, 2026-10-17). Chad's drawings take the places of Zed's: a house for
   Home (its tab, its rail row and the status bar's button), a cat for the Marley agent and a butler
   for Rusty (the title bar's buttons, their threads' tabs and rail rows, and the New Agent picker).

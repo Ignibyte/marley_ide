@@ -1,0 +1,503 @@
+//! The tmux sessions on the hosts `marley.tmux_hosts` names, in the rail (#808).
+//!
+//! A host is `local`, this machine, or an `ssh_connections` entry by its nickname or host. Every
+//! ten seconds Marley lists the panes of each host's default tmux server, here or behind a
+//! `BatchMode` ssh, and the rail shows its sessions under the host's heading. A click on a session
+//! attaches it in a task terminal, and a heading's + starts a session there. On a host both run
+//! behind `ssh -t` under the remote terminal's id base, so a dropped link is checked and the
+//! session attached again (#641).
+
+use std::process::Output;
+use std::time::Duration;
+
+use gpui::{App, AsyncApp, BackgroundExecutor, Context, Global, SharedString, Task, Window};
+use marley_agent::AgentKind;
+use marley_remote::SessionName;
+use settings::SettingsStore;
+use workspace::Workspace;
+use workspace::notifications::DetachAndPromptErr as _;
+
+use crate::harness_hosts::shell_word;
+use crate::remote::Host;
+
+/// The name `marley.tmux_hosts` gives this machine.
+const LOCAL: &str = "local";
+
+/// How often each host's sessions are listed.
+const LIST_EVERY: Duration = Duration::from_secs(10);
+
+/// How long a listing may take before its host shows that it did not answer.
+const LIST_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// How long after a + its host is listed again, so the new session's row comes before the next
+/// listing.
+const LIST_AFTER_NEW: Duration = Duration::from_secs(1);
+
+/// What `list-panes` prints for each pane: its session's name, windows and clients, and the pane's
+/// foreground program, a tab between each.
+const PANE_FORMAT: &str =
+    "#{session_name}\t#{session_windows}\t#{session_attached}\t#{pane_current_command}";
+
+/// The id base of a tmux attach on this machine.
+const LOCAL_ID_BASE: &str = "marley-tmux";
+
+/// One tmux session, as its host's listing gives it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TmuxSession {
+    pub(crate) name: String,
+    pub(crate) windows: u32,
+    /// Whether a client has it attached.
+    pub(crate) attached: bool,
+    /// The agent CLI one of its panes runs.
+    pub(crate) agent: Option<AgentKind>,
+}
+
+/// What Marley last read of a host's sessions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Listing {
+    /// The first listing has not come back.
+    Waiting,
+    Sessions(Vec<TmuxSession>),
+    /// Why the host could not be listed.
+    Failed(String),
+}
+
+/// Where a named host's tmux runs.
+#[derive(Clone)]
+enum Place {
+    Here,
+    Host(Host),
+    /// The name matches no saved host.
+    Unknown,
+}
+
+impl Place {
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Here, Self::Here) | (Self::Unknown, Self::Unknown) => true,
+            (Self::Host(one), Self::Host(other)) => {
+                one.label == other.label && one.target == other.target
+            }
+            _ => false,
+        }
+    }
+}
+
+/// A host `marley.tmux_hosts` names, and what the rail shows of it.
+pub(crate) struct TmuxHost {
+    /// The name as the setting gives it.
+    pub(crate) name: SharedString,
+    place: Place,
+    pub(crate) listing: Listing,
+    /// Whether the rail folds its rows.
+    pub(crate) folded: bool,
+}
+
+impl TmuxHost {
+    /// The name its heading and its tabs show: `this machine`, or the saved host's.
+    pub(crate) fn label(&self) -> SharedString {
+        match &self.place {
+            Place::Here => SharedString::new_static("this machine"),
+            Place::Host(host) => host.label.clone(),
+            Place::Unknown => self.name.clone(),
+        }
+    }
+}
+
+/// The hosts the rail lists tmux sessions for, in the setting's order, and the listings' tasks.
+#[derive(Default)]
+pub(crate) struct TmuxHosts {
+    pub(crate) hosts: Vec<TmuxHost>,
+    /// The listing every [`LIST_EVERY`], while a host is named.
+    poll: Option<Task<()>>,
+    /// The listing a + asks for.
+    soon: Option<Task<()>>,
+}
+
+impl Global for TmuxHosts {}
+
+impl TmuxHosts {
+    /// Folds or unfolds the rows of the host named `name`.
+    pub(crate) fn toggle_folded(name: &str, cx: &mut App) {
+        if let Some(host) = cx
+            .global_mut::<Self>()
+            .hosts
+            .iter_mut()
+            .find(|host| host.name == name)
+        {
+            host.folded = !host.folded;
+        }
+    }
+}
+
+/// Follows `marley.tmux_hosts`, now and on every settings change.
+pub fn init(cx: &mut App) {
+    cx.set_global(TmuxHosts::default());
+    follow(cx);
+    cx.observe_global::<SettingsStore>(follow).detach();
+}
+
+/// Reads the named hosts: one whose name and place are unchanged keeps its listing and fold, and
+/// the poll runs only while a host is named.
+fn follow(cx: &mut App) {
+    let names = cx
+        .global::<SettingsStore>()
+        .merged_settings()
+        .marley
+        .as_ref()
+        .and_then(|marley| marley.tmux_hosts.clone())
+        .unwrap_or_default();
+    let saved = crate::remote::saved_hosts(cx);
+    let mut wanted: Vec<(SharedString, Place)> = Vec::new();
+    for name in &names {
+        let name = name.trim();
+        if name.is_empty() || wanted.iter().any(|(known, _)| known == name) {
+            continue;
+        }
+        wanted.push((SharedString::from(name.to_string()), place_of(name, &saved)));
+    }
+    let tmux = cx.global::<TmuxHosts>();
+    let unchanged = tmux.hosts.len() == wanted.len()
+        && tmux
+            .hosts
+            .iter()
+            .zip(&wanted)
+            .all(|(host, (name, place))| &host.name == name && host.place.same(place));
+    if unchanged {
+        return;
+    }
+    let mut kept = std::mem::take(&mut cx.global_mut::<TmuxHosts>().hosts);
+    let hosts: Vec<TmuxHost> = wanted
+        .into_iter()
+        .map(|(name, place)| {
+            if let Some(index) = kept
+                .iter()
+                .position(|old| old.name == name && old.place.same(&place))
+            {
+                return kept.remove(index);
+            }
+            let listing = match &place {
+                Place::Unknown => Listing::Failed(format!("no saved host is named {name}")),
+                Place::Here | Place::Host(_) => Listing::Waiting,
+            };
+            TmuxHost {
+                name,
+                place,
+                listing,
+                folded: false,
+            }
+        })
+        .collect();
+    let poll = (!hosts.is_empty() && cx.global::<TmuxHosts>().poll.is_none()).then(|| {
+        cx.spawn(async move |cx| {
+            loop {
+                list_all(cx).await;
+                cx.background_executor().timer(LIST_EVERY).await;
+            }
+        })
+    });
+    let tmux = cx.global_mut::<TmuxHosts>();
+    if hosts.is_empty() {
+        tmux.poll = None;
+        tmux.soon = None;
+    } else if poll.is_some() {
+        tmux.poll = poll;
+    }
+    tmux.hosts = hosts;
+}
+
+/// Where `name` is: this machine for `local`, else the saved host whose nickname, then whose
+/// host, it is.
+fn place_of(name: &str, saved: &[Host]) -> Place {
+    if name == LOCAL {
+        return Place::Here;
+    }
+    saved
+        .iter()
+        .find(|host| host.label == name)
+        .or_else(|| saved.iter().find(|host| host.target.host == name))
+        .map_or(Place::Unknown, |host| Place::Host(host.clone()))
+}
+
+/// Lists every named host at once, and keeps each listing that changed.
+async fn list_all(cx: &AsyncApp) {
+    let wanted: Vec<(SharedString, Place)> = cx.update(|cx| {
+        cx.global::<TmuxHosts>()
+            .hosts
+            .iter()
+            .map(|host| (host.name.clone(), host.place.clone()))
+            .collect()
+    });
+    let executor = cx.background_executor().clone();
+    let listings =
+        futures::future::join_all(wanted.iter().map(|(_, place)| list(place, &executor))).await;
+    // A host the settings moved while its listing ran keeps what it has.
+    let listed_at = |host: &TmuxHost, name: &SharedString, place: &Place| {
+        &host.name == name && host.place.same(place)
+    };
+    cx.update(|cx| {
+        let changed: Vec<(SharedString, Place, Listing)> = wanted
+            .into_iter()
+            .zip(listings)
+            .filter_map(|((name, place), listing)| Some((name, place, listing?)))
+            .filter(|(name, place, listing)| {
+                cx.global::<TmuxHosts>()
+                    .hosts
+                    .iter()
+                    .any(|host| listed_at(host, name, place) && &host.listing != listing)
+            })
+            .collect();
+        if changed.is_empty() {
+            return;
+        }
+        let tmux = cx.global_mut::<TmuxHosts>();
+        for (name, place, listing) in changed {
+            if let Some(host) = tmux
+                .hosts
+                .iter_mut()
+                .find(|host| listed_at(host, &name, &place))
+            {
+                host.listing = listing;
+            }
+        }
+    });
+}
+
+/// Lists the sessions of `place`'s default tmux server; none for a name no saved host has.
+async fn list(place: &Place, executor: &BackgroundExecutor) -> Option<Listing> {
+    let list_words = ["tmux", "list-panes", "-a", "-F", PANE_FORMAT];
+    let (program, args): (String, Vec<String>) = match place {
+        Place::Unknown => return None,
+        Place::Here => (
+            "tmux".to_string(),
+            list_words
+                .iter()
+                .skip(1)
+                .map(|word| (*word).to_string())
+                .collect(),
+        ),
+        Place::Host(host) => {
+            let mut args = vec![
+                "-o".to_string(),
+                format!("ConnectTimeout={}", marley_remote::CONNECT_TIMEOUT_S),
+            ];
+            args.extend(crate::harness_hosts::ssh_arguments(&host.target));
+            args.extend(list_words.iter().map(|word| shell_word(word)));
+            // A scenario's fake stands in for ssh, as it does in the remote terminal's task.
+            let ssh = std::env::var("MARLEY_SSH").unwrap_or_else(|_| "ssh".to_string());
+            (ssh, args)
+        }
+    };
+    let run = crate::process::output(&program, &args, None, &[]);
+    let timer = executor.timer(LIST_TIMEOUT);
+    let listing = match futures::future::select(Box::pin(run), timer).await {
+        futures::future::Either::Left((Ok(output), _)) => read_listing(&output),
+        futures::future::Either::Left((Err(error), _)) => {
+            Listing::Failed(format!("{program} did not run: {error}"))
+        }
+        futures::future::Either::Right(_) => Listing::Failed(format!(
+            "did not answer within {} s",
+            LIST_TIMEOUT.as_secs()
+        )),
+    };
+    Some(listing)
+}
+
+/// What a listing's run says: its sessions, none when no tmux server runs, or the first line it
+/// printed on a failure.
+fn read_listing(output: &Output) -> Listing {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        return Listing::Sessions(parse(&String::from_utf8_lossy(&output.stdout)));
+    }
+    if stderr.contains("no server running") || stderr.contains("error connecting to") {
+        return Listing::Sessions(Vec::new());
+    }
+    let line = stderr.lines().map(str::trim).find(|line| !line.is_empty());
+    Listing::Failed(line.map_or_else(
+        || format!("tmux ended with {}", output.status),
+        str::to_string,
+    ))
+}
+
+/// The sessions in [`PANE_FORMAT`]'s lines, in tmux's order; a session is an agent's when one of
+/// its panes runs an agent CLI.
+fn parse(stdout: &str) -> Vec<TmuxSession> {
+    let mut sessions: Vec<TmuxSession> = Vec::new();
+    for line in stdout.lines() {
+        let mut fields = line.splitn(4, '\t');
+        let (Some(name), Some(windows), Some(attached), Some(command)) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        let agent = marley_agent::agent_kind_of(command);
+        if let Some(session) = sessions.iter_mut().find(|session| session.name == name) {
+            session.agent = session.agent.or(agent);
+            continue;
+        }
+        sessions.push(TmuxSession {
+            name: name.to_string(),
+            windows: windows.parse().unwrap_or_default(),
+            attached: attached.parse::<u32>().is_ok_and(|clients| clients > 0),
+            agent,
+        });
+    }
+    sessions
+}
+
+/// Attaches the session `session` of the host named `name` in a terminal tab, or shows the tab
+/// where that attach still runs.
+///
+/// # Errors
+///
+/// When the host is no longer named or has no saved host, or the terminal cannot open.
+pub(crate) fn attach(
+    name: &str,
+    session: &str,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    let target = format!("={session}");
+    open(
+        name,
+        session,
+        &["tmux", "attach-session", "-t", &target],
+        workspace,
+        window,
+        cx,
+    )
+}
+
+/// Starts a session of Marley's naming on the host named `name`, in a terminal tab, and lists
+/// the host again soon. `-A` makes a Rerun after a dropped link attach it rather than start
+/// another.
+///
+/// # Errors
+///
+/// As [`attach`].
+pub(crate) fn new_session(
+    name: &str,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    let session = SessionName::from_bits(rand::random());
+    let session = session.as_str();
+    open(
+        name,
+        session,
+        &["tmux", "new-session", "-A", "-s", session],
+        workspace,
+        window,
+        cx,
+    )?;
+    list_soon(cx);
+    Ok(())
+}
+
+/// Opens a terminal tab named after the host and `session` that runs the tmux words `tmux` on the
+/// host named `name`.
+fn open(
+    name: &str,
+    session: &str,
+    tmux: &[&str],
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    let host = cx
+        .global::<TmuxHosts>()
+        .hosts
+        .iter()
+        .find(|host| host.name == name)
+        .map(|host| (host.label(), host.place.clone()));
+    let Some((label, place)) = host else {
+        anyhow::bail!("marley.tmux_hosts no longer names {name}");
+    };
+    let title = format!("{label} · {session}");
+    match place {
+        Place::Here => {
+            // tmux refuses to attach from inside a session, as from a Marley started in one.
+            let words = ["env", "-u", "TMUX"]
+                .iter()
+                .chain(tmux)
+                .map(|word| (*word).to_string())
+                .collect();
+            crate::remote::open_words(None, title, LOCAL_ID_BASE, words, workspace, window, cx)
+        }
+        Place::Host(host) => {
+            let mut words = vec!["ssh".to_string(), "-t".to_string()];
+            words.extend(marley_remote::keepalive_options());
+            words.extend([
+                "-o".to_string(),
+                format!("ConnectTimeout={}", marley_remote::CONNECT_TIMEOUT_S),
+            ]);
+            // `ssh_command` gives `ssh`, the port, `--` and the destination.
+            words.extend(marley_remote::ssh_command(&host.target).into_iter().skip(1));
+            words.extend(tmux.iter().map(|word| shell_word(word)));
+            crate::remote::open_words(
+                Some(&host),
+                title,
+                crate::remote::TMUX_ID_BASE,
+                words,
+                workspace,
+                window,
+                cx,
+            )
+        }
+        Place::Unknown => anyhow::bail!("no saved host is named {name}"),
+    }
+}
+
+/// Lists every host again after [`LIST_AFTER_NEW`].
+fn list_soon(cx: &mut App) {
+    let task = cx.spawn(async move |cx| {
+        cx.background_executor().timer(LIST_AFTER_NEW).await;
+        list_all(cx).await;
+    });
+    cx.global_mut::<TmuxHosts>().soon = Some(task);
+}
+
+/// The words a session's row shows under its name: the agent, its windows, and whether a client
+/// has it.
+pub(crate) fn session_words(session: &TmuxSession) -> String {
+    let windows = match session.windows {
+        1 => "1 window".to_string(),
+        count => format!("{count} windows"),
+    };
+    session
+        .agent
+        .map(|agent| agent.display_name().to_string())
+        .into_iter()
+        .chain([windows])
+        .chain(session.attached.then(|| "attached".to_string()))
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+/// What a host's heading says of it, and in which color.
+pub(crate) fn heading_words(listing: &Listing) -> (String, ui::Color) {
+    match listing {
+        Listing::Waiting => ("listing".to_string(), ui::Color::Muted),
+        Listing::Sessions(sessions) => match sessions.len() {
+            0 => ("no sessions".to_string(), ui::Color::Muted),
+            1 => ("1 session".to_string(), ui::Color::Muted),
+            count => (format!("{count} sessions"), ui::Color::Muted),
+        },
+        Listing::Failed(reason) => (reason.clone(), ui::Color::Error),
+    }
+}
+
+/// Shows `result`'s error in a prompt: a click on a row or a + has nothing else to show it on.
+pub(crate) fn report(result: anyhow::Result<()>, window: &Window, cx: &App) {
+    if let Err(error) = result {
+        Task::ready(Err::<(), _>(error)).detach_and_prompt_err(
+            "Could not open the tmux session",
+            window,
+            cx,
+            |_, _, _| None,
+        );
+    }
+}

@@ -1,7 +1,8 @@
 //! The workbench's one module that starts programs (CONSTITUTION §14, gate:22).
 //!
-//! `claude`, `voxtype`, `git`, `gh`, `rh`, `codex` and `omarchy-theme-refresh` run through `output`,
-//! `follow` and `serve`, and nothing else in the crate spawns a process. A program the workbench
+//! `claude`, `voxtype`, `git`, `gh`, `rh`, `codex`, `omarchy-theme-refresh`, and `tmux` and `ssh`
+//! for the rail's tmux sessions (#808), run through `output`, `follow` and `serve`, and nothing
+//! else in the crate spawns a process. A program the workbench
 //! runs goes through one of them, so the gate's count of spawn calls stays where it is.
 
 use std::ffi::OsStr;
