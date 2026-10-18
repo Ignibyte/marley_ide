@@ -16,10 +16,10 @@ compositor sway
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
 SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
-# The rail's agent row, where a click shows its terminal again after System One calls, from the first
-# run's shots.
+# The rail's agent row, where a click shows its terminal again after System One calls, below the
+# Default group's Home and calls rows (#700, #743; re-measured for #806).
 AGENT_ROW_X=${AGENT_ROW_X:-110}
-AGENT_ROW_Y=${AGENT_ROW_Y:-140}
+AGENT_ROW_Y=${AGENT_ROW_Y:-274}
 # A point in the Settings window's page to scroll at.
 SETTINGS_X=${SETTINGS_X:-1200}
 SETTINGS_Y=${SETTINGS_Y:-500}

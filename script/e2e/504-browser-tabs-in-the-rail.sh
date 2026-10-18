@@ -16,12 +16,12 @@ SITE=
 # Where things are, in the headless output's pixels, measured from the first run's shots: the
 # rail's rows under the project (the terminal, then the Browser tabs in the order they opened),
 # a row's icon, and the Save button in the Checkout page.
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-136}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
 ROW_X=${ROW_X:-120}
 ICON_X=${ICON_X:-38}
-BROWSER_ROW_1_Y=${BROWSER_ROW_1_Y:-182}
-BROWSER_ROW_2_Y=${BROWSER_ROW_2_Y:-228}
-BROWSER_ROW_3_Y=${BROWSER_ROW_3_Y:-274}
+BROWSER_ROW_1_Y=${BROWSER_ROW_1_Y:-234}
+BROWSER_ROW_2_Y=${BROWSER_ROW_2_Y:-280}
+BROWSER_ROW_3_Y=${BROWSER_ROW_3_Y:-326}
 CLOSE_X=${CLOSE_X:-233}
 SAVE_X=${SAVE_X:-360}
 SAVE_Y=${SAVE_Y:-209}

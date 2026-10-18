@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # #577's e2e test: a restored center terminal opens in the folder it was in. The repository's
-# terminal goes into `alpha`, a split of it into `beta`, and each prints where it is (`here`); a
+# terminal goes into `alpha`, a terminal in a split pane into `beta` (#785: the split opens Home,
+# the palette the terminal), and each prints where it is (`here`); a
 # third terminal opens and closes. After a quit and a launch, each restored terminal prints the
 # folder it was in, and Marley's tools list two terminals: the closed one stays closed.
 compositor sway
@@ -73,7 +74,11 @@ steps() {
   settle 2
   palette "pane: split right"
   settle 4
-  type_text "cd ../beta && here right-0"
+  # A split opens Home since #785, so the new pane gets its terminal from the palette, at the project's
+  # root.
+  palette "workspace: new terminal"
+  settle 4
+  type_text "cd beta && here right-0"
   press "" Return
   settle 2
   echo "== a third terminal, opened and closed"

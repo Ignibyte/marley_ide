@@ -2,8 +2,9 @@
 # #520's e2e test: each terminal knows its id, and Marley's tools know their caller. Marley starts
 # with MARLEY_TERMINAL_ID and MARLEY_PROJECT already set to foreign values, which its terminals
 # must not pass on. In the repository's terminal, `ids` prints both variables (and logs them); a
-# split gets an id of its own; the stand-in agent, run inside the split through the plugin's
-# bridge, sees its own terminal marked `self` and lists that terminal's blocks without naming it;
+# terminal in a split pane gets an id of its own (since #785 a split opens Home, so the palette
+# opens it); the stand-in agent, run inside the split through the plugin's bridge, sees its own
+# terminal marked `self` and lists that terminal's blocks without naming it;
 # a task, spawned from the palette, sees neither variable. From the harness's own shell, which
 # is no terminal of Marley's, nothing is `self` and a call that names no terminal is refused with
 # its next step.
@@ -79,6 +80,9 @@ steps() {
   press "" Return
   settle 1
   palette "pane: split right"
+  settle 4
+  # A split opens Home since #785, so the new pane gets its terminal from the palette.
+  palette "workspace: new terminal"
   settle 4
   type_text "ids"
   press "" Return

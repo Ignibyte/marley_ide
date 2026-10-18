@@ -19,10 +19,12 @@ compositor sway
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh
 
-# "Redact Secrets for Agents" on the Marley page, measured from 516-01-setting-on: below Rail
-# Order (#542), Prompt Editor (#627) and English at the Prompt (#557) since #635.
+# "Redact Secrets for Agents" on the Marley page, measured from 516-01-setting-on once the page is
+# scrolled: since #673 and #759 added rows above it, it starts below the window (#806).
 TOGGLE_X=${TOGGLE_X:-1548}
-TOGGLE_Y=${TOGGLE_Y:-830}
+TOGGLE_Y=${TOGGLE_Y:-873}
+SETTINGS_X=${SETTINGS_X:-1200}
+SETTINGS_Y=${SETTINGS_Y:-500}
 
 KINDS=("private key" "secret" "bearer token" "url password" "aws key id" "github token"
   "slack token" "stripe key" "google api key" "api key" "jwt")
@@ -238,6 +240,10 @@ steps() {
   settle 1
   press "" Return
   settle 4
+  pointer_to "$SETTINGS_X" "$SETTINGS_Y"
+  settle 1
+  scroll 4
+  settle 2
   shot 516-01-setting-on
   echo "== the toggle clicked off"
   click "$TOGGLE_X" "$TOGGLE_Y"

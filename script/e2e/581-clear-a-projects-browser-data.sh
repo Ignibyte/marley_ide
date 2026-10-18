@@ -13,7 +13,7 @@ compositor sway
 # beta's project header in the rail: beta, handed over last, is listed above alpha
 # (L-claude-507-the-rails-project-row-is-its-header-001).
 BETA_ROW_X=100
-BETA_ROW_Y=95
+BETA_ROW_Y=135
 # A point in beta's pane, clear of any page's text.
 PANE_X=1300
 PANE_Y=850

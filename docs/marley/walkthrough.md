@@ -3032,7 +3032,7 @@ Stops 14.10 to 14.12 are on the Feature Map only. The next three come with #799 
 2. Scroll down the tab.
 3. Paste this into the scratch box at the top:
    `{"type": "table", "columns": ["Service", "State"], "rows": [["api", {"type": "badge", "text": "up", "tone": "success"}]]}`
-4. Change `table` to `tabel` in the box.
+4. Change `table` to `gauge` in the box.
 
 - [ ] Step 1: a Component Library tab opens. The Marley page's Agents section also has a Component
   Library link.

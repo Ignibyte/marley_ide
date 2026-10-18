@@ -15,25 +15,26 @@ compositor sway
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
 SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
-# The project's +, the rows and the fields, from the first run's shots.
+# The project's +, under the Default group (#700, #743), the rows and the fields, from the shots
+# (re-measured for #806).
 PLUS_X=${PLUS_X:-236}
-PLUS_Y=${PLUS_Y:-96}
-# Down steps from New Terminal in the + menu: New Browser Tab, New Agent Thread, then New Agent in
-# Worktree, which sits right under New Agent Thread since #598.
-WORKTREE_STEPS=${WORKTREE_STEPS:-3}
+PLUS_Y=${PLUS_Y:-136}
+# Down steps from New Terminal in the + menu: New Browser Tab, New Agent…, Reopen Thread…, then New
+# Agent in Worktree (#744, #772), as 770's.
+WORKTREE_STEPS=${WORKTREE_STEPS:-4}
 # Claude Code, first in New Agent in Worktree's submenu: Enter opens the submenu, and the keys stay
 # with the menu above it, so the entry is clicked.
 SUBMENU_CLAUDE_X=${SUBMENU_CLAUDE_X:-325}
-SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-197}
+SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-260}
 # New Agent in Worktree itself, where the pointer shows its submenu for the shot.
 WORKTREE_ENTRY_X=${WORKTREE_ENTRY_X:-150}
-WORKTREE_ENTRY_Y=${WORKTREE_ENTRY_Y:-193}
+WORKTREE_ENTRY_Y=${WORKTREE_ENTRY_Y:-256}
 AGENT_ROW_X=${AGENT_ROW_X:-120}
 AGENT_ROW_Y=${AGENT_ROW_Y:-230}
 # The agent's row once `manual`'s workspace is open, with its terminal listed above.
 AGENT_ROW_LATER_Y=${AGENT_ROW_LATER_Y:-320}
 MAIN_ROW_X=${MAIN_ROW_X:-120}
-MAIN_ROW_Y=${MAIN_ROW_Y:-136}
+MAIN_ROW_Y=${MAIN_ROW_Y:-182}
 MANUAL_ROW_X=${MANUAL_ROW_X:-120}
 MANUAL_ROW_Y=${MANUAL_ROW_Y:-180}
 
@@ -89,7 +90,8 @@ import os
 import subprocess
 import sys
 
-if sys.argv[1:2] == ["plugin"]:
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] in (["plugin"], ["--version"]):
     sys.exit(0)
 ARGS = sys.argv[1:]
 with open("@LOG@", "a", encoding="utf-8") as log:
@@ -132,6 +134,8 @@ worktree_menu() {
   click "$PLUS_X" "$PLUS_Y"
   settle 1
   local step
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
   for ((step = 0; step < WORKTREE_STEPS; step++)); do
     press "" Down
   done

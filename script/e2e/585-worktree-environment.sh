@@ -18,17 +18,17 @@ SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versi
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
 # The project's +, the steps to New Agent in Worktree and Claude Code in its submenu, as 510's.
 PLUS_X=${PLUS_X:-236}
-PLUS_Y=${PLUS_Y:-96}
-WORKTREE_STEPS=${WORKTREE_STEPS:-3}
+PLUS_Y=${PLUS_Y:-136}
+WORKTREE_STEPS=${WORKTREE_STEPS:-4}
 SUBMENU_CLAUDE_X=${SUBMENU_CLAUDE_X:-325}
-SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-197}
+SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-260}
 # The prompt's setup box and its editor, and the rows, from the first run's shots.
 SETUP_BOX_X=${SETUP_BOX_X:-550}
 SETUP_BOX_Y=${SETUP_BOX_Y:-205}
 EDITOR_X=${EDITOR_X:-800}
 EDITOR_Y=${EDITOR_Y:-143}
 MAIN_ROW_X=${MAIN_ROW_X:-120}
-MAIN_ROW_Y=${MAIN_ROW_Y:-136}
+MAIN_ROW_Y=${MAIN_ROW_Y:-182}
 # The rail lists the worktrees by folder, each with its agent's row under it: the first agent's
 # row, and the step to the next.
 AGENT_ROW_Y=${AGENT_ROW_Y:-228}
@@ -97,7 +97,8 @@ import os
 import subprocess
 import sys
 
-if sys.argv[1:2] == ["plugin"]:
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] in (["plugin"], ["--version"]):
     sys.exit(0)
 ARGS = sys.argv[1:]
 with open("@LOG@", "a", encoding="utf-8") as log:
@@ -123,6 +124,8 @@ open_prompt() {
   click "$PLUS_X" "$PLUS_Y"
   settle 1
   local step
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
   for ((step = 0; step < WORKTREE_STEPS; step++)); do
     press "" Down
   done

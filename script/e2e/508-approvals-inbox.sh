@@ -16,12 +16,12 @@ compositor sway
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
 SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
-# The project's + in the rail and the steps down the agents' submenu to the stand-in (501's); the
-# inbox's buttons and entries, the terminal's row, the thread's message field, the pick button
-# and the page's button, from the first run's shots.
+# The project's + in the rail, under the Default group (#700, #743), and the steps from New
+# Terminal to its New Agent… (#744); the inbox's buttons and entries, the terminal's row, the
+# thread's message field, the pick button and the page's button, from the first run's shots.
 PLUS_X=${PLUS_X:-236}
-PLUS_Y=${PLUS_Y:-96}
-STAND_IN_STEPS=${STAND_IN_STEPS:-2}
+PLUS_Y=${PLUS_Y:-136}
+NEW_AGENT_STEPS=${NEW_AGENT_STEPS:-2}
 # The first entry's Allow and its body; the second entry's Deny or Refuse under a first entry
 # with no buttons (a terminal's).
 FIRST_ALLOW_X=${FIRST_ALLOW_X:-226}
@@ -270,7 +270,8 @@ import os
 import subprocess
 import sys
 
-if sys.argv[1:2] == ["plugin"]:
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] in (["plugin"], ["--version"]):
     sys.exit(0)
 
 STEPS = json.load(open("@STEPS@", encoding="utf-8"))
@@ -308,6 +309,31 @@ logged() {
   holds "$E2E_WORK/stand-in.log" "$@"
 }
 
+# Starts the agent `$1` from the project's + → New Agent… (#744, #772), in the place the picker
+# offers first, the project itself; a shot of the picker by the name `$2`, when given.
+new_agent() {
+  local step
+  click "$PLUS_X" "$PLUS_Y"
+  settle 1
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
+  for ((step = 0; step < NEW_AGENT_STEPS; step++)); do
+    press "" Down
+  done
+  press "" Return
+  settle 2
+  type_text "$1"
+  settle 1
+  if [[ -n ${2:-} ]]; then
+    shot "$2"
+  fi
+  press "" Return
+  settle 2
+  # Then where it starts: the project itself is the first place.
+  press "" Return
+  settle 6
+}
+
 steps() {
   settle 12
   # Trusts the scratch repository.
@@ -317,20 +343,7 @@ steps() {
   settle 3
 
   echo "== a thread of the stand-in agent asks to edit README.md"
-  click "$PLUS_X" "$PLUS_Y"
-  settle 1
-  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
-  press "" Home
-  press "" Down
-  press "" Down
-  press "" Right
-  settle 1
-  for ((step = 0; step < STAND_IN_STEPS; step++)); do
-    press "" Down
-  done
-  settle 1
-  press "" Return
-  settle 6
+  new_agent "Stand-in" 508-00-picker
   type_text "edit the readme"
   press "" Return
   settle 4

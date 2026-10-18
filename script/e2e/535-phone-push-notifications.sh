@@ -339,13 +339,14 @@ steps() {
   back
   expect "with no push set, nothing is pushed" pushed 0
   push_setting "http://127.0.0.1:$PORT" marley-e2e
-  echo "== needs input"
+  # A permission request is its own event since #752: `needs approval`, tagged `lock`.
+  echo "== needs approval"
   away
   next_step
   back
-  shot 535-01-needs-input
-  expect "a permission request pushes needs input" pushed 1
-  expect "the push is the line, titled Marley" last_push "repo: Claude needs input" 4 question
+  shot 535-01-needs-approval
+  expect "a permission request pushes needs approval" pushed 1
+  expect "the push is the line, titled Marley" last_push "repo: Claude needs approval" 4 lock
   settle 5
   echo "== finished"
   away

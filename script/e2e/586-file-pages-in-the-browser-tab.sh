@@ -14,7 +14,7 @@ compositor sway
 
 # The rail's row of the first terminal, and the page's "Next" link, from the first run's shots.
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-100}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-136}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
 LINK_X=${LINK_X:-304}
 LINK_Y=${LINK_Y:-219}
 

@@ -17,7 +17,7 @@ SITE=
 
 # The rail's row of the first terminal.
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-100}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-136}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
 
 setup() {
   local home=$E2E_WORK/home bin=$E2E_WORK/bin name

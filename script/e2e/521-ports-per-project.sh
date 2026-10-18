@@ -21,9 +21,9 @@ compositor sway
 # web server, the stand-in and the typed server, the row's Open, Copy and Stop buttons, and the
 # project's terminal.
 ROW_X=${ROW_X:-110}
-WEB_Y=${WEB_Y:-182}
-TOOLS_Y=${TOOLS_Y:-228}
-TYPED_Y=${TYPED_Y:-274}
+WEB_Y=${WEB_Y:-234}
+TOOLS_Y=${TOOLS_Y:-280}
+TYPED_Y=${TYPED_Y:-326}
 OPEN_X=${OPEN_X:-186}
 COPY_X=${COPY_X:-210}
 STOP_X=${STOP_X:-234}

@@ -15,12 +15,12 @@ compositor sway
 # The project's +, New Agent in Worktree's Claude Code and the main checkout's terminal row, as
 # #510's scenario has them; the notification's buttons, from the first run's shots.
 PLUS_X=${PLUS_X:-236}
-PLUS_Y=${PLUS_Y:-96}
-WORKTREE_STEPS=${WORKTREE_STEPS:-3}
+PLUS_Y=${PLUS_Y:-136}
+WORKTREE_STEPS=${WORKTREE_STEPS:-4}
 SUBMENU_CLAUDE_X=${SUBMENU_CLAUDE_X:-325}
-SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-197}
+SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-260}
 MAIN_ROW_X=${MAIN_ROW_X:-120}
-MAIN_ROW_Y=${MAIN_ROW_Y:-136}
+MAIN_ROW_Y=${MAIN_ROW_Y:-182}
 TRUST_X=${TRUST_X:-1190}
 TRUST_Y=${TRUST_Y:-932}
 SHOW_X=${SHOW_X:-1273}
@@ -72,7 +72,8 @@ import sys
 import termios
 import tty
 
-if sys.argv[1:2] == ["plugin"]:
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] in (["plugin"], ["--version"]):
     sys.exit(0)
 ARGS = sys.argv[1:]
 PID = os.getpid()
@@ -188,6 +189,8 @@ worktree_agent() {
   click "$PLUS_X" "$PLUS_Y"
   settle 1
   local step
+  # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
+  press "" Home
   for ((step = 0; step < WORKTREE_STEPS; step++)); do
     press "" Down
   done

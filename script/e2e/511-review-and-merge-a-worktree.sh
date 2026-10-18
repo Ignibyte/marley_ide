@@ -21,10 +21,10 @@ compositor sway
 # A row's menu opens from its right edge, so the menu leaves the row's lines in view.
 ROW_X=${ROW_X:-120}
 MENU_X=${MENU_X:-248}
-MAIN_ROW_Y=${MAIN_ROW_Y:-136}
-CLASH_ROW_Y=${CLASH_ROW_Y:-180}
-MANUAL_ROW_Y=${MANUAL_ROW_Y:-224}
-OK_ROW_Y=${OK_ROW_Y:-268}
+MAIN_ROW_Y=${MAIN_ROW_Y:-177}
+CLASH_ROW_Y=${CLASH_ROW_Y:-234}
+MANUAL_ROW_Y=${MANUAL_ROW_Y:-280}
+OK_ROW_Y=${OK_ROW_Y:-326}
 
 repo_git() {
   git -C "$E2E_WORK/repo" "$@"

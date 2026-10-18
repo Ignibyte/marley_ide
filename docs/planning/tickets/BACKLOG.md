@@ -10,6 +10,10 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
+| [TICKET-807](open/TICKET-807-marley-rusty-and-home-icons.md) | feature | Chad's icons for Home, Marley and Rusty in place of Zed's list-tree, sparkle and blocks |
+| [TICKET-808](open/TICKET-808-tmux-sessions-in-the-rail.md) | feature | The rail lists the tmux sessions on named ssh hosts and this machine; attach, agents marked, + new |
+| [TICKET-809](open/TICKET-809-install-keeps-the-running-builds-remote-server.md) | bug | An install keeps the remote server of the Marley still running |
+| [TICKET-806](open/TICKET-806-triage-and-repair-the-golden-set.md) | chore | The golden set: 19 of 29 stale scenarios repaired (parked); the 10 left, then the whole set |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 | [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | The first command in a new zsh on a Mac has no block header |
 

@@ -25,10 +25,10 @@ CURSOR_Y_STRIP=${CURSOR_Y_STRIP:-930}
 CURSOR_Y=${CURSOR_Y:-956}
 # The rail's row of the first terminal.
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-100}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-136}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
 # The offer's label and its arrow, in the strip under a terminal.
-OFFER_X=${OFFER_X:-1282}
-OFFER_ARROW_X=${OFFER_ARROW_X:-1342}
+OFFER_X=${OFFER_X:-1522}
+OFFER_ARROW_X=${OFFER_ARROW_X:-1582}
 OFFER_Y=${OFFER_Y:-954}
 
 setup() {

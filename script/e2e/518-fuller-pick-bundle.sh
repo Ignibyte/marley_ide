@@ -28,7 +28,7 @@ REACT19=${E2E_REACT19_MODULES:-/srv/stacks/scorchkit_home/node_modules}
 PAGE_X=${PAGE_X:-260}
 PAGE_Y=${PAGE_Y:-109}
 TRAY_ROW=${TRAY_ROW:-36}
-PICK_X=${PICK_X:-1288}
+PICK_X=${PICK_X:-1527}
 PICK_Y=${PICK_Y:-87}
 
 setup() {

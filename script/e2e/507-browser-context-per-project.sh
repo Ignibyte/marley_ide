@@ -14,9 +14,9 @@ compositor sway
 . script/e2e/browser-fixture.sh
 
 # The rail's first project row, measured from the first run: beta, handed over last, is listed
-# above alpha, its terminal's row under it at y 136.
+# above alpha, under the Default group (#700, #743; re-measured for #806).
 TOP_ROW_X=100
-TOP_ROW_Y=95
+TOP_ROW_Y=135
 # A point in the page of the pane's active Browser tab, clear of the page's text.
 PAGE_X=1300
 PAGE_Y=850

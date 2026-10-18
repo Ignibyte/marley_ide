@@ -202,6 +202,9 @@ import subprocess
 import sys
 import time
 
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] == ["--version"]:
+    sys.exit(0)
 if sys.argv[1:2] == ["plugin"]:
     with open("@LOG@", "a", encoding="utf-8") as log:
         log.write(" ".join(sys.argv[1:]) + "\n")

@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # #575's e2e test: a terminal Marley restores keeps its MARLEY_TERMINAL_ID. Marley starts with a
 # foreign, well-formed id under the restore's private key, which no terminal may take or show.
-# The repository's terminal and a split of it each print their id (`ids`); after a quit and a
+# The repository's terminal and a terminal in a split pane (#785: the split opens Home, the
+# palette the terminal) each print their id (`ids`); after a quit and a
 # launch, each restored terminal prints the id it had, and the stand-in agent, run in the right
 # one through the plugin's bridge, sees it `self` under that id; after a second quit and launch,
 # the ids hold again. A split of a restored terminal and a new terminal each get an id no other
@@ -105,6 +106,9 @@ steps() {
   settle 1
   palette "pane: split right"
   settle 4
+  # A split opens Home since #785, so the new pane gets its terminal from the palette.
+  palette "workspace: new terminal"
+  settle 4
   type_text "ids right-0"
   press "" Return
   settle 2
@@ -137,6 +141,9 @@ steps() {
   click "$LEFT_X" "$LEFT_Y"
   settle 1
   palette "pane: split right"
+  settle 4
+  # A split opens Home since #785, so the new pane gets its terminal from the palette.
+  palette "workspace: new terminal"
   settle 4
   type_text "ids split"
   press "" Return

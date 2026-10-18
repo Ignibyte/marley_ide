@@ -26,18 +26,18 @@ SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versi
 # The card's Refuse and Allow, a point on its sentence, the page's Swap button, a point in the
 # page, the rail's terminal row, and a point in the Settings window's page, from the first run's
 # shots.
-REFUSE_X=${REFUSE_X:-1273}
+REFUSE_X=${REFUSE_X:-1513}
 REFUSE_Y=${REFUSE_Y:-136}
-ALLOW_X=${ALLOW_X:-1329}
+ALLOW_X=${ALLOW_X:-1569}
 ALLOW_Y=${ALLOW_Y:-136}
 CARD_X=${CARD_X:-1000}
 CARD_Y=${CARD_Y:-136}
-SWAP_X=${SWAP_X:-1125}
-SWAP_Y=${SWAP_Y:-380}
+SWAP_X=${SWAP_X:-1245}
+SWAP_Y=${SWAP_Y:-407}
 PAGE_X=${PAGE_X:-1250}
 PAGE_Y=${PAGE_Y:-230}
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-110}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-135}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
 SETTINGS_X=${SETTINGS_X:-1200}
 SETTINGS_Y=${SETTINGS_Y:-500}
 # The toast's Show, from the first run's shots.

@@ -15,13 +15,12 @@ compositor sway
 HOOK=$PWD/crates/marley_workbench/claude_plugin/marley/hooks/event.py
 SHIPPED=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   crates/marley_workbench/claude_plugin/marley/.claude-plugin/plugin.json)
-# The project's +, the rows' chips and the settings page, from the first run's shots.
+# The project's +, under the Default group (#700, #743), the rows' chips and the settings page,
+# from the first run's shots.
 PLUS_X=${PLUS_X:-236}
-PLUS_Y=${PLUS_Y:-96}
-# Down steps from New Terminal in the + menu: New Browser Tab, New Agent Thread, then the CLIs.
-# One more since New Agent in Worktree (#510) sits above the agent CLIs.
-CLAUDE_STEPS=${CLAUDE_STEPS:-4}
-CODEX_STEPS=${CODEX_STEPS:-5}
+PLUS_Y=${PLUS_Y:-136}
+# Down steps from New Terminal in the + menu to New Agent… (#744), whose picker starts an agent CLI.
+NEW_AGENT_STEPS=${NEW_AGENT_STEPS:-2}
 CHIP_X=${CHIP_X:-192}
 CHIP_Y=${CHIP_Y:-229}
 BYPASS_ROW_X=${BYPASS_ROW_X:-110}
@@ -63,7 +62,8 @@ import os
 import subprocess
 import sys
 
-if sys.argv[1:2] == ["plugin"]:
+# Marley reads `claude --version` at start (#648): the stand-in answers it with nothing.
+if sys.argv[1:2] in (["plugin"], ["--version"]):
     sys.exit(0)
 
 ARGS = sys.argv[1:]
@@ -137,16 +137,30 @@ palette() {
 }
 
 # The project's +, then `$1` steps down from New Terminal, then Enter.
-plus_entry() {
+# Starts the agent CLI `$1` from the project's + → New Agent… (#744, #772): the picker's entry that
+# the name matches first, in the place it offers first, the project itself; a shot of the picker by
+# the name `$2`, when given.
+new_agent() {
+  local step
   click "$PLUS_X" "$PLUS_Y"
   settle 1
   # A menu opens with nothing chosen (Zed #64365); Home chooses New Terminal.
   press "" Home
-  local step
-  for ((step = 0; step < $1; step++)); do
+  for ((step = 0; step < NEW_AGENT_STEPS; step++)); do
     press "" Down
   done
+  press "" Return
+  settle 2
+  type_text "$1"
   settle 1
+  if [[ -n ${2:-} ]]; then
+    shot "$2"
+  fi
+  press "" Return
+  settle 2
+  # Then where it starts: the project itself is the first place.
+  press "" Return
+  settle 6
 }
 
 last_launch() {
@@ -171,18 +185,13 @@ steps() {
   fi
 
   echo "== nothing set: Claude Code starts with its prompts"
-  plus_entry "$CLAUDE_STEPS"
-  shot 532-00-menu
-  press "" Return
-  settle 6
+  new_agent "claude code" 532-00-menu
   shot 532-01-default
   expect "Claude Code started with no flag" test "$(last_launch)" = "claude: "
 
   echo "== bypass for the repository: Claude Code starts with it, marked"
   marley_setting "{\"agent_permissions_by_project\": {\"$E2E_WORK/repo\": {\"claude_code\": \"bypass\"}}}"
-  plus_entry "$CLAUDE_STEPS"
-  press "" Return
-  settle 6
+  new_agent "claude code"
   shot 532-02-bypass
   expect "Claude Code started with --dangerously-skip-permissions" \
     test "$(last_launch)" = "claude: --dangerously-skip-permissions"
@@ -192,9 +201,7 @@ steps() {
 
   echo "== full access for Codex"
   marley_setting '{"codex_permissions": "full_access"}'
-  plus_entry "$CODEX_STEPS"
-  press "" Return
-  settle 6
+  new_agent "codex"
   shot 532-03-full-access
   expect "Codex started with full access" \
     test "$(last_launch)" = "codex: --sandbox danger-full-access --ask-for-approval never"

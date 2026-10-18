@@ -19,7 +19,7 @@ compositor sway
 CHECKBOX_X=902
 FORM_Y=219
 TOOLBAR_Y=87
-CUT_OFF_X=1330
+CUT_OFF_X=1570
 
 setup() {
   offline_chromium

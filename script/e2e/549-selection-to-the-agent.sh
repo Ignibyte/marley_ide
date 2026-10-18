@@ -100,7 +100,7 @@ send_key() {
 
 # The rail's row of the claude terminal, the project's first, measured from the first run.
 CLAUDE_ROW_X=100
-CLAUDE_ROW_Y=136
+CLAUDE_ROW_Y=180
 
 # In the picker, the row whose text holds `$1`.
 pick() {

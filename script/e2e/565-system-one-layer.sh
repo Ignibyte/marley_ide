@@ -18,7 +18,10 @@ compositor sway
 # row of System One calls, the rows of the masked and the metadata-only checks once every call is listed,
 # and a point in the Settings window's page to scroll at.
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-110}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-135}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-182}
+# The same row once System One calls has opened in the Default group, whose Home and calls rows
+# then stand above the project (#700, #743; re-measured for #806).
+CALLS_TERMINAL_ROW_Y=${CALLS_TERMINAL_ROW_Y:-265}
 DECISION_X=${DECISION_X:-700}
 DECISION_Y=${DECISION_Y:-235}
 MASKED_ROW_Y=${MASKED_ROW_Y:-698}
@@ -233,6 +236,7 @@ steps() {
   echo "== System One calls"
   palette "marley: open system one calls"
   settle 3
+  TERMINAL_ROW_Y=$CALLS_TERMINAL_ROW_Y
   shot 565-02-decisions-view
   click "$DECISION_X" "$DECISION_Y"
   settle 1

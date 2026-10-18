@@ -14,19 +14,19 @@ compositor sway
 # shellcheck source=script/e2e/browser-fixture.sh
 . script/e2e/browser-fixture.sh
 
-# The toolbar's Scripts button, left of Pick (PICK_X=1288 in #496), measured from the first run.
-SCRIPTS_X=1260
+# The toolbar's Scripts button, left of Pick, at the window's right since #747 (re-measured for #806).
+SCRIPTS_X=1500
 TOOLBAR_Y=87
 # The tray's rows, 36 pixels apart from the first; the Run button's and the name field's x, and
 # the "For All Projects" button's, measured from the first run.
 ROW_Y=122
 ROW_HEIGHT=36
-RUN_X=1300
+RUN_X=1540
 FIELD_X=600
-FOR_ALL_X=1290
+FOR_ALL_X=1530
 # The Run buttons once the first run's terminal has split the window: the tab's pane is the left
 # half.
-RUN_X_BESIDE=750
+RUN_X_BESIDE=870
 
 setup() {
   local home=$E2E_WORK/home core node_dir key registry
