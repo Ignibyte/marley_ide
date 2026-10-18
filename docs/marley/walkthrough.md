@@ -4,7 +4,7 @@ A hands-on tour of all of Marley, one stop at a time, in an order where each sto
 what came before it. Every stop says what to do and what you should see, and names the ticket
 that shipped it. The tour follows the tree at #778 (2026-10-12) on Linux, as built and tested on
 Omarchy with Hyprland, with stops added for #798 to #805, #808 and #811 (2026-10-17 and 18): 4.26
-to 4.29, 6.10, 7.18, 7.19 and 14.13 to 14.15.
+to 4.29, 6.10, 7.18, 7.19 and 14.13 to 14.15, and checks for #807's icons in 1.1 and 2.16.
 
 [guide.md](guide.md) is the reference behind this tour, with the rules and edge cases a stop
 leaves out. [tutorial-outline.md](tutorial-outline.md) is the plan for a longer tutorial, and
@@ -278,7 +278,7 @@ Start Marley from the app menu (Super+Space, then type `Marley`), or run `marley
 - [ ] The rail's first row is Default, a group with a group icon, a chevron and a `+` (#700,
   #743). Stop 1.8 looks inside it.
 - [ ] The status bar's left end has a Debug button (#774), and its right end a Home button, a
-  list tree (#739).
+  house (#739, #807).
 - [ ] Ctrl+? opens the New Agent picker ("Start an agent…") in place of Zed's Agent Panel (#744);
   Escape closes it.
 - [ ] The status bar has no Terminal Panel button.
@@ -1009,13 +1009,14 @@ signed in (0.2).
 
 - [ ] Step 1: a Marley thread opens in a tab of `marley-tour` and answers. The rail lists it once,
   under `marley-tour`, reading `Marley · working` and then `Marley · idle`, its row lit while the
-  tab is in front (#702).
+  tab is in front (#702). The Marley button, the tab and the row draw a cat (#807).
 - [ ] Step 2: Marley shows `marley-tour` with that tab in front; no second conversation starts.
 - [ ] Step 3: a second, empty Marley tab opens in the group you are in.
 - [ ] Step 4: the click on the row brings the first conversation's tab forward.
 - [ ] Optional, with Rusty on: the Rusty button beside Marley's in the title bar (its tooltip
   reads "Talk to Rusty") does the same with Rusty's conversation, as `marley: talk to rusty`
-  does. The status bar holds Home alone; Rusty's cards are on Home (#782).
+  does. The Rusty button, its tab and its row draw a butler (#807). The status bar holds Home
+  alone; Rusty's cards are on Home (#782).
 
 ### 2.17 Projects and Threads (#745, #737, #772, #736)
 
@@ -2122,12 +2123,13 @@ After Claude Code's change, reload the tab with Ctrl+R and click Check on Pick 1
   block, which needs the network.
 - [ ] A script that fails saves the tab's last minute as a recording, named in a toast.
 
-### 7.15 Browser Clients (#524, #584), optional
+### 7.15 Browser Clients (#524, #584, #811), optional
 
 1. Run `marley: outside clients` (`marley: browser clients` opens the same list), type a name such
-   as `playwright-mcp`, choose read or act, and press Enter.
+   as `playwright-mcp`, tick May act in pages if it should click and type, and press Enter.
 
-- [ ] The client gets its own token in an endpoint file only you can read.
+- [ ] The client gets its own token in an endpoint file only you can read, and its row reads
+  `browser: reads and acts`, or `browser: reads` without the tick.
 - [ ] A tab it acts in shows `Driven by playwright-mcp` with Cut Off, which refuses its token at
   once.
 - [ ] The list offers an SSH line with Copy, for a client on another machine; the line holds no
