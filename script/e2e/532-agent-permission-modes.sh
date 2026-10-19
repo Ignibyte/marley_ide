@@ -22,9 +22,9 @@ PLUS_Y=${PLUS_Y:-136}
 # Down steps from New Terminal in the + menu to New Agent… (#744), whose picker starts an agent CLI.
 NEW_AGENT_STEPS=${NEW_AGENT_STEPS:-2}
 CHIP_X=${CHIP_X:-192}
-CHIP_Y=${CHIP_Y:-229}
+CHIP_Y=${CHIP_Y:-298}
 BYPASS_ROW_X=${BYPASS_ROW_X:-110}
-BYPASS_ROW_Y=${BYPASS_ROW_Y:-228}
+BYPASS_ROW_Y=${BYPASS_ROW_Y:-297}
 SETTINGS_X=${SETTINGS_X:-1200}
 SETTINGS_Y=${SETTINGS_Y:-500}
 

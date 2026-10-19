@@ -15,9 +15,10 @@ compositor sway
 . script/e2e/browser-fixture.sh
 
 # The Browser Clients modal's checkbox while no client is listed, and the toolbar's Cut Off, in
-# the window's logical pixels (from the first run's shots).
+# the window's logical pixels (from the first run's shots); #811's second header paragraph moved
+# the form 61 px down.
 CHECKBOX_X=902
-FORM_Y=219
+FORM_Y=280
 TOOLBAR_Y=87
 CUT_OFF_X=1570
 
@@ -135,7 +136,7 @@ steps() {
 
   echo "== what no client reaches"
   out mcp_http "$reader" call terminal_read '{"terminal": 1}'
-  expect "terminal_read is refused" holds "$E2E_WORK/out.txt" "terminal_read: refused" "not open to outside clients"
+  expect "terminal_read is refused" holds "$E2E_WORK/out.txt" "terminal_read: refused" "not open to the client reader"
   out mcp_http "$reader" call fleet_snapshot
   expect "fleet_snapshot is refused" holds "$E2E_WORK/out.txt" "fleet_snapshot: refused"
   out mcp_http "$reader" resources-read

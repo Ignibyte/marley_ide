@@ -31,13 +31,13 @@ FIRST_Y=${FIRST_Y:-125}
 SECOND_DENY_X=${SECOND_DENY_X:-184}
 SECOND_DENY_Y=${SECOND_DENY_Y:-204}
 TERMINAL_ROW_X=${TERMINAL_ROW_X:-110}
-TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-240}
-THREAD_FIELD_X=${THREAD_FIELD_X:-1300}
+TERMINAL_ROW_Y=${TERMINAL_ROW_Y:-285}
+THREAD_FIELD_X=${THREAD_FIELD_X:-595}
 THREAD_FIELD_Y=${THREAD_FIELD_Y:-864}
-PICK_X=${PICK_X:-1082}
+PICK_X=${PICK_X:-1527}
 PICK_Y=${PICK_Y:-87}
-BUTTON_X=${BUTTON_X:-795}
-BUTTON_Y=${BUTTON_Y:-250}
+BUTTON_X=${BUTTON_X:-1018}
+BUTTON_Y=${BUTTON_Y:-277}
 
 setup() {
   local home=$E2E_WORK/home bin=$E2E_WORK/bin config=$E2E_WORK/claude-config
@@ -360,6 +360,10 @@ steps() {
   shot 508-02-two-entries
 
   echo "== Allow on the thread's entry, the first"
+  # The thread opens in a center tab (#734, #772), behind the terminal now: its entry brings it to
+  # the front, so the second prompt reaches it.
+  click "$FIRST_X" "$FIRST_Y"
+  settle 2
   click "$FIRST_ALLOW_X" "$FIRST_ALLOW_Y"
   settle 3
   shot 508-03-allowed

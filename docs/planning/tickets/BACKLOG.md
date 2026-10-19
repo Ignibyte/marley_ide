@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-806](open/TICKET-806-triage-and-repair-the-golden-set.md) | chore | The golden set: 19 of 29 stale scenarios repaired (parked); the 10 left, then the whole set |
+| [TICKET-816](open/TICKET-816-keys-typed-after-enter-reach-the-shell-before-it.md) | bug | Keys typed right after Enter in the prompt editor reach the shell before the Enter |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 | [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | The first command in a new zsh on a Mac has no block header |
 

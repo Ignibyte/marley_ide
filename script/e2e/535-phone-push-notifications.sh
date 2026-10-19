@@ -407,5 +407,8 @@ steps() {
   back
   shot 535-05-no-server
   expect "the desktop banner still shows" more_banners "repo: Claude finished" "$finished"
-  expect "no banner reached the user's own bus" bash -c "! grep -qE 'STRING \"(Marley|Claude Code)\"' '$E2E_WORK/user-bus.log'"
+  # The run's own banners: every Marley posts as "Marley", so the user's own Marley, finishing an
+  # agent of theirs meanwhile, is told apart by the run's titles (`repo: …`, `repo — …`) and the
+  # plain program's body (`built`).
+  expect "no banner reached the user's own bus" bash -c "! grep -qE 'STRING \"(repo|built)' '$E2E_WORK/user-bus.log'"
 }

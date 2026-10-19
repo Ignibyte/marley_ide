@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9af27f68-8129-49aa-b197-44e687f2b225
-ticket: docs/planning/tickets/open/TICKET-806-triage-and-repair-the-golden-set.md
-status: Blocked — parked in Phase 2 — Code (19 of 29 repaired; resumes at the 10 in the notes)
+ticket: docs/planning/tickets/closed/TICKET-806-triage-and-repair-the-golden-set.md
+status: Phase 4 — Complete PASS
 title: Triage and repair the golden set
 type: chore
 slice: the regression suite (#517)

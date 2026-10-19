@@ -101,6 +101,9 @@ send_key() {
 # The rail's row of the claude terminal, the project's first, measured from the first run.
 CLAUDE_ROW_X=100
 CLAUDE_ROW_Y=180
+# The same row once the claude waits: the rail's Needs you card above the Default group moves it
+# down (#508, #700).
+CLAUDE_WAITING_ROW_Y=262
 
 # In the picker, the row whose text holds `$1`.
 pick() {
@@ -168,7 +171,7 @@ steps() {
   send_key
   pick "claude"
   shot 549-05-refused
-  click "$CLAUDE_ROW_X" "$CLAUDE_ROW_Y"
+  click "$CLAUDE_ROW_X" "$CLAUDE_WAITING_ROW_Y"
   settle 1
   press "" Return
   settle 2

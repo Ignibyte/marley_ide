@@ -6216,3 +6216,25 @@ shows `(deleted)`), so `grep -aoF -f <names> /proc/<pid>/exe` over `pgrep -x mar
 of a set of commits the running Marleys were built at, with no state written at launch. Searching
 only for the names in hand keeps it to one read per binary. An install script can be checked
 against a scratch `XDG_DATA_HOME` with fake `<commit>.gz` files dated with `touch -d`.
+
+## L-claude-806-golden-scenarios-drift-at-fixed-points-001
+*category: process · topic: the golden set between testing phases · from: pipeline 806*
+
+With no regression run per ticket (§7), the golden set drifts: of #806's 32 failures over two
+days, 30 were scenarios clicking where a later ticket had moved something on purpose (the
+Default group, two-line rail rows, threads in center tabs, the right dock's tabs, #767's Take
+Over bar, #770's Also start row, #811's Outside Clients paragraph and its read-only shared
+endpoint), and two were Marley bugs (#812, #816). What worked: run the failing set into a scratch
+`REGRESS_DIR`, give read-only agents two scenarios each with the run folder (log, shots, Marley's
+log), have them name the failing check's step, the ticket that moved it (`git log -S`), and the
+new point measured on that run's own shots, then rerun only the repaired ones before the whole
+set. A ticket that moves a shared surface (the rail, a modal's text, the MCP grants) breaks
+scenarios far from it; #811 broke three the same day.
+
+## L-claude-806-a-check-on-the-users-session-matches-only-the-runs-own-output-001
+*category: process · topic: e2e checks that watch the user's desktop · from: pipeline 806*
+
+535's "no banner reached the user's own bus" matched any notification from an app named
+"Marley", so Chad's own Marley finishing a Claude Code session four seconds into the run failed
+it. A check that watches the user's real session (bus, clipboard, windows) matches only what the
+run itself makes: its project's name (`repo`), its own strings, never the app's name alone.

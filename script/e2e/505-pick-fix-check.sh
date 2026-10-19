@@ -26,6 +26,9 @@ SITE=
 PAGE_X=${PAGE_X:-260}
 PAGE_Y=${PAGE_Y:-109}
 TRAY_ROW=${TRAY_ROW:-36}
+# The bar #767 draws under the toolbar once an agent has acted in the page, which moves the tray
+# and the page down.
+CONTROL_BAR=${CONTROL_BAR:-27}
 PICK_X=${PICK_X:-1527}
 PICK_Y=${PICK_Y:-87}
 RELOAD_X=${RELOAD_X:-334}
@@ -259,6 +262,7 @@ steps() {
   mcp_agent check-pick 1 "$(shot_file 505-agent-check-1.jpg)" "$E2E_WORK/agent-check-1.json"
   expect "the agent's check: found by test id, with its changes" answer agent-check-1 \
     'check["found"] and check["found_by"] == "test id" and "padding: 8px → 16px" in check["changes"]'
+  PAGE_Y=$((PAGE_Y + CONTROL_BAR))
   echo "== the fix: 2,000 px above Save; the page opens at its top"
   fix 16 "Save changes" 2000 '«r9»|css-9o8i7u|80'
   mcp_agent check-pick 1 "$(shot_file 505-agent-check-2.jpg)" "$E2E_WORK/agent-check-2.json"

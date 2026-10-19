@@ -32,7 +32,11 @@ EDIT_DENY_X=${EDIT_DENY_X:-184}
 EDIT_DENY_Y=${EDIT_DENY_Y:-356}
 CLICK_REFUSE_X=${CLICK_REFUSE_X:-180}
 CLICK_REFUSE_Y=${CLICK_REFUSE_Y:-288}
-THREAD_FIELD_X=${THREAD_FIELD_X:-1300}
+# The thread's row in the rail, which brings its center tab forward (#772) after System One calls
+# took the window to the Default group (#676), and its message field in that tab.
+THREAD_ROW_X=${THREAD_ROW_X:-130}
+THREAD_ROW_Y=${THREAD_ROW_Y:-731}
+THREAD_FIELD_X=${THREAD_FIELD_X:-595}
 THREAD_FIELD_Y=${THREAD_FIELD_Y:-864}
 SETTINGS_X=${SETTINGS_X:-1200}
 SETTINGS_Y=${SETTINGS_Y:-500}
@@ -465,6 +469,8 @@ steps() {
   expect "its outcome is logged" outcome_says 'allowed from the inbox after'
 
   echo "== the stand-in's second call claims approval; Deny"
+  click "$THREAD_ROW_X" "$THREAD_ROW_Y"
+  settle 2
   click "$THREAD_FIELD_X" "$THREAD_FIELD_Y"
   settle 1
   type_text "edit the readme"

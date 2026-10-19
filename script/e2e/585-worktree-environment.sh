@@ -22,17 +22,18 @@ PLUS_Y=${PLUS_Y:-136}
 WORKTREE_STEPS=${WORKTREE_STEPS:-4}
 SUBMENU_CLAUDE_X=${SUBMENU_CLAUDE_X:-325}
 SUBMENU_CLAUDE_Y=${SUBMENU_CLAUDE_Y:-260}
-# The prompt's setup box and its editor, and the rows, from the first run's shots.
+# The prompt's setup box and its editor, and the rows, from the first run's shots. The box sits
+# under #770's Also start row, which shows only while another agent CLI is on the PATH.
 SETUP_BOX_X=${SETUP_BOX_X:-550}
-SETUP_BOX_Y=${SETUP_BOX_Y:-205}
+SETUP_BOX_Y=${SETUP_BOX_Y:-233}
 EDITOR_X=${EDITOR_X:-800}
 EDITOR_Y=${EDITOR_Y:-143}
 MAIN_ROW_X=${MAIN_ROW_X:-120}
 MAIN_ROW_Y=${MAIN_ROW_Y:-182}
 # The rail lists the worktrees by folder, each with its agent's row under it: the first agent's
 # row, and the step to the next.
-AGENT_ROW_Y=${AGENT_ROW_Y:-228}
-WORKTREE_STEP=${WORKTREE_STEP:-92}
+AGENT_ROW_Y=${AGENT_ROW_Y:-286}
+WORKTREE_STEP=${WORKTREE_STEP:-104}
 
 repo_git() {
   git -C "$E2E_WORK/repo" "$@"

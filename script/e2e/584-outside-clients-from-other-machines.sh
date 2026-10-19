@@ -17,12 +17,13 @@ compositor sway
 # In Browser Clients, in the window's logical pixels (from the first run's shots): the checkbox
 # while no client is listed, the SSH line's Copy button once laptop is allowed, and laptop's Cut
 # Off while it is the one client listed. The tab's own Cut Off moves with the last action's text.
+# #811's second header paragraph moved all three 61 px down.
 CHECKBOX_X=902
-FORM_Y=219
+FORM_Y=280
 COPY_SSH_X=1056
-COPY_SSH_Y=428
+COPY_SSH_Y=489
 ROW_CUT_OFF_X=1048
-ROW_CUT_OFF_Y=198
+ROW_CUT_OFF_Y=259
 
 setup() {
   offline_chromium

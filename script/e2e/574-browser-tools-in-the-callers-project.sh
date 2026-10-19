@@ -62,7 +62,8 @@ teardown() {
 }
 
 # The stand-in from the harness, in folder `$1`, with no terminal id and no project: the bridge
-# sends only the folder.
+# sends only the folder, on Marley's own endpoint as Zed's agents' bridge does since #811 (the
+# shared file's bearer only reads from outside a Marley terminal).
 from_folder() {
   local folder=$1
   shift
@@ -70,7 +71,7 @@ from_folder() {
     cd "$folder" || exit 1
     MARLEY_TERMINAL_ID='' MARLEY_PROJECT='' \
       BRIDGE="$OLDPWD/crates/marley_workbench/claude_plugin/marley/bin/marley-mcp-bridge" \
-      MARLEY_MCP_ENDPOINT="$E2E_PROFILE/mcp-endpoint.json" \
+      MARLEY_MCP_ENDPOINT="$E2E_PROFILE/mcp/own-endpoint.json" \
       python3 "$E2E_WORK/mcp-agent.py" "$@"
   )
 }
