@@ -3560,6 +3560,11 @@ below describe what #743 retired.
     (`MarleyAssistantAgent`).
   - `Assistant.applied` holds the agent whose defaults are in place. `sync` runs `take_out` on the
     old agent and `put_in` on the new one.
+  - Since #814, when `set_entry` writes an entry whose server settings differ from the defaults'
+    current ones, `forget_connection` has every workspace's `AgentPanel` store drop its connection
+    for the entry's id (`AgentConnectionStore::forget_connection`, a Zed hunk), so the next
+    conversation starts the new agent's process; an open conversation keeps the connection it
+    holds.
   - Claude Code keeps #683's defaults. Codex adds a `codex-acp` registry default and resolves it;
     `set_entry` gives it `INITIAL_AGENT_MODE=read-only` and `CODEX_CONFIG` (`codex_config`:
     `developer_instructions`, `sandbox_mode`). Zed's agent adds `agent.profiles.marley`

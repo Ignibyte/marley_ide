@@ -870,6 +870,13 @@ fn set_entry(
         default_config_options: HashMap::default(),
         favorite_config_option_values: HashMap::default(),
     };
+    let changed = cx
+        .global::<SettingsStore>()
+        .raw_default_settings()
+        .agent_servers
+        .as_ref()
+        .and_then(|servers| servers.get(entry.name()))
+        != Some(&server);
     cx.update_global::<SettingsStore, _>(|store, cx| {
         store.update_default_settings(cx, |defaults| {
             defaults
@@ -878,6 +885,25 @@ fn set_entry(
                 .insert(entry.name().to_string(), server);
         });
     });
+    if changed {
+        forget_connection(entry, cx);
+    }
+}
+
+/// Has every Agent Panel drop the process it keeps for `entry`, whose command or environment just
+/// changed under the same id: Zed keeps an agent's process by its id, so the next conversation
+/// would run on the old agent until a restart (#814).
+fn forget_connection(entry: Entry, cx: &mut App) {
+    let agent = agent_ui::Agent::Custom {
+        id: AgentId::new(entry.name()),
+    };
+    for workspace in crate::mcp::all_workspaces(cx) {
+        let Some(panel) = workspace.read(cx).panel::<agent_ui::AgentPanel>(cx) else {
+            continue;
+        };
+        let store = panel.read(cx).connection_store().clone();
+        store.update(cx, |store, cx| store.forget_connection(&agent, cx));
+    }
 }
 
 /// The `claude` or `codex` Marley launches: the one the last version check found, else

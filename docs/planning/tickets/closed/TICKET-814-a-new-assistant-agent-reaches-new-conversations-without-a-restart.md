@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #814 (bug, Prong 2: the Marley and Rusty entries)
 - **Owner:** 2f48853a-c455-455f-9b94-114158170228
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/814-a-new-assistant-agent-reaches-new-conversations.spec.md
 - **Source ticket:** found by #813's visual check, 2026-10-18.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When `marley.assistant.agent` changes while Marley runs (Claude Code to Codex, say), Marley

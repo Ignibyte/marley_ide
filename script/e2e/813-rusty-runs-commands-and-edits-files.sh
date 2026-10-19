@@ -254,8 +254,7 @@ steps() {
     "- no-commands line: yes"
 
   echo "== Codex, after a restart"
-  # Zed keeps an agent's process for the session, whatever its settings become, so the entries
-  # run on Codex from a fresh start.
+  # A fresh start on Codex; #814's scenario checks the switch with Marley running.
   quit_marley
   profile_setting marley.assistant.agent '"codex"'
   launch_marley

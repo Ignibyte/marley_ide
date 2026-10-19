@@ -4312,3 +4312,13 @@ press listener, so neither header ever focused: in a split, a click on the other
 left the focus in the first pane, and the next command ran there. #575's restore scenario met it
 on a restored block's header. Fixed in #812: each header focuses `view.focus_handle(cx)` before it
 stops the press. The pinned header turned up while #812's architecture note was written.
+
+## F-claude-814-a-changed-assistant-agent-kept-the-old-process-001
+*severity: medium · found in: #813's visual check, 2026-10-18 · class: a cache keyed by a name whose meaning changed · prevented by: PR-claude-814-a-rewritten-agent-entry-forgets-its-connection-001*
+
+Marley rewrites its Marley and Rusty entries in `agent_servers` under the same ids when
+`marley.assistant.agent` changes. Zed's `AgentConnectionStore` caches one connection per id and
+drops it only when the id leaves `agent_servers`, so every new conversation after the change ran
+on the old agent's process. With Claude Code's session meta already taken out, a Rusty
+conversation there answered as no one (`entry: unknown` in #814's scenario). Fixed in #814:
+`set_entry` has every Agent Panel's store forget the entry's connection when its settings change.

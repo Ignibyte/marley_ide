@@ -3183,3 +3183,12 @@ view starts no selection, does in its own handler what the view's press would ha
 element still wants: above all `window.focus(&view.focus_handle(cx), cx)`. Before adding a
 `stop_propagation` on a press, read the view's own press listener and list what the stop takes
 away.
+
+## PR-claude-814-a-rewritten-agent-entry-forgets-its-connection-001
+*severity: medium · prevents: F-claude-814-a-changed-assistant-agent-kept-the-old-process-001*
+
+Code that changes an `agent_servers` entry's command, arguments or environment under the same id
+while Marley runs calls `AgentConnectionStore::forget_connection` for that id in every workspace's
+Agent Panel (`assistant::forget_connection` is the pattern), after the new settings are in the
+defaults and only when they differ. Settings Zed writes during use (`default_mode`, favorites) are
+not such a change.

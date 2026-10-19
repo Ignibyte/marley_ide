@@ -140,6 +140,15 @@ impl AgentConnectionStore {
         self.request_connection(key, server, cx)
     }
 
+    // Marley: an agent whose command changed under the same id (Marley's own entries, when
+    // `marley.assistant.agent` changes) connects again on its next conversation; conversations
+    // already open keep the connection they hold (#814).
+    pub fn forget_connection(&mut self, key: &Agent, cx: &mut Context<Self>) {
+        if self.entries.remove(key).is_some() {
+            cx.notify();
+        }
+    }
+
     pub fn request_connection(
         &mut self,
         key: Agent,

@@ -1653,6 +1653,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A new Marley or Rusty conversation runs on the agent you just chose** (#814, 2026-10-19).
+  Changing `marley.assistant.agent` while Marley ran (Claude Code to Codex, say) reached new Marley
+  and Rusty conversations only after a restart: Zed kept the old agent's process for them, and a
+  Rusty conversation there even lost Rusty's instructions. The next conversation now starts on the
+  new agent, and a conversation already open keeps answering on the agent it started with until
+  you close it.
+
 - **A click on a block's header focuses its terminal** (#812, 2026-10-19). With two terminals
   side by side, a click on a block's header in the other pane, or on the command pinned at the top
   of a scrolled-back terminal (#529), left the focus where it was, so the next command ran in the
