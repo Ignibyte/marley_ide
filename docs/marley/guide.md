@@ -900,6 +900,12 @@ nicknamed `build-box`:
 }
 ```
 
+With the setting left out, the rail lists this machine's sessions while tmux is installed, and
+`"tmux_hosts": []` lists none. While tmux is installed, a project's `+` and its right-click also
+offer New tmux Terminal, a shell in a new tmux session in the project's folder, and New Agent in
+tmux, which starts an agent CLI in a new session there; each opens attached in a tab and keeps
+running when Marley closes (#819).
+
 Each host gets a section after the harnesses', `TMUX · this machine` or `TMUX · build-box`, with
 how many sessions it has. Marley lists them every 10 seconds, from the host's own tmux server and
 with your tmux config, over an ssh that never asks for a password (`BatchMode`). A host it cannot

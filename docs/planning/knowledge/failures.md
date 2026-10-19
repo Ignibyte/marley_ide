@@ -4353,3 +4353,14 @@ terminal the keys, and sent the owed Enter 200 ms later. Keys typed in between r
 first: #817's stand-in read `firstsecond` and then an empty line. #816 removed the wait for the
 shell, which needs none; an agent needs it (F-claude-594). Fixed in #817: the terminal queues its
 input while Marley owes it a write and lets the queue out right after that write.
+
+## F-claude-819-a-check-run-started-the-real-claude-code-001
+*severity: medium · found in: pipeline 819's Code phase, a check run · class: a scenario's stand-in missed because Marley's PATH is the login shell's · prevented by: PR-claude-819-marley-starts-an-agent-cli-by-name-in-a-shell-001*
+
+#819's first New Agent in tmux ran the CLI by the path `which_in` found on Marley's search path.
+The scenario had exported its stand-in `claude` first on `PATH`, but Zed loads the login shell's
+environment at start, so Marley's PATH, and the path it ran, were the real Claude Code's: the run
+showed Claude Code v2.1.303's first-run theme screen in the tmux pane. The pane's HOME was the
+run's scratch folder, so nothing of Chad's was read or changed, and the run's teardown killed its
+tmux server with the agent. Fixed in #819: the agent is typed into the session's shell by name,
+which the shell resolves on its own PATH (the scenario's `.bashrc` puts the stand-in first).

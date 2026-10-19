@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **New tmux Terminal and New Agent in tmux** (#819, 2026-10-19). With tmux installed, a project's
+  `+` and its right-click offer New tmux Terminal, a shell in a new tmux session in the project's
+  folder, and New Agent in tmux, which starts Claude Code, Codex or another installed agent CLI in
+  a new session there. Each opens attached in a tab and keeps running when Marley closes. Marley
+  notices tmux by itself: with `marley.tmux_hosts` left out, the rail lists this machine's tmux
+  sessions under TMUX · this machine; `"tmux_hosts": []` turns that off.
+
 - **A program pairs before it acts** (#811, 2026-10-18). Marley's MCP server no longer gives every
   tool to whatever reads its endpoint file. Agents in Marley's terminals and Zed's agents keep
   every tool; any other program (Claude Code in tmux or another terminal app, a harness seat, an

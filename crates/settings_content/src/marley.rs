@@ -125,7 +125,7 @@ pub struct MarleySettingsContent {
     /// `"local"` for this machine, or an `ssh_connections` entry by its nickname or host. A click
     /// on a session attaches it in a terminal tab, and a heading's + starts a new session there.
     ///
-    /// Default: none, which lists nothing
+    /// Default: unset, which lists this machine while tmux is installed (#819); `[]` lists nothing
     pub tmux_hosts: Option<Vec<String>>,
     /// How many seconds a command runs before its end shows a desktop notification, when its
     /// terminal is not the one in front; 0 turns this off (#551).

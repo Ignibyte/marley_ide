@@ -3210,3 +3210,12 @@ terminal's input for the gap: `Terminal::marley_queue_input` with a deadline, re
 owed write through `marley_release_input`, which writes it before what waited.
 `terminal_drive::paste_then` does both; a new delayed write goes through it or does the same. A
 hold always carries a deadline, so a release that never runs cannot leave a terminal deaf.
+
+## PR-claude-819-marley-starts-an-agent-cli-by-name-in-a-shell-001
+*severity: medium · prevents: F-claude-819-a-check-run-started-the-real-claude-code-001*
+
+Marley starts an agent CLI by its name in a shell (a terminal's, a tmux pane's), never by a path
+from its own search path: Marley's PATH is the login shell's, which no scenario can put a stand-in
+on, while a shell's PATH is the one the user's terminals and a scenario's `.bashrc` set. A
+scenario that makes Marley start an agent puts its stand-in on the terminals' `.bashrc` PATH, and
+reads the first check run's shot for the stand-in's own line before trusting a pass.

@@ -3184,6 +3184,22 @@ impl Rail {
 
     /// Opens a terminal in `workspace`'s center, where Zed's own New Terminal would start one: the
     /// workspace's own project directory (a linked worktree's, not its main repository's).
+    /// Shows `workspace` and starts a tmux session in `folder` there, its shell running `command`
+    /// when given (#819).
+    fn start_tmux_in(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        folder: &Path,
+        command: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        workspace.update(cx, |workspace, cx| {
+            crate::tmux_sessions::new_local_session(folder, command, workspace, window, cx)
+        })
+    }
+
     fn new_terminal(
         &self,
         workspace: &WeakEntity<Workspace>,
@@ -5902,23 +5918,38 @@ impl Rail {
         let picker_workspace = workspace.clone();
         let reopen_rail = rail.clone();
         let reopen_workspace = workspace.clone();
-        let menu = menu
-            .entry("New Terminal", None, move |window, cx| {
-                terminal_rail
-                    .update(cx, |rail, cx| {
-                        rail.new_terminal(&terminal_workspace, window, cx)
-                    })
-                    .flatten()
-                    .log_err();
-            })
-            .entry("New Browser Tab", None, move |window, cx| {
-                browser_rail
-                    .update(cx, |rail, cx| {
-                        rail.new_browser_tab(&browser_workspace, window, cx)
-                    })
-                    .flatten()
-                    .log_err();
-            });
+        let tmux_folder = Self::tmux_folder(workspace, cx);
+        let menu = menu.entry("New Terminal", None, move |window, cx| {
+            terminal_rail
+                .update(cx, |rail, cx| {
+                    rail.new_terminal(&terminal_workspace, window, cx)
+                })
+                .flatten()
+                .log_err();
+        });
+        // With tmux installed, a shell in a session of its own, which outlives Marley (#819).
+        let menu = match tmux_folder.clone() {
+            Some(folder) => {
+                let (rail, workspace) = (rail.clone(), workspace.clone());
+                menu.entry("New tmux Terminal", None, move |window, cx| {
+                    let result = rail
+                        .update(cx, |rail, cx| {
+                            rail.start_tmux_in(&workspace, &folder, None, window, cx)
+                        })
+                        .flatten();
+                    crate::tmux_sessions::report(result, window, cx);
+                })
+            }
+            None => menu,
+        };
+        let menu = menu.entry("New Browser Tab", None, move |window, cx| {
+            browser_rail
+                .update(cx, |rail, cx| {
+                    rail.new_browser_tab(&browser_workspace, window, cx)
+                })
+                .flatten()
+                .log_err();
+        });
         // The one way to start an agent, a thread or a CLI (#744); its Where
         // starts on this project's root.
         let menu = menu
@@ -5939,7 +5970,72 @@ impl Rail {
                     .log_err();
             });
         let menu = Self::worktree_agent_entries(menu, &cli_workspace, agent_search_path, cx);
+        let menu = match tmux_folder {
+            Some(folder) => {
+                Self::tmux_agent_entries(menu, rail, workspace, folder, agent_search_path)
+            }
+            None => menu,
+        };
         Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
+    }
+
+    /// The folder New tmux Terminal and New Agent in tmux start in (#819): a local project's first
+    /// folder, or a group's home folder; none while tmux is not installed or the project is remote.
+    fn tmux_folder(workspace: &WeakEntity<Workspace>, cx: &App) -> Option<PathBuf> {
+        if !crate::tmux_sessions::installed(cx) {
+            return None;
+        }
+        let workspace = workspace.upgrade()?;
+        let project = workspace.read(cx).project().read(cx);
+        if !project.is_local() {
+            return None;
+        }
+        let folder = project
+            .visible_worktrees(cx)
+            .next()
+            .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
+        Some(folder.unwrap_or_else(|| paths::home_dir().clone()))
+    }
+
+    /// New Agent in tmux (#819): a submenu of the installed agent CLIs, each started in a tmux
+    /// session of its own in `folder`, by its name typed into the session's shell.
+    fn tmux_agent_entries(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        folder: PathBuf,
+        search_path: Option<&OsStr>,
+    ) -> ContextMenu {
+        let agents = agents::installed_clis(search_path);
+        if agents.is_empty() {
+            return menu;
+        }
+        let (rail, workspace) = (rail.clone(), workspace.clone());
+        menu.submenu("New Agent in tmux", move |menu, _, _| {
+            agents.iter().fold(menu, |menu, kind| {
+                let (rail, workspace, folder, kind) =
+                    (rail.clone(), workspace.clone(), folder.clone(), *kind);
+                menu.item(
+                    ContextMenuEntry::new(kind.display_name())
+                        .icon(agents::cli_icon(kind))
+                        .icon_color(Color::Muted)
+                        .handler(move |window, cx| {
+                            let result = rail
+                                .update(cx, |rail, cx| {
+                                    rail.start_tmux_in(
+                                        &workspace,
+                                        &folder,
+                                        Some(kind.program()),
+                                        window,
+                                        cx,
+                                    )
+                                })
+                                .flatten();
+                            crate::tmux_sessions::report(result, window, cx);
+                        }),
+                )
+            })
+        })
     }
 
     /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, right after New Agent…

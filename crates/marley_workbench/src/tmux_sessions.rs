@@ -7,6 +7,7 @@
 //! behind `ssh -t` under the remote terminal's id base, so a dropped link is checked and the
 //! session attached again (#641).
 
+use std::path::Path;
 use std::process::Output;
 use std::time::Duration;
 
@@ -137,16 +138,29 @@ pub fn init(cx: &mut App) {
     cx.observe_global::<SettingsStore>(follow).detach();
 }
 
+/// Whether tmux is on the search path Marley finds agent CLIs on (#819).
+pub(crate) fn installed(cx: &App) -> bool {
+    let search_path = crate::agents::launcher(cx).search_path;
+    which::which_in("tmux", search_path.as_deref(), "/").is_ok()
+}
+
 /// Reads the named hosts: one whose name and place are unchanged keeps its listing and fold, and
-/// the poll runs only while a host is named.
+/// the poll runs only while a host is named. An unset list names this machine while tmux is
+/// installed (#819); a list the user wrote, an empty one too, is kept.
 fn follow(cx: &mut App) {
-    let names = cx
+    let set = cx
         .global::<SettingsStore>()
         .merged_settings()
         .marley
         .as_ref()
-        .and_then(|marley| marley.tmux_hosts.clone())
-        .unwrap_or_default();
+        .and_then(|marley| marley.tmux_hosts.clone());
+    let names = set.unwrap_or_else(|| {
+        if installed(cx) {
+            vec![LOCAL.to_string()]
+        } else {
+            Vec::new()
+        }
+    });
     let saved = crate::remote::saved_hosts(cx);
     let mut wanted: Vec<(SharedString, Place)> = Vec::new();
     for name in &names {
@@ -397,6 +411,59 @@ pub(crate) fn new_session(
     Ok(())
 }
 
+/// Starts a session of Marley's naming on this machine's tmux, in `folder`, attached in a terminal
+/// tab; the rail lists it soon (#819). With `command`, tmux types it into the session's shell,
+/// so an agent CLI runs as in any terminal of the user's, by the shell's own PATH, and the session
+/// stays when it exits.
+///
+/// # Errors
+///
+/// When the terminal cannot open.
+pub(crate) fn new_local_session(
+    folder: &Path,
+    command: Option<&str>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    let session = SessionName::from_bits(rand::random());
+    let session = session.as_str();
+    let mut tmux: Vec<String> = ["tmux", "new-session", "-A", "-s", session, "-c"]
+        .iter()
+        .map(|word| (*word).to_string())
+        .collect();
+    tmux.push(folder.to_string_lossy().into_owned());
+    if let Some(command) = command {
+        // tmux's own command separator: the keys go to the new session once it is made.
+        tmux.extend(
+            [";", "send-keys", "-t", session, command, "Enter"]
+                .iter()
+                .map(|word| (*word).to_string()),
+        );
+    }
+    open_here(session, tmux, workspace, window, cx)?;
+    list_soon(cx);
+    Ok(())
+}
+
+/// Opens a terminal tab titled for this machine and `session` that runs the tmux words `tmux`.
+fn open_here(
+    session: &str,
+    tmux: Vec<String>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    let title = format!("this machine · {session}");
+    // tmux refuses to attach from inside a session, as from a Marley started in one.
+    let words = ["env", "-u", "TMUX"]
+        .iter()
+        .map(|word| (*word).to_string())
+        .chain(tmux)
+        .collect();
+    crate::remote::open_words(None, title, LOCAL_ID_BASE, words, workspace, window, cx)
+}
+
 /// Opens a terminal tab named after the host and `session` that runs the tmux words `tmux` on the
 /// host named `name`.
 fn open(
@@ -416,18 +483,16 @@ fn open(
     let Some((label, place)) = host else {
         anyhow::bail!("marley.tmux_hosts no longer names {name}");
     };
-    let title = format!("{label} · {session}");
     match place {
-        Place::Here => {
-            // tmux refuses to attach from inside a session, as from a Marley started in one.
-            let words = ["env", "-u", "TMUX"]
-                .iter()
-                .chain(tmux)
-                .map(|word| (*word).to_string())
-                .collect();
-            crate::remote::open_words(None, title, LOCAL_ID_BASE, words, workspace, window, cx)
-        }
+        Place::Here => open_here(
+            session,
+            tmux.iter().map(|word| (*word).to_string()).collect(),
+            workspace,
+            window,
+            cx,
+        ),
         Place::Host(host) => {
+            let title = format!("{label} · {session}");
             let mut words = vec!["ssh".to_string(), "-t".to_string()];
             words.extend(marley_remote::keepalive_options());
             words.extend([

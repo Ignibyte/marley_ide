@@ -1892,7 +1892,16 @@ alike.
   `place_of` as `Place::Here` (`local`), `Place::Host` (the `saved_hosts` entry whose label, then
   whose host, it is) or `Place::Unknown` (a `Listing::Failed` at once). An unchanged list returns
   without touching the global; a host whose name and place are unchanged keeps its `TmuxHost`
-  (listing and fold). The poll task runs only while a host is named.
+  (listing and fold). The poll task runs only while a host is named. Since #819 an unset
+  `tmux_hosts` names `local` while `installed` finds tmux on the launcher's search path; a list
+  the user wrote, `[]` too, is taken as it is.
+- `new_local_session` (#819): `tmux new-session -A -s <name> -c <folder>` on this machine,
+  and for an agent `; send-keys -t <name> <cli> Enter`, so the CLI runs by the session's shell
+  and its PATH; `open_here` (shared with `open`'s `Place::Here`) attaches it in a tab titled
+  `this machine · <name>` through `remote::open_words`, then `list_soon`. The rail's
+  `new_entries` offers New tmux Terminal after New Terminal and `tmux_agent_entries` after New
+  Agent in Worktree, while `tmux_folder` gives a folder: tmux installed and a local project, its
+  first folder, else the home folder; `start_tmux_in` shows the workspace first.
 - `list_all`, every `LIST_EVERY` (10 s) and once `LIST_AFTER_NEW` after a +, lists every host at
   once (`join_all`), each `list` raced against `LIST_TIMEOUT` (20 s): `tmux list-panes -a -F
   PANE_FORMAT` through `process::output`, here, or behind `MARLEY_SSH` or `ssh` with a connect

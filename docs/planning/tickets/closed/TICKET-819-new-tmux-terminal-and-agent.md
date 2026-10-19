@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #819 (feature, the Marley layout's rail and tmux #808)
 - **Owner:** 6bc788ef-5565-4849-9e73-e341a6348e9f
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/819-new-tmux-terminal-and-agent.spec.md
 - **Source ticket:** Chad, 2026-10-19: "on the + on the left panel if tmux is on the box auto
   detected. THen lets add a New Terminal Agent." Asked what the + should do: "new tmux agent and
   new tmux terminal session basically".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 When tmux is installed, Marley notices it with no setting: a project's + (and, by #820, its
