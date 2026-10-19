@@ -6172,3 +6172,14 @@ still running waits for that run to end before it starts the next, and shows not
 Code that schedules a task the user may click twice, such as an attach, first looks for a terminal
 whose task has the same resolved id and `TaskStatus::Running`, and activates it
 (`remote::open_words`).
+
+## L-claude-813-zed-keeps-an-agents-process-by-its-id-001
+*category: zed fork · topic: an Agent Panel entry whose settings change · from: pipeline 813*
+
+Zed's `AgentConnectionStore` (`agent_ui/src/agent_connection_store.rs`) caches one connection per
+agent id. It drops it only when the id leaves `agent_servers`, a registry agent's version changes,
+the connection fails, or the user restarts it. A change to an entry's `command` or `env` rebuilds
+the agent server store's entry, but a new thread still runs on the old process. A scenario that
+checks what an entry's process was started with after a settings change quits and relaunches
+Marley first (`quit_marley`, `launch_marley`). Code that changes an entry's command or
+environment mid-session should expect it to reach only new connections (#814).

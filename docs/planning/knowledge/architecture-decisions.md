@@ -5598,3 +5598,25 @@ Rejected:
   need a list entry, where a tier and a grant class already say what it does;
 - pairing from an agent's conversation: the agent could not show the code before the user
   clicked.
+
+## AD-claude-813-rustys-entry-is-the-agent-it-runs-on-001
+*decided at: 2026-10-18 · status: shipped · amends: AD-claude-687-the-marley-agent-runs-on-codex-through-codex-acps-environment-and-on-zeds-agent-as-a-profile-001 · Rusty: decisions/rustys-agent-in-marley-runs-commands-and-edits-files*
+
+While Rusty is on, Rusty's Agent Panel entry is the agent it runs on, with Rusty's instructions
+and Rusty's server added, and nothing taken away but Marley's own tools: Claude Code keeps Bash,
+Edit, Write, NotebookEdit and MultiEdit (`disallowedTools` is `mcp__marley`); Codex starts in
+codex-acp's default mode, with no `INITIAL_AGENT_MODE` and no `sandbox_mode`; Zed's agent's
+`rusty` profile takes the tools of Zed's Write profile from the default settings. Each agent asks
+before acting as it does anywhere, and #779's permission settings skip the asking as they do for
+every agent. Rusty's own data still changes only through Rusty's tools, as its instructions say.
+The Marley agent keeps every limit. Chad, 2026-10-18, after Rusty refused to check a system
+process: "Commands + file edits", and "Comes with Rusty" (no setting of its own).
+
+Rejected:
+- commands only: a personal assistant also edits a config file it is asked to fix;
+- commands through Marley's `terminal_run`, each one shown in a Marley terminal: slower, and it
+  leaves out file edits;
+- a setting of its own, off by default: Rusty is already off until turned on, and the agents'
+  own asking guards each action;
+- a Marley-kept list of Zed's built-in tools for the profile: Zed's Write list is the source, so
+  a tool Zed adds reaches Rusty without a Marley change.

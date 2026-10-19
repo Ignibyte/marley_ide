@@ -1018,6 +1018,19 @@ signed in (0.2).
   does. The Rusty button, its tab and its row draw a butler (#807). The status bar holds Home
   alone; Rusty's cards are on Home (#782).
 
+### 2.16a Rusty runs a command (#813), optional
+
+Needs Rusty on, and Rusty on Claude Code (`marley.assistant.agent` `auto` with Claude Code signed
+in, or `claude_code`).
+
+1. Click the Rusty button in the title bar, or run `marley: new rusty conversation`. Type `Is
+   rusty-mcp running? Check its service.` and press Enter.
+2. Run `marley: new marley conversation` and type the same.
+
+- [ ] Step 1: Rusty runs a command such as `systemctl --user status rusty-mcp` and answers from
+  what it printed. It asks first unless `marley.claude_code_permissions` is `bypass`.
+- [ ] Step 2: the Marley agent says it runs no commands and suggests an agent in a terminal.
+
 ### 2.17 Projects and Threads (#745, #737, #772, #736)
 
 Needs 2.16's conversation, or any agent conversation you had before.

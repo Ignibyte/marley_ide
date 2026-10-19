@@ -3600,6 +3600,21 @@ below describe what #743 retired.
       applied, `rusty::offer_again` offers the `rusty` context server as `agent_tools` does
       (`wants_rusty_profile`).
     - `set_entries` writes every applied entry once the adapter's command is known.
+  - **Since #813** the read-only limits are the Marley entry's alone; Rusty's entry is the agent
+    it runs on, plus Rusty's instructions and server.
+    - `session_meta` puts `DISALLOWED_TOOLS` and `marley_tools_kept_out()` in for `Entry::Marley`
+      only; Rusty's `disallowedTools` is `mcp__marley` alone.
+    - `codex_config` adds `sandbox_mode: read-only`, and `set_entry` `INITIAL_AGENT_MODE=read-only`,
+      for the Marley entry only, so Rusty's Codex threads start in codex-acp 2.2.2's
+      `DEFAULT_AGENT_MODE`, `agent` (Auto review).
+    - `profile(entry, cx)` gives the `rusty` profile the `tools` of `agent.profiles.write` in
+      `raw_default_settings` (`agent_settings::builtin_profiles::WRITE`), so Zed's Write list stays
+      the source.
+    - `RUSTY_INSTRUCTIONS` drops the no-commands paragraph and says Rusty's own data changes only
+      through the rusty server's tools.
+    - Zed's `AgentConnectionStore` keeps an agent's connection by agent id, so an entry whose
+      settings change (the agent moved from Claude Code to Codex) keeps its old process until
+      Marley restarts (#814).
 - **Marley and Rusty in tabs (#738).** `TalkToMarley`, `TalkToRusty`, `NewMarleyConversation` and
   `NewRustyConversation` run `talk_to(entry, fresh)`: nothing unless `applied.of(entry)`; unless
   `fresh` or on Zed's agent, the entry's newest unarchived conversation (`latest_conversation`, by

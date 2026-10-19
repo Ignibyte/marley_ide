@@ -2442,13 +2442,20 @@ it proposes waits for your Apply. It is on out of the box (#696). **Agent**
 While Rusty is on (`marley.rusty.enabled`) and Marley has reached it, the Agent Panel also lists
 **Rusty** (#696). It runs on the same agent as the Marley agent (**Agent** above), whether or not
 the Marley agent is on. It is told it is your personal assistant, and it reaches your lists, notes,
-memories, brain and skills through Rusty's own tools. It changes no file and runs no command.
+memories, brain and skills through Rusty's own tools. Since #813 it also runs commands and edits
+files on your machine when you ask, such as checking a process or a service, as the agent it runs
+on does, and it asks first as that agent asks: Claude Code before each command or edit, Codex for
+the ones it judges risky. `marley.claude_code_permissions` or `marley.codex_permissions` can start
+it without asking, as they do every agent. Your tasks, notes, memories and brain pages still change
+through Rusty's tools, never by editing their files.
 
 - **Claude Code:** a `Rusty` agent server like the Marley entry. Its sessions' `_meta` names
   Rusty's server in `mcpServers.rusty`, which the adapter adds to the servers Zed passes. That is
   the `rusty-mcp` Marley found, or Rusty's service URL, so Rusty's tools reach this entry alone. It
-  may not use Bash, Edit, Write, NotebookEdit, MultiEdit or any of Marley's tools (`mcp__marley`).
-- **Codex:** the same entry, read-only, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`.
+  keeps Claude Code's own tools, Bash and the file tools among them, and may not use Marley's tools
+  (`mcp__marley`).
+- **Codex:** the same entry, with Rusty's server in `CODEX_CONFIG`'s `mcp_servers`, in
+  codex-acp's own default mode (Auto review) rather than the Marley agent's read-only.
 - **Your defaults for it** (#793): a mode picked in a Rusty or Marley thread, or a setting made a
   thread's default, is saved by Zed under `agent_servers.Rusty` or `agent_servers.Marley` in your
   settings. That entry adds its mode and settings to Marley's agent and leaves the agent itself
@@ -2459,8 +2466,8 @@ memories, brain and skills through Rusty's own tools. It changes no file and run
   folder when that vault is on another machine (#791); Rusty Agent's Folder on the Marley page
   (`marley.rusty.agent_folder`) moves it, and New Agent… starts it there without asking where
   (#780).
-- **Zed's agent:** a **Rusty** profile with no built-in tools and the context servers' tools. While
-  that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
+- **Zed's agent:** a **Rusty** profile with the built-in tools of Zed's Write profile (Terminal
+  and Edit File among them) and the context servers' tools. While that profile is there, Marley offers Rusty's server to Zed's agents as the context server `rusty`,
   as **Rusty's Tools for Agents** does, and Zed asks before each call.
 
 ### An agent thread in a center tab

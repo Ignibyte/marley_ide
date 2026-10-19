@@ -1407,6 +1407,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty runs commands and edits files** (#813, 2026-10-18). Ask Rusty in the Agent Panel to
+  check a process or a service and it runs the check, where before it refused and sent you to a
+  terminal. While Rusty is on, its entry is the agent it runs on with Rusty's tools added: Claude
+  Code with its Bash and file tools, Codex in its default mode instead of read-only, Zed's agent
+  with the tools of the Write profile. It asks before a command or an edit as that agent does,
+  unless `marley.claude_code_permissions` or `marley.codex_permissions` says to skip asking. Its
+  tasks, notes, memories and brain pages still change through Rusty's own tools. The Marley agent
+  stays read-only.
+
 - **One Home page, with Rusty's cards while Rusty is on** (#782, 2026-10-13). Rusty's home page
   folded into Home: while `marley.rusty.enabled` is on, Home shows Rusty's screens, Open Page… and
   the captures, your recent pages, the follow-ups due and your open tasks under Recent Projects and

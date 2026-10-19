@@ -6,24 +6,27 @@
 //!   in, then Zed's default model with its provider signed in. With none found, neither entry is
 //!   there.
 //! - Claude Code (#683): an entry running the registry's `claude-acp` adapter on the user's own
-//!   login, with instructions appended to its system prompt and the tools that edit files or run
-//!   commands disallowed. The adapter reads both from each session's `_meta`, which Zed sends from
-//!   `marley.agent_session_meta` (a hunk in `agent_servers`). Bypass is among its modes, and it
-//!   starts there while `marley.claude_code_permissions` is `bypass` (#779).
-//! - Codex (#687): the same entry running the registry's `codex-acp` in its read-only mode, with
-//!   the instructions as Codex's `developer_instructions` in `CODEX_CONFIG`, which the adapter
-//!   merges into each thread's config; in full access while `marley.codex_permissions` is
-//!   `full_access` (#779).
-//! - Zed's own agent (#687): a profile with no file tools. Zed's agent takes no prompt per profile
-//!   and drops an MCP server's instructions, so the tools' own descriptions guide it.
+//!   login, with instructions appended to its system prompt and, for the Marley entry, the tools
+//!   that edit files or run commands disallowed. The adapter reads both from each session's
+//!   `_meta`, which Zed sends from `marley.agent_session_meta` (a hunk in `agent_servers`). Bypass
+//!   is among its modes, and it starts there while `marley.claude_code_permissions` is `bypass`
+//!   (#779).
+//! - Codex (#687): the same entry running the registry's `codex-acp`, the Marley entry in its
+//!   read-only mode, with the instructions as Codex's `developer_instructions` in `CODEX_CONFIG`,
+//!   which the adapter merges into each thread's config; in full access while
+//!   `marley.codex_permissions` is `full_access` (#779).
+//! - Zed's own agent (#687): a profile, the Marley entry's with no file tools and Rusty's with
+//!   those of Zed's Write profile. Zed's agent takes no prompt per profile and drops an MCP
+//!   server's instructions, so the tools' own descriptions guide it.
 //!
 //! The Marley entry is there while `marley.assistant.enabled` is on, the default since #696. It
 //! uses Marley's MCP server, which Zed hands every agent, for the docs and settings tools (#681,
-//! #682, #686). Rusty's entry is there while Rusty is on and Marley has reached it. Its sessions
-//! carry Rusty's server themselves, as `_meta.claudeCode.options.mcpServers` or Codex's
-//! `mcp_servers`, so Rusty's tools reach that entry alone. Zed's agent reaches tools only through
-//! a context server, so while its Rusty profile is wanted Marley offers it the `rusty` server, as
-//! `marley.rusty.agent_tools` does.
+//! #682, #686). Rusty's entry is there while Rusty is on and Marley has reached it. It runs
+//! commands and edits files as the agent it runs on does, and asks first as that agent asks
+//! (#813). Its sessions carry Rusty's server themselves, as `_meta.claudeCode.options.mcpServers`
+//! or Codex's `mcp_servers`, so Rusty's tools reach that entry alone. Zed's agent reaches tools
+//! only through a context server, so while its Rusty profile is wanted Marley offers it the
+//! `rusty` server, as `marley.rusty.agent_tools` does.
 //!
 //! What the entries need lives in the settings' in-memory defaults, as `context_servers.marley`
 //! does (`mcp::offer_to_zeds_agents`): a custom agent server whose command is the one Zed resolves
@@ -45,7 +48,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_settings::AgentProfileId;
+use agent_settings::{AgentProfileId, builtin_profiles};
 use collections::{HashMap, IndexMap};
 use command_palette_hooks::CommandPaletteFilter;
 use fs::Fs;
@@ -88,8 +91,8 @@ actions!(
     ]
 );
 
-/// Claude Code's tools the agents may not use: they work through Marley's or Rusty's tools, and
-/// change no file and run no command.
+/// Claude Code's tools the Marley agent may not use: it works through Marley's tools, and changes
+/// no file and runs no command. Rusty's entry keeps them (#813).
 const DISALLOWED_TOOLS: [&str; 5] = ["Bash", "Edit", "Write", "NotebookEdit", "MultiEdit"];
 
 /// Marley's tools the Marley profile turns on for Zed's own agent: the ones that read the docs and
@@ -156,12 +159,12 @@ brain (a markdown wiki) and their skills, and the rusty server's tools are how y
 
 - Look things up before you answer: search the brain and the memories, and read a page rather \
 than guessing.
-- Add or change a task, a note, a memory or a page when the user asks, and say what you changed.
+- Add or change a task, a note, a memory or a brain page when the user asks, through the rusty \
+server's tools and never by editing its file, and say what you changed.
+- When the user asks for something on their machine, such as checking a process or a service, run \
+the commands it takes and edit the files it needs, and say what you ran and changed.
 - Questions about Marley itself and its settings are the Marley agent's: suggest the user ask it \
-in the Agent Panel.
-
-You do not edit files, run commands or change code here. When the user asks for that, say so and \
-suggest they ask an agent in a terminal.";
+in the Agent Panel.";
 
 /// Whether `agent` is one of the entries Marley adds, Marley's or Rusty's, by the id their
 /// threads carry (#737).
@@ -528,7 +531,7 @@ fn drop_adapter(agent: MarleyAssistantAgent, cx: &mut App) {
 /// session meta, then the entry with the adapter's command, resolved first when it must be.
 fn put_in(entry: Entry, agent: MarleyAssistantAgent, rusty: Option<&RustyServer>, cx: &mut App) {
     if adapter(agent).is_none() {
-        let profile = profile(entry);
+        let profile = profile(entry, cx);
         cx.update_global::<SettingsStore, _>(|store, cx| {
             store.update_default_settings(cx, |defaults| {
                 defaults
@@ -588,13 +591,15 @@ fn take_out(entry: Entry, cx: &mut App) {
 
 /// The `_meta` each Claude Code session of `entry` carries: its instructions as an append to the
 /// system prompt, the tools it may not use, and bypass among its modes, so the thread's mode switch
-/// reaches it and Marley's permission setting can start it there (#779). Marley's keeps out every
-/// Marley tool but its own eight (#698). Rusty's also names Rusty's server, which the adapter adds
-/// to the servers Zed passes, and keeps Marley's tools out.
+/// reaches it and Marley's permission setting can start it there (#779). Marley's keeps out
+/// Claude Code's file and shell tools and every Marley tool but its own (#698). Rusty's names
+/// Rusty's server, which the adapter adds to the servers Zed passes, and keeps out Marley's tools
+/// alone (#813).
 fn session_meta(entry: Entry, rusty: Option<&RustyServer>) -> Value {
-    let mut disallowed: Vec<String> = DISALLOWED_TOOLS.iter().map(ToString::to_string).collect();
+    let mut disallowed = Vec::new();
     let mut options = Map::new();
     if entry == Entry::Marley {
+        disallowed.extend(DISALLOWED_TOOLS.iter().map(ToString::to_string));
         disallowed.extend(marley_tools_kept_out());
     }
     if let Some(server) = rusty {
@@ -624,18 +629,20 @@ fn session_meta(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     })
 }
 
-/// The config `codex-acp` merges into each Codex thread of `entry`: its instructions, the
-/// read-only sandbox its read-only mode also asks for, and for Rusty's, Rusty's server.
+/// The config `codex-acp` merges into each Codex thread of `entry`: its instructions; for
+/// Marley's, the read-only sandbox its read-only mode also asks for; for Rusty's, Rusty's server.
 fn codex_config(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     let mut config = Map::new();
     config.insert(
         "developer_instructions".to_string(),
         Value::String(entry.instructions().to_string()),
     );
-    config.insert(
-        "sandbox_mode".to_string(),
-        Value::String("read-only".to_string()),
-    );
+    if entry == Entry::Marley {
+        config.insert(
+            "sandbox_mode".to_string(),
+            Value::String("read-only".to_string()),
+        );
+    }
     if let Some(server) = rusty {
         let mut servers = Map::new();
         servers.insert(
@@ -652,11 +659,24 @@ fn codex_config(entry: Entry, rusty: Option<&RustyServer>) -> Value {
     Value::Object(config)
 }
 
-/// Zed's agent's profile for `entry`, with no built-in tool. Marley's turns on Marley's tools that
-/// read and propose. Rusty's turns on the context servers' tools, Rusty's among them, since a
-/// profile names a server's tools one by one and Rusty's are its own to change; Zed asks before
-/// each call.
-fn profile(entry: Entry) -> AgentProfileContent {
+/// Zed's agent's profile for `entry`. Marley's has no built-in tool and turns on Marley's tools
+/// that read and propose. Rusty's has the built-in tools of Zed's Write profile as Zed's defaults
+/// hold them, so a tool Zed adds there reaches Rusty too (#813), and turns on the context servers'
+/// tools, Rusty's among them, since a profile names a server's tools one by one and Rusty's are
+/// its own to change; Zed asks before each call.
+fn profile(entry: Entry, cx: &App) -> AgentProfileContent {
+    let tools = match entry {
+        Entry::Marley => IndexMap::default(),
+        Entry::Rusty => cx
+            .global::<SettingsStore>()
+            .raw_default_settings()
+            .agent
+            .as_ref()
+            .and_then(|agent| agent.profiles.as_ref())
+            .and_then(|profiles| profiles.get(builtin_profiles::WRITE))
+            .map(|write| write.tools.clone())
+            .unwrap_or_default(),
+    };
     let mut context_servers = IndexMap::default();
     if entry == Entry::Marley {
         context_servers.insert(
@@ -671,7 +691,7 @@ fn profile(entry: Entry) -> AgentProfileContent {
     }
     AgentProfileContent {
         name: entry.name().into(),
-        tools: IndexMap::default(),
+        tools,
         enable_all_context_servers: Some(entry == Entry::Rusty),
         context_servers,
         default_model: None,
@@ -830,7 +850,11 @@ fn set_entry(
             }
         }
         MarleyAssistantAgent::Codex => {
-            env.insert("INITIAL_AGENT_MODE".to_string(), "read-only".to_string());
+            // Rusty's threads start in codex-acp's own default mode, as a Codex thread does
+            // (#813).
+            if entry == Entry::Marley {
+                env.insert("INITIAL_AGENT_MODE".to_string(), "read-only".to_string());
+            }
             env.insert(
                 "CODEX_CONFIG".to_string(),
                 codex_config(entry, rusty).to_string(),
