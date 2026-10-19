@@ -3165,3 +3165,12 @@ A bar, card or chip that Marley draws because an agent acted gives the user a wa
 close button, or an answer that removes it. Its state has a value in which it draws nothing, and
 the plan names what brings it back. A toggle between two shown states (Take Over and Hand Back) is
 not a way out.
+
+## PR-claude-815-every-fs-embed-folder-is-watched-001
+*severity: high · prevents: F-claude-815-a-release-build-reused-a-stale-asset-embed-001*
+
+A `util::fs_embed!` (or any rust-embed derive) gets, in the same change, a `build.rs` in its crate
+that prints `cargo:rerun-if-changed=build.rs` and, when `CARGO_CFG_DEBUG_ASSERTIONS` is unset, a
+`cargo:rerun-if-changed=` line for each folder or file its `include` reaches. A change to an
+existing `fs_embed!`'s `include` changes its build script's list with it. The five scripts of #815
+(`assets`, `settings`, `agent`, `grammars`, `marley_workbench`) are the pattern.

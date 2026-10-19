@@ -1653,6 +1653,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **An install carries every new or edited icon, theme, keymap and doc** (#815, 2026-10-19).
+  #807's house, cat and butler showed in a debug Marley but drew as blanks in the installed one.
+  A release build packs `assets/`, the default settings and keymaps, the docs bundle, the agent's
+  prompt templates and the grammars into the binary, and cargo was never told about the files, so
+  a build reused the crate it had already compiled unless that crate's code changed too. Each of
+  the five crates now has a build script that tells cargo to rebuild it when its folder changes,
+  in a release build only; a debug build reads those files from the checkout and still rebuilds
+  nothing on an asset edit.
+
 - **The Take Over bar can be closed** (#810, 2026-10-17). The bar an agent's writes leave under a
   terminal, and the one under a Browser tab's toolbar, has a close button that hides it until an
   agent acts again, and Hand Back now closes it too. Before, after an outside client typed into a

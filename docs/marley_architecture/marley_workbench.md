@@ -3645,6 +3645,11 @@ below describe what #743 retired.
       words.
     - `search` counts each query word, else its `stem` (-ies, -es after s/x/z/ch/sh, -s, -ing,
       -ed, at least three letters left); `snippet` looks for either.
+  - Since #815, the crate's `build.rs` names the two bundles' paths (`docs/src`,
+    `docs/marley/guide.md`, `docs/marley/walkthrough.md`, `CHANGELOG.md`) to cargo in a build
+    without `debug_assertions`, so a release build compiles the crate again when a page changes;
+    rust-embed's compressed embed names no file to cargo. Its list has to follow the two
+    `fs_embed!` blocks' `include`.
   - `settings_tools.rs`: `schema` builds `SettingsStore::json_schema` on the background executor
     with the actions' names and documentation, and `describe` resolves the key path (`resolve`
     follows `$ref` into `$defs` and drops an optional's null branch), with the default from

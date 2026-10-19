@@ -6183,3 +6183,15 @@ the agent server store's entry, but a new thread still runs on the old process. 
 checks what an entry's process was started with after a settings change quits and relaunches
 Marley first (`quit_marley`, `launch_marley`). Code that changes an entry's command or
 environment mid-session should expect it to reach only new connections (#814).
+
+## L-claude-815-a-debug-check-cannot-see-what-a-release-build-embeds-001
+*category: process · topic: the visual check of an asset change · from: pipeline 815*
+
+A debug Marley reads `assets/`, the default settings, the keymaps and the docs bundle from the
+checkout at runtime; a release build embeds them at compile time. A scenario on the debug build
+therefore passes for a new icon, theme, keymap entry or doc page even when the install will not
+carry it. A ticket whose change is such a file also checks the installed build: `grep -ao` of the
+embedded path in `~/.local/lib/marley/marley`, or the scenario run with `binary
+"$HOME/.local/lib/marley/marley"` (#815's sources #807's). To prove a build script's watch on a
+real crate, `cargo build --release -p zed --bin marley -v` names why a crate is `Dirty`; building
+the crate alone (`-p assets`) unifies fewer features, which can compile a second `gpui`.

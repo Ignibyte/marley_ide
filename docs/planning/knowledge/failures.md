@@ -4289,3 +4289,16 @@ do.
 
 Outside Clients' first line named the pair command in backticks, and a `Label` draws text as it
 is, so the window showed the backticks. Fixed in #811: plain words.
+
+## F-claude-815-a-release-build-reused-a-stale-asset-embed-001
+*severity: high · found in: Chad's installed Marley, 2026-10-18, after #807 · class: a build input cargo never tracked · prevented by: PR-claude-815-every-fs-embed-folder-is-watched-001*
+
+#807's three icons (`assets/icons/marley_home.svg`, `marley_cat.svg`, `rusty_butler.svg`) drew as
+blanks in the installed release Marley, through two installs, while the debug build that #807's
+check ran showed them. `util::fs_embed!` is rust-embed in a build without `debug_assertions`; its
+derive lists the folder when it expands, and under the `compression` feature `include-flate`
+writes each file's bytes into the code with no `include_bytes!`. Cargo had no file of the folder
+to watch, and the release `libassets` from 2026-10-17 19:07, two hours before the SVGs, was reused.
+The same gap held for every `fs_embed!` folder: the default settings and keymaps, the docs bundle
+and changelog, the agent's templates and the grammars. Fixed in #815: each of those crates'
+`build.rs` prints `rerun-if-changed` for its folders in a release build.
