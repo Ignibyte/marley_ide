@@ -313,7 +313,11 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   header order, `move_project`, rather than through `MultiWorkspace::move_project_group_up`), and after a separator Clear Browser Data… (#581) and Remove Project
   (#507: `MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes
   the project's workspaces after their save prompts and so stops its Chromium.
-  `project_context_menu` builds it. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
+  `project_context_menu` builds it. Since #820 every open header's right-click starts with what its
+  `+` offers, `new_entries` (New Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent
+  in Worktree, Launch), which `render_project_menu` builds the `+` from too; `group_context_menu`
+  does the same for groups and Default, and the empty space's menu offers New Agent… and Reopen
+  Thread… in Default in place of its old list of agent CLIs. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
   the rail as it does Zed's sidebar.
 - **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each

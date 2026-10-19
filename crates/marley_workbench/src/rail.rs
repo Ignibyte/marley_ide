@@ -3281,21 +3281,6 @@ impl Rail {
         Ok(())
     }
 
-    /// Shows `workspace` and starts `kind` in a new center terminal there.
-    fn new_agent(
-        &self,
-        workspace: &WeakEntity<Workspace>,
-        kind: AgentKind,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        let workspace = self.activate_workspace(workspace, window, cx)?;
-        workspace.update(cx, |workspace, cx| {
-            agents::start_cli(workspace, kind, window, cx);
-        });
-        Ok(())
-    }
-
     /// Shows a thread: displays its workspace and opens the thread, focused, in the workspace's
     /// Agent Panel, which sits on the right in the Marley layout.
     fn open_thread(
@@ -4658,11 +4643,11 @@ impl Rail {
         cx: &mut Context<Self>,
     ) {
         let rail = cx.entity().downgrade();
-        let search_path = agents::launcher(cx).search_path;
         let menu = ContextMenu::build(window, cx, move |menu, _, _| {
             let group_rail = rail.clone();
             let terminal_rail = rail.clone();
             let browser_rail = rail.clone();
+            let picker_rail = rail.clone();
             let menu = menu
                 .entry("New Group…", None, move |window, cx| {
                     group_rail
@@ -4698,33 +4683,26 @@ impl Rail {
                         .flatten()
                         .log_err();
                 });
-            let agents = agents::installed_clis(search_path.as_deref());
-            if agents.is_empty() {
-                return menu;
-            }
-            agents
-                .into_iter()
-                .fold(menu.separator().header("Agent CLIs"), |menu, kind| {
-                    let rail = rail.clone();
-                    menu.item(
-                        ContextMenuEntry::new(kind.display_name())
-                            .icon(agents::cli_icon(kind))
-                            .icon_color(Color::Muted)
-                            .handler(move |window, cx| {
-                                rail.update(cx, |rail, cx| {
-                                    rail.in_home(
-                                        move |rail, workspace, window, cx| {
-                                            rail.new_agent(workspace, kind, window, cx)
-                                        },
-                                        window,
-                                        cx,
-                                    )
-                                })
-                                .flatten()
-                                .log_err();
-                            }),
-                    )
-                })
+            // The one way to start an agent (#744), as the `+` has it (#820).
+            menu.entry("New Agent…", None, move |window, cx| {
+                picker_rail
+                    .update(cx, |rail, cx| {
+                        rail.in_home(
+                            |rail, workspace, window, cx| {
+                                rail.new_agent_picker(workspace, None, window, cx)
+                            },
+                            window,
+                            cx,
+                        )
+                    })
+                    .flatten()
+                    .log_err();
+            })
+            .entry("Reopen Thread…", None, move |window, cx| {
+                rail.update(cx, |rail, cx| rail.in_home(Self::reopen_thread, window, cx))
+                    .flatten()
+                    .log_err();
+            })
         });
         let subscription = cx.subscribe_in(&menu, window, |rail, _, _: &DismissEvent, _, cx| {
             rail.empty_menu = None;
@@ -5704,7 +5682,8 @@ impl Rail {
             })
     }
 
-    /// A projectless group's right-click menu (#600): Rename Group… and Remove Group.
+    /// A projectless group's right-click menu (#600): what its `+` offers (#820), then Rename
+    /// Group… and Remove Group.
     fn group_context_menu(
         rail: WeakEntity<Self>,
         group: Uuid,
@@ -5713,13 +5692,18 @@ impl Rail {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        let search_path = agents::launcher(cx).search_path;
         // Default is always there, so it is not renamed or removed (#700).
         if groups::is_home(group, cx) {
-            return ContextMenu::build(window, cx, |menu, _, _| {
-                menu.label("What belongs to no project opens here")
+            return ContextMenu::build(window, cx, move |menu, _, cx| {
+                Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx)
+                    .separator()
+                    .label("What belongs to no project opens here")
             });
         }
-        ContextMenu::build(window, cx, move |menu, _, _| {
+        ContextMenu::build(window, cx, move |menu, _, cx| {
+            let menu =
+                Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx).separator();
             let rename_rail = rail.clone();
             menu.entry("Rename Group…", None, move |window, cx| {
                 rename_rail
@@ -5737,8 +5721,9 @@ impl Rail {
         })
     }
 
-    /// A project row's right-click menu: Move Project Up and Down, disabled at the ends `at`
-    /// (first, last), then Clear Browser Data… (#581) and Remove Project (#507).
+    /// A project row's right-click menu: what its `+` offers, unless it is closed (#820); Move
+    /// Project Up and Down, disabled at the ends `at` (first, last), then Clear Browser Data…
+    /// (#581) and Remove Project (#507).
     fn project_context_menu(
         header: HeaderMenu,
         window: &mut Window,
@@ -5754,7 +5739,14 @@ impl Rail {
             failed_checks,
             ..
         } = header;
-        ContextMenu::build(window, cx, move |menu, _, _| {
+        let search_path = agents::launcher(cx).search_path;
+        ContextMenu::build(window, cx, move |menu, _, cx| {
+            // A closed project has no `+` (#606).
+            let menu = if closed {
+                menu
+            } else {
+                Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx).separator()
+            };
             let menu = [
                 ("Move Project Up", true, first),
                 ("Move Project Down", false, last),
@@ -5877,68 +5869,77 @@ impl Rail {
                         let workspace = workspace.clone();
                         let agent_search_path = agent_search_path.clone();
                         Some(ContextMenu::build(window, cx, move |menu, _, cx| {
-                            let terminal_rail = rail.clone();
-                            let terminal_workspace = workspace.clone();
-                            let browser_rail = rail.clone();
-                            let browser_workspace = workspace.clone();
-                            let cli_rail = rail.clone();
-                            let cli_workspace = workspace.clone();
-                            let picker_rail = rail.clone();
-                            let picker_workspace = workspace.clone();
-                            let reopen_rail = rail.clone();
-                            let reopen_workspace = workspace.clone();
-                            let menu = menu
-                                .entry("New Terminal", None, move |window, cx| {
-                                    terminal_rail
-                                        .update(cx, |rail, cx| {
-                                            rail.new_terminal(&terminal_workspace, window, cx)
-                                        })
-                                        .flatten()
-                                        .log_err();
-                                })
-                                .entry("New Browser Tab", None, move |window, cx| {
-                                    browser_rail
-                                        .update(cx, |rail, cx| {
-                                            rail.new_browser_tab(&browser_workspace, window, cx)
-                                        })
-                                        .flatten()
-                                        .log_err();
-                                });
-                            // The one way to start an agent, a thread or a CLI (#744); its Where
-                            // starts on this project's root.
-                            let menu = menu
-                                .entry("New Agent…", None, move |window, cx| {
-                                    picker_rail
-                                        .update(cx, |rail, cx| {
-                                            rail.new_agent_picker(
-                                                &picker_workspace,
-                                                None,
-                                                window,
-                                                cx,
-                                            )
-                                        })
-                                        .flatten()
-                                        .log_err();
-                                })
-                                .entry("Reopen Thread…", None, move |window, cx| {
-                                    reopen_rail
-                                        .update(cx, |rail, cx| {
-                                            rail.reopen_thread(&reopen_workspace, window, cx)
-                                        })
-                                        .flatten()
-                                        .log_err();
-                                });
-                            let menu = Self::worktree_agent_entries(
+                            Self::new_entries(
                                 menu,
-                                &cli_workspace,
+                                &rail,
+                                &workspace,
                                 agent_search_path.as_deref(),
                                 cx,
-                            );
-                            Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
+                            )
                         }))
                     })
                     .anchor(Anchor::TopRight),
             )
+    }
+
+    /// What a header's `+` offers, which its right-click menu starts with too (#820): New
+    /// Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent in Worktree and the
+    /// project's Launch entries.
+    fn new_entries(
+        menu: ContextMenu,
+        rail: &WeakEntity<Self>,
+        workspace: &WeakEntity<Workspace>,
+        agent_search_path: Option<&OsStr>,
+        cx: &App,
+    ) -> ContextMenu {
+        let terminal_rail = rail.clone();
+        let terminal_workspace = workspace.clone();
+        let browser_rail = rail.clone();
+        let browser_workspace = workspace.clone();
+        let cli_rail = rail.clone();
+        let cli_workspace = workspace.clone();
+        let picker_rail = rail.clone();
+        let picker_workspace = workspace.clone();
+        let reopen_rail = rail.clone();
+        let reopen_workspace = workspace.clone();
+        let menu = menu
+            .entry("New Terminal", None, move |window, cx| {
+                terminal_rail
+                    .update(cx, |rail, cx| {
+                        rail.new_terminal(&terminal_workspace, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            })
+            .entry("New Browser Tab", None, move |window, cx| {
+                browser_rail
+                    .update(cx, |rail, cx| {
+                        rail.new_browser_tab(&browser_workspace, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            });
+        // The one way to start an agent, a thread or a CLI (#744); its Where
+        // starts on this project's root.
+        let menu = menu
+            .entry("New Agent…", None, move |window, cx| {
+                picker_rail
+                    .update(cx, |rail, cx| {
+                        rail.new_agent_picker(&picker_workspace, None, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            })
+            .entry("Reopen Thread…", None, move |window, cx| {
+                reopen_rail
+                    .update(cx, |rail, cx| {
+                        rail.reopen_thread(&reopen_workspace, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            });
+        let menu = Self::worktree_agent_entries(menu, &cli_workspace, agent_search_path, cx);
+        Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
     }
 
     /// New Agent in Worktree (#510): a submenu of the installed agent CLIs, right after New Agent…

@@ -1653,6 +1653,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A header's right-click offers what its + does** (#820, 2026-10-19). Right-clicking a
+  project's, a group's or Default's header now starts with the same entries as its `+`: New
+  Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent in Worktree and your Launch
+  entries, before the header's own. Right-clicking the rail's empty space offers New Agent… and
+  Reopen Thread… in place of the old list of agent CLIs.
+
 - **A thread drags to another group in the rail** (#818, 2026-10-19). A terminal's row dropped on
   another group's header moved the terminal there (#613), but a thread's row only reordered within
   its own group: a Rusty thread opened in a project could not be dragged to Default. Now any
