@@ -105,7 +105,8 @@ no server, so the install builds one:
 
 - **What is staged.** Every `just install` builds `remote_server` from the same tree for Linux
   x86_64 (static, musl), strips and gzips it, and stages it as
-  `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz`. The newest three are kept.
+  `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz`. The newest three are kept,
+  and the server of any commit a Marley still running was built at (#809).
   The build adds several minutes to an install, and more the first time.
 - **On the host.** Marley's server lives at `~/.zed_server/zed-remote-server-dev-<commit>`, the
   full commit Marley was built from. Marley uses a server there only when its `version` answers
@@ -4000,7 +4001,7 @@ Environment variables and flags:
 | `~/.local/share/marley/claude-code/shared/<digest>/` | The plugin Marley shares with rustal-harness, read-only, named by its digest (#709) |
 | `~/.local/share/marley/marley-dev.sock` | The socket a second launch hands its paths to, while Marley runs (#760; `zed-dev.sock` before) |
 | `~/.local/share/marley/harness/` | The root of the harness Marley runs itself while `embedded_harness` is on (#632) |
-| `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz` | The remote servers the install staged, the newest three (#445) |
+| `~/.local/share/marley/remote_servers/dev/linux-x86_64/<commit>.gz` | The remote servers the install staged, the newest three and any a running Marley needs (#445, #809) |
 | `~/.local/share/marley/shell_integration/` | `marley.bash` and `zsh/.zshenv` |
 | `~/.local/share/marley/browser/projects/<key>/` | A project's browser: `profile/`, `project.json`, and while it runs the relay's `relay.sock` and `relay.json` (mode 0600) |
 | `~/.local/share/marley/browser/recordings/<id>/` | A saved recording: `timeline.json` and `frames/` |

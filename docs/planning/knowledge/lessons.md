@@ -6206,3 +6206,13 @@ own first shot before its pass counts, and a focus or routing criterion is run o
 without the fix (`E2E_BINARY=$HOME/.local/lib/marley/marley` while the install predates it), where
 it has to fail. In #812's split, Shift+Page_Up after a header click left the terminal at the live
 screen; `pointer_to` over the pane and `scroll -15` scrolled it back.
+
+## L-claude-809-a-running-marleys-commit-is-in-its-binary-001
+*category: tooling · topic: which build a running Marley is · from: pipeline 809*
+
+A Marley's commit is in its binary as Zed's `ZED_COMMIT_SHA`, once (`grep -acF <full sha>`). On
+Linux `/proc/<pid>/exe` still reads a binary an install has replaced by a rename (`readlink`
+shows `(deleted)`), so `grep -aoF -f <names> /proc/<pid>/exe` over `pgrep -x marley` tells which
+of a set of commits the running Marleys were built at, with no state written at launch. Searching
+only for the names in hand keeps it to one read per binary. An install script can be checked
+against a scratch `XDG_DATA_HOME` with fake `<commit>.gz` files dated with `touch -d`.

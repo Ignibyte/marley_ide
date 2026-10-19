@@ -27,8 +27,9 @@
 # static (musl) and in its own cargo invocation, so the editor's features stay out of it, then
 # stripped and gzipped as script/bundle-linux does, into
 # ${XDG_DATA_HOME:-~/.local/share}/marley/remote_servers/dev/linux-x86_64/<commit>.gz, the layout
-# of Zed's own download cache. The newest three are kept. `--remote-server-only` stages the server
-# and builds or installs nothing else.
+# of Zed's own download cache. The newest three are kept, and the server of every commit a Marley
+# still running here was built at, since that Marley uploads no other (#809). `--remote-server-only`
+# stages the server and builds or installs nothing else.
 #
 # On macOS (#787) it builds the same `marley` and wraps it in a Marley.app it writes itself, since
 # Zed's script/bundle-mac names, signs and notarizes Zed's own app: the identifier
@@ -329,6 +330,18 @@ applications=$prefix/share/applications
 entry=$applications/marley.desktop
 
 # Builds the remote server and stages it for Marley's commit; prints where it went.
+# The staged commits under $1 that a Marley running here was built at, one a line. Each running
+# binary is read through /proc, which still reaches one an install has since replaced; a build
+# holds its commit as Zed's ZED_COMMIT_SHA (#809).
+running_commits() {
+  local platform_dir=$1 commits pid
+  commits=$(find "$platform_dir" -maxdepth 1 -name '*.gz' -printf '%f\n' | sed 's/\.gz$//')
+  [[ -n $commits ]] || return 0
+  for pid in $(pgrep -x marley || true); do
+    grep -aoF -f <(printf '%s\n' "$commits") "/proc/$pid/exe" 2>/dev/null || true
+  done | sort -u
+}
+
 stage_remote_server() {
   local target=x86_64-unknown-linux-musl tool
   for tool in musl-gcc llvm-objcopy gzip; do
@@ -357,9 +370,16 @@ stage_remote_server() {
   gzip --best --stdout "$server_stripped" >"$server_packed"
   mv -f "$server_packed" "$platform_dir/$commit.gz"
   rm -f "$server_stripped"
-  # The newest three staged servers are kept; the names are commits, so they hold no spaces.
+  # The newest three staged servers are kept, and the server of every commit a running Marley was
+  # built at (#809); the names are commits, so they hold no spaces.
+  local running staged
+  running=$(running_commits "$platform_dir")
   find "$platform_dir" -maxdepth 1 -name '*.gz' -printf '%T@ %p\n' | sort -rn | tail -n +4 |
-    cut -d' ' -f2- | xargs -r rm -f --
+    cut -d' ' -f2- | while IFS= read -r staged; do
+      if ! grep -qxF "$(basename "$staged" .gz)" <<<"$running"; then
+        rm -f -- "$staged"
+      fi
+    done
   if [[ -n $(git status --porcelain) ]]; then
     echo "    remote server for linux-x86_64 at ${commit:0:10}, with changes not committed: $platform_dir/$commit.gz"
   else

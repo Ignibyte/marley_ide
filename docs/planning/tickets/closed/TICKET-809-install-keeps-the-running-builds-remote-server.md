@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #809 (bug, install)
 - **Owner:** b6416b37-a6bf-4172-91e4-8d05bc38cda5
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/809-an-install-keeps-a-running-marleys-remote-server.spec.md
 - **Source ticket:** Chad, 2026-10-17: Open Remote Folder failed with "no Marley remote server is
   staged for linux-x86_64 at commit 3f1b2d6".
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 `script/install-marley` keeps the remote servers of the three newest commits it staged

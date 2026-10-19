@@ -1653,6 +1653,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Open Remote Folder keeps working across installs** (#809, 2026-10-19). An install keeps the
+  remote servers of the three newest commits it staged, and a Marley left running through more
+  installs than that found its own server gone: every Open Remote Folder failed with "no Marley
+  remote server is staged" until a restart. The install now also keeps the server of every commit
+  a Marley running on the machine was built at, read from each running Marley's binary.
+
 - **A new Marley or Rusty conversation runs on the agent you just chose** (#814, 2026-10-19).
   Changing `marley.assistant.agent` while Marley ran (Claude Code to Codex, say) reached new Marley
   and Rusty conversations only after a restart: Zed kept the old agent's process for them, and a

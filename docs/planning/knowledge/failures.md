@@ -4322,3 +4322,13 @@ drops it only when the id leaves `agent_servers`, so every new conversation afte
 on the old agent's process. With Claude Code's session meta already taken out, a Rusty
 conversation there answered as no one (`entry: unknown` in #814's scenario). Fixed in #814:
 `set_entry` has every Agent Panel's store forget the entry's connection when its settings change.
+
+## F-claude-809-an-install-pruned-the-running-marleys-remote-server-001
+*severity: medium · found in: Chad's Marley, 2026-10-17 (Open Remote Folder) · class: a cache pruned by age while a running reader still needs an old entry · prevented by: none (the install's prune now asks the running Marleys)*
+
+`script/install-marley` kept the three newest staged remote servers by modification time. A
+Marley on the `dev` channel uploads only the server of its own commit, and Chad's ran through
+three later installs, so its `3f1b2d6` server was pruned and every Open Remote Folder from it
+failed until a restart. Fixed in #809: `running_commits` reads each `pgrep -x marley` binary
+through `/proc/<pid>/exe` (readable after the install replaced the file) for the staged commits'
+names, and the prune keeps those.
