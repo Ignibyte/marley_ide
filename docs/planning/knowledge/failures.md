@@ -4332,3 +4332,15 @@ three later installs, so its `3f1b2d6` server was pruned and every Open Remote F
 failed until a restart. Fixed in #809: `running_commits` reads each `pgrep -x marley` binary
 through `/proc/<pid>/exe` (readable after the install replaced the file) for the staged commits'
 names, and the prune keeps those.
+
+## F-claude-816-keys-typed-after-enter-came-before-it-001
+*severity: medium · found in: #806's triage of 561-browser-env-opener (2026-10-17 and 2026-10-19) · class: keys handed back before a delayed write they must follow · prevented by: PR-claude-the-shells-enter-goes-with-its-paste-001*
+
+Return in the shell's prompt editor (#624, #627) pasted the line, sent its `\r` 200 ms later
+through `terminal_drive::paste_then` (#594's wait for Python's REPL), and gave the terminal the
+keys at once. Keys typed in those 200 ms, or queued in the window behind the Return, reached the
+shell first: 561 ran `cd …/repoBROWSER=/mnt`, and #816's burst ran `cd subhere`. #816's first
+check run found a second half in zsh: keys typed while the command ran were echoed only after
+the editor reopened, empty, at the next prompt, so the next Enter met an empty editor and only
+closed it, leaving `here` unrun. Fixed in #816: the shell's paste and `\r` go in one update, and
+`send` puts a line the shell shows ahead of the editor's text when the editor opened without one.

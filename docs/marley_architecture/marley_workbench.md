@@ -1073,6 +1073,11 @@ alike.
   close and focus change is deferred to the window.
 - `take_focus_at_prompt` opens the editor when the terminal gets the focus at a prompt it was not
   dismissed at. `close` marks the shell's editor dismissed until the next prompt.
+- Since #816 the shell's `send` writes the paste and its `\r` in one terminal update (an agent's
+  `\r` still goes through `terminal_drive::paste_then`), so keys typed after Enter follow it.
+  `Prompt::took_line` records whether `open_for` took the line the shell showed; when it did not,
+  `send` puts the line the shell shows at Enter (`autosuggest::typed_text`), typed while the last
+  command ran and echoed after the editor opened, ahead of the editor's text.
 - Since #573 the shell's editor subscribes to its own `BufferEdited`: the text goes to
   `typed_line::changed` and `paint_hint` draws `english::hint_for`'s words after the text as an
   `Inlay::edit_prediction` with the reserved id `usize::MAX - 573`, and the warning range in the

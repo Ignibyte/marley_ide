@@ -1653,6 +1653,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Commands typed fast run one at a time** (#816, 2026-10-19). Typing `cd x`, Enter, `ls`, Enter
+  quickly in the shell's prompt editor could run `cd xls`: the editor sent its Enter a fifth of a
+  second after the command and gave the keys back to the terminal at once, so the next keys got in
+  first. The shell's Enter now goes with its command. And a command typed while the last one still
+  ran, which the shell shows only once the editor has opened at its next prompt, now runs on the
+  next Enter instead of staying on the shell's line, in zsh as in bash.
+
 - **Open Remote Folder keeps working across installs** (#809, 2026-10-19). An install keeps the
   remote servers of the three newest commits it staged, and a Marley left running through more
   installs than that found its own server gone: every Open Remote Folder failed with "no Marley

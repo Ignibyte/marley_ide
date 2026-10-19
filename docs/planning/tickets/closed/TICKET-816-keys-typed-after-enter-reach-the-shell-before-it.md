@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #816 (bug, the block terminal's prompt editor)
 - **Owner:** 6bc788ef-5565-4849-9e73-e341a6348e9f
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/816-the-shells-enter-goes-with-its-paste.spec.md
 - **Source ticket:** found by #806's triage of 561-browser-env-opener, 2026-10-19.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Return in a shell's prompt editor (#627) runs `rich_input::send`: it pastes the line into the

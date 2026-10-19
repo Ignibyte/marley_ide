@@ -3192,3 +3192,12 @@ while Marley runs calls `AgentConnectionStore::forget_connection` for that id in
 Agent Panel (`assistant::forget_connection` is the pattern), after the new settings are in the
 defaults and only when they differ. Settings Zed writes during use (`default_mode`, favorites) are
 not such a change.
+
+## PR-claude-the-shells-enter-goes-with-its-paste-001
+*severity: medium · prevents: F-claude-816-keys-typed-after-enter-came-before-it-001*
+
+PR-claude-keys-after-a-paste-go-in-a-later-write-001 holds for programs that may read a paste
+with the input behind it (agents, REPLs). The shell's own prompt editor is the exception: it opens
+only at a prompt Marley's bash or zsh hooks report, both read a bracketed paste only to its end
+marker, and its `\r` goes in the paste's own update so nothing typed after can come first. Any
+path that gives the keys back while a write is still due owns the order of what is typed meanwhile.

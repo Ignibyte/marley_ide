@@ -69,6 +69,9 @@ struct Prompt {
     terminal: WeakEntity<Terminal>,
     /// The shell's history shown with Up, until Down passes its newest command or an edit (#783).
     walk: Option<Walk>,
+    /// Whether the shell's editor opened with the line typed at the prompt. When it did not, a line
+    /// the shell shows at Enter was typed before the editor took the keys (#816).
+    took_line: bool,
 }
 
 /// A walk through the shell's history in its editor (#783).
@@ -314,6 +317,7 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
             .filter(|typed| !typed.trim().is_empty()),
         Target::Agent(_) => None,
     };
+    let took_line = typed.is_some();
     let completions = matches!(target, Target::Shell).then(|| {
         std::rc::Rc::new(crate::shell_completions::ShellCompletions {
             terminal: view.read(cx).terminal().downgrade(),
@@ -347,6 +351,7 @@ fn open_for(view: &Entity<TerminalView>, target: Target, window: &mut Window, cx
             target,
             terminal: terminal.downgrade(),
             walk: None,
+            took_line,
         },
     );
     if matches!(target, Target::Shell) {
@@ -769,20 +774,30 @@ pub(crate) fn clear_shell(view: &Entity<TerminalView>, window: &mut Window, cx: 
     clear(view, window, cx);
 }
 
-/// Sends the editor's text to the agent as one paste and a carriage return, then closes it
-/// empty; an empty editor only closes.
+/// Sends the editor's text to the agent or the shell as one paste and a carriage return, then
+/// closes it empty; an empty editor only closes. The shell's carriage return goes with the paste,
+/// an agent's after `terminal_drive::AFTER_PASTE`.
 fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
-    let Some((editor, target)) = cx
+    let Some((editor, target, took_line)) = cx
         .global::<Prompts>()
         .0
         .get(&view.entity_id())
-        .map(|prompt| (prompt.editor.clone(), prompt.target))
+        .map(|prompt| (prompt.editor.clone(), prompt.target, prompt.took_line))
     else {
         return;
     };
-    let text = editor.read(cx).text(cx);
+    let terminal = view.read(cx).terminal().clone();
+    let mut text = editor.read(cx).text(cx);
+    // Keys typed while the last command ran reach the shell, which shows them only at its next
+    // prompt, after the editor opened there empty: they come first (#816).
+    if matches!(target, Target::Shell)
+        && !took_line
+        && let Some(ahead) = crate::autosuggest::typed_text(terminal.read(cx))
+            .filter(|ahead| !ahead.trim().is_empty())
+    {
+        text = format!("{ahead}{text}");
+    }
     if !text.trim().is_empty() {
-        let terminal = view.read(cx).terminal().clone();
         // A remote terminal whose link is down sends nothing, so the prompt stays in the editor
         // (#641).
         if terminal.read(cx).marley_inputs_refused().is_some() {
@@ -801,13 +816,22 @@ fn send(view: &Entity<TerminalView>, window: &mut Window, cx: &mut App) {
         }
         // Sending is typing: the bell goes, as a key typed in the terminal clears it (#635).
         view.update(cx, TerminalView::clear_bell);
-        crate::terminal_drive::paste_then(
-            &terminal,
-            &text,
-            |terminal| terminal.input(b"\r".to_vec()),
-            cx,
-        )
-        .detach();
+        match target {
+            // The shell reads a bracketed paste only up to its end marker, so its Enter goes in the
+            // same write, ahead of anything typed after it; 200 ms later, those keys would come
+            // first (#816).
+            Target::Shell => terminal.update(cx, |terminal, _| {
+                terminal.paste(&text);
+                terminal.input(b"\r".to_vec());
+            }),
+            Target::Agent(_) => crate::terminal_drive::paste_then(
+                &terminal,
+                &text,
+                |terminal| terminal.input(b"\r".to_vec()),
+                cx,
+            )
+            .detach(),
+        }
         editor.update(cx, |editor, cx| editor.set_text("", window, cx));
     }
     close(view, window, cx);
