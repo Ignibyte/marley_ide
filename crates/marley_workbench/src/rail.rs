@@ -6526,6 +6526,69 @@ impl Rail {
         });
     }
 
+    /// Moves the thread `key` to the project at `project` (#818): its tab goes to that project's
+    /// active pane through Zed's `move_item`, as a terminal does (#613), so the conversation carries
+    /// on and the rail lists it there (#734); a thread with no tab opens in one there. Its agent
+    /// keeps its own folder. Deferred, as `move_terminal` is.
+    fn move_thread(&self, key: &str, project: usize, window: &Window, cx: &mut Context<Self>) {
+        let Some(thread) = self.snapshot.threads.get(key) else {
+            return;
+        };
+        let Some(target) = self
+            .snapshot
+            .groups
+            .get(project)
+            .filter(|group| !group.closed)
+            .map(|group| group.workspace.clone())
+        else {
+            return;
+        };
+        let source = thread.workspace.clone();
+        let opening = ThreadToOpen {
+            thread_id: thread.thread_id,
+            agent: thread.agent.clone(),
+            work_dirs: thread.work_dirs.clone(),
+            title: thread.title.clone(),
+        };
+        let rail = cx.entity().downgrade();
+        window.defer(cx, move |window, cx| {
+            let Some(destination_workspace) = target.upgrade() else {
+                return;
+            };
+            let source = source.upgrade();
+            if source.as_ref() == Some(&destination_workspace) {
+                return;
+            }
+            let tab = source.as_ref().and_then(|source| {
+                let tab = crate::thread_tab::tab_for(source.read(cx), opening.thread_id, cx)?;
+                let pane = source.read(cx).pane_for(&tab)?;
+                Some((tab, pane))
+            });
+            match tab {
+                Some((tab, source_pane)) => {
+                    let destination = destination_workspace.read(cx).active_pane().clone();
+                    let index = destination.read(cx).items_len();
+                    workspace::move_item(
+                        &source_pane,
+                        &destination,
+                        tab.entity_id(),
+                        index,
+                        true,
+                        window,
+                        cx,
+                    );
+                }
+                None => destination_workspace.update(cx, |workspace, cx| {
+                    load_thread(workspace, opening, window, cx);
+                }),
+            }
+            rail.update(cx, |rail, cx| {
+                rail.activate_workspace(&target, window, cx).log_err();
+            })
+            .log_err();
+        });
+    }
+
     /// A turn row's marks: the files it changed, then `failed`, `injected`, and what the user did
     /// with it, `kept` or `undone` (#714).
     fn turn_marks(files: &str, turn: &TurnSnapshot) -> Div {

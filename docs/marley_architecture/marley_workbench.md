@@ -187,6 +187,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   `Entity<Terminal>` and every Marley global keyed by its entity id stay; Zed's
   `added_to_workspace` (Marley hunk) re-points its `workspace` and `project` and resubscribes, and
   moves its database row and Marley id as for any add (#575), so it restores under its new project.
+  Since #818 the header takes a thread's row too (`moves_to` matches `Selection::Thread`), and
+  `move_thread` moves the thread's `ThreadTab` (`thread_tab::tab_for`) the same way, or, with no
+  tab, opens the thread in the target (`load_thread`); the rail lists a tabbed thread under the
+  workspace holding its tab (#734), and the tab is serialized there. `ThreadTab::added_to_workspace`
+  calls `ConversationView::marley_set_workspace` (a Zed hunk) for the view and its thread views'
+  workspace; the agent keeps the project it started in.
 - **Browser rows (#504).** Each `BrowserView` in a project's workspaces is a row after its
   terminals (`member_browsers`, in the order the workspace lists its items), keyed by the view's
   entity id. Its title is the tab's own text, and its second line the URL's host and port

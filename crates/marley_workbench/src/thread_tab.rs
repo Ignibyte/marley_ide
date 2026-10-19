@@ -297,6 +297,19 @@ impl Item for ThreadTab {
             with_context,
         ]
     }
+
+    // The rail moves a thread's tab to another group's workspace (#818): the conversation acts
+    // there from then on, its agent still in its own project.
+    fn added_to_workspace(
+        &mut self,
+        workspace: &mut Workspace,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let joined = workspace.weak_handle();
+        self.conversation_view
+            .update(cx, |view, cx| view.marley_set_workspace(joined, cx));
+    }
 }
 
 impl SerializableItem for ThreadTab {
@@ -1415,6 +1428,17 @@ pub(crate) fn tab_threads(
             (view.read(cx).parent_id(), view)
         })
         .collect()
+}
+
+/// The tab of `workspace` that shows `thread_id`, if one does (#818).
+pub(crate) fn tab_for(
+    workspace: &Workspace,
+    thread_id: ThreadId,
+    cx: &App,
+) -> Option<Entity<ThreadTab>> {
+    workspace
+        .items_of_type::<ThreadTab>(cx)
+        .find(|tab| tab.read(cx).conversation_view.read(cx).parent_id() == thread_id)
 }
 
 /// `MarleyThreadHost::shows`: whether `workspace`'s active item is a thread tab on the view

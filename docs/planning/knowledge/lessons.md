@@ -6238,3 +6238,14 @@ scenarios far from it; #811 broke three the same day.
 "Marley", so Chad's own Marley finishing a Claude Code session four seconds into the run failed
 it. A check that watches the user's real session (bus, clipboard, windows) matches only what the
 run itself makes: its project's name (`repo`), its own strings, never the app's name alone.
+
+## L-claude-818-a-moved-item-keeps-its-project-but-not-its-workspace-001
+*category: design · topic: Zed items moving between workspaces · from: pipeline 818*
+
+A thread's tab moves across workspaces with `workspace::move_item` as a terminal does (#613), but
+unlike a terminal its project cannot follow: the agent's session and the tab's hidden worktree
+(#734) belong to the project it started in. Re-point only the workspace (`ThreadTab::
+added_to_workspace` → `ConversationView::marley_set_workspace`, which also covers the connected
+thread views), and say in the item's docs which handles stay behind. In an e2e test that restarts
+to check where an item comes back, clear the scenario's path first (`open_path ""`), or the launch
+opens that one project instead of restoring the session.

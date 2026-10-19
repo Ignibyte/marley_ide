@@ -868,6 +868,22 @@ impl ConversationView {
             .map(|view| view.read(cx).thread.clone())
     }
 
+    // Marley: the rail moves a thread's tab to another group's workspace (#818); the view and its
+    // thread views then act in that workspace, while its agent keeps its project.
+    pub fn marley_set_workspace(&mut self, workspace: WeakEntity<Workspace>, cx: &mut App) {
+        if self.workspace == workspace {
+            return;
+        }
+        self.workspace = workspace.clone();
+        let views: Vec<Entity<ThreadView>> = self
+            .as_connected()
+            .map(|connected| connected.threads.values().cloned().collect())
+            .unwrap_or_default();
+        for view in views {
+            view.update(cx, |view, _| view.workspace = workspace.clone());
+        }
+    }
+
     pub fn root_thread_view(&self) -> Option<Entity<ThreadView>> {
         self.root_session_id
             .as_ref()

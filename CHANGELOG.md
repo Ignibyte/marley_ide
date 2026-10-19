@@ -1653,6 +1653,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A thread drags to another group in the rail** (#818, 2026-10-19). A terminal's row dropped on
+  another group's header moved the terminal there (#613), but a thread's row only reordered within
+  its own group: a Rusty thread opened in a project could not be dragged to Default. Now any
+  thread's row, Rusty's, Marley's or an agent's, dropped on another open group's header moves the
+  thread there, its conversation carrying on, and it stays there when Marley starts again. Its
+  agent keeps working in the folder it started in.
+
 - **What you type right after sending a prompt to an agent stays out of that prompt** (#817,
   2026-10-19). An agent's prompt editor (Ctrl-G) sends its Enter a fifth of a second after the
   prompt, which Claude Code and Codex need, and the keys you typed in that moment joined the

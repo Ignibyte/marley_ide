@@ -215,9 +215,12 @@ impl DraggedRailRow {
         dragged.selection != self.selection && dragged.run == self.run
     }
     /// Whether this row, dropped on the header of the project at `project`, moves there: a
-    /// terminal of another project (#613).
+    /// terminal (#613) or a thread (#818) of another project.
     const fn moves_to(&self, project: usize) -> bool {
-        matches!(self.selection, Selection::Terminal(_)) && self.project != project
+        matches!(
+            self.selection,
+            Selection::Terminal(_) | Selection::Thread(_)
+        ) && self.project != project
     }
 }
 
@@ -298,8 +301,12 @@ impl Rail {
                 cx.listener(move |rail, dragged: &DraggedRailRow, window, cx| {
                     // A drop stops the event, so the drag ends here (L-claude-602).
                     rail.end_drag(window, cx);
-                    if let Selection::Terminal(terminal) = dragged.selection {
-                        rail.move_terminal(terminal, project, window, cx);
+                    match &dragged.selection {
+                        Selection::Terminal(terminal) => {
+                            rail.move_terminal(*terminal, project, window, cx);
+                        }
+                        Selection::Thread(key) => rail.move_thread(key, project, window, cx),
+                        _ => {}
                     }
                 }),
             )
