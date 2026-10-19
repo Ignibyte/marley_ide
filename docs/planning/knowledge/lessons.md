@@ -6195,3 +6195,14 @@ embedded path in `~/.local/lib/marley/marley`, or the scenario run with `binary
 "$HOME/.local/lib/marley/marley"` (#815's sources #807's). To prove a build script's watch on a
 real crate, `cargo build --release -p zed --bin marley -v` names why a crate is `Dirty`; building
 the crate alone (`-p assets`) unifies fewer features, which can compile a second `gpui`.
+
+## L-claude-812-a-click-point-is-checked-against-the-shot-and-a-build-without-the-fix-001
+*category: process · topic: e2e click points · from: pipeline 812*
+
+#812's scenario passed at once with its header point guessed, (1100, 500): its first shot showed
+the headers at the pane's bottom (the grid sits on the bottom edge), so the click had hit the
+empty body, which focuses in any build. A point a criterion rests on is read off the scenario's
+own first shot before its pass counts, and a focus or routing criterion is run once on a build
+without the fix (`E2E_BINARY=$HOME/.local/lib/marley/marley` while the install predates it), where
+it has to fail. In #812's split, Shift+Page_Up after a header click left the terminal at the live
+screen; `pointer_to` over the pane and `scroll -15` scrolled it back.

@@ -3174,3 +3174,12 @@ that prints `cargo:rerun-if-changed=build.rs` and, when `CARGO_CFG_DEBUG_ASSERTI
 `cargo:rerun-if-changed=` line for each folder or file its `include` reaches. A change to an
 existing `fs_embed!`'s `include` changes its build script's list with it. The five scripts of #815
 (`assets`, `settings`, `agent`, `grammars`, `marley_workbench`) are the pattern.
+
+## PR-claude-812-an-element-that-stops-a-press-over-a-view-focuses-it-001
+*severity: medium · prevents: F-claude-812-a-header-that-stopped-a-press-kept-the-focus-elsewhere-001*
+
+An element drawn over a focusable view (a terminal, an editor) that stops a mouse press, so the
+view starts no selection, does in its own handler what the view's press would have done and the
+element still wants: above all `window.focus(&view.focus_handle(cx), cx)`. Before adding a
+`stop_propagation` on a press, read the view's own press listener and list what the stop takes
+away.

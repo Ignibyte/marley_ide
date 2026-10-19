@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Entity, MouseButton};
+use gpui::{AnyElement, App, Entity, Focusable, MouseButton};
 use marley_terminal::BlockState;
 use settings::Settings as _;
 use terminal::Terminal;
@@ -65,6 +65,7 @@ fn header(
         (BlockState::Finished, None) => gpui::Empty.into_any_element(),
     };
     let colors = cx.theme().colors();
+    let focus_handle = view.focus_handle(cx);
     let (view, terminal) = (view.clone(), terminal.clone());
     Some(
         h_flex()
@@ -90,8 +91,10 @@ fn header(
             )
             // The press jumps, as Zed's sticky scroll headers do, and the press and its release
             // are the header's: the terminal under it starts no selection, reports no click to
-            // its program and opens no link menu.
-            .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+            // its program and opens no link menu. The press still focuses the terminal, as one on
+            // the grid does, or a header in another pane would leave the focus where it was.
+            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                window.focus(&focus_handle, cx);
                 cx.stop_propagation();
                 crate::blocks::reveal(&terminal, index, cx);
                 view.update(cx, |_, cx| cx.notify());

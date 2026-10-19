@@ -4302,3 +4302,13 @@ to watch, and the release `libassets` from 2026-10-17 19:07, two hours before th
 The same gap held for every `fs_embed!` folder: the default settings and keymaps, the docs bundle
 and changelog, the agent's templates and the grammars. Fixed in #815: each of those crates'
 `build.rs` prints `rerun-if-changed` for its folders in a release build.
+
+## F-claude-812-a-header-that-stopped-a-press-kept-the-focus-elsewhere-001
+*severity: medium · found in: #806's triage (575-terminal-id-across-restore, 2026-10-17) and #812's Complete phase · class: a child that stops a press its parent focuses on · prevented by: PR-claude-812-an-element-that-stops-a-press-over-a-view-focuses-it-001*
+
+The block header (#628) and the pinned command header (#529) each stopped the left press so the
+terminal under them started no selection. The terminal element focuses its view in that same
+press listener, so neither header ever focused: in a split, a click on the other pane's header
+left the focus in the first pane, and the next command ran there. #575's restore scenario met it
+on a restored block's header. Fixed in #812: each header focuses `view.focus_handle(cx)` before it
+stops the press. The pinned header turned up while #812's architecture note was written.

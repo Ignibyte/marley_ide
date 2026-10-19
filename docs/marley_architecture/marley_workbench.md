@@ -1214,7 +1214,9 @@ alike.
   its first row is the place, muted, and its second the command's first line in the buffer font
   (`…` when the command has more lines); over one row the command comes first and the place
   after it. The command keeps its width and the place truncates. The press and its release stop
-  there, so the terminal under it starts no selection.
+  there, so the terminal under it starts no selection. Since #812 the press first focuses the
+  header's view (`view.focus_handle(cx)`, the handle the terminal element focuses on a press), so
+  a header in another pane takes the focus there.
 - The place (#630) is `folder_label` of the block's `pwd` (`~` for home; past two folders the
   last two after `…`) and the branch `Branches` recorded for the block: `init` observes each new
   view's terminal, and `record_branches` stores, once per started block, the branch of its
@@ -1237,7 +1239,8 @@ alike.
   font, truncated, the state (`running`, a check, `exit N`) and an up arrow. A left press jumps,
   as Zed's editor sticky headers do (`blocks::reveal`, the block's first line at the top), and
   the press and its release both stop there, so the terminal starts no selection and its
-  plain-click listener (#579) opens no link menu. With `block_headers` `Native` the command has
+  plain-click listener (#579) opens no link menu; since #812 the press focuses the view first, as
+  the block header's does. With `block_headers` `Native` the command has
   no `$ `, as the native header has none (#629).
 
 ## Workflows (`src/workflows.rs`, #558)

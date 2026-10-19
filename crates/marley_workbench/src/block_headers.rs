@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path};
 use std::sync::Arc;
 
-use gpui::{AnyElement, App, Context, Entity, EntityId, Global, MouseButton, Pixels};
+use gpui::{AnyElement, App, Context, Entity, EntityId, Focusable, Global, MouseButton, Pixels};
 use marley_terminal::BlockState;
 use settings::{MarleyBlockDensity, Settings as _, SettingsStore};
 use terminal::Terminal;
@@ -119,7 +119,7 @@ fn record_branches(view: &TerminalView, terminal: &Entity<Terminal>, cx: &mut Ap
 /// The header over the `rows` prompt rows of the block at `index`, each `line_height` tall: the
 /// folder and branch over the command, or after it on one row. None while the setting is off.
 fn header(
-    _view: &Entity<TerminalView>,
+    view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
     index: usize,
     line_height: Pixels,
@@ -175,14 +175,19 @@ fn header(
     } else {
         v_flex().child(row().child(command).children(place))
     };
+    let focus_handle = view.focus_handle(cx);
     Some(
         header
             .id(("marley-block-header", index))
             .size_full()
             // The header stands for the prompt's text, which is not there to select: a press on
             // it and its release are the header's, so the terminal under it starts no selection
-            // and reports no click to its program.
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            // and reports no click to its program. The press still focuses the terminal, as one
+            // on the grid does, or a header in another pane would leave the focus where it was.
+            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                window.focus(&focus_handle, cx);
+                cx.stop_propagation();
+            })
             .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .into_any_element(),
     )

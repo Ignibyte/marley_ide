@@ -1653,6 +1653,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **A click on a block's header focuses its terminal** (#812, 2026-10-19). With two terminals
+  side by side, a click on a block's header in the other pane, or on the command pinned at the top
+  of a scrolled-back terminal (#529), left the focus where it was, so the next command ran in the
+  first terminal. Both headers still keep the click to themselves, so it starts no selection and
+  reaches no program, and they now focus their terminal first, as a click anywhere else on it does.
+
 - **An install carries every new or edited icon, theme, keymap and doc** (#815, 2026-10-19).
   #807's house, cat and butler showed in a debug Marley but drew as blanks in the installed one.
   A release build packs `assets/`, the default settings and keymaps, the docs bundle, the agent's
