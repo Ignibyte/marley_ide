@@ -2,9 +2,9 @@
 
 - **Ticket:** LOCAL #817 (bug, the prompt editor for agents)
 - **Owner:** 6bc788ef-5565-4849-9e73-e341a6348e9f
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** ../../pipeline/completed/817-input-waits-behind-a-pastes-enter.spec.md
 - **Source ticket:** split from #816, 2026-10-19.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 #816 sends the shell's Enter with its paste. An agent's editor (`Target::Agent`) still pastes,

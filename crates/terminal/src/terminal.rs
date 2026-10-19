@@ -1234,6 +1234,7 @@ impl TerminalBuilder {
             marley_row_map: marley_terminal::RowMap::default(),
             marley_input_held: false,
             marley_inputs_refused: 0,
+            marley_queued_input: None,
             #[cfg(any(test, feature = "test-support"))]
             input_log: Vec::new(),
             #[cfg(test)]
@@ -1716,6 +1717,7 @@ impl TerminalBuilder {
                 marley_row_map: marley_terminal::RowMap::default(),
                 marley_input_held: false,
                 marley_inputs_refused: 0,
+                marley_queued_input: None,
                 #[cfg(any(test, feature = "test-support"))]
                 input_log: Vec::new(),
                 #[cfg(test)]
@@ -1912,6 +1914,9 @@ pub struct Terminal {
     // (#641).
     marley_input_held: bool,
     marley_inputs_refused: usize,
+    // Marley: the input that waits behind a write Marley still owes, a paste's Enter, and when that
+    // hold ends at the latest (#817).
+    marley_queued_input: Option<(Instant, Vec<u8>)>,
     #[cfg(any(test, feature = "test-support"))]
     input_log: Vec<Vec<u8>>,
     #[cfg(test)]
@@ -2784,6 +2789,18 @@ impl Terminal {
             self.marley_inputs_refused += 1;
             return;
         }
+        // Marley: while Marley owes the terminal a write, what comes meanwhile waits behind it; a
+        // hold past its deadline lets what waited go first (#817).
+        let input = input.into();
+        if let Some((until, queued)) = self.marley_queued_input.as_mut()
+            && Instant::now() < *until
+        {
+            queued.extend_from_slice(&input);
+            return;
+        }
+        if self.marley_queued_input.is_some() {
+            self.marley_release_input(|_| {});
+        }
         self.keyboard_input_sent = true;
         // Marley: where the command typed at a prompt starts, for its autosuggestion (#484).
         let position = alacritty_terminal::marley_hooks::HookPosition::of(&self.term.lock());
@@ -2940,6 +2957,26 @@ impl Terminal {
     // not (#641).
     pub fn marley_inputs_refused(&self) -> Option<usize> {
         self.marley_input_held.then_some(self.marley_inputs_refused)
+    }
+
+    // Marley: keeps the terminal's input back until `marley_release_input`, or `until` at the
+    // latest, while Marley owes it a write; a hold already on lasts to the later deadline (#817).
+    pub fn marley_queue_input(&mut self, until: Instant) {
+        match self.marley_queued_input.as_mut() {
+            Some((deadline, _)) => *deadline = (*deadline).max(until),
+            None => self.marley_queued_input = Some((until, Vec::new())),
+        }
+    }
+
+    // Marley: ends the hold: `owed` writes first, then what waited (#817).
+    pub fn marley_release_input(&mut self, owed: impl FnOnce(&mut Self)) {
+        let queued = self.marley_queued_input.take();
+        owed(self);
+        if let Some((_, queued)) = queued
+            && !queued.is_empty()
+        {
+            self.input(queued);
+        }
     }
 
     #[cfg(any(test, feature = "test-support"))]

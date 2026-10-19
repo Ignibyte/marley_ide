@@ -1375,7 +1375,11 @@ alike.
   then sends each key (`Keystroke::parse`, `Terminal::try_keystroke`) and `\r` once
   `AFTER_PASTE` (200 ms) has passed, through `paste_then` (#594): a program that reads a
   bracketed paste to its end marker, as Python's REPL does, takes whatever arrived with it as
-  text. It keeps the last write and answers after the Enter.
+  text. It keeps the last write and answers after the Enter. Since #817 `paste_then` holds the
+  terminal's other input over those 200 ms (`Terminal::marley_queue_input`, a Zed hunk, until
+  `AFTER_PASTE * QUEUE_DEADLINE_TIMES` at the latest) and its task releases it with the owed write
+  (`marley_release_input`), so what the person types meanwhile reaches the program after the
+  Enter, for an agent's editor and every other caller.
 - `footer`, called from `agent_bar`'s footer for a terminal with no agent CLI in front: the card
   (Allow and Deny first, since the toast stacks over the footer's right end (#593); then the
   caller, the program, what it would type) or the bar (who typed what, while that program is

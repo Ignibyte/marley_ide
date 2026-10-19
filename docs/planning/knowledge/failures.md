@@ -4344,3 +4344,12 @@ check run found a second half in zsh: keys typed while the command ran were echo
 the editor reopened, empty, at the next prompt, so the next Enter met an empty editor and only
 closed it, leaving `here` unrun. Fixed in #816: the shell's paste and `\r` go in one update, and
 `send` puts a line the shell shows ahead of the editor's text when the editor opened without one.
+
+## F-claude-817-keys-typed-after-an-agents-prompt-joined-it-001
+*severity: medium · found in: #816's design, 2026-10-19 · class: keys handed back before a delayed write they must follow · prevented by: PR-claude-a-delayed-write-holds-the-terminals-input-001*
+
+An agent's prompt editor, and every other `terminal_drive::paste_then` caller, pasted, gave the
+terminal the keys, and sent the owed Enter 200 ms later. Keys typed in between reached the agent
+first: #817's stand-in read `firstsecond` and then an empty line. #816 removed the wait for the
+shell, which needs none; an agent needs it (F-claude-594). Fixed in #817: the terminal queues its
+input while Marley owes it a write and lets the queue out right after that write.

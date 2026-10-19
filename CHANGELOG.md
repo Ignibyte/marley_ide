@@ -1653,6 +1653,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **What you type right after sending a prompt to an agent stays out of that prompt** (#817,
+  2026-10-19). An agent's prompt editor (Ctrl-G) sends its Enter a fifth of a second after the
+  prompt, which Claude Code and Codex need, and the keys you typed in that moment joined the
+  prompt it had just sent. Marley now holds the terminal's other input until that Enter has gone,
+  then lets it through in the order you typed it, for the editor and every other place Marley
+  types into a terminal.
+
 - **Commands typed fast run one at a time** (#816, 2026-10-19). Typing `cd x`, Enter, `ls`, Enter
   quickly in the shell's prompt editor could run `cd xls`: the editor sent its Enter a fifth of a
   second after the command and gave the keys back to the terminal at once, so the next keys got in

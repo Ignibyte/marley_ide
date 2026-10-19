@@ -3201,3 +3201,12 @@ with the input behind it (agents, REPLs). The shell's own prompt editor is the e
 only at a prompt Marley's bash or zsh hooks report, both read a bracketed paste only to its end
 marker, and its `\r` goes in the paste's own update so nothing typed after can come first. Any
 path that gives the keys back while a write is still due owns the order of what is typed meanwhile.
+
+## PR-claude-a-delayed-write-holds-the-terminals-input-001
+*severity: medium · prevents: F-claude-817-keys-typed-after-an-agents-prompt-joined-it-001*
+
+Code that writes to a terminal now and owes it more later (a paste and its Enter) holds the
+terminal's input for the gap: `Terminal::marley_queue_input` with a deadline, released by the
+owed write through `marley_release_input`, which writes it before what waited.
+`terminal_drive::paste_then` does both; a new delayed write goes through it or does the same. A
+hold always carries a deadline, so a release that never runs cannot leave a terminal deaf.

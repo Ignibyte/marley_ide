@@ -53,6 +53,10 @@ const WAIT: Duration = Duration::from_secs(25);
 /// end marker takes whatever came with it as part of the paste, as Python's REPL does.
 pub(crate) const AFTER_PASTE: Duration = Duration::from_millis(200);
 
+/// How many times [`AFTER_PASTE`] a paste holds the terminal's other input at most, should its
+/// release never run: the terminal then takes input again (#817).
+const QUEUE_DEADLINE_TIMES: u32 = 10;
+
 /// The most a write types, text, keys and Enter together, the harness's bound.
 const MOST_BYTES: usize = 4096;
 
@@ -322,18 +326,24 @@ pub(crate) fn type_into(call: AppCall, cx: &mut App) {
 
 /// Pastes `text` into `terminal`, bracketed when its program asked for it, and runs `after` on the
 /// terminal once [`AFTER_PASTE`] has passed, so the keys and Enter it sends reach the program as
-/// keys (#594).
+/// keys (#594). Meanwhile the terminal's other input, the person's keys above all, waits behind
+/// `after` (#817).
 pub(crate) fn paste_then(
     terminal: &Entity<Terminal>,
     text: &str,
     after: impl FnOnce(&mut Terminal) + 'static,
     cx: &mut App,
 ) -> Task<()> {
-    terminal.update(cx, |terminal, _| terminal.paste(text));
+    terminal.update(cx, |terminal, _| {
+        terminal.paste(text);
+        terminal.marley_queue_input(Instant::now() + AFTER_PASTE * QUEUE_DEADLINE_TIMES);
+    });
     let terminal = terminal.downgrade();
     cx.spawn(async move |cx| {
         cx.background_executor().timer(AFTER_PASTE).await;
-        terminal.update(cx, |terminal, _| after(terminal)).log_err();
+        terminal
+            .update(cx, |terminal, _| terminal.marley_release_input(after))
+            .log_err();
     })
 }
 
