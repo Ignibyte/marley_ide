@@ -17,3 +17,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
+| [TICKET-825](open/TICKET-825-agent-thread-with-panels.md) | feature | Design board 1 of the Warp-like canvas; Chad picks which board goes first |
+| [TICKET-826](open/TICKET-826-terminal-blocks-with-an-agent-beside.md) | feature | Design board 2 of the Warp-like canvas; Chad picks which board goes first |
+| [TICKET-827](open/TICKET-827-rail-rows-say-their-state.md) | feature | Design board 3 of the Warp-like canvas; Chad picks which board goes first |
