@@ -27,4 +27,9 @@ ignore = [
   "RUSTSEC-2026-0367", # zip 0.6.6 — SUID/SGID bits kept on extraction; upstream tree
   "RUSTSEC-2026-0368", # zip 0.6.6 — extract makes symlinks pointing outside the destination; upstream tree
   "RUSTSEC-2026-0369", # zip 0.6.6 — Unix permissions applied through symlinks; upstream tree
+  # webpki-roots 0.26.11 is a semver-trick shim that holds no roots and re-exports webpki-roots
+  # 1.x, which is at the fixed 1.0.10. sqlx 0.8 (upstream tree) pins the 0.26 line; the only way
+  # off it is sqlx 0.9. The id also covers the 1.x copy, so drop this line when sqlx moves.
+  # Listed 2026-10-20 with the rustls-webpki, webpki-root-certs and webpki-roots 1.x bumps.
+  "RUSTSEC-2026-0381", # webpki-roots 0.26.11 — distrusted emSign roots; a shim over the fixed 1.0.10
 ]

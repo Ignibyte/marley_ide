@@ -1684,6 +1684,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Distrusted certificate authorities** (2026-10-20). `rustls-webpki` 0.103.16, `webpki-roots`
+  1.0.10 and `webpki-root-certs` 1.0.10 drop the emSign intermediates RustSec flagged that day
+  (RUSTSEC-2026-0381, 0382, 0383). `webpki-roots` 0.26.11, which sqlx 0.8 pins, holds no roots of
+  its own and passes 1.0.10's through; its id is listed in `.cargo/audit.toml` until sqlx moves to
+  0.9.
+
 - **A header's right-click offers what its + does** (#820, 2026-10-19). Right-clicking a
   project's, a group's or Default's header now starts with the same entries as its `+`: New
   Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent in Worktree and your Launch
