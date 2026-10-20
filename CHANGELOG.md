@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A system prompt for the Marley agent** (#824, 2026-10-20). Marley's own agent is told who it
+  is, what it does and with which tools, how to answer (the answer first in plain words, short, one
+  question at a time, saying when it does not know, no filler) and what to hand to others. Rusty
+  answers by the same rules.
+
 - **tmux sessions under their project, and a question on close** (#821, 2026-10-20). The
   `TMUX · host` sections are gone: each tmux session is a row under the project whose folder it
   started in, a remote project's for a session on another host, or under Home. A click attaches it

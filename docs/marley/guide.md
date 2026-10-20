@@ -2407,7 +2407,11 @@ settings through Marley's MCP server: `docs_search`, `docs_read`, `settings_sche
 `settings_read`, `actions_list`, `settings_change`, `keymap_change`, `seat_add` (#692), and
 `seat_stop` and `seat_remove` (#710). Its docs are Zed's and Marley's guide, walkthrough and
 changelog, and it is told to look in the changelog for what changed and when (#723). Every change
-it proposes waits for your Apply. It is on out of the box (#696). **Agent**
+it proposes waits for your Apply. Its instructions have four parts (#824): who it is and what
+Marley is; what it does, with which tools; how it answers (the answer first in plain words, kept
+short, one question at a time, saying when it does not know, no filler); and what it leaves to
+others (code and commands to an agent in a terminal or a thread, your tasks and notes to Rusty).
+Rusty is told to answer the same way. It is on out of the box (#696). **Agent**
 (`marley.assistant.agent`, #687) picks what it runs on:
 
 - **Auto** (`auto`, the default, #696): the first found a second after start. That is Claude Code
