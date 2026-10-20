@@ -1785,6 +1785,13 @@ front.
   comes back at the same width after a restart.
 - A width you drag to by hand steps to the next size above it: 45% goes to 50%.
 
+How wide the text runs inside that place is a second control (#822). A thread's messages and its
+message box fill the whole place by default (`agent.limit_content_width` is `false` in Marley,
+`true` in Zed). The toggle after the width button switches the text between the full width and a
+readable column of `agent.max_content_width` (850 px) in the middle, and saves the choice in your
+settings. It shows wherever a thread does, including a tab alone in its row, where the width
+button does not. In the column the bottom row moves in with the text, the toggle with it.
+
 ### The Component Library (#799)
 
 Marley has a catalog of components an agent can draw: text, headings, rows, columns, cards,

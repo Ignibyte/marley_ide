@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's text runs the full width** (#822, 2026-10-20). A thread's messages and its message
+  box now fill the tab or panel they are in, instead of Zed's 850 px column in the middle:
+  Marley's default for `agent.limit_content_width` is `false`. A new toggle in the thread's bottom
+  row, beside the width button and shown even when the width button is not, switches between the
+  full width and the readable column and saves the choice to your settings.
+
 - **New tmux Terminal and New Agent in tmux** (#819, 2026-10-19). With tmux installed, a project's
   `+` and its right-click offer New tmux Terminal, a shell in a new tmux session in the project's
   folder, and New Agent in tmux, which starts Claude Code, Codex or another installed agent CLI in

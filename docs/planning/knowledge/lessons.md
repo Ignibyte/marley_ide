@@ -6249,3 +6249,15 @@ added_to_workspace` → `ConversationView::marley_set_workspace`, which also cov
 thread views), and say in the item's docs which handles stay behind. In an e2e test that restarts
 to check where an item comes back, clear the scenario's path first (`open_path ""`), or the launch
 opens that one project instead of restoring the session.
+
+## L-claude-822-a-menu-entry-a-scenario-counts-to-moves-when-a-ticket-adds-one-001
+*category: testing · topic: e2e scenarios and the rail's + menu · from: pipeline 822*
+
+#798's scenario reached New Agent... in the repo row's + menu by `Home Down Down Return`. #819 put
+New tmux Terminal second whenever tmux is on the PATH, so the same keys now open New Browser Tab,
+and the scenario's first check (the scripted agent's `session/new`) fails with no word of why. A
+new scenario that borrows a set-up takes a shot of the open menu first and clicks the entry by its
+point, and any scenario that counts to a menu entry breaks when a ticket adds one above it: the
+golden set's scenarios that count to New Agent... (#744's family) want the same check when the
+regression pass runs. A control inside the thread's content column moves with the column, so a
+scenario that switches the column needs a click point for each width.

@@ -1197,7 +1197,9 @@
     // Whether to limit the content width in the agent panel. When enabled,
     // content will be constrained to `max_content_width` and centered when
     // the panel is wider, for optimal readability.
-    "limit_content_width": true,
+    // Marley: off, so a thread's text runs the whole width of its place; the toggle in a thread's
+    // bottom row turns it on (#822).
+    "limit_content_width": false,
     // Maximum content width in pixels when limit_content_width is enabled.
     // Content will be centered within the panel.
     "max_content_width": 850,

@@ -5095,6 +5095,7 @@ impl ThreadView {
                                     .child(self.render_add_context_button(cx))
                                     .child(self.render_follow_toggle(cx))
                                     .children(self.render_marley_panel_width(window, cx))
+                                    .children(self.render_marley_text_width(cx))
                                     .children(self.render_fast_mode_control(cx))
                                     .children(self.render_thinking_control(cx)),
                             )
@@ -6381,6 +6382,36 @@ impl ThreadView {
                     {
                         window.dispatch_action(action, cx);
                     }
+                })
+                .into_any_element(),
+        )
+    }
+
+    // Marley: flips `agent.limit_content_width` in the user's settings, so a thread's text runs the
+    // whole width of its place or Zed's readable column (#822). It shows wherever the width button
+    // may, even for a tab alone in its row, which already has the row's whole width.
+    fn render_marley_text_width(&self, cx: &App) -> Option<AnyElement> {
+        cx.try_global::<crate::MarleyThreadHost>()?;
+        let limited = AgentSettings::get_global(cx).max_content_width.is_some();
+        let (icon, tooltip) = if limited {
+            (IconName::Maximize, "Text: the full width")
+        } else {
+            (IconName::Minimize, "Text: a readable column")
+        };
+        let project = self.project.clone();
+        Some(
+            IconButton::new("marley-agent-text-width", icon)
+                .icon_size(IconSize::Small)
+                .icon_color(Color::Muted)
+                .tooltip(Tooltip::text(tooltip))
+                .on_click(move |_, _, cx| {
+                    let Some(project) = project.upgrade() else {
+                        return;
+                    };
+                    let fs = project.read(cx).fs().clone();
+                    update_settings_file(fs, cx, move |settings, _| {
+                        settings.agent.get_or_insert_default().limit_content_width = Some(!limited);
+                    });
                 })
                 .into_any_element(),
         )
