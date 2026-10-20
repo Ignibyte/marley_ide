@@ -597,7 +597,9 @@ In the rail, Home's row is always the first under Default, above its terminals (
 
 Drag a project's or a group's header up or down to move it, with its rows, among the headers; a
 group can sit between projects. Drag a terminal, Browser tab or thread row up or down to move it
-among the rows of its kind in its own group (a worktree's terminals among that worktree's). A
+anywhere among its group's terminals, Browser tabs and threads, whatever their kinds: a thread can
+sit above a terminal, a Browser tab between two agents (#823). A worktree's terminals move among
+that worktree's, and under the attention order a row keeps to rows of its kind. A
 card with the name follows the pointer, and a line shows where it lands: above the target when
 you drag up, below it when you drag down. A terminal row dropped on another open project's or
 group's header moves to that project, with its shell still running (#613); its right-click

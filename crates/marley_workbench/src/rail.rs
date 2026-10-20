@@ -9584,8 +9584,9 @@ fn build_snapshot(
             cx,
         );
         inbox_entries(&name, &group.workspaces, &mut snapshot, cx);
-        let matched = filter_match(filter, &name);
         snapshot.rail.projects.push(ProjectSnapshot {
+            // Before `name`, which the next field moves.
+            matched: filter_match(filter, &name),
             name,
             expanded: group.expanded,
             terminals,
@@ -9595,8 +9596,8 @@ fn build_snapshot(
             threads,
             ports: port_snapshots(&group.key, filter, cx),
             worktrees,
-            matched,
             closed: false,
+            order: Vec::new(),
         });
         snapshot
             .groups
@@ -9691,6 +9692,7 @@ fn push_closed(
         worktrees: Vec::new(),
         matched,
         closed: true,
+        order: Vec::new(),
     });
     snapshot.groups.push(GroupEntry {
         key: group.key.clone(),

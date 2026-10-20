@@ -144,6 +144,29 @@ pub(super) fn arrange(snapshot: &mut Snapshot, order: &SavedOrder) {
         marley_rail::place(&mut project.threads, placed, |thread| {
             Some(thread_place(&thread.key))
         });
+        // The window order lists the placed rows in one run, whatever their kinds (#823).
+        let rows: HashMap<String, Selection> = project
+            .terminals
+            .iter()
+            .map(|terminal| Selection::Terminal(terminal.id))
+            .chain(
+                project
+                    .browsers
+                    .iter()
+                    .map(|browser| Selection::Browser(browser.id)),
+            )
+            .filter_map(|row| Some((places.get(&row)?.clone(), row)))
+            .chain(project.threads.iter().map(|thread| {
+                (
+                    thread_place(&thread.key),
+                    Selection::Thread(thread.key.clone()),
+                )
+            }))
+            .collect();
+        project.order = placed
+            .iter()
+            .filter_map(|place| rows.get(place).cloned())
+            .collect();
     }
 }
 
@@ -418,23 +441,15 @@ impl Rail {
             self.end_drag(window, cx);
             return;
         };
-        let rows: Vec<Selection> = project
-            .terminals
-            .iter()
-            .map(|terminal| Selection::Terminal(terminal.id))
-            .chain(
-                project
-                    .browsers
-                    .iter()
-                    .map(|browser| Selection::Browser(browser.id)),
-            )
-            .chain(
-                project
-                    .threads
-                    .iter()
-                    .map(|thread| Selection::Thread(thread.key.clone())),
-            )
-            .collect();
+        // The rows as the window order lists them, worktrees' terminals after: a drop within a
+        // worktree's run moves only among its terminals, which keep their own order (#823).
+        let mut rows = marley_rail::movable_rows(project);
+        for terminal in &project.terminals {
+            let row = Selection::Terminal(terminal.id);
+            if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
         let rows = marley_rail::move_to(
             &rows,
             &dragged.selection,

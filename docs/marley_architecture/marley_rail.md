@@ -97,6 +97,13 @@ gpui-free, MIT OR Apache-2.0; its one dependency is the equally pure `marley_age
   list (stable, the unplaced last), and `move_to` moves one item before or after another. The
   workbench orders the snapshot's projects and rows with them before the walk, so the attention
   sort breaks its ties by the order the user set.
+- **One run under the window order** (#823). Under `RailOrder::Window` a project's main checkout's
+  terminals, its Browser tabs and its threads share `Run::Rows { project }`, and `walk` lists them
+  as one run (`mixed_rows`) after Home's page and before the worktrees. `movable_rows` gives that
+  run's order: the rows in `ProjectSnapshot::order` (the user's placed rows, which the workbench
+  resolves from its saved places) first, the rest as they come, terminals before Browser tabs
+  before threads. The workbench's drop moves a row within the same list. The attention order keeps
+  its kind sections.
 - **`TerminalSnapshot::flag`** (#569) is the tooltip of a working agent's warning mark, when the
   stall kind flagged it `looping?` or `stalled?`; the builders copy it to `TerminalRow::flag`, and
   it too decides no order or visibility.

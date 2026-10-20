@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Any row goes anywhere in its group** (#823, 2026-10-20). A group's terminals, Browser tabs
+  and threads no longer sit in three sections: drag any of them to any place among the others, a
+  thread above a terminal or a Browser tab between two agents, and the order comes back after a
+  restart. A worktree's terminals stay under the worktree, and the attention order keeps its
+  sections.
+
 - **An agent's text runs the full width** (#822, 2026-10-20). A thread's messages and its message
   box now fill the tab or panel they are in, instead of Zed's 850 px column in the middle:
   Marley's default for `agent.limit_content_width` is `false`. A new toggle in the thread's bottom

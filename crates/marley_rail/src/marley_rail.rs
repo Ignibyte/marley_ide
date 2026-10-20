@@ -55,6 +55,9 @@ pub struct ProjectSnapshot {
     /// Whether the window holds no workspace of the group, as after a restart, which reopens only
     /// the shown one (#606): its header is listed, dimmed, with nothing under it.
     pub closed: bool,
+    /// The terminals, Browser tabs and threads the user placed by dragging, in the order left
+    /// (#823); the window order lists them so, whatever their kinds.
+    pub order: Vec<Selection>,
 }
 
 /// One linked worktree of a project's repository (#510).
@@ -1196,6 +1199,12 @@ pub enum Run {
         /// The project's index in [`RailSnapshot::projects`].
         project: usize,
     },
+    /// A project's main checkout's terminals, its Browser tabs and its threads, in one run under
+    /// the window order (#823).
+    Rows {
+        /// The project's index in [`RailSnapshot::projects`].
+        project: usize,
+    },
     /// A project's threads.
     Threads {
         /// The project's index in [`RailSnapshot::projects`].
@@ -1211,6 +1220,15 @@ pub enum Run {
 pub fn run(snapshot: &RailSnapshot, row: &Row) -> Option<Run> {
     let attention = snapshot.order == RailOrder::Attention;
     match row {
+        Row::Terminal(row) if !attention && row.worktree.is_none() => Some(Run::Rows {
+            project: row.project,
+        }),
+        Row::Browser(row) if !attention => Some(Run::Rows {
+            project: row.project,
+        }),
+        Row::Thread(row) if !attention => Some(Run::Rows {
+            project: row.project,
+        }),
         Row::Project(row) => {
             let project = snapshot.projects.get(row.index)?;
             Some(Run::Headers(attention.then(|| project_attention(project))))
@@ -1275,6 +1293,35 @@ pub fn move_to<T: PartialEq + Clone>(order: &[T], moved: &T, target: &T, before:
     result
 }
 
+/// A project's main checkout's terminals, its Browser tabs and its threads, in the window order's
+/// one run (#823).
+///
+/// The ones the user placed in [`ProjectSnapshot::order`] come first, then the rest as they come,
+/// terminals before Browser tabs before threads.
+#[must_use]
+pub fn movable_rows(project: &ProjectSnapshot) -> Vec<Selection> {
+    let mut rows: Vec<Selection> = project
+        .terminals
+        .iter()
+        .filter(|terminal| worktree_of(project, terminal).is_none())
+        .map(|terminal| Selection::Terminal(terminal.id))
+        .chain(
+            project
+                .browsers
+                .iter()
+                .map(|browser| Selection::Browser(browser.id)),
+        )
+        .chain(
+            project
+                .threads
+                .iter()
+                .map(|thread| Selection::Thread(thread.key.clone())),
+        )
+        .collect();
+    rows.sort_by_key(|row| held_position(&project.order, row));
+    rows
+}
+
 /// A collapsed project's agents by state, most needing the user first: `1 waiting, 2 working`;
 /// shells and idle agents are not counted.
 fn summary(project: &ProjectSnapshot) -> Option<String> {
@@ -1319,7 +1366,8 @@ fn summary(project: &ProjectSnapshot) -> Option<String> {
 /// Every row the rail shows, in its order: each shown project's header, then Home's page (#782),
 /// the main checkout's terminals, each linked worktree's row with its terminals (#510), the Browser
 /// tabs, the other tabs, the threads, the Files row with its files (#674) and the ports shown under
-/// it.
+/// it. Under the window order the main checkout's terminals, the Browser tabs and the threads are
+/// one run in the order the user left them, before the worktrees (#823).
 /// The rows, the selection and the keyboard all read this one walk.
 fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
     let mut rows = Vec::new();
@@ -1374,23 +1422,7 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .filter(|tab| tab.kind == TabKind::Other)
             .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
             .map(|tab| Shown::Tab(index, tab));
-        let files: Vec<&TabSnapshot> = project
-            .tabs
-            .iter()
-            .filter(|tab| tab.kind == TabKind::File)
-            .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
-            .collect();
-        // The Files row shows over any file that shows; its fold yields to the filter.
-        let files_open = project.files_open || snapshot.filtering;
-        let files = (!files.is_empty())
-            .then_some(Shown::Files(index, project))
-            .into_iter()
-            .chain(
-                files
-                    .into_iter()
-                    .filter(move |_| files_open)
-                    .map(|tab| Shown::Tab(index, tab)),
-            );
+        let files = files_rows(snapshot, index, project);
         let threads = arrange_threads(
             snapshot,
             project
@@ -1406,15 +1438,25 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
             .iter()
             .filter(|port| row_shows(snapshot, project, port.matched.as_deref()))
             .map(|port| Shown::Port(index, port));
-        let under: Vec<Shown<'_>> = homes
-            .chain(terminals)
-            .chain(worktrees)
-            .chain(browsers)
-            .chain(others)
-            .chain(threads)
-            .chain(files)
-            .chain(ports)
-            .collect();
+        let under: Vec<Shown<'_>> = if snapshot.order == RailOrder::Window {
+            homes
+                .chain(mixed_rows(snapshot, index, project))
+                .chain(worktrees)
+                .chain(others)
+                .chain(files)
+                .chain(ports)
+                .collect()
+        } else {
+            homes
+                .chain(terminals)
+                .chain(worktrees)
+                .chain(browsers)
+                .chain(others)
+                .chain(threads)
+                .chain(files)
+                .chain(ports)
+                .collect()
+        };
         // The filter shows a project for its own name or for a row under it.
         if snapshot.filtering && project.matched.is_none() && under.is_empty() {
             continue;
@@ -1423,6 +1465,65 @@ fn walk(snapshot: &RailSnapshot) -> Vec<Shown<'_>> {
         rows.extend(under);
     }
     rows
+}
+
+/// A project's Files row and, while it is open, the files under it (#674).
+fn files_rows<'a>(
+    snapshot: &RailSnapshot,
+    index: usize,
+    project: &'a ProjectSnapshot,
+) -> Vec<Shown<'a>> {
+    let files: Vec<&TabSnapshot> = project
+        .tabs
+        .iter()
+        .filter(|tab| tab.kind == TabKind::File)
+        .filter(|tab| row_shows(snapshot, project, tab.matched.as_deref()))
+        .collect();
+    // The Files row shows over any file that shows; its fold yields to the filter.
+    let files_open = project.files_open || snapshot.filtering;
+    (!files.is_empty())
+        .then_some(Shown::Files(index, project))
+        .into_iter()
+        .chain(
+            files
+                .into_iter()
+                .filter(|_| files_open)
+                .map(|tab| Shown::Tab(index, tab)),
+        )
+        .collect()
+}
+
+/// The shown rows of [`movable_rows`], the window order's one run of a project's terminals,
+/// Browser tabs and threads (#823).
+fn mixed_rows<'a>(
+    snapshot: &RailSnapshot,
+    index: usize,
+    project: &'a ProjectSnapshot,
+) -> Vec<Shown<'a>> {
+    movable_rows(project)
+        .into_iter()
+        .filter_map(|row| match row {
+            Selection::Terminal(id) => project
+                .terminals
+                .iter()
+                .find(|terminal| terminal.id == id)
+                .filter(|terminal| terminal_shows(snapshot, project, terminal))
+                .map(|terminal| Shown::Terminal(index, terminal)),
+            Selection::Browser(id) => project
+                .browsers
+                .iter()
+                .find(|browser| browser.id == id)
+                .filter(|browser| row_shows(snapshot, project, browser.matched.as_deref()))
+                .map(|browser| Shown::Browser(index, browser)),
+            Selection::Thread(key) => project
+                .threads
+                .iter()
+                .find(|thread| thread.key == key)
+                .filter(|thread| row_shows(snapshot, project, thread.matched.as_deref()))
+                .map(|thread| Shown::Thread(index, thread)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Whether a terminal or thread row under `project` shows: under an expanded project without a
@@ -1937,6 +2038,7 @@ mod tests {
             worktrees: Vec::new(),
             matched: None,
             closed: false,
+            order: Vec::new(),
         }
     }
 
