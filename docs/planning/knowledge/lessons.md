@@ -6269,3 +6269,16 @@ On Linux, a `window.prompt` is gpui's own dialog in the middle of the window, it
 column, top to bottom in the order given (at 1600x1000: the first at y 532, then 558, 584). A
 scenario that answers a prompt takes a shot of it first and clicks each button by its row; a guess
 that lays them out in a row hits at most one by luck, as #821's first run's Hide did.
+
+## L-claude-828-a-theme-check-takes-the-theme-key-out-and-switches-it-live-001
+*category: process · topic: the visual check of a theme or default-setting change · from: pipeline 828*
+
+To show what `default.json` picks, a scenario removes the key from the profile copy rather than
+setting part of it: a user `theme` object must name `light` and `dark` both (the enum's fields have
+no default), so `{"theme": {"mode": "dark"}}` fails to load instead of falling back. To show a
+second theme, write its name into the copy's `settings.json` while Marley runs: Zed watches the
+file and redraws within a couple of seconds, so no relaunch is needed. The light default under a
+light system cannot be reached: the headless sway's portal reports the dev box's dark preference.
+A debug build reads `assets/` at runtime (L-claude-815), so a new theme needs no rebuild for the
+check, and the installed build is grepped for it after the next install.
+

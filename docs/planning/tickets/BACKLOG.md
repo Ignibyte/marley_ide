@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-828](open/TICKET-828-marley-night-and-day-themes.md) | feature | Marley Night and Marley Day themes (W0.1) |
 | [TICKET-829](open/TICKET-829-the-cat-mark.md) | feature | The cat mark: app icon and title bar (W0.2) |
 | [TICKET-830](open/TICKET-830-the-rail-shrinks-to-a-strip.md) | feature | The rail shrinks to a strip of project marks (W1.1) |
 | [TICKET-831](open/TICKET-831-a-project-mark-from-logo-png.md) | feature | A project's mark from its logo.png (W1.2) |

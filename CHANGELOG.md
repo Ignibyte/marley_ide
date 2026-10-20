@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Marley Night and Marley Day** (#828, 2026-10-20). Marley's own theme family, named for Chad's
+  cat, a solid orange cat with green eyes: her orange as the accent, her green for success and added
+  lines, warm darks for Night and cream for Day. Marley Night is the default with the system dark,
+  Marley Day with it light. A `theme` already in your settings wins; pick Marley Night in the theme
+  selector, or remove the key, to switch.
+
 - **A system prompt for the Marley agent** (#824, 2026-10-20). Marley's own agent is told who it
   is, what it does and with which tools, how to answer (the answer first in plain words, short, one
   question at a time, saying when it does not know, no filler) and what to hand to others. Rusty

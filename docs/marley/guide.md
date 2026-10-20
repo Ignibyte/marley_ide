@@ -3981,6 +3981,14 @@ each does.
 Telemetry is off by default in Marley (#514): `telemetry.metrics` and `telemetry.diagnostics`
 default to false, and turning either on works as in Zed.
 
+Marley has a theme family of its own (#828), named for Marley, Chad's cat: a solid orange cat
+with green eyes. **Marley Night** is the default with the system dark and **Marley Day** with it
+light. Her orange is the accent (buttons, selection, focus, the lit header), her green marks what is
+done and what was added, and the grounds are warm darks (Night) or cream (Day); warnings are honey,
+needs-you and conflicts pink, errors red. A `theme` of your own in `settings.json` wins, as in Zed:
+an install that named One Dark keeps it until you pick Marley Night in the theme selector
+(`theme selector: toggle`, Ctrl+K Ctrl+T) or remove the key.
+
 On Omarchy, **Follow Omarchy's Theme** (`marley.omarchy_theme`, off by default) draws Marley in the
 desktop's theme (#759). Turned on, Marley writes a theme template to
 `~/.config/omarchy/themed/marley.json.tpl` and a hook to

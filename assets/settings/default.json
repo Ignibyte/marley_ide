@@ -6,10 +6,12 @@
   // - "system": Use the theme that corresponds to the system's appearance
   // - "light": Use the theme indicated by the "light" field
   // - "dark": Use the theme indicated by the "dark" field
+  //
+  // Marley: Marley's own themes, Marley Day and Marley Night (#828), over One Light and One Dark.
   "theme": {
     "mode": "system",
-    "light": "One Light",
-    "dark": "One Dark",
+    "light": "Marley Day",
+    "dark": "Marley Night",
   },
   "icon_theme": "Zed (Default)",
   // The name of a base set of key bindings to use.

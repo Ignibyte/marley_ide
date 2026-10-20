@@ -47,7 +47,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 
 ## Wave 0: theme and the cat mark
 
-**W0.1 Marley Night and Marley Day themes.** *S–M.* Boards: Theme, GpuiFoundations, MainDay.
+**W0.1 Marley Night and Marley Day themes.** *Done (#828, 2026-10-20).* Boards: Theme, GpuiFoundations, MainDay.
 - A theme family at `assets/themes/marley/marley.json` with both variants, loaded as `ayu`,
   `gruvbox` and `one` are. Each of GPUI's 25 `Color` variants and the elevation levels map to the
   tokens on the Theme board: coat `#ff8c42` as the accent, eye green `#9be15d` for success and

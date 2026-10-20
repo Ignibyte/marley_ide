@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #828 (feature, the Marley look, W0.1)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [828-marley-night-and-day-themes.spec.md](../../pipeline/completed/828-marley-night-and-day-themes.spec.md)
 - **Source ticket:** Chad, 2026-10-20: "lets file all the tickets now and lets start on this", on
   [the Marley look plan](../../../marley/look-plan.md), item W0.1. The design canvas is
   https://claude.ai/artifact/FHSqmm3AyGP4Dy7QuzBiFn; its source is kept in the private design record,
   `docs/design/marley-canvas-2026-10-20`.
 - **Boards:** Theme, GpuiFoundations, MainDay
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
