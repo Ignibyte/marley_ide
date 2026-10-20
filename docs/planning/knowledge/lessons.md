@@ -6261,3 +6261,11 @@ point, and any scenario that counts to a menu entry breaks when a ticket adds on
 golden set's scenarios that count to New Agent... (#744's family) want the same check when the
 regression pass runs. A control inside the thread's content column moves with the column, so a
 scenario that switches the column needs a click point for each width.
+
+## L-claude-821-a-prompts-buttons-stand-in-a-column-001
+*category: testing · topic: e2e scenarios and gpui's prompts · from: pipeline 821*
+
+On Linux, a `window.prompt` is gpui's own dialog in the middle of the window, its buttons in one
+column, top to bottom in the order given (at 1600x1000: the first at y 532, then 558, 584). A
+scenario that answers a prompt takes a shot of it first and clicks each button by its row; a guess
+that lays them out in a row hits at most one by luck, as #821's first run's Hide did.

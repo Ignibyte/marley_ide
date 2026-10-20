@@ -1883,46 +1883,68 @@ alike.
   the host in `Links`; before scheduling it shows a terminal whose task has the same resolved id
   and still runs (`TaskStatus::Running`), since Zed's `spawn_task` holds a second run of such a
   task until the first ends. `Host` and `saved_hosts` are `pub(crate)`, and `TMUX_ID_BASE`
-  (`marley-remote-tmux`) sits under `ID_BASE`.
+  (`marley-remote-tmux`) sits under `ID_BASE`. Since #821 the scheduling half is
+  `schedule_words`; `open_words` checks for a local project first, and `open_on_project_host`
+  checks for a remote one, whose task then runs on the project's host over Zed's own link.
 
-## tmux sessions in the rail (`src/tmux_sessions.rs`, `src/rail.rs`, #808)
+## tmux sessions in the rail (`src/tmux_sessions.rs`, `src/rail.rs`, `src/close_guard.rs`, #808, #821)
 
 - `init` sets the `TmuxHosts` global and runs `follow` now and on each `SettingsStore` change:
   `marley.tmux_hosts` from the merged settings, each name trimmed and deduplicated, placed by
   `place_of` as `Place::Here` (`local`), `Place::Host` (the `saved_hosts` entry whose label, then
   whose host, it is) or `Place::Unknown` (a `Listing::Failed` at once). An unchanged list returns
   without touching the global; a host whose name and place are unchanged keeps its `TmuxHost`
-  (listing and fold). The poll task runs only while a host is named. Since #819 an unset
+  (its listing). The poll task runs only while a host is named. Since #819 an unset
   `tmux_hosts` names `local` while `installed` finds tmux on the launcher's search path; a list
   the user wrote, `[]` too, is taken as it is.
-- `new_local_session` (#819): `tmux new-session -A -s <name> -c <folder>` on this machine,
+- `new_session_in` (#819, `new_local_session` until #821): `tmux new-session -A -s <name> -c
+  <folder>`; in a local project on this machine,
   and for an agent `; send-keys -t <name> <cli> Enter`, so the CLI runs by the session's shell
   and its PATH; `open_here` (shared with `open`'s `Place::Here`) attaches it in a tab titled
-  `this machine · <name>` through `remote::open_words`, then `list_soon`. The rail's
+  `this machine · <name>` through `remote::open_words`, then `list_soon`. In a remote project
+  (#821) it finds the `TmuxHost` the project's connection reaches (`reached_by`: an ssh link to
+  the saved host's host) and runs the words there through `open_in_project`. The rail's
   `new_entries` offers New tmux Terminal after New Terminal and `tmux_agent_entries` after New
-  Agent in Worktree, while `tmux_folder` gives a folder: tmux installed and a local project, its
-  first folder, else the home folder; `start_tmux_in` shows the workspace first.
+  Agent in Worktree, while `tmux_folder` gives a `TmuxFolder`: tmux installed and a local project,
+  `Local` with its first folder, else the home folder; a remote project on a named host, `Remote`
+  with its first folder, which offers New tmux Terminal only (#821); `start_tmux_in` shows the
+  workspace first.
 - `list_all`, every `LIST_EVERY` (10 s) and once `LIST_AFTER_NEW` after a +, lists every host at
   once (`join_all`), each `list` raced against `LIST_TIMEOUT` (20 s): `tmux list-panes -a -F
-  PANE_FORMAT` through `process::output`, here, or behind `MARLEY_SSH` or `ssh` with a connect
+  PANE_FORMAT` (with `#{session_path}`, the session's start folder, since #821) through
+  `process::output`, here, or behind `MARLEY_SSH` or `ssh` with a connect
   timeout and `harness_hosts::ssh_arguments` (`-T`, `BatchMode`, the keepalive, `--`), the remote
   words through `shell_word`. `read_listing` takes "no server running" and "error connecting to"
   as no sessions, and any other failure as its first printed line. `parse` groups the panes by
   session in tmux's order and marks the session with the first pane whose command
   `marley_agent::agent_kind_of` names. Only a listing that differs, for a host still at the place
   it was listed for, is written, so an idle poll redraws nothing.
-- `attach` (`tmux attach-session -t =NAME`) and `new_session` (`tmux new-session -A -s` a
-  `SessionName`, then `list_soon`) go through `open`: here `env -u TMUX` and the tmux words under
-  the id base `marley-tmux`; on a host `ssh -t`, the keepalive, the connect timeout,
-  `ssh_command`'s port and destination, and the tmux words through `shell_word`, under
-  `remote::TMUX_ID_BASE`, so #641's supervision and `is_remote` apply. The tab's label is the host's
-  label and the session's name.
-- The rail observes `TmuxHosts` (`observe_marks`, a notify) and `render_tmux` puts a
-  `tmux_section` per host after `render_harness`'s sections, none while filtering: a header
-  (`TMUX · label`, `heading_words`, a `+` `IconButton` that stops the header's fold click) and a
-  `tmux_row` per session unless folded: `row_card` with `agents::cli_icon` or
-  `IconName::Terminal` and `session_words`. A row runs `attach_tmux`, the + `new_tmux_session`,
-  each in the Home group (`groups::in_group`), an error shown by `report`'s prompt.
+- `attach` (`tmux attach-session -t =NAME`) goes through `open`: here `env -u TMUX` and the tmux
+  words under the id base `marley-tmux`; on a host, in a remote project on that host, the plain
+  words through `open_in_project` (#821); on a host from anywhere else `ssh -t`, the keepalive, the
+  connect timeout, `ssh_command`'s port and destination, and the tmux words through `shell_word`,
+  under `remote::TMUX_ID_BASE`, so #641's supervision and `is_remote` apply. The tab's label is the
+  host's label and the session's name, and each opener records an `Attach` (the label, the host's
+  name, the session's) in `TmuxHosts::attaches`, which `attach_of` reads back from a task's
+  `full_label`.
+- Placement (#821, replacing #808's `render_tmux` sections): `Rail::placed_tmux` gives each
+  group's index its rows, none while filtering. A session whose attach still runs in a tab
+  (`TaskStatus::Running`) is skipped, the tab's terminal row standing for it. `tmux_group` picks
+  the open project group (not closed, not projectless) on the session's host (`is_here` for a
+  local key, `reached_by` for a remote one) whose folder holding the session's start folder is
+  deepest; with none, the Home group (`groups::is_home`). A host whose listing failed gets
+  `tmux_error_row` under Home (`error_words`). `render_blocks` appends a group's rows after its
+  own while the group is expanded. A row (`tmux_row`, `session_words` now leading with `tmux`)
+  runs `attach_tmux` in its group's workspace (`activate_workspace`), an error shown by
+  `report`'s prompt. The rail observes `TmuxHosts` and draws from it, so a listing redraws the
+  rows with no rebuild of the snapshot.
+- Closing (#821): `close_guard::guard` asks `tmux_attach` first, for a tab close
+  (`intent: None`) of one terminal whose running task's label is a recorded attach;
+  `ask_tmux` prompts Close Session, Hide or Cancel under the guard's `asking` flag. Close Session
+  closes the tab and runs `tmux_sessions::kill` (`tmux kill-session -t =NAME`, here or behind the
+  listing's ssh, then `list_soon`), a failure shown in a prompt of its own; Hide closes the tab,
+  which ends only the attach client; Cancel keeps it. A window close, a quit or a replace asks
+  nothing of tmux.
 
 ## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
 

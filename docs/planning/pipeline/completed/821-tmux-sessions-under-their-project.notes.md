@@ -102,3 +102,65 @@
 - Decision for the brain at Complete: placement by start folder, the tab-close-only prompt.
 
 ## Phase 2 — Code
+- **Taken up again** 2026-10-20 under Chad's /goal "finish the remaining tickets we discussed",
+  promoted from `queued/`; the seams re-read against the tree at `12e3bf1482` (#823's one run of
+  rows did not touch the tmux sections).
+- **Built:** `tmux_sessions.rs`: `#{session_path}` read into `TmuxSession::folder`; the fold,
+  `toggle_folded`, `heading_words` and `new_session` gone; `TmuxHosts::attaches` with `Attach`
+  and `attach_of`, recorded by each opener; `is_here` and `reached_by`; `attach` through `open`,
+  which in a remote project on the host runs the plain words through `open_in_project`;
+  `new_local_session` became `new_session_in`, which starts a session in a remote project on its
+  host too; `kill`; `error_words`; `session_words` leads with `tmux`. `remote.rs`: `open_words`'
+  scheduling half is `schedule_words`, and `open_on_project_host` uses it for a remote project.
+  `rail.rs`: `placed_tmux`, `tmux_group`, `tmux_row` (the terminal row's `>_` mark and `pl_2`
+  indent, a click attaching in the row's group), `tmux_error_row`, `render_blocks` appending a
+  group's sessions after its rows, `render_tmux`, `tmux_section` and `new_tmux_session` gone,
+  `TmuxFolder` and `tmux_folder`'s remote branch. `close_guard.rs`: `tmux_attach` and `ask_tmux`
+  before the working-agent question. The `tmux_hosts` doc string and its ledger row.
+- **Deviations from the design:** no `marley_rail` change. The rows are drawn from the
+  `TmuxHosts` global at render time and appended to their group's block, outside the keys and
+  the filter as #808's sections were, instead of a `Row::Tmux` in the pure walk; a session is not
+  a keyboard row or a filter match. A listing therefore redraws them without a snapshot rebuild,
+  which settles the plan's first risk. The registry keys on the task's `full_label`, not its id.
+- **Review:** `placed_tmux` reads entities only (no update), so a render cannot re-enter. A
+  session whose attach ended but whose tab is still open shows its own row again (the task is not
+  `Running`). Matching a remote project to a host goes by `connection_type() == "ssh"` and the host
+  name; a user or port mismatch on the same host still matches, and a session goes to Home when
+  nothing matches. `kill`'s failure reaches a prompt. A tab closed with Close All asks nothing
+  (more than one item), as D3 says.
+- **Gate:** see below, after the docs.
+
+## Phase 3 — Test
+- **Scenario:** `script/e2e/821-tmux-sessions-under-their-project.sh`, `compositor sway`, a tmux
+  server of the run's own, `tmux_hosts` unset, a fake ssh refusing the saved host `gone`. Fixes to
+  the scenario on the way: the rows' and the prompt's points from the first runs' shots (the
+  prompt's buttons stand in a column, L-claude-821). One fix to the source: the rows got the
+  terminal row's `>_` mark and `pl_2` indent after `821-01` showed them a step left of `repo —
+  bash`. Last run: five checks pass (`build` attached, `build` runs after Hide, `build` ended
+  after Close Session, `loose` still attached after Cancel).
+- **Shots:**
+  - `821-01-placed` (REQ-001, REQ-002, REQ-007): `loose` (`tmux · 1 window`) under Default, `build`
+    under `repo` after `repo — bash`, both with the `>_` mark; no TMUX section.
+  - `821-02-attached` (REQ-003, REQ-004): the tab `this machine · build` in `repo`'s workspace,
+    tmux's status line at its foot; `build` shows only as that tab's terminal row.
+  - `821-03-asked` (REQ-005): "Close the tmux session build?", the detail, and Close Session, Hide,
+    Cancel.
+  - `821-04-hidden` (REQ-006): the tab gone, `build`'s own row back under `repo`; tmux still has it.
+  - `821-05-closed` (REQ-005): after Close Session, no `build` row; tmux no longer has it.
+  - `821-06-cancel` (REQ-005): `loose` attached in Default (its Home page opened there) and its tab
+    still open after Cancel.
+  - `821-07-host-down` (REQ-008): a red row under Default, "tmux on gone: ssh: connect to h…".
+- **Not reached:** a remote project on a real host (REQ-009, REQ-010), read in the diff.
+- **Seen for Chad:** an attached tab's terminal row shows the task's command (`/usr/bin/bash -i
+  -c 'env' · running`) as task terminals do, not tmux words.
+- **Regression note:** #808's scenario drives the TMUX headings this ticket removes; it needs
+  rewriting when the regression pass runs.
+
+## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`, `docs/marley/guide.md` (tmux sessions in the rail),
+  `docs/marley_architecture/marley_workbench.md` (the tmux section and `open_words`),
+  `docs/marley/zed-touchpoints.md` (the `settings_content/src/marley.rs` row).
+- **Knowledge:** `L-claude-821-a-prompts-buttons-stand-in-a-column-001`. No F block.
+- **Brain:** `decisions/marley-lists-tmux-sessions-under-the-project-they-started-in-and-asks-on-closing-an-attached-tab`
+  (consultation `09f43ca91bb44974a6c85d00c44500d7`, follow-up 2026-11-03).
+

@@ -55,7 +55,7 @@ use project::{
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
 use sidebar::ToggleThreadHistory;
-use terminal::Terminal;
+use terminal::{TaskStatus, Terminal};
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
     AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, DiffStat,
@@ -473,6 +473,23 @@ struct GroupEntry {
     /// Whether the window holds no workspace of the group (#606); `workspace` is then an invalid
     /// handle, and a click on the header opens the project.
     closed: bool,
+}
+
+/// Where New tmux Terminal starts its session (#819, #821).
+#[derive(Clone)]
+enum TmuxFolder {
+    /// A folder on this machine.
+    Local(PathBuf),
+    /// A remote project's folder, on its host.
+    Remote(PathBuf),
+}
+
+impl TmuxFolder {
+    fn into_path(self) -> PathBuf {
+        match self {
+            Self::Local(path) | Self::Remote(path) => path,
+        }
+    }
 }
 
 /// What a header's right-click menu acts on: a project's, or a projectless group's (#600).
@@ -2387,48 +2404,27 @@ impl Rail {
         );
     }
 
-    /// Attaches the tmux session `session` of the host `host` in a tab of the Home group (#808).
-    fn attach_tmux(&self, host: &str, session: &str, window: &Window, cx: &mut Context<Self>) {
-        let Some(shown) = self
-            .multi_workspace
-            .upgrade()
-            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
-        else {
+    /// Attaches the tmux session `session` of the host `host` in a tab of the group at `index`, the
+    /// one its row is under (#821).
+    fn attach_tmux(
+        &self,
+        host: &str,
+        session: &str,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(group) = self.snapshot.groups.get(index) else {
             return;
         };
-        let (host, session) = (host.to_string(), session.to_string());
-        groups::in_group(
-            groups::GroupKind::Home,
-            shown,
-            window,
-            cx,
-            move |workspace, window, cx| {
-                let opened = crate::tmux_sessions::attach(&host, &session, workspace, window, cx);
-                crate::tmux_sessions::report(opened, window, cx);
-            },
-        );
-    }
-
-    /// Starts a tmux session on the host `host` in a tab of the Home group (#808).
-    fn new_tmux_session(&self, host: &str, window: &Window, cx: &mut Context<Self>) {
-        let Some(shown) = self
-            .multi_workspace
-            .upgrade()
-            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade())
-        else {
-            return;
-        };
-        let host = host.to_string();
-        groups::in_group(
-            groups::GroupKind::Home,
-            shown,
-            window,
-            cx,
-            move |workspace, window, cx| {
-                let opened = crate::tmux_sessions::new_session(&host, workspace, window, cx);
-                crate::tmux_sessions::report(opened, window, cx);
-            },
-        );
+        let opened = self
+            .activate_workspace(&group.workspace, window, cx)
+            .and_then(|workspace| {
+                workspace.update(cx, |workspace, cx| {
+                    crate::tmux_sessions::attach(host, session, workspace, window, cx)
+                })
+            });
+        crate::tmux_sessions::report(opened, window, cx);
     }
 
     /// Opens the history of `slot`'s scheduled task `task` in a tab of the shown group (#719).
@@ -3196,7 +3192,7 @@ impl Rail {
     ) -> anyhow::Result<()> {
         let workspace = self.activate_workspace(workspace, window, cx)?;
         workspace.update(cx, |workspace, cx| {
-            crate::tmux_sessions::new_local_session(folder, command, workspace, window, cx)
+            crate::tmux_sessions::new_session_in(folder, command, workspace, window, cx)
         })
     }
 
@@ -4911,6 +4907,9 @@ impl Rail {
         let search_path = agents::launcher(cx).search_path;
         let rail = &self.snapshot.rail;
         let mut blocks: Vec<(AnyElement, Option<DraggedRailHeader>, Vec<AnyElement>)> = Vec::new();
+        // Each tmux session under its project's rows, by the group's index (#821).
+        let mut tmux = self.placed_tmux(cx);
+        let mut indices = Vec::new();
         for (position, row) in marley_rail::rail_rows(rail).into_iter().enumerate() {
             let run = marley_rail::run(rail, &row);
             if let Row::Project(row) = row {
@@ -4947,10 +4946,20 @@ impl Rail {
                     ))
                     .into_any_element();
                 blocks.push((header, drag, Vec::new()));
+                indices.push(index);
             } else if let Some(element) = self.render_row(position, row, run, cx)
                 && let Some((_, _, rows)) = blocks.last_mut()
             {
                 rows.push(element);
+            }
+        }
+        for ((_, _, rows), index) in blocks.iter_mut().zip(indices) {
+            if rail
+                .projects
+                .get(index)
+                .is_some_and(|project| project.expanded)
+            {
+                rows.extend(tmux.remove(&index).unwrap_or_default());
             }
         }
         let mut rendered: Vec<AnyElement> = blocks
@@ -4958,7 +4967,6 @@ impl Rail {
             .map(|(header, drag, rows)| Self::header_block(header, rows, drag, cx))
             .collect();
         rendered.extend(self.render_harness(cx));
-        rendered.extend(self.render_tmux(cx));
         rendered
     }
 
@@ -5013,76 +5021,60 @@ impl Rail {
         sections
     }
 
-    /// The tmux sessions of each host `marley.tmux_hosts` names (#808), each host under its own
-    /// header after the harnesses': TMUX · the host, what its listing says, and a + that starts a
-    /// session there. A click on the header folds the rows under it, and a row attaches its
-    /// session in a tab. Outside the keys and the filter.
-    fn render_tmux(&self, cx: &Context<Self>) -> Vec<AnyElement> {
-        if self.snapshot.rail.filtering {
-            return Vec::new();
-        }
-        cx.try_global::<TmuxHosts>().map_or_else(Vec::new, |tmux| {
-            tmux.hosts
-                .iter()
-                .map(|host| Self::tmux_section(host, cx))
-                .collect()
-        })
-    }
-
-    /// One tmux host's section: its header, and its sessions' rows unless it is folded.
-    fn tmux_section(host: &TmuxHost, cx: &Context<Self>) -> AnyElement {
-        let (says, says_color) = crate::tmux_sessions::heading_words(&host.listing);
-        let label = host.label();
-        let name = host.name.clone();
-        let rows: Vec<AnyElement> = match &host.listing {
-            Listing::Sessions(sessions) if !host.folded => sessions
-                .iter()
-                .map(|session| tmux_row(&name, session, cx))
-                .collect(),
-            _ => Vec::new(),
+    /// Each tmux session `marley.tmux_hosts` lists, as a row under the open project whose folder
+    /// holds the folder it started in, by the group's index (#821): a local project for this
+    /// machine's, a remote project on its host for a host's, the deepest folder winning, and
+    /// otherwise the Home group, where a host that could not be listed says why. A session with a
+    /// running attach in a tab is that tab's terminal row only. Outside the keys and the filter.
+    fn placed_tmux(&self, cx: &Context<Self>) -> HashMap<usize, Vec<AnyElement>> {
+        let mut placed: HashMap<usize, Vec<AnyElement>> = HashMap::default();
+        let Some(tmux) = cx.try_global::<TmuxHosts>() else {
+            return placed;
         };
-        let key = format!("marley-rail-tmux-{name}");
-        let selector = key.clone();
-        let (fold, new_in) = (name.clone(), name);
-        v_flex()
-            .debug_selector(move || selector)
-            .pt_2()
-            .gap_0p5()
-            .child(
-                h_flex()
-                    .id(SharedString::from(format!("{key}-header")))
-                    .pl_3()
-                    .pr_1p5()
-                    .py_1()
-                    .gap_2()
-                    .cursor_pointer()
-                    .child(
-                        Label::new(format!("TMUX · {label}"))
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        div().min_w_0().flex_1().child(
-                            Label::new(says.clone())
-                                .size(LabelSize::XSmall)
-                                .color(says_color)
-                                .truncate(),
-                        ),
-                    )
-                    .tooltip(Tooltip::text(says))
-                    .on_click(move |_, _, cx| TmuxHosts::toggle_folded(&fold, cx))
-                    .child(
-                        IconButton::new(SharedString::from(format!("{key}-new")), IconName::Plus)
-                            .icon_size(IconSize::XSmall)
-                            .tooltip(Tooltip::text(format!("New tmux session on {label}")))
-                            .on_click(cx.listener(move |rail, _, window, cx| {
-                                cx.stop_propagation();
-                                rail.new_tmux_session(&new_in, window, cx);
-                            })),
-                    ),
-            )
-            .children(rows)
-            .into_any_element()
+        if self.snapshot.rail.filtering {
+            return placed;
+        }
+        let groups = &self.snapshot.groups;
+        let home = groups
+            .iter()
+            .position(|group| group.group.is_some_and(|id| groups::is_home(id, cx)));
+        let attached: HashSet<(SharedString, String)> = self
+            .snapshot
+            .terminals
+            .values()
+            .filter_map(|entry| {
+                let view = entry.view.upgrade()?;
+                let terminal = view.read(cx).terminal().read(cx);
+                let task = terminal.task()?;
+                let attach = tmux.attach_of(&task.spawned_task.full_label)?;
+                (task.status == TaskStatus::Running)
+                    .then(|| (attach.host.clone(), attach.session.clone()))
+            })
+            .collect();
+        for host in &tmux.hosts {
+            if let (Some(index), Some(words)) = (home, crate::tmux_sessions::error_words(host)) {
+                placed
+                    .entry(index)
+                    .or_default()
+                    .push(tmux_error_row(&host.name, words, cx));
+            }
+            let Listing::Sessions(sessions) = &host.listing else {
+                continue;
+            };
+            for session in sessions {
+                if attached.contains(&(host.name.clone(), session.name.clone())) {
+                    continue;
+                }
+                let Some(index) = tmux_group(groups, host, &session.folder).or(home) else {
+                    continue;
+                };
+                placed
+                    .entry(index)
+                    .or_default()
+                    .push(tmux_row(&host.name, session, index, cx));
+            }
+        }
+        placed
     }
 
     /// One harness's section: its header, and its sessions' rows unless it is folded.
@@ -5928,7 +5920,7 @@ impl Rail {
                 .log_err();
         });
         // With tmux installed, a shell in a session of its own, which outlives Marley (#819).
-        let menu = match tmux_folder.clone() {
+        let menu = match tmux_folder.clone().map(TmuxFolder::into_path) {
             Some(folder) => {
                 let (rail, workspace) = (rail.clone(), workspace.clone());
                 menu.entry("New tmux Terminal", None, move |window, cx| {
@@ -5970,31 +5962,45 @@ impl Rail {
                     .log_err();
             });
         let menu = Self::worktree_agent_entries(menu, &cli_workspace, agent_search_path, cx);
+        // The agent CLIs listed are this machine's, so a remote project offers none (#821).
         let menu = match tmux_folder {
-            Some(folder) => {
+            Some(TmuxFolder::Local(folder)) => {
                 Self::tmux_agent_entries(menu, rail, workspace, folder, agent_search_path)
             }
-            None => menu,
+            Some(TmuxFolder::Remote(_)) | None => menu,
         };
         Self::launch_entries(menu, &cli_rail, &cli_workspace, cx)
     }
 
     /// The folder New tmux Terminal and New Agent in tmux start in (#819): a local project's first
-    /// folder, or a group's home folder; none while tmux is not installed or the project is remote.
-    fn tmux_folder(workspace: &WeakEntity<Workspace>, cx: &App) -> Option<PathBuf> {
+    /// folder, or a group's home folder; a remote project's first folder when its host is one
+    /// `marley.tmux_hosts` names (#821); none while tmux is not installed here.
+    fn tmux_folder(workspace: &WeakEntity<Workspace>, cx: &App) -> Option<TmuxFolder> {
         if !crate::tmux_sessions::installed(cx) {
             return None;
         }
         let workspace = workspace.upgrade()?;
         let project = workspace.read(cx).project().read(cx);
-        if !project.is_local() {
-            return None;
+        if let Some(connection) = project.remote_connection_options(cx) {
+            // A remote project's host takes a session when `marley.tmux_hosts` names it (#821).
+            let named = cx.try_global::<TmuxHosts>().is_some_and(|tmux| {
+                tmux.hosts
+                    .iter()
+                    .any(|host| host.reached_by(connection.connection_type(), &connection.host()))
+            });
+            let folder = project
+                .visible_worktrees(cx)
+                .next()
+                .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
+            return named.then_some(folder).flatten().map(TmuxFolder::Remote);
         }
         let folder = project
             .visible_worktrees(cx)
             .next()
             .map(|worktree| worktree.read(cx).abs_path().to_path_buf());
-        Some(folder.unwrap_or_else(|| paths::home_dir().clone()))
+        Some(TmuxFolder::Local(
+            folder.unwrap_or_else(|| paths::home_dir().clone()),
+        ))
     }
 
     /// New Agent in tmux (#819): a submenu of the installed agent CLIs, each started in a tmux
@@ -7932,20 +7938,38 @@ fn harness_row(
     with_seat_menu(row, menu_slot, profile, manager, &element, cx)
 }
 
-/// A tmux session's row under its host's header (#808): the agent CLI's icon when one of its panes
-/// runs one, its name, and the agent, its windows and whether a client has it; a click attaches it.
-fn tmux_row(host: &SharedString, session: &TmuxSession, cx: &Context<Rail>) -> AnyElement {
-    let icon = Icon::new(session.agent.map_or(IconName::Terminal, agents::cli_icon))
-        .size(IconSize::Small)
-        .color(Color::Muted)
-        .into_any_element();
+/// A tmux session's row under its project (#808, #821): the agent CLI's icon when one of its panes
+/// runs one, else a terminal's; its name; `tmux`, the agent, its windows and whether a client has
+/// it. A click attaches it in a tab of the group at `index`.
+fn tmux_row(
+    host: &SharedString,
+    session: &TmuxSession,
+    index: usize,
+    cx: &Context<Rail>,
+) -> AnyElement {
+    // As a terminal's row draws its mark: an agent's icon, else a shell's prompt.
+    let icon = session.agent.map_or_else(
+        || {
+            Label::new(">_")
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .buffer_font(cx)
+                .into_any_element()
+        },
+        |agent| {
+            Icon::new(agents::cli_icon(agent))
+                .size(IconSize::Small)
+                .color(Color::Muted)
+                .into_any_element()
+        },
+    );
     let title = Label::new(session.name.clone())
         .size(LabelSize::Small)
         .truncate()
         .into_any_element();
     let element = format!("{host}-{}", session.name);
     let (host, name) = (host.clone(), session.name.clone());
-    row_card(
+    let card = row_card(
         SharedString::from(format!("marley-rail-tmux-{element}")),
         format!("marley-rail-tmux-icon-{element}"),
         false,
@@ -7954,8 +7978,63 @@ fn tmux_row(host: &SharedString, session: &TmuxSession, cx: &Context<Rail>) -> A
         vec![RowLine::muted(crate::tmux_sessions::session_words(session))],
         cx,
     )
-    .on_click(cx.listener(move |rail, _, window, cx| rail.attach_tmux(&host, &name, window, cx)))
-    .into_any_element()
+    .on_click(cx.listener(move |rail, _, window, cx| {
+        rail.attach_tmux(&host, &name, index, window, cx);
+    }));
+    div().pl_2().child(card).into_any_element()
+}
+
+/// The row under Home of a tmux host that could not be listed, saying why (#821).
+fn tmux_error_row(host: &SharedString, words: String, cx: &Context<Rail>) -> AnyElement {
+    let icon = Icon::new(IconName::Terminal)
+        .size(IconSize::Small)
+        .color(Color::Error)
+        .into_any_element();
+    let title = Label::new(words.clone())
+        .size(LabelSize::Small)
+        .color(Color::Error)
+        .truncate()
+        .into_any_element();
+    let card = row_card(
+        SharedString::from(format!("marley-rail-tmux-error-{host}")),
+        format!("marley-rail-tmux-error-icon-{host}"),
+        false,
+        icon,
+        title,
+        Vec::<RowLine>::new(),
+        cx,
+    )
+    .tooltip(Tooltip::text(words));
+    div().pl_2().child(card).into_any_element()
+}
+
+/// The index of the open project group a session of `host` started in `folder` goes under: a
+/// local project's for this machine, a remote project's on the host for a host, the one whose
+/// folder holding `folder` is deepest (#821).
+fn tmux_group(groups: &[GroupEntry], host: &TmuxHost, folder: &Path) -> Option<usize> {
+    groups
+        .iter()
+        .enumerate()
+        .filter(|(_, group)| !group.closed && group.group.is_none())
+        .filter(|(_, group)| {
+            group.key.host().map_or_else(
+                || host.is_here(),
+                |connection| host.reached_by(connection.connection_type(), &connection.host()),
+            )
+        })
+        .filter_map(|(index, group)| {
+            group
+                .key
+                .path_list()
+                .paths()
+                .iter()
+                .filter(|path| folder.starts_with(path))
+                .map(|path| path.components().count())
+                .max()
+                .map(|depth| (depth, index))
+        })
+        .max_by_key(|(depth, _)| *depth)
+        .map(|(_, index)| index)
 }
 
 /// A scheduled task's row under its harness's sessions (#719): its schedule and next run, and its

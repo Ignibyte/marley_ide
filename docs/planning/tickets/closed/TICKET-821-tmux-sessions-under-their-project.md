@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #821 (feature, the Marley layout's rail and tmux #808, #819)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** ../../pipeline/queued/821-tmux-sessions-under-their-project.spec.md
+- **Pipeline doc:** ../../pipeline/completed/821-tmux-sessions-under-their-project.spec.md
 - **Source ticket:** Chad, 2026-10-20: "Can we move TMUX sessions up near Threads", "also the
   ability to close tmux sessions", then "tmux sessions should be inside the panes as a normal
   terminal session not isolated to its own thing. When exit we should have a popup "do you want
   to close the tmux session" or "hide" something along those lines". Asked where a session
   started outside every project goes: "Home group".
-- **Status:** open (planned; parked by Chad 2026-10-20 "not yet")
+- **Status:** closed
 
 ## Summary
 The TMUX · host sections at the foot of the rail go. Each tmux session shows as a terminal row

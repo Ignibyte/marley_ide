@@ -9,24 +9,32 @@
 //! and all, for `marley.undo_close_seconds`, with a toast whose Undo, or `ctrl-shift-t`, puts it
 //! back in its pane. A signal, a logout or a shutdown meets no question: nothing here waits
 //! outside Zed's close paths.
+//!
+//! A tab attached to a tmux session Marley opened asks first, when it alone closes from its tab
+//! (#821): Close Session ends the session on its host, Hide closes only the tab and leaves the
+//! session running, Cancel keeps the tab. A window's close or a quit detaches every attach and
+//! asks nothing, since the sessions run on.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use gpui::{App, Context, Entity, EntityId, Global, PromptLevel, Task, WeakEntity, Window};
+use gpui::{
+    App, Context, Entity, EntityId, Global, PromptLevel, SharedString, Task, WeakEntity, Window,
+};
 use marley_agent::{AgentKind, AgentStatus, claude_events};
 use marley_fleet::State;
 use settings::Settings as _;
-use terminal::Event;
+use terminal::{Event, TaskStatus};
 use terminal_view::TerminalView;
 use util::ResultExt as _;
 use workspace::item::ItemHandle;
-use workspace::notifications::NotificationId;
+use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
 use workspace::{
     CloseIntent, MarleyClose, MarleyCloseGuard, MultiWorkspace, Pane, Toast, Workspace,
 };
 
+use crate::tmux_sessions::TmuxHosts;
 use crate::{MarleySettings, UndoCloseTerminal};
 
 /// A working agent in a terminal about to close.
@@ -94,6 +102,11 @@ pub fn init(cx: &mut App) {
 
 /// Zed's close paths call this before a close; `false` cancels it.
 fn guard(close: MarleyClose, window: &mut Window, cx: &mut App) -> Task<bool> {
+    if close.intent.is_none()
+        && let Some((host, session)) = tmux_attach(&close.items, cx)
+    {
+        return ask_tmux(host, session, window, cx);
+    }
     let working = working_agents(&close.items, cx);
     if working.is_empty() {
         return Task::ready(true);
@@ -147,6 +160,72 @@ fn guard(close: MarleyClose, window: &mut Window, cx: &mut App) -> Task<bool> {
                 _ => false,
             }
         })
+    })
+}
+
+/// The host's and the session's names when `items` is one terminal running a tmux attach Marley
+/// opened (#821).
+fn tmux_attach(items: &[Box<dyn ItemHandle>], cx: &App) -> Option<(SharedString, String)> {
+    let [item] = items else {
+        return None;
+    };
+    let view = item.act_as::<TerminalView>(cx)?;
+    let terminal = view.read(cx).terminal().read(cx);
+    let task = terminal.task()?;
+    if task.status != TaskStatus::Running {
+        return None;
+    }
+    let tmux = cx.try_global::<TmuxHosts>()?;
+    let attach = tmux.attach_of(&task.spawned_task.full_label)?;
+    Some((attach.host.clone(), attach.session.clone()))
+}
+
+/// Asks whether closing the tab of the tmux session `session` on the host named `host` ends the
+/// session or only hides it; a failed end shows in a prompt of its own.
+fn ask_tmux(host: SharedString, session: String, window: &mut Window, cx: &mut App) -> Task<bool> {
+    let guard = cx.default_global::<Guard>();
+    if guard.asking {
+        // gpui cannot show a second prompt over the first.
+        return Task::ready(false);
+    }
+    guard.asking = true;
+    let message = format!("Close the tmux session {session}?");
+    let detail = "Close Session ends it and whatever runs in it. Hide closes this tab and leaves \
+                  the session running; its row stays in the rail.";
+    let answer = window.prompt(
+        PromptLevel::Warning,
+        &message,
+        Some(detail),
+        &["Close Session", "Hide", "Cancel"],
+        cx,
+    );
+    let window_handle = window.window_handle();
+    cx.spawn(async move |cx| {
+        let answer = answer.await;
+        cx.update(|cx| cx.default_global::<Guard>().asking = false);
+        match answer {
+            Ok(0) => {
+                let killed = cx.update(|cx| crate::tmux_sessions::kill(&host, &session, cx));
+                cx.spawn(async move |cx| {
+                    if let Err(error) = killed.await {
+                        window_handle
+                            .update(cx, |_, window, cx| {
+                                Task::ready(Err::<(), _>(error)).detach_and_prompt_err(
+                                    "Could not end the tmux session",
+                                    window,
+                                    cx,
+                                    |_, _, _| None,
+                                );
+                            })
+                            .log_err();
+                    }
+                })
+                .detach();
+                true
+            }
+            Ok(1) => true,
+            _ => false,
+        }
     })
 }
 

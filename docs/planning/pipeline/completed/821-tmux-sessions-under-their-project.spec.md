@@ -1,7 +1,7 @@
 ---
 pipeline_id: ffc6c7ad-7db3-4088-9886-a7e08b88d478
-ticket: docs/planning/tickets/open/TICKET-821-tmux-sessions-under-their-project.md
-status: Phase 1 — Plan PASS; queued (Chad 2026-10-20: "not yet")
+ticket: docs/planning/tickets/closed/TICKET-821-tmux-sessions-under-their-project.md
+status: Phase 4 — Complete PASS
 title: tmux sessions under their project, and a close prompt
 type: feature
 slice: the Marley layout's rail (#808 tmux sessions, #819 New tmux Terminal, #550 the close guard)

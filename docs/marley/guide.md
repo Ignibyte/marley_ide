@@ -890,7 +890,7 @@ than when the network finally gives up.
   that no longer matches), Marley stops checking and the line says why; Rerun logs in by hand.
 - `exit` in the session, or anything else that ends ssh normally, ends the tab as before.
 
-### tmux sessions in the rail (#808)
+### tmux sessions in the rail (#808, #821)
 
 `marley.tmux_hosts` names the hosts whose tmux sessions the rail lists: `local` for this machine,
 or a host from `ssh_connections` by its nickname or its host. For example, with a saved host
@@ -908,21 +908,30 @@ offer New tmux Terminal, a shell in a new tmux session in the project's folder, 
 tmux, which starts an agent CLI in a new session there; each opens attached in a tab and keeps
 running when Marley closes (#819).
 
-Each host gets a section after the harnesses', `TMUX · this machine` or `TMUX · build-box`, with
-how many sessions it has. Marley lists them every 10 seconds, from the host's own tmux server and
-with your tmux config, over an ssh that never asks for a password (`BatchMode`). A host it cannot
-list says why in red, such as ssh's `Connection refused`.
+Each session is a row among the terminals of the project it started in (#821): Marley reads the
+folder a session started in and puts its row under the open project whose folder holds it, the
+deepest one when projects nest. A session on another host goes under a remote project you have open
+on that host, the same way. A session in no open project's folder, one you started in your home
+folder for example, goes under Home. Marley lists the sessions every 10 seconds, from each host's
+own tmux server and with your tmux config, over an ssh that never asks for a password
+(`BatchMode`). A host it cannot list gets one red row under Home that says why, such as ssh's
+`Connection refused`.
 
-- Each session's row shows its name, its windows and `attached` when a tmux client has it. A
-  session with Claude Code, Codex, Gemini CLI or OpenCode in one of its panes shows that agent's
-  icon and name.
-- A click on a row attaches the session in a terminal tab named after the host and the session.
-  If that tab is still attached, the click shows it instead of opening another.
-- The + on a section's header starts a new session there, named `marley-` and eight letters and
-  digits, in a tab; its row comes a second later.
-- A click on the header folds its rows.
+- A session's row shows its name, then `tmux`, its windows and `attached` when a tmux client has
+  it. A session with Claude Code, Codex, Gemini CLI or OpenCode in one of its panes shows that
+  agent's icon and name.
+- A click on the row attaches the session in a terminal tab of that project, named after the host
+  and the session. While that tab is attached, the session shows only as the tab's own terminal
+  row, and a second click on it shows the tab.
+- Closing that tab asks what to do: **Close Session** ends the session and whatever runs in it,
+  **Hide** closes the tab and leaves the session running, its row back in the rail, and **Cancel**
+  keeps the tab. Closing the window or quitting asks nothing: every session keeps running.
+- A remote project on a host `tmux_hosts` names offers New tmux Terminal on its `+` and its
+  right-click too, a session on that host in the project's folder. New Agent in tmux stays with
+  projects on this machine, whose agent CLIs Marley can see.
 - On another host the tab runs `ssh -t`, so a dropped link dims it and Marley attaches it again
-  once the host answers, as a remote terminal does.
+  once the host answers, as a remote terminal does. In a remote project on that host it runs over
+  the project's own connection instead.
 
 Unlike `marley: open remote terminal`, which keeps its sessions on a tmux server of Marley's own,
 these are the host's own sessions, and any tmux client there sees them too.

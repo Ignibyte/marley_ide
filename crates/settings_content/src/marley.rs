@@ -121,9 +121,11 @@ pub struct MarleySettingsContent {
     ///
     /// Default: none
     pub harnesses: Option<Vec<MarleyHarnessHostContent>>,
-    /// The hosts whose tmux sessions the rail lists, each under a heading of its own (#808):
-    /// `"local"` for this machine, or an `ssh_connections` entry by its nickname or host. A click
-    /// on a session attaches it in a terminal tab, and a heading's + starts a new session there.
+    /// The hosts whose tmux sessions the rail lists (#808): `"local"` for this machine, or an
+    /// `ssh_connections` entry by its nickname or host. Each session is a row under the project
+    /// whose folder holds the folder it started in, a remote project's for a host, else under
+    /// Home (#821); a click attaches it in a terminal tab, and closing that tab asks whether to
+    /// end the session or hide it.
     ///
     /// Default: unset, which lists this machine while tmux is installed (#819); `[]` lists nothing
     pub tmux_hosts: Option<Vec<String>>,

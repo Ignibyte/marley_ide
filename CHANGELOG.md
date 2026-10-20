@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **tmux sessions under their project, and a question on close** (#821, 2026-10-20). The
+  `TMUX · host` sections are gone: each tmux session is a row under the project whose folder it
+  started in, a remote project's for a session on another host, or under Home. A click attaches it
+  in that project, and closing the attached tab asks Close Session (ends it), Hide (leaves it
+  running) or Cancel. A remote project on a host `marley.tmux_hosts` names offers New tmux
+  Terminal on its `+`.
+
 - **Any row goes anywhere in its group** (#823, 2026-10-20). A group's terminals, Browser tabs
   and threads no longer sit in three sections: drag any of them to any place among the others, a
   thread above a terminal or a Browser tab between two agents, and the order comes back after a

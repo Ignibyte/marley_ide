@@ -211,6 +211,41 @@ pub(crate) fn open_words(
         workspace.project().read(cx).is_local(),
         "This terminal opens from a project on this machine"
     );
+    schedule_words(host, label, id_base, words, workspace, window, cx)
+}
+
+/// Opens a task terminal of the remote project in `workspace` that runs `words` on the project's
+/// own host, through Zed's link to it, as a tmux attach in a remote project does (#821).
+///
+/// # Errors
+///
+/// When the project is on this machine, or a word cannot be quoted for the shell.
+pub(crate) fn open_on_project_host(
+    label: String,
+    id_base: &str,
+    words: Vec<String>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        !workspace.project().read(cx).is_local(),
+        "This terminal opens from a remote project"
+    );
+    schedule_words(None, label, id_base, words, workspace, window, cx)
+}
+
+/// Schedules the task terminal [`open_words`] and [`open_on_project_host`] open, or shows the one
+/// still running it.
+fn schedule_words(
+    host: Option<&Host>,
+    label: String,
+    id_base: &str,
+    words: Vec<String>,
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> anyhow::Result<()> {
     let mut words = words.into_iter();
     let program = words.next().context("the terminal's command is empty")?;
     // A scenario's fake must not lose to the real ssh on a PATH the login shell set.
