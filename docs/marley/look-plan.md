@@ -1,6 +1,6 @@
 # The Marley look: implementation plan
 
-Status: draft for Chad's review, 2026-10-20. Nothing here is built yet.
+Status: filed as tickets 2026-10-20 (TICKET-825 to 858); work starts with TICKET-828.
 
 The design canvas "Marley, Warp-like" (`claude.ai/artifact/FHSqmm3AyGP4Dy7QuzBiFn`, 56 boards;
 its source is kept in the private design record, `docs/design/marley-canvas-2026-10-20`) draws
@@ -223,9 +223,21 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 4. **The bottom drawer (W3.2):** start with Problems and Debug only, or all four tabs?
 5. **Light mode:** does Marley Day become the default whenever the system is light?
 
-## Tickets to file
+## Tickets
 
-On Chad's go, each item above becomes a ticket in `docs/planning/tickets/open/`, numbered from
-TICKET-828, with its board named as the source and its acceptance taken from the board. W0.1 and
-W0.2 go to the top of the Queue; TICKET-825, 826 and 827 stay where they are and gain the boards
-listed here.
+Filed 2026-10-20, in the Queue of `docs/planning/tickets/BACKLOG.md` in this order:
+
+| Wave | Tickets |
+|---|---|
+| 0 | TICKET-828 (themes), TICKET-829 (the cat mark) |
+| 1 | TICKET-830 (shrinking rail), 831 (logo.png), 832 (tmux Sessions), 833 (bottom row) |
+| 2 | TICKET-827 (rail rows), 825 (thread with panels), 826 (terminal blocks), 834 (chrome), 835 (Home), 836 (Threads) |
+| 3 | TICKET-837 (inspector), 838 (bottom drawer), 839 (pickers), 840 (Needs you and prompts) |
+| 4 | TICKET-841 (forge provider), 842 (sprint board), 843 (forge around Marley) |
+| 5 | TICKET-844 to 855, one per area of the Wave 5 table |
+| 6 | TICKET-856 (editor pop-ups), 857 (empty and error states), 858 (motion and focus) |
+
+The five open decisions were filed with the plan's defaults, each named in its ticket's Decision
+section: the inspector as a choice beside #747's tabs, the Theme board's line about Marley, Marley
+adapting forge's tools, Problems and Debug first in the drawer, and Marley Day as the light
+default.
