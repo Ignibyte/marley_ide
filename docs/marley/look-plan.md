@@ -1,0 +1,231 @@
+# The Marley look: implementation plan
+
+Status: draft for Chad's review, 2026-10-20. Nothing here is built yet.
+
+The design canvas "Marley, Warp-like" (`claude.ai/artifact/FHSqmm3AyGP4Dy7QuzBiFn`, 56 boards;
+its source is kept in the private design record, `docs/design/marley-canvas-2026-10-20`) draws
+every screen Marley has and a set it does not have yet. This plan turns the canvas into work: the
+order to build it in, the code each piece touches, and the ticket each piece becomes.
+
+Each item below becomes one ticket and runs through the usual pipeline: plan, code (the gate),
+test (a visual check that drives the real app and reads its shots), complete. The boards are the
+target; where code or upstream Zed pushes back, the ticket records how the result differs from
+its board.
+
+## What the code already gives us
+
+- **The rail takes its colors from the theme.** `rail.rs` reads `cx.theme().colors()` and holds no
+  color of its own, so a new theme reaches the rail, the tabs and most of Marley with no change
+  to Marley's views.
+- **Marley already adds to the bottom row.** `status_buttons.rs` implements `StatusItemView` for
+  Home and Debug, so new bottom-row items live in a Marley crate. Only removing or replacing
+  Zed's own items touches `crates/zed/src/zed.rs`.
+- **The fleet takes outside providers.** `marley.fleet.providers` already accepts `pseudo`, `mcp`
+  and `http`, and the Fleet panel draws whatever a provider answers in the shape of
+  [the fleet contract](fleet-contract.md). Forge can arrive the same way.
+- **Zed ships a component gallery.** The `component_preview` crate draws GPUI's components; with
+  Marley's themes loaded it becomes the visual check for every theme change.
+- **All of Marley's UI is in one crate.** Every tab, panel, dialog and picker Marley draws (54 of
+  them) lives in `marley_workbench`. The other Marley crates draw nothing.
+
+## The order
+
+Seven waves. Each wave's tickets can run one after another in any order inside the wave; a later
+wave assumes the earlier ones landed.
+
+| Wave | What | Why first |
+|---|---|---|
+| 0 | Theme and the cat mark | Every other board is drawn in these colors |
+| 1 | Chad's asks: the shrinking rail, `logo.png`, tmux Sessions, the bottom row | Asked for by name, and seen every minute |
+| 2 | The core screens: rail rows, the thread, terminal blocks, the window chrome, Home, Threads | The three filed tickets and the screens around them |
+| 3 | Panels, drawers, pickers and notices | Larger changes to how panels sit |
+| 4 | Forge | A new data source; needs the fleet provider work |
+| 5 | Every other screen restyled | Mostly layout once the theme is in |
+| 6 | Polish: editor pop-ups, empty and error states, motion, focus | Last, across everything |
+
+Sizes: **S** a day or less, **M** a few days, **L** a week or more.
+
+## Wave 0: theme and the cat mark
+
+**W0.1 Marley Night and Marley Day themes.** *S–M.* Boards: Theme, GpuiFoundations, MainDay.
+- A theme family at `assets/themes/marley/marley.json` with both variants, loaded as `ayu`,
+  `gruvbox` and `one` are. Each of GPUI's 25 `Color` variants and the elevation levels map to the
+  tokens on the Theme board: coat `#ff8c42` as the accent, eye green `#9be15d` for success and
+  added lines, warm darks from `#0f0c0a` to `#2a221d`, honey `#f6c453` for warnings, pink
+  `#ff6f91` for conflicts and needs-you, red `#ff6b5a` for errors.
+- `assets/settings/default.json`: `theme.light` and `theme.dark` become Marley Day and Marley
+  Night. A Zed-crate change: one ledger row.
+- The Omarchy theme (#759) keeps working: following Omarchy still overrides.
+- Visual check: `component_preview` in both themes, the Main board's screen in both themes.
+
+**W0.2 The cat mark.** *S.* Board: Theme.
+- The app icon at every size (`crates/zed/resources/app-icon*.png`, the desktop entry's icon),
+  drawn from the Theme board's SVG; the title bar's mark.
+- Chad sets the wording of the line about Marley wherever it shows (About, first run).
+
+## Wave 1: Chad's asks
+
+**W1.1 The rail shrinks to a strip.** *M–L.* Boards: RailStates, States (motion).
+- `marley.rail_shrunk` (proposed setting), and a button beside the rail's search to toggle it.
+- Shrunk: a 60 px strip of project marks with needs-you badges, a flyout of a project's rows on
+  hover, and the search kept at the top as a button that opens the filter as a popover (Ctrl F
+  still works).
+- Code: `rail.rs`, `rail_switcher.rs`. The 180 ms width animation and reduced-motion jump come
+  from the States board.
+
+**W1.2 A project's mark from `logo.png`.** *M.* Board: ProjectLogo.
+- Look for `logo.png`, then `logo.svg`, in the project's top folder; a file picked in Settings
+  wins; otherwise the name's first letter on a tint of its own. `marley.project_logo` (proposed).
+- Read once and cached; a remote project's file is read once over SSH and kept; a change to the
+  file updates the mark.
+- Shown in the rail's group header, the shrunk strip, the title bar, Home's recent projects, the
+  switcher, and the project's notifications.
+- Depends on W1.1 for the strip.
+
+**W1.3 A Sessions view for tmux.** *M.* Board: TmuxSessions.
+- A third choice at the top of the rail: Projects, Threads, Sessions. Every session by host, its
+  windows, where it is placed and whether it is attached, with Attach or Show and Close.
+- The hosts list from `ssh_connections`, each toggled into `marley.tmux_hosts` from the view.
+- A Sessions tile in the shrunk strip, and the count in the bottom row (W1.4).
+- Code: `tmux_sessions.rs` (#808, #821) already reads every session; this is a new view of it.
+
+**W1.4 The bottom row says what has the focus.** *L.* Board: BottomRow.
+- New `StatusItemView` items in `marley_workbench` for five focuses: a file, a terminal, an agent
+  thread, debugging, and an agent that needs you (with Allow and Open in the row).
+- The panel buttons become one labeled group, a dot on any panel already open as a tab.
+- The cards that open above the row: language servers, problems, panels, edit predictions.
+- Hiding or replacing Zed's own items is a change to `crates/zed/src/zed.rs`: a ledger row, kept
+  to swapping items, not rewriting them.
+
+## Wave 2: the core screens
+
+**TICKET-827 Rail rows say their state.** *M.* Boards: Rail, RailMenus.
+A tile per kind, the state dot, a colored second line, folded headers that still say what needs
+you. Mostly `rail.rs` layout once W0.1 lands.
+
+**TICKET-825 The agent thread with panels.** *L.* Boards: Main, ThreadStates, MainDay.
+User messages as bubbles, the agent's plan, EDIT and RUN cards, reply chips, the rounded composer
+with context chips, and a details panel (context use, files changed, its terminal, checks). The
+thread view lives in Zed's `agent_ui`, so this is the largest upstream touch in the plan. Keep
+each hunk additive, behind `MarleyThreadHost`, as #798 and #822 did. The details panel is a
+Marley view beside the thread, not a change to Zed's.
+
+**TICKET-826 Terminal blocks with the agent beside them.** *L.* Boards: Terminal,
+TerminalSession, TerminalMore, AgentTerminal.
+Framed blocks with state colors, the failed block's actions, the running block's progress, the
+prompt bar's chips, the block map, the agent bar, the waiting-command card, restored and remote
+states. Block drawing is Marley's code.
+
+**W2.1 The window chrome.** *M–L.* Board: Chrome.
+- Title bar: project mark and branch, the palette field, agent pills, Rusty and Marley buttons.
+- Tabs as pills that show their kind and state; the + menu with Marley's real shortcuts; the
+  split menu drawn as pictures; the tmux close prompt.
+- Touches Zed's `title_bar` and the workspace's tab drawing: ledger rows, additive.
+
+**W2.2 Home.** *M.* Board: Home. `home_page.rs`: one prompt box with agent chips that starts the
+picked agent in the picked project, then the cards (agents at work, tasks, follow-ups, Rusty,
+recent projects, activity).
+
+**W2.3 Threads with a preview.** *M.* Board: Threads. `threads_page.rs`: filters at the left,
+cards by day, a preview with Open and Open in a Split.
+
+## Wave 3: panels, drawers, pickers, notices
+
+**W3.1 Side panels as one inspector.** *L.* Board: SidePanels.
+Files, Changes and Outline in one column beside the pane, with a switcher at its top, instead of
+a full-width tab each. This changes #747's panel tabs (`panel_tabs.rs`), so it needs Chad's call
+first (see the open decisions).
+
+**W3.2 The bottom drawer.** *L.* Board: BottomPanel.
+Problems, Debug, Output and Tasks as tabs of one drawer. Debug is Zed's debugger panel (#774
+keeps it in the bottom dock); Problems is Zed's diagnostics. Drawing them as one drawer touches
+Zed's dock code: start with Problems and Debug, and leave Output and Tasks for a later ticket.
+
+**W3.3 Pickers.** *M.* Board: Palette. The command palette's groups, the agent picker as a grid of
+cards with a line about each agent, the file finder's preview.
+
+**W3.4 Needs you, toasts and prompts.** *M.* Boards: Inbox, Dialogs, MoreForms.
+The inbox entries with their buttons, toasts, the trust, close, quit and apply prompts, the
+pairing and agent-starts-agent prompts.
+
+## Wave 4: forge
+
+Forge (Ignibyte Forge) already keeps what the boards need: agent sessions with their host,
+folder, ticket and last output; tickets with ten statuses and a pipeline phase; sprints with a
+release branch; bulletins; and a knowledge base. It serves them over MCP (`agent-list`,
+`ticket-list`, `sprint-current`, `bulletin-list`, `knowledge-search`, and more).
+
+**W4.1 Forge as a fleet provider.** *L.* Board: ForgeAgents.
+- A `forge` provider in `marley_fleet` that calls forge's MCP tools and answers in the fleet
+  contract's shape, so the Fleet panel shows forge's agents with no new panel code.
+- Settings (proposed): `marley.forge.enabled`, `endpoint`, `projects`, `poll_seconds`. The bearer
+  token comes from the system keyring, never `settings.json`.
+- Agent state follows forge's own rule: running and silent past 3 minutes reads needs attention.
+
+**W4.2 The sprint board.** *L.* Board: ForgeBoard.
+- A tab: columns for Open, In progress, In review, QA (qa-review, qa-failure, qa-pass) and Done,
+  each card a ticket with its kind, phase and agent; a ticket's detail on the right.
+- Actions through forge's tools: claim, move, comment; "Start here in a worktree" hands the
+  ticket to New Agent in Worktree (#510).
+- Depends on W4.1.
+
+**W4.3 Forge around Marley.** *S–M.* Board: ForgeAgents.
+A Forge section in the rail, a card on Home, a chip in the bottom row, bulletins.
+
+## Wave 5: every other screen
+
+Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
+
+| Screen | Boards |
+|---|---|
+| Settings window and every setting's control | Settings, SettingsAll, Keymap |
+| Rusty: Tasks, Decisions and Follow Up, Brain and pages, Memory, Skills, Secrets, Capture, Rusty's Server | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
+| MCP Servers, Agent Activity, the server form, what agents may do | Tools, MoreForms, AgentAccess |
+| System One | SystemOne |
+| Fleet panel and harness sessions, the session tab, scheduled runs | Fleet, MoreTabs, OpenConnect |
+| Component Library and Component tabs | Components, MoreTabs |
+| Browser tab and its tools | Browser, BrowserTools |
+| Worktrees, plan review, turns, diff review | Worktrees, Review, DiffReview |
+| Workflows, launch configs, remote terminals | Workflows, OpenConnect |
+| Splits, switcher, ports, containers, collab | Splits |
+| Project search, recent, branches, history, extensions, the guide | SearchMore |
+| New pages: this build, data folders, troubleshooting | SystemPages |
+
+## Wave 6: polish
+
+- **Editor pop-ups** (EditorPopups): completions, hover, code actions, rename, inline assist. Theme
+  only, checked in `component_preview` and a scenario.
+- **Empty and error states** (States): no project, no threads, no filter match, Rusty dropped,
+  Chromium missing, an agent CLI missing, forge offline, the harness stopped.
+- **Motion and focus** (States): the rail's shrink, the needs-you pulse (two pulses, then still),
+  one focus ring everywhere, reduced motion honored.
+
+## Across every wave
+
+- **Upstream.** Every Zed-crate change is additive, small and in `zed-touchpoints.md` before it
+  is written. The ones this plan expects: `default.json` (themes), `zed.rs` (status items),
+  `title_bar`, the workspace's tab drawing, `agent_ui`'s thread view, and the dock (W3.2).
+- **Visual checks.** Each ticket's scenario drives the real app and reads its shots; a theme or
+  color change is shot in both Marley Night and Marley Day.
+- **The canvas stays the reference.** A ticket that lands differently from its board says why in
+  its notes; the board is updated when Chad prefers the result.
+- **Settings.** The proposed keys (`marley.project_logo`, `marley.rail_shrunk`,
+  `marley.forge.*`) are added with the ticket that uses them, each with its doc comment and its
+  row on the settings page.
+
+## Open decisions for Chad
+
+1. **Side panels (W3.1):** does the inspector replace #747's full-width panel tabs, or sit beside
+   them as a choice?
+2. **The line about Marley (W0.2):** its wording, and where it shows.
+3. **Forge (W4.1):** Marley adapts forge's tools to the fleet contract (this plan), or forge
+   learns to serve the contract itself.
+4. **The bottom drawer (W3.2):** start with Problems and Debug only, or all four tabs?
+5. **Light mode:** does Marley Day become the default whenever the system is light?
+
+## Tickets to file
+
+On Chad's go, each item above becomes a ticket in `docs/planning/tickets/open/`, numbered from
+TICKET-828, with its board named as the source and its acceptance taken from the board. W0.1 and
+W0.2 go to the top of the Queue; TICKET-825, 826 and 827 stay where they are and gain the boards
+listed here.
