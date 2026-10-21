@@ -169,6 +169,32 @@ fn footer_without_agent(
     let drive = crate::terminal_drive::footer(context, cx);
     let prompt_editor = rich_input::element(context, cx);
     let colors = cx.theme().colors();
+    // The prompt editor says where the command runs, as the agent bar does (#826).
+    let place = prompt_editor.is_some().then(|| {
+        let folder = context.terminal.read(cx).working_directory();
+        let branch = folder.as_deref().and_then(|folder| {
+            let project = context.project.upgrade()?;
+            branch_of(&project, folder, cx)
+        });
+        h_flex()
+            .debug_selector(|| "marley-prompt-place".into())
+            .flex_none()
+            .w_full()
+            .gap_3()
+            .px_2()
+            .py_1()
+            .bg(colors.editor_background)
+            .children(folder.map(|folder| {
+                let text = folder.compact().to_string_lossy().into_owned();
+                place_chip(IconName::Folder, text.into())
+                    .debug_selector(|| "marley-prompt-place-folder".into())
+            }))
+            .children(branch.map(|branch| {
+                place_chip(IconName::GitBranch, branch)
+                    .debug_selector(|| "marley-prompt-place-branch".into())
+            }))
+            .into_any_element()
+    });
     let strip = offer.map(|offer| {
         h_flex()
             .debug_selector(|| "marley-served-url-strip".into())
@@ -183,7 +209,7 @@ fn footer_without_agent(
             .child(offer)
             .into_any_element()
     });
-    let mut parts: Vec<AnyElement> = [drive, prompt_editor, strip]
+    let mut parts: Vec<AnyElement> = [drive, prompt_editor, place, strip]
         .into_iter()
         .flatten()
         .collect();
@@ -200,6 +226,20 @@ fn footer_without_agent(
     }
 }
 
+/// A folder's or a branch's chip: its icon and its muted name (#477, #826).
+fn place_chip(icon: IconName, text: SharedString) -> Div {
+    h_flex()
+        .min_w_0()
+        .gap_1()
+        .child(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
+        .child(
+            Label::new(text)
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .truncate(),
+        )
+}
+
 fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let offer = links::offer(context, cx).map(|url| links::offer_button(context, url));
     let Some(BarContents {
@@ -213,18 +253,7 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
     let microphone = microphone(context, cx);
     let prompt_editor = rich_input::element(context, cx);
     let colors = cx.theme().colors();
-    let chip = |icon: IconName, text: SharedString| {
-        h_flex()
-            .min_w_0()
-            .gap_1()
-            .child(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
-            .child(
-                Label::new(text)
-                    .size(LabelSize::Small)
-                    .color(Color::Muted)
-                    .truncate(),
-            )
-    };
+    let chip = place_chip;
     let bar = h_flex()
         .debug_selector(|| "marley-agent-bar".into())
         .flex_none()

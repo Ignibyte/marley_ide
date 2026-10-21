@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Terminal blocks framed, timed and asking an agent** (#826, 2026-10-21). Each block is framed
+  in its state's color (running, passed, failed) and, once it ends, shows how long it took. A failed
+  block offers **Ask an agent** (fix it) and **Explain** (why it failed, changing nothing); with no
+  agent running, either starts Claude Code with the block. At a shell prompt the prompt editor shows
+  the folder and the branch.
+
 - **The agent thread with its details** (#825, 2026-10-21). In Marley, your messages in an agent
   thread are bubbles on the right and the message box is a rounded card. A thread in a tab shows
   a details panel at its right: the agent and its model, how much of its context it has used, and

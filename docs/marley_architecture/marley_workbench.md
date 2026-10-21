@@ -1320,6 +1320,15 @@ alike.
 - `blocks.rs` puts Send to Agent first in the Block section and handles `SendBlockToAgent`
   (`ctrl-shift-enter` in `Terminal && MarleyBlockSelected`) for the selected block.
 
+- **Ask an agent and Explain** (#826): `chip` offers both on the newest failed live block at the
+  prompt with no agent in its own terminal; `send(view, index, Request, …)` prefixes the
+  request's words (`Fix`, `Explain`; `Bare` for the key and the Block menu) and, with no agent
+  terminal in the window, starts Claude Code with the text (`agents::start_cli_with_prompt`), as
+  #557's English ask does; a bare block still gets the toast. `duration` adds a finished block's
+  time to `bookmarks::chip`. The frame is a `// Marley:` outline in `terminal_element.rs` in the
+  gutter bar's color at 35 %; `agent_bar::footer_without_agent` puts the folder and branch chips
+  (`place_chip`) under an open prompt editor.
+
 ## Marley as Claude Code's IDE (`src/claude_ide.rs`, #653)
 
 - `marley.claude_code_ide` (`MarleySettings::claude_code_ide`, a `ClaudeCodeIde`, off by

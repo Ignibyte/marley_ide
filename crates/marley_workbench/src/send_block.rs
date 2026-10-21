@@ -9,6 +9,7 @@
 use std::time::SystemTime;
 
 use gpui::{AnyElement, App, Entity, Window};
+use marley_agent::AgentKind;
 use marley_terminal::BlockState;
 use terminal::Terminal;
 use terminal_view::TerminalView;
@@ -74,30 +75,85 @@ fn targets(view: &Entity<TerminalView>, cx: &App) -> Vec<Target> {
         .collect()
 }
 
-/// Sends the block at `index` of `view`'s terminal to an agent: the one there is, the one picked
-/// when there are several, or a toast when there is none. Deferred, since the key's action runs
-/// while the workspace this reads and updates is being updated.
-pub(crate) fn send(view: &Entity<TerminalView>, index: usize, window: &Window, cx: &mut App) {
-    let view = view.clone();
-    window.defer(cx, move |window, cx| send_now(&view, index, window, cx));
+/// What a block goes to an agent with (#826).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Request {
+    /// The block alone, as the key and the Block menu send it.
+    Bare,
+    /// Fix what failed.
+    Fix,
+    /// Say why it failed, changing nothing.
+    Explain,
 }
 
-fn send_now(view: &Entity<TerminalView>, index: usize, window: &mut Window, cx: &mut App) {
+impl Request {
+    const fn words(self) -> Option<&'static str> {
+        match self {
+            Self::Bare => None,
+            Self::Fix => Some("This command failed. Fix it:"),
+            Self::Explain => Some("Explain why this command failed. Change nothing:"),
+        }
+    }
+}
+
+/// Sends the block at `index` of `view`'s terminal to an agent with `request`: the one there is,
+/// the one picked when there are several, and with none a toast for a bare block, or a new Claude
+/// Code for a request (#826). Deferred, since the key's action runs while the workspace this reads
+/// and updates is being updated.
+pub(crate) fn send(
+    view: &Entity<TerminalView>,
+    index: usize,
+    request: Request,
+    window: &Window,
+    cx: &mut App,
+) {
+    let view = view.clone();
+    window.defer(cx, move |window, cx| {
+        send_now(&view, index, request, window, cx);
+    });
+}
+
+fn send_now(
+    view: &Entity<TerminalView>,
+    index: usize,
+    request: Request,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let Some(workspace) = view.read(cx).marley_workspace().upgrade() else {
         return;
     };
-    let Some(text) = text_for(view, index, cx) else {
+    let Some(block) = text_for(view, index, cx) else {
         return;
     };
+    let text = request
+        .words()
+        .map_or_else(|| block.clone(), |words| format!("{words}\n\n{block}"));
     let mut targets = targets(view, cx);
     let window_handle = window.window_handle();
     match targets.len() {
-        0 => workspace.update(cx, |workspace, cx| {
+        0 if request == Request::Bare => workspace.update(cx, |workspace, cx| {
             send_selection::show_toast(
                 workspace,
                 "No agent runs in another terminal of this window.",
                 cx,
             );
+        }),
+        0 => workspace.update(cx, |workspace, cx| {
+            let started = crate::agents::start_cli_with_prompt(
+                workspace,
+                AgentKind::Claude,
+                &text,
+                None,
+                window,
+                cx,
+            );
+            cx.spawn(async move |_, _| {
+                if started.await.is_none() {
+                    log::warn!("send block: Claude Code did not start for the block");
+                }
+            })
+            .detach();
         }),
         1 => send_selection::send_text(targets.remove(0), text, false, window_handle, cx),
         _ => {
@@ -165,22 +221,51 @@ pub(crate) fn chip(
         .filter(|block| block.index == index)?;
     let failed =
         block.state == BlockState::Finished && block.exit_code.0.is_some_and(|code| code != 0);
-    if !failed
-        || !anchored.at_prompt()
-        || agent_in(terminal).is_some()
-        || targets(view, cx).is_empty()
-    {
+    if !failed || !anchored.at_prompt() || agent_in(terminal).is_some() {
         return None;
     }
-    let view = view.clone();
+    // Ask an agent to fix it, or to explain it; with no agent running, Claude Code starts with it
+    // (#826).
+    let (fix_view, explain_view) = (view.clone(), view.clone());
     Some(
-        Button::new(("marley-ask-agent", index), "Ask the agent")
-            .style(ButtonStyle::Tinted(TintColor::Accent))
-            .label_size(LabelSize::XSmall)
-            .on_click(move |_, window, cx| {
-                cx.stop_propagation();
-                send(&view, index, window, cx);
-            })
+        h_flex()
+            .gap_1()
+            .child(
+                Button::new(("marley-ask-agent", index), "Ask an agent")
+                    .style(ButtonStyle::Tinted(TintColor::Accent))
+                    .label_size(LabelSize::XSmall)
+                    .on_click(move |_, window, cx| {
+                        cx.stop_propagation();
+                        send(&fix_view, index, Request::Fix, window, cx);
+                    }),
+            )
+            .child(
+                Button::new(("marley-explain-block", index), "Explain")
+                    .style(ButtonStyle::Subtle)
+                    .label_size(LabelSize::XSmall)
+                    .on_click(move |_, window, cx| {
+                        cx.stop_propagation();
+                        send(&explain_view, index, Request::Explain, window, cx);
+                    }),
+            )
+            .into_any_element(),
+    )
+}
+
+/// How long the block at `index` took, once it finished (#826).
+pub(crate) fn duration(terminal: &Entity<Terminal>, index: usize, cx: &App) -> Option<AnyElement> {
+    let anchored = terminal.read(cx).marley_anchored();
+    let block = anchored
+        .live()
+        .iter()
+        .find(|block| block.index == index)
+        .filter(|block| block.state == BlockState::Finished)?;
+    let times = anchored.times(block.index)?;
+    let took = times.finished?.duration_since(times.started).ok()?;
+    Some(
+        Label::new(marley_terminal::duration_label(took))
+            .size(LabelSize::XSmall)
+            .color(Color::Muted)
             .into_any_element(),
     )
 }

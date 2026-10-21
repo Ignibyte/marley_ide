@@ -231,7 +231,7 @@ fn send_focused(workspace: &Workspace, window: &Window, cx: &mut Context<Workspa
         cx.propagate();
         return;
     };
-    crate::send_block::send(&view, index, window, cx);
+    crate::send_block::send(&view, index, crate::send_block::Request::Bare, window, cx);
 }
 
 /// Types Ctrl-U and the command of `terminal`'s block at `index`, with `sudo ` first when asked,
@@ -313,7 +313,7 @@ fn block_menu(
         let view = context.view.clone();
         ContextMenuEntry::new("Send to Agent").handler(move |window, cx| {
             if let Some(view) = view.upgrade() {
-                crate::send_block::send(&view, index, window, cx);
+                crate::send_block::send(&view, index, crate::send_block::Request::Bare, window, cx);
             }
         })
     };

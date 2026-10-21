@@ -6339,3 +6339,11 @@ with that `id` and no `method` comes back, before it streams its answer and ends
 writes the file and records it in the thread's `ActionLog`, so the Edits bar and anything reading
 `changed_buffers` show it. The path is under the session's `cwd`, which for Marley's own agent is
 its folder setting, not the opened project.
+
+## L-claude-826-a-hook-reads-the-whole-command-line-for-its-words-001
+*category: process · topic: the commit hook and a scenario's fixtures · from: pipeline 826*
+
+`enforce-commit-gate.sh` reads a Bash call's whole command text for a git commit, so a call that
+writes a scenario through a heredoc whose fixture runs `git … commit -qm init` is blocked as a
+commit without a green receipt, though nothing commits. Write a scenario that makes a commit in
+its fixtures with the file tool, and run it in a call of its own.

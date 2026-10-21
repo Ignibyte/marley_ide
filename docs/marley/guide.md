@@ -845,6 +845,14 @@ shell has no `show` of its own (a command, a function or an alias); `"$MARLEY_BI
 thing by its full name. Where no Marley answers, in a script run elsewhere, it prints its input
 unchanged and exits 0.
 
+Each block is framed in its state's color, amber-blue while it runs, green when it passed and red
+when it failed, and shows how long its command took beside its exit (#826). The newest block, when
+it failed, offers **Ask an agent** to fix it and **Explain** to say why it failed without changing
+anything; each sends the block to the agent terminal of the window (or lets you pick one), and with
+none running starts Claude Code with it. While the prompt editor is open, the folder and the branch
+show under it.
+
+
 ### Moving between blocks, copying, rerunning
 
 - Ctrl+Up scrolls to the start of the block above the top of the view, and Ctrl+Down to the next

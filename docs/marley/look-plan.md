@@ -110,7 +110,7 @@ thread view lives in Zed's `agent_ui`, so this is the largest upstream touch in 
 each hunk additive, behind `MarleyThreadHost`, as #798 and #822 did. The details panel is a
 Marley view beside the thread, not a change to Zed's.
 
-**TICKET-826 Terminal blocks with the agent beside them.** *L.* Boards: Terminal,
+**TICKET-826 Terminal blocks with the agent beside them.** *Done (#826, 2026-10-21; the side panel and progress line #865).* *L.* Boards: Terminal,
 TerminalSession, TerminalMore, AgentTerminal.
 Framed blocks with state colors, the failed block's actions, the running block's progress, the
 prompt bar's chips, the block map, the agent bar, the waiting-command card, restored and remote

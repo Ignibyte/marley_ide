@@ -2134,6 +2134,22 @@ impl Element for TerminalElement {
                         let color =
                             marley_bar_color(span, cx.theme().status(), cx.theme().colors().border);
                         window.paint_quad(fill(bar, color));
+                        // Marley: the block framed in its state's color (#826).
+                        let rows = marley_mapped_bounds(
+                            marley_rows_bounds(
+                                &span.rows,
+                                bounds.origin.x,
+                                origin,
+                                &layout.dimensions,
+                            ),
+                            &span.rows,
+                            marley_map,
+                        );
+                        window.paint_quad(gpui::outline(
+                            rows,
+                            color.opacity(0.35),
+                            gpui::BorderStyle::Solid,
+                        ));
                     }
                     for block in &mut marley_blocks {
                         block.paint(window, cx);

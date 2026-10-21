@@ -196,7 +196,10 @@ fn chip(
             .size(IconSize::XSmall)
             .color(Color::Accent)
     });
-    if agent.is_none() && bookmark.is_none() && jump.is_none() && table.is_none() {
+    // How long the block took, beside its exit (#826).
+    let took = crate::send_block::duration(terminal, index, cx);
+    if agent.is_none() && bookmark.is_none() && jump.is_none() && table.is_none() && took.is_none()
+    {
         return ask;
     }
     Some(
@@ -207,6 +210,7 @@ fn chip(
             .children(jump)
             .children(ask)
             .children(table)
+            .children(took)
             .into_any_element(),
     )
 }
