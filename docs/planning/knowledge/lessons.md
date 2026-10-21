@@ -6394,3 +6394,21 @@ heading drawn over some rows clips or overlaps. To put headings in a picker's ro
 `AnyElement` from `render_match` with the heading outside the `ListItem`, so the selection's
 highlight covers the row alone. A row that only grows a second line everywhere (the agent cards)
 stays a uniform list.
+
+## L-claude-871-a-scenarios-mcp-client-runs-in-marleys-terminal-001
+*category: testing · topic: calling Marley's tools from a scenario · from: pipeline 871*
+
+A stand-in MCP client that a scenario runs from the harness, outside Marley's terminals, is an
+outside program: every tool that acts refuses it with `not_paired` (#811), and only reads work.
+To call a tool that acts (`settings_change`, `action_run`), run the client in Marley's terminal,
+as #491 does: put a shell function in the scenario's `.bashrc` that runs it in the background,
+`terminal_env BRIDGE` and `terminal_env MARLEY_MCP_ENDPOINT "$E2E_PROFILE/mcp-endpoint.json"`,
+then type the function's name. The terminal's token makes the caller that terminal.
+
+## L-claude-871-a-bare-wait-in-steps-waits-on-marley-001
+*category: testing · topic: background jobs in a scenario · from: pipeline 871*
+
+A scenario's `steps` run in the harness's shell, whose background jobs include the Marley it
+started; a bare `wait` there waits on Marley and never returns, and the run has to be stopped.
+Wait for a scenario's own job by its pid (`job & pid=$!; wait "$pid"`), or settle past its known
+end.

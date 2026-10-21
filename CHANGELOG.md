@@ -32,6 +32,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Agents' questions as cards** (#871, 2026-10-21). When an agent asks to change a setting, bind a
+  key, set up a harness seat, use a sensitive tool such as `agent_start`, or pair, the question
+  shows its title, what it would do, where, and its buttons in a row at the right: the refusal
+  quiet, the smallest grant solid.
+
 - **Files pops out at the left** (#868, 2026-10-21). In the Marley layout the project panel is no
   longer a center tab or part of the Inspector: a Files button in the rail's header (and
   Ctrl+Shift+E) pops the tree out beside the rail, and the same button puts it away. A new project

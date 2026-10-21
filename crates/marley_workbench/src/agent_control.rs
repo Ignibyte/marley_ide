@@ -15,13 +15,16 @@ use std::time::Duration;
 use db::kvp::KeyValueStore;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
-use gpui::{App, AppContext as _, AsyncApp, Global, SharedString, Task};
+use gpui::{App, AppContext as _, AsyncApp, Global, Task};
 use marley_mcp::{AppCall, Refusal};
 use settings::{MarleyAgentControlMode, SettingsStore};
-use ui::{ButtonStyle, prelude::*};
+use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
+
+use crate::asks::Ask;
+use crate::prompts::Role;
 
 /// How long the user has to answer, under the 30 seconds the server waits for the app.
 const ANSWER_WAIT: Duration = Duration::from_secs(25);
@@ -172,6 +175,38 @@ pub(crate) fn admit(
     what: String,
     cx: &App,
 ) -> Task<Result<(), Refusal>> {
+    admit_asking(
+        call,
+        area,
+        level,
+        Asked {
+            what,
+            rows: Vec::new(),
+            footnote: None,
+        },
+        cx,
+    )
+}
+
+/// What a question shows beyond its headline: a line, the facts as rows, and a footnote.
+pub(crate) struct Asked {
+    pub(crate) what: String,
+    pub(crate) rows: Vec<(&'static str, String)>,
+    pub(crate) footnote: Option<&'static str>,
+}
+
+/// [`admit`], the question showing `asked`'s rows and footnote too (#871).
+///
+/// # Errors
+///
+/// As [`admit`].
+pub(crate) fn admit_asking(
+    call: &AppCall,
+    area: Area,
+    level: Level,
+    asked: Asked,
+    cx: &App,
+) -> Task<Result<(), Refusal>> {
     let mode = area.mode(cx);
     if mode == MarleyAgentControlMode::Off {
         return Task::ready(Err(Refusal::new(
@@ -201,7 +236,9 @@ pub(crate) fn admit(
     let who = crate::click_pause::Who::of(call, cx).words;
     let question = Question {
         headline: format!("{who} wants to use {}", call.tool),
-        what,
+        what: asked.what,
+        rows: asked.rows,
+        footnote: asked.footnote,
         project: session.2.clone(),
     };
     cx.spawn(async move |cx| match ask(question, cx).await {
@@ -251,6 +288,8 @@ fn save(cx: &App) {
 struct Question {
     headline: String,
     what: String,
+    rows: Vec<(&'static str, String)>,
+    footnote: Option<&'static str>,
     project: String,
 }
 
@@ -282,48 +321,36 @@ async fn ask(question: Question, cx: &AsyncApp) -> Option<Answer> {
 fn show(id: NotificationId, question: Question, slot: AnswerSlot, cx: &mut App) {
     show_app_notification(id, cx, move |cx| {
         let question = question.clone();
-        let slot = Arc::clone(&slot);
-        cx.new(|cx| {
-            MessageNotification::new_from_builder(cx, move |_, _| {
-                let button = |id: &'static str, label: &'static str, answer: Answer| {
-                    let slot = Arc::clone(&slot);
-                    Button::new(id, label)
-                        .style(ButtonStyle::Filled)
-                        .on_click(move |_, _, _| give(&slot, answer))
-                };
-                v_flex()
-                    .gap_1()
-                    .child(Label::new(SharedString::from(question.headline.clone())))
-                    .child(
-                        Label::new(SharedString::from(question.what.clone()))
-                            .size(LabelSize::Small),
-                    )
-                    .when(!question.project.is_empty(), |this| {
-                        this.child(
-                            Label::new(SharedString::from(question.project.clone()))
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        )
-                    })
-                    .child(
-                        h_flex()
-                            .pt_1()
-                            .gap_1()
-                            .child(button(
-                                "marley-agent-control-session",
-                                "Allow for This Session",
-                                Answer::Session,
-                            ))
-                            .child(button(
-                                "marley-agent-control-project",
-                                "Always for This Project",
-                                Answer::Project,
-                            ))
-                            .child(button("marley-agent-control-deny", "Deny", Answer::Deny)),
-                    )
-                    .into_any_element()
-            })
-        })
+        let answer = |answer: Answer| {
+            let slot = Arc::clone(&slot);
+            move |_: &mut Window, _: &mut App| give(&slot, answer)
+        };
+        let mut ask = Ask::new(question.headline);
+        if !question.what.is_empty() {
+            ask = ask.line(question.what);
+        }
+        for (label, value) in question.rows {
+            ask = ask.row(label, value);
+        }
+        if !question.project.is_empty() {
+            ask = ask.row("Project", question.project);
+        }
+        if let Some(footnote) = question.footnote {
+            ask = ask.footnote(footnote);
+        }
+        let ask = ask
+            .button("Deny", Role::Quiet, answer(Answer::Deny))
+            .button(
+                "Always for This Project",
+                Role::Plain,
+                answer(Answer::Project),
+            )
+            .button(
+                "Allow for This Session",
+                Role::Primary,
+                answer(Answer::Session),
+            );
+        cx.new(|cx| MessageNotification::new_from_builder(cx, move |_, cx| ask.render(cx)))
     });
 }
 

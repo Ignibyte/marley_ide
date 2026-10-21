@@ -41,7 +41,9 @@ use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
 use workspace::{ModalView, Workspace};
 
+use crate::asks::Ask;
 use crate::browser::BrowserHub;
+use crate::prompts::Role;
 use crate::{AllowBrowserClient, BrowserClients, OutsideClients};
 
 /// The registry's file in `<data>/mcp`.
@@ -652,64 +654,39 @@ async fn ask_pairing(question: PairQuestion, cx: &gpui::AsyncApp) -> Option<Pair
 
 fn show_pairing(id: NotificationId, question: PairQuestion, slot: PairSlot, cx: &mut App) {
     show_app_notification(id, cx, move |cx| {
-        let question = question.clone();
-        let slot = Arc::clone(&slot);
-        cx.new(|cx| {
-            MessageNotification::new_from_builder(cx, move |_, _| {
-                let button = |id: &'static str, label: &'static str, answer: PairAnswer| {
-                    let slot = Arc::clone(&slot);
-                    Button::new(id, label)
-                        .style(match answer {
-                            PairAnswer::Trust(_) => ButtonStyle::Filled,
-                            PairAnswer::Refuse => ButtonStyle::Subtle,
-                        })
-                        .on_click(move |_, _, _| give_pairing(&slot, answer))
-                };
-                v_flex()
-                    .gap_1()
-                    .child(Label::new(SharedString::from(format!(
-                        "A program asks to pair with Marley as \"{}\"",
-                        question.name
-                    ))))
-                    .child(
-                        Label::new(SharedString::from(format!(
-                            "Check that it shows the code {}, then choose what it may do.",
-                            question.code
-                        )))
-                        .size(LabelSize::Small),
-                    )
-                    .when_some(question.folder.clone(), |this, folder| {
-                        this.child(
-                            Label::new(SharedString::from(format!("Asked from {folder}")))
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        )
-                    })
-                    .child(
-                        h_flex()
-                            .pt_1()
-                            .gap_1()
-                            .flex_wrap()
-                            .child(button(
-                                "marley-pair-read",
-                                "Read",
-                                PairAnswer::Trust(Power::Read),
-                            ))
-                            .child(button(
-                                "marley-pair-write",
-                                "Read and Write",
-                                PairAnswer::Trust(Power::Write),
-                            ))
-                            .child(button(
-                                "marley-pair-run",
-                                "Read, Write and Run",
-                                PairAnswer::Trust(Power::Run),
-                            ))
-                            .child(button("marley-pair-refuse", "Refuse", PairAnswer::Refuse)),
-                    )
-                    .into_any_element()
-            })
-        })
+        let answer = |answer: PairAnswer| {
+            let slot = Arc::clone(&slot);
+            move |_: &mut Window, _: &mut App| give_pairing(&slot, answer)
+        };
+        let mut ask = Ask::new(format!(
+            "A program asks to pair with Marley as \"{}\"",
+            question.name
+        ))
+        .line(format!(
+            "Check that it shows the code {}, then choose what it may do.",
+            question.code
+        ));
+        if let Some(folder) = question.folder.clone() {
+            ask = ask.footnote(format!("Asked from {folder}"));
+        }
+        let ask = ask
+            .button("Refuse", Role::Quiet, answer(PairAnswer::Refuse))
+            .button(
+                "Read, Write and Run",
+                Role::Plain,
+                answer(PairAnswer::Trust(Power::Run)),
+            )
+            .button(
+                "Read and Write",
+                Role::Plain,
+                answer(PairAnswer::Trust(Power::Write)),
+            )
+            .button(
+                "Read",
+                Role::Primary,
+                answer(PairAnswer::Trust(Power::Read)),
+            );
+        cx.new(|cx| MessageNotification::new_from_builder(cx, move |_, cx| ask.render(cx)))
     });
 }
 

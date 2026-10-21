@@ -27,7 +27,7 @@ use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, show_app_notification};
 use workspace::{SplitDirection, Workspace};
 
-use crate::agent_control::{Area, Level};
+use crate::agent_control::{Area, Asked, Level};
 use crate::harness::Slot;
 use crate::harness_seat::SeatAgent;
 
@@ -199,15 +199,23 @@ pub(crate) fn answer_start(call: AppCall, cx: &App) {
         }
     };
     let place = match start.request.place {
-        Place::Here => format!("in {}", start.folder.display()),
-        Place::Worktree => "in a new worktree".to_string(),
+        Place::Here => start.folder.display().to_string(),
+        Place::Worktree => "a new worktree".to_string(),
     };
-    let what = format!(
-        "{} {place}, with: {}",
-        start.request.agent.shown(),
-        start.request.first_line()
-    );
-    let admitted = crate::agent_control::admit(&call, Area::Agents, Level::Sensitive, what, cx);
+    let asked = Asked {
+        what: String::new(),
+        rows: vec![
+            ("Agent", start.request.agent.shown().to_string()),
+            ("Where", place),
+            ("Prompt", format!("“{}”", start.request.first_line())),
+        ],
+        footnote: Some(
+            "When its turn ends, Marley types one line into the caller's terminal naming the \
+             result.",
+        ),
+    };
+    let admitted =
+        crate::agent_control::admit_asking(&call, Area::Agents, Level::Sensitive, asked, cx);
     cx.spawn(async move |cx| {
         if let Err(refusal) = admitted.await {
             call.answer(Err(refusal));

@@ -28,7 +28,7 @@ const DANGER: [&str; 8] = [
 
 /// A button's weight on the board.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Role {
+pub(crate) enum Role {
     Quiet,
     Plain,
     Primary,
@@ -126,7 +126,13 @@ fn plain(text: &str) -> String {
 /// A button as the board draws its role: quiet on nothing, plain filled with a border, primary and
 /// danger solid in the accent or the error colour with dark ink. A chosen button (the arrow keys')
 /// has a focus border.
-fn render_button(index: usize, label: &str, role: Role, chosen: bool, cx: &App) -> Stateful<Div> {
+pub(crate) fn render_button(
+    index: usize,
+    label: &str,
+    role: Role,
+    chosen: bool,
+    cx: &App,
+) -> Stateful<Div> {
     let colors = cx.theme().colors();
     let (fill, border, ink) = match role {
         Role::Quiet => (None, None, Color::Muted),

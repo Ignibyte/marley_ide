@@ -2854,6 +2854,16 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## The agents' questions (`src/asks.rs`, #871)
+
+- `Ask` is a question's card inside `MessageNotification::new_from_builder`: a title, lines,
+  label and value rows, a footnote, and buttons drawn by `prompts::render_button` in the order
+  given. `settings_change::ask` (also the seats' asks), `agent_control::show` and
+  `clients::show_pairing` build one; their buttons answer through the same slots.
+- `agent_control::admit_asking` takes an `Asked { what, rows, footnote }`; `admit` is it with no
+  rows. `delegation::answer_start` gives Agent, Where and Prompt rows and the footnote on the line
+  Marley types back.
+
 ## Prompts (`src/prompts.rs`, Zed's `ui_prompt.rs`, #870)
 
 - `prompts::init` sets `MarleyPromptLook(card)`, which `ZedPromptRenderer::render` asks with a

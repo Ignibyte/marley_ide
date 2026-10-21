@@ -20,7 +20,6 @@ use futures::FutureExt as _;
 use futures::channel::oneshot;
 use gpui::{
     App, AppContext as _, AsyncApp, KeyBindingContextPredicate, KeybindingKeystroke, Keystroke,
-    SharedString,
 };
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use serde_json::{Map, Value, json};
@@ -28,10 +27,11 @@ use settings::{
     KeybindUpdateOperation, KeybindUpdateTarget, KeymapFile, ParseStatus, RootUserSettings as _,
     UserSettingsContent,
 };
-use ui::prelude::*;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
 
+use crate::asks::Ask;
+use crate::prompts::Role;
 use crate::settings_tools::{
     SchemaInputs, find_setting, hidden, key_argument, palette_name, value_at,
 };
@@ -309,27 +309,12 @@ fn ask(id: NotificationId, question: Question, slot: AnswerSlot, cx: &mut App) {
         let question = question.clone();
         let apply = Arc::clone(&slot);
         let decline = Arc::clone(&slot);
-        cx.new(|cx| {
-            MessageNotification::new_from_builder(cx, move |_, _| {
-                v_flex()
-                    .gap_1()
-                    .child(Label::new(SharedString::from(question.headline.clone())))
-                    .child(
-                        Label::new(SharedString::from(question.change.clone()))
-                            .size(LabelSize::Small),
-                    )
-                    .child(
-                        Label::new(SharedString::from(question.file.clone()))
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .into_any_element()
-            })
-            .primary_message("Apply")
-            .primary_on_click(move |_, _| give(&apply, true))
-            .secondary_message("Decline")
-            .secondary_on_click(move |_, _| give(&decline, false))
-        })
+        let ask = Ask::new(question.headline)
+            .line(question.change)
+            .footnote(question.file)
+            .button("Decline", Role::Quiet, move |_, _| give(&decline, false))
+            .button("Apply", Role::Primary, move |_, _| give(&apply, true));
+        cx.new(|cx| MessageNotification::new_from_builder(cx, move |_, cx| ask.render(cx)))
     });
 }
 
