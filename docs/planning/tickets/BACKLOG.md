@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-868](open/TICKET-868-files-pop-out-from-the-left.md) | feature | Files pops out from the left, not a center tab (Chad, 2026-10-21) |
 | [TICKET-839](open/TICKET-839-pickers.md) | feature | Pickers: palette, agent picker, file finder (W3.3) |
 | [TICKET-840](open/TICKET-840-needs-you-toasts-and-prompts.md) | feature | Needs you, toasts and prompts (W3.4) |
 | [TICKET-841](open/TICKET-841-forge-as-a-fleet-provider.md) | feature | Forge as a fleet provider (W4.1) |

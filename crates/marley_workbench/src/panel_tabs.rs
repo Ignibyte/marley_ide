@@ -4,7 +4,7 @@
 //! status bar's right-hand buttons included, to split and drag like any tab: "everything opens in
 //! the main pane now then the user can just split panel it out themselves".
 //!
-//! In the Marley layout a moved panel (Files, Git, Outline here; #748 adds more) stays registered
+//! In the Marley layout a moved panel (Git, Outline here; #748 adds more) stays registered
 //! in its dock, so Zed's code still finds it, but the dock never draws it: a [`PanelTab`] in the
 //! active pane draws the panel's own entity. Every way Zed shows the panel ends in the dock opening
 //! on it (the status bar's button, its `ToggleFocus` and `Toggle`, `focus_panel`, Reveal in
@@ -38,9 +38,9 @@ use persistence::MarleyPanelTabsDb;
 use crate::{MarleySettings, SidePanels};
 
 /// The panels a tab draws in the Marley layout, by their persistent names (#747's D3, #748's D1).
-/// The Agent Panel stays in the right dock, and Debug in the bottom one.
-const MOVED: [&str; 7] = [
-    "Project Panel",
+/// The Agent Panel stays in the right dock, Debug in the bottom one, and the project panel pops
+/// out of the left one beside the rail (#868).
+const MOVED: [&str; 6] = [
     "GitPanel",
     "Outline Panel",
     "CollabPanel",
@@ -96,7 +96,7 @@ pub(crate) fn init(cx: &mut App) {
         let side_now = MarleySettings::get_global(cx).side_panels;
         // The Zed layout shows every panel in its dock (D10); a panel turned off (Knowledge while
         // Rusty is off, Containers while hidden) loses its tab, as Zed hides its button (#748).
-        // The Inspector, once chosen, holds Files, Changes and Outline in place of their tabs (#837).
+        // The Inspector, once chosen, holds Changes and Outline in place of their tabs (#837).
         let leaving = marley_layout && !now;
         let inspecting = side_now == SidePanels::Inspector && side_panels != side_now;
         close_tabs(cx, |panel, cx| {
@@ -274,7 +274,7 @@ pub(crate) fn close_items(cx: &mut App, pick: impl Fn(&Pane, &App) -> Vec<Entity
     }
 }
 
-/// A center tab drawing a dock panel's own entity (#747): Files, Git or Outline in the Marley
+/// A center tab drawing a dock panel's own entity (#747): Git or Outline in the Marley
 /// layout. The panel stays its dock's, which never draws it.
 pub struct PanelTab {
     panel: Arc<dyn PanelHandle>,

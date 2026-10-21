@@ -1036,6 +1036,10 @@ struct LayoutState {
     /// The Debug panel's button, which the Marley layout draws at the status bar's left (#774).
     zed_debug_button: Option<bool>,
     zed_agent_dock: Option<DockPosition>,
+    /// The project panel's side, which the Marley layout puts on the left, beside the rail (#868).
+    zed_project_panel_dock: Option<settings::DockSide>,
+    /// Whether the project panel opens with a new project, which a pop-out tree does not (#868).
+    zed_project_panel_starts_open: Option<bool>,
     /// Per workspace, the panel the Agent Panel took over in each dock, in `Workspace::all_docks`
     /// order, when a switch moved it there; the switch that moves it away gives the panel back.
     displaced: HashMap<EntityId, [Option<DockShown>; 3]>,
@@ -1056,6 +1060,14 @@ impl LayoutState {
                 .as_ref()
                 .and_then(|debugger| debugger.button),
             zed_agent_dock: defaults.agent.as_ref().and_then(|agent| agent.dock),
+            zed_project_panel_dock: defaults
+                .project_panel
+                .as_ref()
+                .and_then(|project_panel| project_panel.dock),
+            zed_project_panel_starts_open: defaults
+                .project_panel
+                .as_ref()
+                .and_then(|project_panel| project_panel.starts_open),
             displaced: HashMap::default(),
         }
     }
@@ -1529,11 +1541,21 @@ fn apply_defaults(layout: MarleyLayout, cx: &mut App) {
             state.zed_agent_dock,
         ),
     };
+    let (files_dock, files_start_open) = match layout {
+        MarleyLayout::Marley => (Some(settings::DockSide::Left), Some(false)),
+        MarleyLayout::Zed => (
+            state.zed_project_panel_dock,
+            state.zed_project_panel_starts_open,
+        ),
+    };
     SettingsStore::update_global(cx, |store, cx| {
         store.update_default_settings(cx, |defaults| {
             defaults.terminal.get_or_insert_default().button = terminal_button;
             defaults.debugger.get_or_insert_default().button = debug_button;
             defaults.agent.get_or_insert_default().dock = agent_dock;
+            let project_panel = defaults.project_panel.get_or_insert_default();
+            project_panel.dock = files_dock;
+            project_panel.starts_open = files_start_open;
         });
     });
 }

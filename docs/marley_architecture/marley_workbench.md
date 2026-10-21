@@ -2851,6 +2851,17 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Files at the left (`src/rail.rs`, `src/panel_tabs.rs`, `src/inspector.rs`, #868)
+
+- `apply_defaults` puts the project panel in the left dock and turns its `starts_open` off in the
+  Marley layout, and gives back Zed's defaults (`LayoutState.zed_project_panel_dock`,
+  `zed_project_panel_starts_open`) in Zed's. The left dock sits between the rail and the center.
+- "Project Panel" left `panel_tabs::MOVED` and `inspector::INSPECTED`: the dock observer leaves
+  the left dock open on it, and #773's restore refuses a saved Files tab (its name is outside the
+  list).
+- `rail.rs::render_files_button`, first of the rail header's buttons, lit while the left dock is
+  open on the project panel, dispatches `project_panel::ToggleFocus` built by name.
+
 ## The bottom drawer (`src/drawer.rs`, Zed's `dock.rs` and `diagnostics.rs`, #838)
 
 - `drawer::init` sets two globals Zed's code asks: `MarleyDockHeader(tabs)`, which `Dock::render`

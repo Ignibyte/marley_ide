@@ -5646,3 +5646,14 @@ layout. Sizes, focus, buttons and the debugger's own switching to its panel stay
 Rejected: a Marley drawer panel drawing the debugger panel's view inside itself, which would need
 #747's observer-and-retell machinery for a panel that lives in the same dock; a Problems list of
 Marley's own, which would re-read the language servers' diagnostics Zed's editor already groups.
+
+## AD-claude-868-files-is-a-left-dock-pop-out-001
+*decided at: 2026-10-21 · status: shipped · revises: #747's D3 for the project panel, #837's Files*
+
+Chad, 2026-10-21: "the project panel shouldnt be in the main tab it should be a left hand nav item
+you can view that pops out instead." In the Marley layout the project panel goes back to a dock,
+the left one, which sits between the rail and the center, closed at start; a Files button heads the
+rail's buttons. It leaves #747's tab list and #837's Inspector. Zed's layout gets Zed's defaults.
+
+Rejected for now (asked of Chad): an overlay that slides over the editor and closes on a click away,
+which would host the panel outside any dock and need #747's observer machinery again.

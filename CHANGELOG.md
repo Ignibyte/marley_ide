@@ -11,6 +11,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ## [Unreleased]
 
+### Changed
+
+- **Files pops out at the left** (#868, 2026-10-21). In the Marley layout the project panel is no
+  longer a center tab or part of the Inspector: a Files button in the rail's header (and
+  Ctrl+Shift+E) pops the tree out beside the rail, and the same button puts it away. A new project
+  starts with it closed.
+
 ### Added
 
 - **The bottom drawer** (#838, 2026-10-21). In the Marley layout the bottom dock has Problems and

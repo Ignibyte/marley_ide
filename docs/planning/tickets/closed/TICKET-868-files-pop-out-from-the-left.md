@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #868 (feature, the Marley look)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [868-files-pop-out-from-the-left.spec.md](../../pipeline/completed/868-files-pop-out-from-the-left.spec.md)
 - **Source ticket:** Chad, 2026-10-21: "the project panel shouldnt be in the main tab it should be
   a left hand nav item you can view that pops out instead."
 - **Boards:** Rail, SidePanels
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -1,7 +1,7 @@
-//! Files, Changes and Outline in one column (#837).
+//! Changes and Outline in one column (#837; Files left it for the left dock in #868).
 //!
-//! With `marley.side_inspector` on, in the Marley layout, the three panels #747 opens as a tab each
-//! open in one [`Inspector`] instead: a center item in a pane split to the right of the active one,
+//! With `marley.side_inspector` on, in the Marley layout, the panels #747 opens as a tab each open
+//! in one [`Inspector`] instead: a center item in a pane split to the right of the active one,
 //! narrow, with a switcher at its top. As a panel tab does, it draws the dock's own panel, which
 //! the dock never shows; `panel_tabs`' dock observer sends the three panels here.
 
@@ -21,11 +21,7 @@ use crate::panel_tabs;
 use crate::{MarleySettings, SidePanels};
 
 /// The panels the Inspector holds, by their persistent names, with their switcher labels.
-const INSPECTED: [(&str, &str); 3] = [
-    ("Project Panel", "Files"),
-    ("GitPanel", "Changes"),
-    ("Outline Panel", "Outline"),
-];
+const INSPECTED: [(&str, &str); 2] = [("GitPanel", "Changes"), ("Outline Panel", "Outline")];
 
 /// The column's width when it opens, as the board draws it.
 const WIDTH: f32 = 320.;
@@ -100,7 +96,7 @@ struct Shown {
     label: &'static str,
 }
 
-/// The column holding Files, Changes and Outline, one at a time under a switcher.
+/// The column holding Changes and Outline, one at a time under a switcher.
 pub struct Inspector {
     panels: Vec<Shown>,
     current: usize,

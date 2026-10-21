@@ -4853,6 +4853,7 @@ impl Rail {
             .child(div().flex_1().h_full().when(projects, |space| {
                 space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
             }))
+            .child(render_files_button(&self.multi_workspace, cx))
             .when(projects, |header| header.child(self.render_add_project()))
             .child(
                 IconButton::new("marley-rail-shrink", IconName::ThreadsSidebarLeftOpen)
@@ -11264,3 +11265,30 @@ impl Render for Rail {
 #[cfg(test)]
 #[path = "rail_tests.rs"]
 mod tests;
+
+/// The rail header's Files button: the project panel pops out of the left dock beside the rail, and
+/// a second click puts it away (#868). Its action is built by name: `marley_workbench` takes no
+/// `project_panel` dependency for one action (AD-claude-773).
+fn render_files_button(multi_workspace: &WeakEntity<MultiWorkspace>, cx: &App) -> IconButton {
+    let shown = multi_workspace
+        .upgrade()
+        .map(|multi| multi.read(cx).workspace().read(cx).left_dock().read(cx))
+        .is_some_and(|dock| {
+            dock.is_open()
+                && dock
+                    .active_panel()
+                    .is_some_and(|panel| panel.persistent_name() == "Project Panel")
+        });
+    IconButton::new("marley-rail-files", IconName::FileTree)
+        .icon_size(IconSize::Small)
+        .toggle_state(shown)
+        .tooltip(Tooltip::text("Files"))
+        .on_click(|_, window, cx| {
+            if let Some(action) = cx
+                .build_action("project_panel::ToggleFocus", None)
+                .log_err()
+            {
+                window.dispatch_action(action, cx);
+            }
+        })
+}

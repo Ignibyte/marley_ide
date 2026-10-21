@@ -297,7 +297,7 @@ by default or `"zed"`, and two commands write it for you: `marley: use marley la
 | Terminals | The bottom Terminal Panel | The main area. Tasks, New Terminal and Open in Terminal open there, and the Terminal Panel's button is hidden. |
 | Agent Panel | Where Zed puts it | Docked on the right |
 | Agent threads | In the Agent Panel | In tabs, never in the Agent Panel (#772) |
-| Side panels (project, git, outline, collab, Fleet, Knowledge, Containers) | In their docks | Tabs in the pane you are in (#747, #748); Debug stays in the bottom dock (#774) |
+| Side panels (project, git, outline, collab, Fleet, Knowledge, Containers) | In their docks | Tabs in the pane you are in (#747, #748); the project panel pops out at the left (#868); Debug stays in the bottom dock (#774) |
 | A folder you open for the first time | Zed's behavior | Starts with a terminal at its root |
 | Ctrl+\`, Ctrl+J, Ctrl+~ | Zed's Terminal Panel | The center terminals |
 
@@ -693,13 +693,19 @@ other side, so the tab still ends up on the side you picked. The Zed layout keep
 
 ### Side panels as tabs (#747)
 
-In the Marley layout the project panel, the git panel, the outline panel, the collab panel, Fleet,
-Knowledge and Containers open as tabs in the pane you are in, not in the right dock (#747, #748).
-Only the Agent Panel stays in the right dock, and Debug in the bottom one. Their buttons at the
-right of the status bar, their keys (Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B), `marley panel NAME`
-(#749) and Zed's own ways to them, such as Reveal in Project Panel, bring the panel's tab forward
-where it is, or open one. A tab is titled as its panel's button: Project Panel, Git Panel, Outline
-Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like any tab.
+In the Marley layout the git panel, the outline panel, the collab panel, Fleet, Knowledge and
+Containers open as tabs in the pane you are in, not in the right dock (#747, #748). Only the Agent
+Panel stays in the right dock, and Debug in the bottom one. Their buttons at the right of the
+status bar, their keys (Ctrl+Shift+G, Ctrl+Shift+B), `marley panel NAME` (#749) and Zed's own ways
+to them bring the panel's tab forward where it is, or open one. A tab is titled as its panel's
+button: Git Panel, Outline Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail
+like any tab.
+
+- **Files pops out at the left** (#868). The project panel is no tab: the Files button in the
+  rail's header (first of its buttons), its status-bar button, Ctrl+Shift+E and Reveal in Project
+  Panel pop the file tree out beside the rail, in the left dock, and the editor moves over to make
+  room. It stays out, resizable, until the button or the key puts it away, and a new project starts
+  with it closed. Zed's layout puts it back where Zed's settings say.
 
 - **One of each per group.** Asking again brings the same tab forward. Drag a panel tab to a pane's
   edge, or use the split keys, to put it in a pane of its own: it moves, it is not copied.
@@ -730,11 +736,11 @@ Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like an
 - **After a restart** each panel tab is back in its pane, beside the editors that come back there
   (#773), unless its panel is turned off by then or the window starts in Zed's layout.
 - **The Inspector** (#837): turn on **Use the Inspector** on the Marley page (Layout), or run
-  `marley: toggle inspector`, and the project, git and outline panels share one column instead of a
-  tab each. Asking for any of them opens the Inspector in a narrow pane at the right of the pane you
-  are in, or brings it forward; Files, Changes and Outline at its top switch between them. It is a
-  tab like any other: drag it, split it or close it. Turning the setting on closes those three
-  panels' tabs, and turning it off closes the Inspector; Fleet, Knowledge and Containers keep their
+  `marley: toggle inspector`, and the git and outline panels share one column instead of a tab
+  each (Files pops out at the left instead, #868). Asking for either opens the Inspector in a
+  narrow pane at the right of the pane you are in, or brings it forward; Changes and Outline at its
+  top switch between them. It is a tab like any other: drag it, split it or close it. Turning the
+  setting on closes those two panels' tabs, and turning it off closes the Inspector; Fleet, Knowledge and Containers keep their
   tabs either way. The Inspector does not come back after a restart: ask for a panel to open it
   again.
 
@@ -3894,7 +3900,8 @@ table lists Marley's bindings and the Zed keys whose meaning Marley changes or r
 | Ctrl+Alt+U | Anywhere, while Rusty is connected | `rusty: open page`, the page picker |
 | Alt+Left, Alt+Right | A brain page's tab | Back, Forward |
 | Ctrl+? | Anywhere | The New Agent picker in the Marley layout (#744); Zed's Agent Panel in Zed's |
-| Ctrl+Shift+E, Ctrl+Shift+G, Ctrl+Shift+B | Marley layout | The Project Panel, Git Panel or Outline Panel tab, brought forward or opened (#747) |
+| Ctrl+Shift+E | Marley layout | The file tree, popped out at the left or put away (#868) |
+| Ctrl+Shift+G, Ctrl+Shift+B | Marley layout | The Git Panel or Outline Panel tab, brought forward or opened (#747) |
 | Ctrl+\` | Marley layout | Switches between the code and the project's terminals |
 | Ctrl+J | Marley layout | The same, while the bottom dock is closed |
 | Ctrl+~ | Marley layout | A new center terminal |
