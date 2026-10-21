@@ -122,7 +122,7 @@ states. Block drawing is Marley's code.
   split menu drawn as pictures; the tmux close prompt.
 - Touches Zed's `title_bar` and the workspace's tab drawing: ledger rows, additive.
 
-**W2.2 Home.** *M.* Board: Home. `home_page.rs`: one prompt box with agent chips that starts the
+**W2.2 Home.** *Done (#835, 2026-10-21; the prompt's project chip #867).* *M.* Board: Home. `home_page.rs`: one prompt box with agent chips that starts the
 picked agent in the picked project, then the cards (agents at work, tasks, follow-ups, Rusty,
 recent projects, activity).
 

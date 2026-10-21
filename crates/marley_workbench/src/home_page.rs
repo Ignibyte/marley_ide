@@ -14,10 +14,12 @@ use gpui::{
     App, AppContext as _, Context, Div, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
     Render, SharedString, Stateful, Subscription, Task, WeakEntity, Window,
 };
+use marley_agent::AgentKind;
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{ButtonStyle, prelude::*};
 use util::ResultExt as _;
+use util::paths::PathExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, SerializedWorkspaceLocation, Workspace,
@@ -165,6 +167,11 @@ pub(crate) struct MarleyHome {
     focus_handle: FocusHandle,
     /// Zed's recent local projects; `None` while they are read.
     recent: Option<Vec<Recent>>,
+    /// The prompt box: what the picked agent starts with (#835), made at the first draw, where a
+    /// window can be written.
+    prompt: Option<Entity<editor::Editor>>,
+    /// The agent the prompt starts; the first installed CLI until one is picked.
+    picked: Option<AgentKind>,
     /// The rail the page lists the agents at work from, held weakly and observed, so a rail a
     /// layout swap replaced goes (#713).
     rail: Option<(WeakEntity<Rail>, Subscription)>,
@@ -235,6 +242,8 @@ impl MarleyHome {
             fs,
             focus_handle: cx.focus_handle(),
             recent: None,
+            prompt: None,
+            picked: None,
             rail: None,
             _activity: [
                 cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
@@ -341,8 +350,8 @@ impl MarleyHome {
                 let workspace = self.workspace.clone();
                 let focus = self.focus_handle.clone();
                 Button::new(id, label)
-                    .start_icon(Icon::new(icon).size(IconSize::Small))
-                    .style(ButtonStyle::Filled)
+                    .start_icon(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+                    .style(ButtonStyle::Subtle)
                     .on_click(move |_, window, cx| match id {
                         "marley-home-new-terminal" => new_terminal(&workspace, window, cx),
                         "marley-home-open-folder" => {
@@ -360,52 +369,142 @@ impl MarleyHome {
             }))
     }
 
-    /// New Agent…, the picker that asks which agent and where (#735), then a button per agent CLI
-    /// on the search path, each started in a terminal in Home's home folder.
-    fn render_agents(&self, cx: &App) -> AnyElement {
+    /// The PROMPT card (#835): a box for the task, the agent CLIs to start it with, where it
+    /// starts, and Start; under it the links START and NEW AGENT held.
+    fn render_prompt(&self, cx: &Context<Self>) -> AnyElement {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
-        let picker_workspace = self.workspace.clone();
-        let picker = Button::new("marley-home-new-agent", "New Agent…")
-            .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
-            .style(ButtonStyle::Filled)
-            .on_click(move |_, window, cx| {
-                picker_workspace
-                    .update(cx, |workspace, cx| {
-                        agents::show_picker(workspace, None, window, cx);
-                    })
-                    .log_err();
-            });
-        // Every conversation, as the rail's Threads view lists them (#745).
-        let threads_workspace = self.workspace.clone();
-        let threads = Button::new("marley-home-threads", "Threads")
-            .start_icon(Icon::new(IconName::Thread).size(IconSize::Small))
-            .style(ButtonStyle::Filled)
-            .on_click(move |_, window, cx| {
-                threads_workspace
-                    .update(cx, |workspace, cx| {
-                        crate::threads_page::open(workspace, window, cx);
-                    })
-                    .log_err();
-            });
-        h_flex()
-            .flex_wrap()
+        let picked = self.picked.or_else(|| kinds.first().copied());
+        let folder = self.workspace.upgrade().map(|workspace| {
+            terminal_view::default_working_directory(workspace.read(cx), cx).map_or_else(
+                || "your home folder".to_string(),
+                |folder| folder.compact().to_string_lossy().into_owned(),
+            )
+        });
+        let colors = cx.theme().colors();
+        let field = div()
+            .key_context("MarleyHomePrompt")
+            .on_action(cx.listener(|home, _: &menu::Confirm, window, cx| {
+                home.start_prompt(window, cx);
+            }))
+            .w_full()
+            .px_3()
+            .py_2()
+            .rounded_lg()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .children(self.prompt.clone());
+        let chips = kinds.into_iter().enumerate().map(|(index, kind)| {
+            Button::new(("marley-home-agent", index), kind.display_name())
+                .start_icon(Icon::new(agents::cli_icon(kind)).size(IconSize::Small))
+                .style(ButtonStyle::Filled)
+                .toggle_state(picked == Some(kind))
+                .selected_style(ButtonStyle::Tinted(ui::TintColor::Accent))
+                .on_click(cx.listener(move |home, _, _, cx| {
+                    home.picked = Some(kind);
+                    cx.notify();
+                }))
+        });
+        let start = Button::new("marley-home-start-agent", "Start")
+            .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+            .on_click(cx.listener(|home, _, window, cx| home.start_prompt(window, cx)));
+        v_flex()
             .gap_2()
-            .child(picker)
-            .child(threads)
-            .children(kinds.into_iter().enumerate().map(|(index, kind)| {
-                let workspace = self.workspace.clone();
-                Button::new(("marley-home-agent", index), kind.display_name())
-                    .start_icon(Icon::new(agents::cli_icon(kind)).size(IconSize::Small))
-                    .style(ButtonStyle::Filled)
+            .child(field)
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap_2()
+                    .flex_wrap()
+                    .children(chips)
+                    .children(folder.map(|folder| {
+                        Label::new(format!("in {folder}"))
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                    }))
+                    .child(div().flex_1())
+                    .child(start),
+            )
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_1()
+                    .child(self.render_start())
+                    .child(self.render_agent_links()),
+            )
+            .into_any_element()
+    }
+
+    /// New Agent…, the picker that asks which agent and where (#735), and Threads (#745), as links.
+    fn render_agent_links(&self) -> impl IntoElement {
+        let picker_workspace = self.workspace.clone();
+        let threads_workspace = self.workspace.clone();
+        h_flex()
+            .gap_1()
+            .child(
+                Button::new("marley-home-new-agent", "New Agent…")
+                    .start_icon(
+                        Icon::new(IconName::Plus)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .style(ButtonStyle::Subtle)
                     .on_click(move |_, window, cx| {
-                        workspace
+                        picker_workspace
                             .update(cx, |workspace, cx| {
-                                agents::start_cli(workspace, kind, window, cx);
+                                agents::show_picker(workspace, None, window, cx);
                             })
                             .log_err();
-                    })
-            }))
-            .into_any_element()
+                    }),
+            )
+            .child(
+                Button::new("marley-home-threads", "Threads")
+                    .start_icon(
+                        Icon::new(IconName::Thread)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .style(ButtonStyle::Subtle)
+                    .on_click(move |_, window, cx| {
+                        threads_workspace
+                            .update(cx, |workspace, cx| {
+                                crate::threads_page::open(workspace, window, cx);
+                            })
+                            .log_err();
+                    }),
+            )
+    }
+
+    /// Starts the picked agent with the prompt's task in Home's workspace, and empties the box.
+    fn start_prompt(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
+        let Some(kind) = self.picked.or_else(|| kinds.first().copied()) else {
+            return;
+        };
+        let task = self
+            .prompt
+            .as_ref()
+            .map(|prompt| prompt.read(cx).text(cx).trim().to_string())
+            .unwrap_or_default();
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        workspace.update(cx, |workspace, cx| {
+            if task.is_empty() {
+                agents::start_cli(workspace, kind, window, cx);
+                return;
+            }
+            let started = agents::start_cli_with_prompt(workspace, kind, &task, None, window, cx);
+            cx.spawn(async move |_, _| {
+                if started.await.is_none() {
+                    log::warn!("home: {} did not start for the prompt", kind.display_name());
+                }
+            })
+            .detach();
+        });
+        if let Some(prompt) = &self.prompt {
+            prompt.update(cx, |editor, cx| editor.set_text("", window, cx));
+        }
     }
 
     fn render_recent(&self, cx: &App) -> AnyElement {
@@ -532,9 +631,11 @@ impl MarleyHome {
             .gap_2()
             .children(entries.into_iter().map(|(id, label, icon)| {
                 let focus = self.focus_handle.clone();
+                // Configure's entries read as links (#835).
                 Button::new(id, label)
-                    .start_icon(Icon::new(icon).size(IconSize::Small))
-                    .style(ButtonStyle::Filled)
+                    .start_icon(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+                    .style(ButtonStyle::Subtle)
+                    .color(Color::Accent)
                     .on_click(move |_, window, cx| match id {
                         "marley-home-settings" => {
                             focus.dispatch_action(&zed_actions::OpenSettings, window, cx);
@@ -634,6 +735,13 @@ fn new_terminal(workspace: &WeakEntity<Workspace>, window: &mut Window, cx: &mut
 
 impl Render for MarleyHome {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.prompt.is_none() {
+            self.prompt = Some(cx.new(|cx| {
+                let mut editor = editor::Editor::single_line(window, cx);
+                editor.set_placeholder_text("What should an agent do?", window, cx);
+                editor
+            }));
+        }
         let colors = cx.theme().colors();
         let background = colors.editor_background;
         let at_work = self.render_at_work(window, cx);
@@ -645,11 +753,11 @@ impl Render for MarleyHome {
             .p_4()
             .gap_4()
             .bg(background)
-            .child(card("START", "marley-home-start", self.render_start(), cx))
+            // One prompt first (#835); START's and NEW AGENT's actions are its links.
             .child(card(
-                "NEW AGENT",
-                "marley-home-agents",
-                self.render_agents(cx),
+                "PROMPT",
+                "marley-home-prompt",
+                self.render_prompt(cx),
                 cx,
             ))
             .child(

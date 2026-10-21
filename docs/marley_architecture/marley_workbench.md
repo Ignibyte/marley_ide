@@ -2163,6 +2163,14 @@ alike.
   after Recent Projects | Agents at Work; Configure moved under Agent Activity. The rail marks the
   page `TabKind::Home` in `member_tabs`, and `marley_rail::walk` lists it first under its group.
 
+- **The prompt** (#835): `MarleyHome.prompt` (a single-line `Editor`, made at the first `render`,
+  since `new` gets a read-only window) and `picked` (the chip lit; the first installed CLI until
+  one is picked). `render_prompt` draws the box (`menu::Confirm`, from the global `enter`
+  binding, → `start_prompt`), the chips, the start folder (`default_working_directory`) and
+  Start, then START's actions and New Agent…/Threads as subtle links. `start_prompt` runs
+  `agents::start_cli_with_prompt` (or `start_cli` for an empty box) in Home's workspace and clears
+  the box. CONFIGURE's buttons are subtle with accent labels.
+
 ## Home and Rusty from the start (`src/rail.rs`, `src/groups.rs`, #700)
 
 - `Rail::ensure_groups` runs at the end of each `refresh` and from `rusty_changed` while Rusty is

@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home opens on one prompt** (#835, 2026-10-21). Home's first card is a box, "What should an
+  agent do?", with your agent CLIs as chips: type a task, pick an agent, press Enter or Start, and
+  it starts with the task in Home's project. The old START and NEW AGENT buttons are links under
+  it, and CONFIGURE's entries are links.
+
 - **The title bar's palette field and agent pills** (#834, 2026-10-21). In the Marley layout the
   title bar's middle holds "Search, run a command, or ask an agent", which opens the command
   palette, and its right counts the agents at work ("1 agent working") and those waiting on you

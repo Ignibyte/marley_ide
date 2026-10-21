@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-835](open/TICKET-835-home-one-prompt.md) | feature | Home: one prompt, then what needs you (W2.2) |
 | [TICKET-836](open/TICKET-836-threads-with-a-preview.md) | feature | The Threads page with a preview (W2.3) |
 | [TICKET-837](open/TICKET-837-side-panels-as-one-inspector.md) | feature | Side panels as one inspector (W3.1) |
 | [TICKET-838](open/TICKET-838-the-bottom-drawer.md) | feature | The bottom drawer: Problems and Debug (W3.2) |
@@ -42,6 +41,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-864](open/TICKET-864-the-thread-plan-chips-terminal-peek-and-checks.md) | feature | The thread's plan, reply chips, terminal peek and checks (W2 follow-up) |
 | [TICKET-865](open/TICKET-865-an-agent-panel-beside-a-terminal.md) | feature | An agent panel beside a terminal, and a running block's progress line (W2 follow-up) |
 | [TICKET-866](open/TICKET-866-tabs-as-pills-and-themed-menus.md) | feature | Tabs as pills, and the menus in the theme (W2.1 follow-up) |
+| [TICKET-867](open/TICKET-867-home-prompt-picks-its-project.md) | feature | Home's prompt picks its project (W2.2 follow-up) |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 | [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | The first command in a new zsh on a Mac has no block header |
 

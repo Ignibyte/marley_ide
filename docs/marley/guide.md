@@ -516,7 +516,7 @@ earlier turns, or brings its tab forward where it is open. Your Claude Code and 
 are listed too, and a click resumes one (#754). PROJECTS, or Ctrl+G again, brings the projects back;
 while the conversations show, PROJECTS carries a dot when a project needs you. The rail starts on
 the projects. For agent filters and archived conversations, open the Threads page: the Threads
-button on the Home page's NEW AGENT card, `marley: open threads` or `marley threads` (see [The
+link under the Home page's prompt, `marley: open threads` or `marley threads` (see [The
 Threads page](#the-threads-page)).
 
 ### The + menu
@@ -597,11 +597,12 @@ a tab titled Home, in the group you are looking at, or brings it forward where t
 (#739); `marley home` opens it in the group of the folder you run it from (#749). Its buttons work
 in the group that shows it.
 
-- **Start:** New Terminal (a terminal in the page's group, in your home folder in Default), Open
-  Folder…, Clone Repository… and Command Palette.
-- **New Agent:** New Agent…, the picker that asks which agent and where (#735); Threads, which
-  opens the Threads page (#745); then a button for each agent CLI on your PATH (Claude Code, Codex,
-  Gemini CLI, OpenCode), started in a terminal in the page's group.
+- **Prompt** (#835): a box, "What should an agent do?", and a chip for each agent CLI on your PATH
+  (Claude Code, Codex, Gemini CLI, OpenCode), the first lit until you pick another. Type a task and
+  press Enter, or Start, and the picked agent starts in a terminal of the page's group with the
+  task; with the box empty it starts with nothing to do. Under it, as links: New Terminal (in the
+  page's group, in your home folder in Default), Open Folder…, Clone Repository…, Command Palette,
+  New Agent… (the picker that asks which agent and where, #735) and Threads (#745).
 - **Recent Projects:** the projects you opened lately, each with its folder; a click opens one.
 - **Agents at Work:** every agent thread and agent CLI in the window that is working, waiting or
   failed, with its project; a click opens it where it lives. It follows the rail, also after a
