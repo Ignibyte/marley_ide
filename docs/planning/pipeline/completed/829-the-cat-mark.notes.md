@@ -131,3 +131,6 @@ shelved).
 - **Brain:** decisions/marleys-mark-is-chads-cat-drawing-orange-on-a-dark-tile (follow-up
   2026-11-03).
 - **Ticket** closed; pipeline archived; committed on `marley/workbench-shell`.
+- **After the install** (f4ef96372c, 22:45): `grep -ao images/marley_mark.svg` finds the mark in
+  `~/.local/lib/marley/marley`; `hicolor/512x512/apps/marley.png` matches `app-icon-dev.png`
+  byte for byte and `hicolor/scalable/apps/marley.svg` is installed (REQ-004 met).

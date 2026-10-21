@@ -481,6 +481,15 @@ them. Click a thread to open the project and the thread; a port row's Open and S
 project first, while Copy, Stop and Restart work with the project closed. Next and Previous
 Thread pass over a closed project's threads.
 
+The rail folds to a strip (#830): click the panel button at the right of the rail's header
+(**Shrink the Rail**), run `marley: toggle rail strip`, or turn on **Shrink the Rail** on the Marley
+settings page (`marley.rail_shrunk`). The strip is 60 px wide with a tile per project: its icon, or
+its first letter on a color of its own. The shown project's tile is ringed, and a pink count says
+how many of its agents wait on you. Point at a tile to see the project's rows beside it, and click
+one there, or click the tile to switch to the project. The magnifier at the top, or Ctrl F with the
+rail focused, opens the filter in a popover; Escape closes it. The button at the strip's top opens
+the rail again at the width you left it. The strip stays across restarts.
+
 ### Threads in the rail
 
 The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THREADS, or Ctrl+G with

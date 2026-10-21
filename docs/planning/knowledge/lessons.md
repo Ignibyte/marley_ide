@@ -6295,3 +6295,16 @@ radius 0.65, vanish at the title bar's size, and a dark ring round a light fill 
 of its own carries the mark on both themes; on a ground close to the tile, the subject alone shows.
 The PNGs go in the tree with the command that made them in their ledger rows, so a merge can
 render them again.
+
+## L-claude-830-a-crate-wide-function-from-a-private-submodule-lives-at-the-crate-root-001
+*category: code · topic: clippy's visibility lints in marley_workbench · from: pipeline 830*
+
+Marley's clippy runs both `unreachable_pub` and `redundant_pub_crate` as errors, so a function in a
+private submodule (`rail::strip`) that the crate root needs has no visibility that passes: `pub`
+is unreachable and `pub(crate)` is redundant. Put such a function where its caller lives, at the
+crate root beside its siblings (`toggle_rail_strip` beside `write_layout`), and call it from the
+submodule as `crate::toggle_rail_strip`; a private root item is visible to every module below it.
+The same gate turns a fourth `bool` in a struct (`struct_excessive_bools`) into a two-variant enum
+(`RailStrip`, as `RailContainers`) or a small struct of the related flags (`Hover`), and a field
+added to `MarleySettings::from_settings` should cost one line, since that function sits at the
+100-line limit.

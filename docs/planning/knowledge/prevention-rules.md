@@ -3219,3 +3219,12 @@ from its own search path: Marley's PATH is the login shell's, which no scenario 
 on, while a shell's PATH is the one the user's terminals and a scenario's `.bashrc` set. A
 scenario that makes Marley start an agent puts its stand-in on the terminals' `.bashrc` PATH, and
 reads the first check run's shot for the stand-in's own line before trusting a pass.
+
+## PR-claude-830-an-eased-value-asks-for-frames-where-every-form-renders-001
+*severity: medium · prevents: F-claude-830-an-ease-asked-for-frames-only-in-one-of-its-two-forms-001*
+
+A value eased by hand, one computed from an `Instant` at read time rather than by gpui's
+`with_animation`, asks for its frames with `window.request_animation_frame()` at the top of its
+view's `render`, before any branch on the view's form, and stops asking once the ease has ended.
+When another view reads the value (a sidebar width read by `MultiWorkspace`), that view must
+re-render on this one's notify: `request_animation_frame` notifies only the view that called it.

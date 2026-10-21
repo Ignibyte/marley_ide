@@ -178,6 +178,9 @@ actions!(
         /// Switches every window back to Zed's own layout.
         #[derive(Eq)]
         UseZedLayout,
+        /// Folds the rail to a strip of project marks, or opens it again.
+        #[derive(Eq)]
+        ToggleRailStrip,
         /// Opens the Settings window on Marley's page.
         #[derive(Eq)]
         OpenSettings,
@@ -507,6 +510,8 @@ pub struct MarleySettings {
     pub rail_order: marley_rail::RailOrder,
     /// Whether the rail lists the container ports no project's folder holds (#669).
     pub rail_containers: RailContainers,
+    /// Whether the rail is folded to a strip of project marks (#830).
+    pub rail_strip: RailStrip,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -589,6 +594,27 @@ impl PromptEditor {
         match docked {
             Some(false) => Self::OnCtrlG,
             _ => Self::AtEveryPrompt,
+        }
+    }
+}
+
+/// Whether the rail is open or folded to a strip of project marks, from `marley.rail_shrunk`
+/// (#830).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RailStrip {
+    /// The rail at its width.
+    Open,
+    /// The 60 px strip.
+    Shrunk,
+}
+
+impl RailStrip {
+    /// The setting's value: open unless it is on.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        if marley.and_then(|marley| marley.rail_shrunk) == Some(true) {
+            Self::Shrunk
+        } else {
+            Self::Open
         }
     }
 }
@@ -868,6 +894,7 @@ impl Settings for MarleySettings {
                 .unwrap_or_default(),
             rail_order: rail_order(marley),
             rail_containers: RailContainers::from_content(marley),
+            rail_strip: RailStrip::from_content(marley),
             agent_prompts: agent_editor::AgentPrompts::from_content(marley),
             codex_app_server: codex_server::CodexAppServer::from_content(marley),
             claude_code_ide: claude_ide::ClaudeCodeIde::from_content(marley),
@@ -1112,6 +1139,7 @@ pub fn init(cx: &mut App) {
     observe_workspaces(cx);
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
+        .on_action(|_: &ToggleRailStrip, cx: &mut App| toggle_rail_strip(cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
 }
@@ -1299,6 +1327,15 @@ fn use_zed_layout(_: &mut Window, cx: &mut App) {
 /// Whether the windows use the Marley layout, read where each routing decision is made.
 fn marley_layout(cx: &App) -> bool {
     MarleySettings::get_global(cx).layout == MarleyLayout::Marley
+}
+
+/// `marley: toggle rail strip`: writes the opposite of `marley.rail_shrunk` to the user's
+/// settings, which every window's rail follows.
+fn toggle_rail_strip(cx: &App) {
+    let shrunk = MarleySettings::get_global(cx).rail_strip != RailStrip::Shrunk;
+    settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+        content.marley.get_or_insert_default().rail_shrunk = Some(shrunk);
+    });
 }
 
 fn write_layout(layout: MarleyLayout, cx: &App) {

@@ -4364,3 +4364,14 @@ showed Claude Code v2.1.303's first-run theme screen in the tmux pane. The pane'
 run's scratch folder, so nothing of Chad's was read or changed, and the run's teardown killed its
 tmux server with the agent. Fixed in #819: the agent is typed into the session's shell by name,
 which the shell resolves on its own PATH (the scenario's `.bashrc` puts the stand-in first).
+
+## F-claude-830-an-ease-asked-for-frames-only-in-one-of-its-two-forms-001
+*severity: medium · category: gpui / animation · pipeline 830*
+
+The shrunk rail's width eases between 60 px and the open width, computed in `Sidebar::width` from
+the toggle's `Instant`. The first cut called `window.request_animation_frame()` inside
+`render_strip`, which runs only while the rail is shrunk. Opening the rail renders the full form,
+so nothing asked for a frame: `MultiWorkspace` read the eased width once and drew the next value
+only on the rail's next unrelated notify, a jump or a stall instead of an ease. Found in the
+review of the diff before any run. Fixed: `Strip::tick`, at the top of `Rail::render`, asks for
+frames while the ease runs in either form and forgets it once ended.

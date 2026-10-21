@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail folds to a strip** (#830, 2026-10-20). The new button at the right of the rail's
+  header, `marley: toggle rail strip` or `marley.rail_shrunk` folds the rail to a 60 px strip with
+  a tile per project: its icon or first letter, the shown project ringed, and a pink count of the
+  agents waiting on you. Point at a tile to see the project's rows beside it; the magnifier, or
+  Ctrl F, opens the filter in a popover. The fold eases over 180 ms (it jumps with reduced
+  motion) and survives a restart.
+
 - **The cat mark** (#829, 2026-10-20). Marley's icon is Chad's drawing of Marley, an orange cat
   with green eyes, on a dark rounded tile. It is the app icon (the launcher, the window, the macOS
   bundle) and the mark at the left of the title bar, and About shows it with the line "Named for

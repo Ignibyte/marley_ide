@@ -1099,6 +1099,18 @@ pub fn project_attention(project: &ProjectSnapshot) -> Attention {
         .unwrap_or(Attention::Idle)
 }
 
+/// How many of `project`'s rows wait on the user: its tile's count in the shrunk rail (#830).
+#[must_use]
+pub fn needs_you_count(project: &ProjectSnapshot) -> usize {
+    project
+        .terminals
+        .iter()
+        .map(terminal_attention)
+        .chain(project.threads.iter().map(thread_attention_class))
+        .filter(|attention| *attention == Attention::NeedsYou)
+        .count()
+}
+
 /// The projects' window indices in the order the rail lists them.
 fn project_order(snapshot: &RailSnapshot) -> Vec<usize> {
     let mut order: Vec<usize> = (0..snapshot.projects.len()).collect();

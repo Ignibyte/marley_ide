@@ -185,6 +185,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: true
     pub rail_containers: Option<bool>,
+    /// Whether the rail is folded to a 60 px strip of project marks, each with a count of what
+    /// waits on you, its rows beside it under the pointer, and the filter as a popover (#830). The
+    /// rail's own buttons and `marley: toggle rail strip` set it.
+    ///
+    /// Default: false
+    pub rail_shrunk: Option<bool>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

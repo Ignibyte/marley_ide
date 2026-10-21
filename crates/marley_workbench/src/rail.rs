@@ -95,6 +95,8 @@ use crate::{MarleySettings, browser, launch, worktree_agents};
 pub mod containers;
 #[path = "rail_order.rs"]
 pub mod order;
+#[path = "rail_strip.rs"]
+mod strip;
 #[path = "rail_switcher.rs"]
 mod switcher;
 
@@ -236,6 +238,8 @@ pub struct Rail {
     /// Focus leaving the rail.
     _focus: Subscription,
     _filter_edits: Subscription,
+    /// The rail folded to a strip of project marks (#830).
+    strip: strip::Strip,
     brain: BrainSide,
     startup: StartupGroups,
     gate: OutputGate,
@@ -1085,6 +1089,7 @@ impl Rail {
                 if let Some(multi_workspace) = rail.multi_workspace.upgrade() {
                     rail.watch_ports_while_shown(&multi_workspace, cx);
                 }
+                rail.follow_strip_setting(window, cx);
                 rail.refresh(window, cx);
             });
         Self {
@@ -1144,6 +1149,7 @@ impl Rail {
             _ports: [ports_scanned, settings_changed],
             _focus: focus,
             _filter_edits: filter_edits,
+            strip: strip::Strip::new(cx),
             brain: BrainSide::new(window, cx),
             threads: ThreadsSide::new(window, cx),
         }
@@ -1263,6 +1269,8 @@ impl Rail {
         cx: &mut Context<Self>,
     ) -> Subscription {
         cx.on_focus_out(focus_handle, window, |rail, _, window, cx| {
+            // A row the popover opened took the keys elsewhere (#830).
+            rail.close_strip_search(cx);
             rail.cursor = None;
             rail.refresh(window, cx);
         })
@@ -3580,6 +3588,11 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // The shrunk rail's filter lives in its popover (#830).
+        if self.strip.shrunk {
+            self.open_strip_search(window, cx);
+            return;
+        }
         let field = if self.threads.shown {
             &self.threads.search
         } else {
@@ -3591,6 +3604,13 @@ impl Rail {
     /// Escape, as Zed's Threads Sidebar has it: it clears the filter, and from an empty filter
     /// goes back to the rows. With neither to do it passes on.
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        // Escape closes the shrunk rail's search popover, and the filter with it (#830).
+        if self.strip.search_open {
+            self.close_strip_search(cx);
+            self.clear_filter(window, cx);
+            window.focus(&self.focus_handle, cx);
+            return;
+        }
         if self.threads.shown {
             let search = self.threads.search.clone();
             if !search.read(cx).text(cx).is_empty() {
@@ -3632,6 +3652,7 @@ impl Rail {
         }
         let selection = marley_rail::selection(&self.snapshot.rail);
         self.open_row(selection, window, cx).log_err();
+        self.close_strip_search(cx);
     }
 
     /// Opens a row as a click on it does.
@@ -4901,18 +4922,31 @@ impl Rail {
                 space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
             }))
             .when(!threads, |header| header.child(self.render_add_project()))
+            .child(
+                IconButton::new("marley-rail-shrink", IconName::ThreadsSidebarLeftOpen)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Shrink the Rail"))
+                    .on_click(|_, _, cx| crate::toggle_rail_strip(cx)),
+            )
     }
 
-    fn render_blocks(&self, cx: &Context<Self>) -> Vec<AnyElement> {
+    /// The projects' blocks, each header with its rows, then the harnesses'; with `only`, that
+    /// project's block alone, as the shrunk rail's flyout shows it (#830).
+    fn render_blocks(&self, only: Option<usize>, cx: &Context<Self>) -> Vec<AnyElement> {
         let search_path = agents::launcher(cx).search_path;
         let rail = &self.snapshot.rail;
         let mut blocks: Vec<(AnyElement, Option<DraggedRailHeader>, Vec<AnyElement>)> = Vec::new();
         // Each tmux session under its project's rows, by the group's index (#821).
         let mut tmux = self.placed_tmux(cx);
         let mut indices = Vec::new();
+        let mut included = true;
         for (position, row) in marley_rail::rail_rows(rail).into_iter().enumerate() {
             let run = marley_rail::run(rail, &row);
             if let Row::Project(row) = row {
+                included = only.is_none_or(|only| only == row.index);
+                if !included {
+                    continue;
+                }
                 let Some(group) = self.snapshot.groups.get(row.index) else {
                     continue;
                 };
@@ -4928,7 +4962,7 @@ impl Rail {
                 let header = v_flex()
                     // A line between one project's rows and the next project, as Warp's tab list
                     // draws one between its tabs.
-                    .when(position > 0, |project| {
+                    .when(position > 0 && only.is_none(), |project| {
                         project.child(
                             div()
                                 .debug_selector(move || format!("marley-rail-divider-{index}"))
@@ -4947,7 +4981,8 @@ impl Rail {
                     .into_any_element();
                 blocks.push((header, drag, Vec::new()));
                 indices.push(index);
-            } else if let Some(element) = self.render_row(position, row, run, cx)
+            } else if included
+                && let Some(element) = self.render_row(position, row, run, cx)
                 && let Some((_, _, rows)) = blocks.last_mut()
             {
                 rows.push(element);
@@ -4966,7 +5001,9 @@ impl Rail {
             .into_iter()
             .map(|(header, drag, rows)| Self::header_block(header, rows, drag, cx))
             .collect();
-        rendered.extend(self.render_harness(cx));
+        if only.is_none() {
+            rendered.extend(self.render_harness(cx));
+        }
         rendered
     }
 
@@ -10819,10 +10856,14 @@ impl Focusable for Rail {
 // The `MultiWorkspace` calls these while it is being updated, so none of them reads it.
 impl Sidebar for Rail {
     fn width(&self, _cx: &App) -> Pixels {
-        self.width
+        self.strip.width(self.width)
     }
 
     fn set_width(&mut self, width: Option<Pixels>, cx: &mut Context<Self>) {
+        // The strip has one width; the open width the user set waits for the rail to open (#830).
+        if self.strip.shrunk {
+            return;
+        }
         // The resize handle passes the raw pointer position, and `None` to reset.
         self.width_set_by_user = width.is_some();
         self.width = width.unwrap_or(DEFAULT_WIDTH).clamp(MIN_WIDTH, MAX_WIDTH);
@@ -10961,6 +11002,8 @@ impl Sidebar for Rail {
 
 impl Render for Rail {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The fold eases in both directions, so the frames are asked for in either form (#830).
+        self.strip.tick(window);
         v_flex()
             .id("marley-rail")
             // Nothing moves under the pointer: the order the rail showed when it came over is held
@@ -11002,16 +11045,24 @@ impl Render for Rail {
             .on_action(cx.listener(Self::toggle_thread_history))
             .size_full()
             .bg(cx.theme().colors().panel_background)
-            .child(self.render_header(window, cx))
             .map(|rail| {
-                if self.threads.shown {
+                if self.strip.shrunk {
+                    rail.child(self.render_strip(window, cx))
+                } else {
+                    rail.child(self.render_header(window, cx))
+                }
+            })
+            .map(|rail| {
+                if self.strip.shrunk {
+                    rail
+                } else if self.threads.shown {
                     rail.child(self.render_threads_search(cx))
                         .children(self.render_inbox(cx))
                         .child(self.render_thread_list(cx))
                 } else {
                     rail.child(self.render_filter(cx))
                         .children(self.render_inbox(cx))
-                        .child(self.render_rows(self.render_blocks(cx), cx))
+                        .child(self.render_rows(self.render_blocks(None, cx), cx))
                 }
             })
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {

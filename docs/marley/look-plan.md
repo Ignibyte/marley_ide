@@ -65,7 +65,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 
 ## Wave 1: Chad's asks
 
-**W1.1 The rail shrinks to a strip.** *M–L.* Boards: RailStates, States (motion).
+**W1.1 The rail shrinks to a strip.** *Done (#830, 2026-10-20).* *M–L.* Boards: RailStates, States (motion).
 - `marley.rail_shrunk` (proposed setting), and a button beside the rail's search to toggle it.
 - Shrunk: a 60 px strip of project marks with needs-you badges, a flyout of a project's rows on
   hover, and the search kept at the top as a button that opens the filter as a popover (Ctrl F

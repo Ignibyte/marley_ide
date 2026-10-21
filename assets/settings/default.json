@@ -1842,6 +1842,9 @@
     // container whose Compose folder is in a project shows under that project in the rail either
     // way.
     "rail_containers": true,
+    // Whether the rail is folded to a 60 px strip of project marks, each with a count of what waits
+    // on you, its rows beside it under the pointer, and the filter as a popover (#830).
+    "rail_shrunk": false,
     // Marley's own agent (#683): an agent that explains and configures Marley with Marley's tools,
     // kept from editing files. "agent" picks what it runs on, and what Rusty's entry runs on while
     // Rusty is on (#696): "auto" (the first found at start: Claude Code signed in, else Codex

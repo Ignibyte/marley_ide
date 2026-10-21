@@ -56,7 +56,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 7] {
+fn layout_section() -> [SettingsPageItem; 8] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -116,6 +116,26 @@ fn layout_section() -> [SettingsPageItem; 7] {
                         .marley
                         .get_or_insert_default()
                         .rail_containers = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: the rail folded to a strip of project marks (#830).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Shrink the Rail",
+            description: "Fold the rail to a strip of project marks: each shows a count of what waits on you and, under the pointer, its project's rows; the search at the top opens the filter. The buttons at the rail's top fold and open it too.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.rail_shrunk"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.rail_shrunk.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().rail_shrunk = value;
                 },
             }),
             metadata: None,

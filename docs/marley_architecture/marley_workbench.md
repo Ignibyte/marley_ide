@@ -372,6 +372,22 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     `take_zed_sidebar` hands a fresh Zed sidebar the blob with the rail's width in it.
   - `serialized_state` and `restore_serialized_state` run inside the `MultiWorkspace`'s update,
     so they touch only the rail's fields and the kept Zed sidebar.
+- **The strip** (`rail_strip.rs`, #830). `marley.rail_shrunk` (`MarleySettings::rail_strip`,
+  `RailStrip { Open, Shrunk }`) folds the rail to 60 px. `toggle_rail_strip` (the crate root,
+  the `marley::ToggleRailStrip` action, the header's Shrink button and the strip's Open) writes the
+  setting, and each rail follows it from its settings observer (`follow_strip_setting`), so a
+  hand edit folds it too and a restart keeps it. `Strip::width` eases 180 ms cubic-out from
+  the toggle's `Instant` (none under `reduce_motion`); `Rail::render` calls `Strip::tick`, which
+  asks for frames in both forms, and `MultiWorkspace` re-renders on the rail's notify and reads
+  `Sidebar::width`. `set_width` is ignored while shrunk, so the open width waits. The strip draws
+  one tile per `Row::Project` of `rail_rows`, so the filter thins it: the project's icon (#564) or
+  first letter on its player tint, an accent ring on the shown workspace's group, and a badge from
+  `marley_rail::needs_you_count`. Painted bounds (a `canvas` per tile and one for the search
+  button) anchor two `deferred(anchored())` overlays. The flyout is `render_blocks(Some(index))`,
+  that project's block as the open rail draws it, kept while the pointer is on the tile or itself,
+  with 150 ms of grace. The search popover holds `render_filter` and the filtered rows.
+  `focus_filter` opens it while shrunk; Escape, Enter, a click outside or focus leaving the rail
+  close it.
 
 ## Ports (`src/ports.rs`, #521)
 
