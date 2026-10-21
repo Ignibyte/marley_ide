@@ -56,7 +56,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 8] {
+fn layout_section() -> [SettingsPageItem; 9] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -136,6 +136,29 @@ fn layout_section() -> [SettingsPageItem; 8] {
                 },
                 write: |settings_content, value, _| {
                     settings_content.marley.get_or_insert_default().rail_shrunk = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        // Marley: Files, Changes and Outline in one Inspector column (#837).
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Use the Inspector",
+            description: "Open Files, Changes and Outline in one column at the right of the editor, with a switcher at its top, instead of as a tab each. Fleet, Knowledge and Containers keep their tabs.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.side_inspector"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.side_inspector.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .side_inspector = value;
                 },
             }),
             metadata: None,

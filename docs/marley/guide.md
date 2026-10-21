@@ -724,6 +724,14 @@ Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like an
   goes back among the bottom dock's buttons.
 - **After a restart** each panel tab is back in its pane, beside the editors that come back there
   (#773), unless its panel is turned off by then or the window starts in Zed's layout.
+- **The Inspector** (#837): turn on **Use the Inspector** on the Marley page (Layout), or run
+  `marley: toggle inspector`, and the project, git and outline panels share one column instead of a
+  tab each. Asking for any of them opens the Inspector in a narrow pane at the right of the pane you
+  are in, or brings it forward; Files, Changes and Outline at its top switch between them. It is a
+  tab like any other: drag it, split it or close it. Turning the setting on closes those three
+  panels' tabs, and turning it off closes the Inspector; Fleet, Knowledge and Containers keep their
+  tabs either way. The Inspector does not come back after a restart: ask for a panel to open it
+  again.
 
 ## The block terminal
 

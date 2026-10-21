@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Side panels in one Inspector** (#837, 2026-10-21). Use the Inspector (Marley page, Layout, or
+  `marley: toggle inspector`) puts Files, Changes and Outline in one narrow column at the right of
+  the pane you are in, with a switcher at its top, in place of a tab each. Off by default; the
+  panel tabs stay as they were.
+
 - **The Threads page reads like a mail client** (#836, 2026-10-21). WHO and FOLDER filters sit at
   the left, the conversations are cards under TODAY, YESTERDAY, THIS WEEK and EARLIER, and a click
   fills a preview at the right: agent, folder, title, last change, the search's snippet, and Open,

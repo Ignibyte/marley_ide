@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-837](open/TICKET-837-side-panels-as-one-inspector.md) | feature | Side panels as one inspector (W3.1) |
 | [TICKET-838](open/TICKET-838-the-bottom-drawer.md) | feature | The bottom drawer: Problems and Debug (W3.2) |
 | [TICKET-839](open/TICKET-839-pickers.md) | feature | Pickers: palette, agent picker, file finder (W3.3) |
 | [TICKET-840](open/TICKET-840-needs-you-toasts-and-prompts.md) | feature | Needs you, toasts and prompts (W3.4) |

@@ -1845,6 +1845,9 @@
     // Whether the rail is folded to a 60 px strip of project marks, each with a count of what waits
     // on you, its rows beside it under the pointer, and the filter as a popover (#830).
     "rail_shrunk": false,
+    // Whether Files, Changes and Outline open in one Inspector column at the right of the active
+    // pane, with a switcher at its top, instead of as a tab each (#837).
+    "side_inspector": false,
     // A project's mark, by its first folder, where you chose one (#831): the path of an image
     // file, or "letter" for its name's first letter. A project not named here shows its logo.png
     // or logo.svg, or another icon its folder holds, or its letter.

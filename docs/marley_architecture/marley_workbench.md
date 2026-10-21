@@ -2851,6 +2851,26 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## The Inspector (`src/inspector.rs`, `src/panel_tabs.rs`, #837)
+
+- `marley.side_inspector` (`MarleySettings.side_panels`, `SidePanels { Tabs, Inspector }`), on the
+  Marley page's Layout section and flipped by `ToggleInspector`, sends the Project, Git and Outline
+  panels (`INSPECTED`) to one `Inspector` item in place of a `PanelTab` each: `dock_changed` asks
+  `inspector::takes(name)` before `show_tab`.
+- `inspector::show` switches the workspace's Inspector to the panel and activates it, or makes one
+  (`Inspector::new` resolves the three panels by name through `panel_tabs::workspace_panel`, keeping
+  each one's focus handle, PR-claude-747), splits the active pane to the right and adds it there. Its
+  first render asks, on the next frame, `resize_pane(Horizontal, 320 px - its width)` while its pane
+  is the active one.
+- The render is a switcher (a `Button` per panel, `toggle_state` on the current) over the current
+  panel's view and #747's drop layer, now shared as `panel_tabs::drop_layer` and `hand_drop`. A
+  switch tells the old panel it is inactive and the new one, on its first frame, that it is active;
+  `deactivated` tells the current one inactive; `retell` also asks `inspector::front_panel` (D4,
+  PR-claude-773).
+- The settings observer in `panel_tabs::init` closes the three panels' tabs when the setting turns
+  on and every Inspector (`inspector::close_all`, through `panel_tabs::close_items`) when it turns off
+  or Zed's layout is chosen. The Inspector is not a `SerializableItem`.
+
 ## Panel tabs after a restart (`src/panel_tabs.rs`, Zed's `dock.rs` and `outline_panel.rs`, #773)
 
 - `PanelTab` is a `SerializableItem` of kind `MarleyPanelTab`, registered in `panel_tabs::init`.

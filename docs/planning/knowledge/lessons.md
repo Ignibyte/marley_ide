@@ -6365,3 +6365,11 @@ A scenario's first `ctrl-shift-p` after Marley starts can open and take its text
 the screen before. Give the first palette `settle 2` after the key and `settle 3` after the text,
 and read a shot's toggles (an orange label, not a hover's background) before trusting that a
 click landed.
+
+## L-claude-837-the-install-builds-the-working-tree-001
+*category: process · topic: installing while the next ticket starts · from: pipeline 837*
+
+`script/install-marley` compiles the working tree, not the commit. #836's install ran while #837's
+first edits went in, and failed on a settings page array whose new row was half added. Leave the
+tree alone while an install builds, or `git stash push -u` the next ticket's work, install, and
+`git stash pop` after.

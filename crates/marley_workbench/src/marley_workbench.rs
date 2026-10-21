@@ -77,6 +77,7 @@ pub mod harness;
 pub mod harness_hosts;
 pub mod harness_seat;
 pub mod home_page;
+pub mod inspector;
 pub mod last_reply;
 pub mod launch;
 pub mod limits;
@@ -182,6 +183,9 @@ actions!(
         /// Folds the rail to a strip of project marks, or opens it again.
         #[derive(Eq)]
         ToggleRailStrip,
+        /// Shows Files, Changes and Outline in one Inspector column, or as a tab each again.
+        #[derive(Eq)]
+        ToggleInspector,
         /// Opens the Settings window on Marley's page.
         #[derive(Eq)]
         OpenSettings,
@@ -513,6 +517,8 @@ pub struct MarleySettings {
     pub rail_containers: RailContainers,
     /// Whether the rail is folded to a strip of project marks (#830).
     pub rail_strip: RailStrip,
+    /// Whether Files, Changes and Outline open in one Inspector column or as a tab each (#837).
+    pub side_panels: SidePanels,
     /// What Marley starts Claude Code and Codex with (#532).
     pub agent_permissions: agents::AgentPermissions,
     /// Who answers Claude Code's trust question in a new worktree (#587).
@@ -558,6 +564,20 @@ pub enum AgentCommandHistory {
     Entered,
     /// They are typed with a leading space the shell keeps out, in terminals started since.
     KeptOut,
+}
+
+impl AgentCommandHistory {
+    /// The setting's value: entered unless it is off.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        if marley
+            .and_then(|marley| marley.agent_commands_in_history)
+            .unwrap_or(true)
+        {
+            Self::Entered
+        } else {
+            Self::KeptOut
+        }
+    }
 }
 
 /// Whether English typed at a prompt is answered with a hint and an exit-127 block with the Ask
@@ -616,6 +636,26 @@ impl RailStrip {
             Self::Shrunk
         } else {
             Self::Open
+        }
+    }
+}
+
+/// Where Files, Changes and Outline open in the Marley layout, from `marley.side_inspector` (#837).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SidePanels {
+    /// A center tab each (#747).
+    Tabs,
+    /// One Inspector column at the right of the active pane.
+    Inspector,
+}
+
+impl SidePanels {
+    /// The setting's value: tabs unless it is on.
+    fn from_content(marley: Option<&settings::MarleySettingsContent>) -> Self {
+        if marley.and_then(|marley| marley.side_inspector) == Some(true) {
+            Self::Inspector
+        } else {
+            Self::Tabs
         }
     }
 }
@@ -896,6 +936,7 @@ impl Settings for MarleySettings {
             rail_order: rail_order(marley),
             rail_containers: RailContainers::from_content(marley),
             rail_strip: RailStrip::from_content(marley),
+            side_panels: SidePanels::from_content(marley),
             agent_prompts: agent_editor::AgentPrompts::from_content(marley),
             codex_app_server: codex_server::CodexAppServer::from_content(marley),
             claude_code_ide: claude_ide::ClaudeCodeIde::from_content(marley),
@@ -903,14 +944,7 @@ impl Settings for MarleySettings {
                 marley.and_then(|marley| marley.prompt_editor),
             ),
             english_hint: EnglishHint::from_content(marley),
-            agent_command_history: if marley
-                .and_then(|marley| marley.agent_commands_in_history)
-                .unwrap_or(true)
-            {
-                AgentCommandHistory::Entered
-            } else {
-                AgentCommandHistory::KeptOut
-            },
+            agent_command_history: AgentCommandHistory::from_content(marley),
             agent_permissions: agents::AgentPermissions::from_content(marley),
             claude_code_worktree_trust: marley
                 .and_then(|marley| marley.claude_code_worktree_trust)
@@ -1142,6 +1176,7 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &UseMarleyLayout, cx: &mut App| write_layout(MarleyLayout::Marley, cx))
         .on_action(|_: &UseZedLayout, cx: &mut App| write_layout(MarleyLayout::Zed, cx))
         .on_action(|_: &ToggleRailStrip, cx: &mut App| toggle_rail_strip(cx))
+        .on_action(|_: &ToggleInspector, cx: &mut App| toggle_inspector(cx))
         .observe_global::<SettingsStore>(layout_setting_changed)
         .detach();
 }
@@ -1337,6 +1372,15 @@ fn toggle_rail_strip(cx: &App) {
     let shrunk = MarleySettings::get_global(cx).rail_strip != RailStrip::Shrunk;
     settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
         content.marley.get_or_insert_default().rail_shrunk = Some(shrunk);
+    });
+}
+
+/// `marley: toggle inspector`: writes the opposite of `marley.side_inspector` to the user's
+/// settings, which every window's panels follow (#837).
+fn toggle_inspector(cx: &App) {
+    let inspector = MarleySettings::get_global(cx).side_panels != SidePanels::Inspector;
+    settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+        content.marley.get_or_insert_default().side_inspector = Some(inspector);
     });
 }
 

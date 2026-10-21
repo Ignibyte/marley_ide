@@ -5620,3 +5620,16 @@ Rejected:
   own asking guards each action;
 - a Marley-kept list of Zed's built-in tools for the profile: Zed's Write list is the source, so
   a tool Zed adds reaches Rusty without a Marley change.
+
+## AD-claude-837-the-inspector-is-a-center-item-not-a-dock-001
+*decided at: 2026-10-21 · status: shipped · builds on: #747's panel tabs (`panel_tabs.rs`)*
+
+Files, Changes and Outline share one `Inspector` center item, in a pane split to the right of the
+active one and narrowed to 320 px on its first frame, with a switcher at its top. It is a choice
+beside the panel tabs (`marley.side_inspector`, off by default), and it draws the dock's own panels
+as a panel tab does: the dock observer sends the three panels to it instead of to `show_tab`.
+
+Rejected: the right dock, which already holds the Agent Panel and would hide it whenever a panel
+was asked for, and which #747 moved these panels out of so they split and drag as tabs; a switcher
+inside Zed's dock, which needs a Zed hunk in `dock.rs` for a Marley look; saving the Inspector with
+the workspace, left for later since a click opens it again.

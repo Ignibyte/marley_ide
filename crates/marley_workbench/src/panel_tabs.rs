@@ -23,7 +23,7 @@ use gpui::{
     Focusable, Global, Render, SharedString, Task, WeakEntity, Window,
 };
 use project::Project;
-use settings::SettingsStore;
+use settings::{Settings as _, SettingsStore};
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::dock::{Dock, PanelHandle};
@@ -34,6 +34,8 @@ use workspace::{
 };
 
 use persistence::MarleyPanelTabsDb;
+
+use crate::{MarleySettings, SidePanels};
 
 /// The panels a tab draws in the Marley layout, by their persistent names (#747's D3, #748's D1).
 /// The Agent Panel stays in the right dock, and Debug in the bottom one.
@@ -88,13 +90,25 @@ pub(crate) fn init(cx: &mut App) {
     })
     .detach();
     let mut marley_layout = crate::marley_layout(cx);
+    let mut side_panels = MarleySettings::get_global(cx).side_panels;
     cx.observe_global::<SettingsStore>(move |cx| {
         let now = crate::marley_layout(cx);
+        let side_now = MarleySettings::get_global(cx).side_panels;
         // The Zed layout shows every panel in its dock (D10); a panel turned off (Knowledge while
         // Rusty is off, Containers while hidden) loses its tab, as Zed hides its button (#748).
+        // The Inspector, once chosen, holds Files, Changes and Outline in place of their tabs (#837).
         let leaving = marley_layout && !now;
-        close_tabs(cx, |panel, cx| leaving || !panel.enabled(cx));
+        let inspecting = side_now == SidePanels::Inspector && side_panels != side_now;
+        close_tabs(cx, |panel, cx| {
+            leaving
+                || !panel.enabled(cx)
+                || (inspecting && crate::inspector::inspects(panel.persistent_name()))
+        });
+        if leaving || side_now == SidePanels::Tabs {
+            crate::inspector::close_all(cx);
+        }
         marley_layout = now;
+        side_panels = side_now;
     })
     .detach();
     load_saved_tabs(cx);
@@ -147,7 +161,11 @@ fn dock_changed(
         None => dock.set_open(false, window, cx),
     });
     if asked {
-        show_tab(workspace, Arc::clone(&panel), window, cx);
+        if crate::inspector::takes(panel.persistent_name(), cx) {
+            crate::inspector::show(workspace, &panel, window, cx);
+        } else {
+            show_tab(workspace, Arc::clone(&panel), window, cx);
+        }
     }
     // The dock's calls told this panel, and the one it showed before, that they are inactive: the
     // Outline tab emptied when the Files button moved the dock off the outline panel (#773).
@@ -173,9 +191,10 @@ fn retell(
     };
     let tab = workspace
         .items_of_type::<PanelTab>(cx)
-        .find(|tab| tab.read(cx).panel.panel_id() == id && tab.read(cx).front);
-    if let Some(tab) = tab {
-        let panel = Arc::clone(&tab.read(cx).panel);
+        .find(|tab| tab.read(cx).panel.panel_id() == id && tab.read(cx).front)
+        .map(|tab| Arc::clone(&tab.read(cx).panel));
+    // The Inspector in front showing the panel counts as its tab (#837's D4).
+    if let Some(panel) = tab.or_else(|| crate::inspector::front_panel(workspace, id, cx)) {
         panel.set_active(true, window, cx);
     }
 }
@@ -221,6 +240,16 @@ fn move_split(
 /// Closes every panel tab of every window whose panel `close` names: all of them when the Zed
 /// layout is chosen (D10), a disabled panel's otherwise (#748).
 fn close_tabs(cx: &mut App, close: impl Fn(&dyn PanelHandle, &App) -> bool) {
+    close_items(cx, |pane, cx| {
+        pane.items_of_type::<PanelTab>()
+            .filter(|tab| close(tab.read(cx).panel.as_ref(), cx))
+            .map(|tab| tab.entity_id())
+            .collect()
+    });
+}
+
+/// Closes, in every pane of every window, the items `pick` names.
+pub(crate) fn close_items(cx: &mut App, pick: impl Fn(&Pane, &App) -> Vec<EntityId>) {
     for window in cx.windows() {
         let Some(window) = window.downcast::<MultiWorkspace>() else {
             continue;
@@ -231,15 +260,10 @@ fn close_tabs(cx: &mut App, close: impl Fn(&dyn PanelHandle, &App) -> bool) {
                 for workspace in workspaces {
                     let panes = workspace.read(cx).panes().to_vec();
                     for pane in panes {
-                        let tabs: Vec<EntityId> = pane
-                            .read(cx)
-                            .items_of_type::<PanelTab>()
-                            .filter(|tab| close(tab.read(cx).panel.as_ref(), cx))
-                            .map(|tab| tab.entity_id())
-                            .collect();
-                        for tab in tabs {
+                        let items = pick(pane.read(cx), cx);
+                        for item in items {
                             pane.update(cx, |pane, cx| {
-                                pane.close_item_by_id(tab, SaveIntent::Skip, window, cx)
+                                pane.close_item_by_id(item, SaveIntent::Skip, window, cx)
                                     .detach_and_log_err(cx);
                             });
                         }
@@ -302,39 +326,65 @@ impl Render for PanelTab {
             .relative()
             .bg(cx.theme().colors().panel_background)
             .child(self.panel.to_any())
-            // A tab dragged over the panel: the panels block the mouse over their empty space
-            // (`block_mouse_except_scroll`), which hides the pane's own drop target, so the tab
-            // draws one over the panel and hands the drop to its pane (#747). The pane follows the
-            // drag in the capture phase, so its split direction is right.
-            .child(
-                // Always there and transparent, since a hidden element takes no drop; a hitbox
-                // that does not block leaves the panel under it working as before.
-                div()
-                    .absolute()
-                    .drag_over::<DraggedTab>(|style, _, _, cx| {
-                        style.bg(cx.theme().colors().drop_target_background)
-                    })
-                    .on_drop(cx.listener(|tab, dragged: &DraggedTab, window, cx| {
-                        tab.drop_tab(dragged, window, cx);
-                    }))
-                    .map(|target| {
-                        let half = DefiniteLength::Fraction(0.5);
-                        match split {
-                            None => target.top_0().right_0().bottom_0().left_0(),
-                            Some(SplitDirection::Up) => target.top_0().left_0().right_0().h(half),
-                            Some(SplitDirection::Down) => {
-                                target.left_0().bottom_0().right_0().h(half)
-                            }
-                            Some(SplitDirection::Left) => {
-                                target.top_0().left_0().bottom_0().w(half)
-                            }
-                            Some(SplitDirection::Right) => {
-                                target.top_0().bottom_0().right_0().w(half)
-                            }
-                        }
-                    }),
-            )
+            .child(drop_layer(split).on_drop(cx.listener(
+                |tab, dragged: &DraggedTab, window, cx| {
+                    let Some(pane) = tab.pane(cx) else {
+                        return;
+                    };
+                    hand_drop(pane, dragged, window, cx);
+                },
+            )))
     }
+}
+
+/// A tab dragged over a panel: the panels block the mouse over their empty space
+/// (`block_mouse_except_scroll`), which hides the pane's own drop target, so the item hosting the
+/// panel draws one over it and hands the drop to its pane (#747). The pane follows the drag in the
+/// capture phase, so its split direction is right. Always there and transparent, since a hidden
+/// element takes no drop; a hitbox that does not block leaves the panel under it working as before.
+pub(crate) fn drop_layer(split: Option<SplitDirection>) -> Div {
+    div()
+        .absolute()
+        .drag_over::<DraggedTab>(|style, _, _, cx| {
+            style.bg(cx.theme().colors().drop_target_background)
+        })
+        .map(|target| {
+            let half = DefiniteLength::Fraction(0.5);
+            match split {
+                None => target.top_0().right_0().bottom_0().left_0(),
+                Some(SplitDirection::Up) => target.top_0().left_0().right_0().h(half),
+                Some(SplitDirection::Down) => target.left_0().bottom_0().right_0().h(half),
+                Some(SplitDirection::Left) => target.top_0().left_0().bottom_0().w(half),
+                Some(SplitDirection::Right) => target.top_0().bottom_0().right_0().w(half),
+            }
+        })
+}
+
+/// A tab dropped over a hosted panel, as `pane`'s own drop target takes it.
+pub(crate) fn hand_drop(pane: Entity<Pane>, dragged: &DraggedTab, window: &Window, cx: &mut App) {
+    let dragged = dragged.clone();
+    // The drop moves tabs between panes, the host's among them, so it runs after this update.
+    window.defer(cx, move |window, cx| {
+        pane.update(cx, |pane, cx| {
+            let index = pane.active_item_index();
+            pane.handle_tab_drop(&dragged, index, true, window, cx);
+        });
+    });
+}
+
+/// The pane of `workspace` holding the item `id`.
+pub(crate) fn pane_of(
+    workspace: &WeakEntity<Workspace>,
+    id: EntityId,
+    cx: &App,
+) -> Option<Entity<Pane>> {
+    workspace
+        .upgrade()?
+        .read(cx)
+        .panes()
+        .iter()
+        .find(|pane| pane.read(cx).items().any(|item| item.item_id() == id))
+        .cloned()
 }
 
 impl PanelTab {
@@ -363,29 +413,7 @@ impl PanelTab {
 
     /// The pane holding this tab.
     fn pane(&self, cx: &Context<Self>) -> Option<Entity<Pane>> {
-        let id = cx.entity_id();
-        self.workspace
-            .upgrade()?
-            .read(cx)
-            .panes()
-            .iter()
-            .find(|pane| pane.read(cx).items().any(|item| item.item_id() == id))
-            .cloned()
-    }
-
-    /// A tab dropped over the panel, as the pane's own drop target takes it.
-    fn drop_tab(&self, dragged: &DraggedTab, window: &Window, cx: &mut Context<Self>) {
-        let Some(pane) = self.pane(cx) else {
-            return;
-        };
-        let dragged = dragged.clone();
-        // The drop moves tabs between panes, this one among them, so it runs after this update.
-        window.defer(cx, move |window, cx| {
-            pane.update(cx, |pane, cx| {
-                let index = pane.active_item_index();
-                pane.handle_tab_drop(&dragged, index, true, window, cx);
-            });
-        });
+        pane_of(&self.workspace, cx.entity_id(), cx)
     }
 }
 
@@ -537,7 +565,11 @@ const PANEL_WAITS: usize = 100;
 const PANEL_WAIT: Duration = Duration::from_millis(100);
 
 /// The panel named `name` in any of `workspace`'s docks.
-fn workspace_panel(workspace: &Workspace, name: &str, cx: &App) -> Option<Arc<dyn PanelHandle>> {
+pub(crate) fn workspace_panel(
+    workspace: &Workspace,
+    name: &str,
+    cx: &App,
+) -> Option<Arc<dyn PanelHandle>> {
     workspace
         .all_docks()
         .into_iter()

@@ -191,6 +191,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub rail_shrunk: Option<bool>,
+    /// Whether Files, Changes and Outline open in one Inspector column at the right of the active
+    /// pane, with a switcher at its top, instead of as a tab each (#837). `marley: toggle
+    /// inspector` sets it.
+    ///
+    /// Default: false
+    pub side_inspector: Option<bool>,
     /// A project's mark, by its first folder, where you chose one (#831): the path of an image
     /// file, or "letter" for its name's first letter. A project not named here shows its
     /// `logo.png` or `logo.svg`, or another icon its folder holds, or its letter. A project's
