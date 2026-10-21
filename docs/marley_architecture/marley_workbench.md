@@ -2854,6 +2854,14 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## The trust card (`src/trust_card.rs`, Zed's `security_modal.rs`, #872)
+
+- `trust_card::init` sets `MarleyTrustLook(look)`, which `SecurityModal::render` asks with a
+  `MarleyTrust` (the shortened folders, `trust` and `stay` callbacks); in the Marley layout `look`
+  returns a header ("Trust <name>?" or "Trust these N projects?", the paths, the board's line) and
+  a footer (Not Now quiet, Trust primary, by `prompts::render_button`), which replace Zed's after
+  its own `.header`/`.footer` calls. The body, Enter and `ToggleWorktreeSecurity` stay Zed's.
+
 ## The agents' questions (`src/asks.rs`, #871)
 
 - `Ask` is a question's card inside `MessageNotification::new_from_builder`: a title, lines,

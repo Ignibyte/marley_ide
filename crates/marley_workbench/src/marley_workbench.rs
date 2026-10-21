@@ -140,6 +140,7 @@ pub mod thread_tools;
 pub mod threads_page;
 pub mod tmux_sessions;
 pub mod toasts;
+pub mod trust_card;
 pub mod turn_git;
 pub mod turn_undo;
 pub mod turns;
@@ -1174,6 +1175,7 @@ pub fn init(cx: &mut App) {
     pickers::init(cx);
     toasts::init(cx);
     prompts::init(cx);
+    trust_card::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

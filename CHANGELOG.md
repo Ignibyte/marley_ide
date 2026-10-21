@@ -32,6 +32,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The trust question as a card** (#872, 2026-10-21). Opening a folder Marley has not trusted asks
+  "Trust <folder>?" with its path, a line on what trust allows, and Not Now and Trust at the right;
+  Zed's list of what Restricted Mode prevents and the choice to trust a whole folder stay.
+
 - **Agents' questions as cards** (#871, 2026-10-21). When an agent asks to change a setting, bind a
   key, set up a harness seat, use a sensitive tool such as `agent_start`, or pair, the question
   shows its title, what it would do, where, and its buttons in a row at the right: the refusal

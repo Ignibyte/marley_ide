@@ -5682,3 +5682,15 @@ the rest plain, the row reversed so the main one sits at the right.
 Rejected: a Marley prompt builder set with `App::set_prompt_builder`, which `ui_prompt` resets on
 every settings change and which would copy the renderer's key handling into a Marley crate (§20);
 `ButtonStyle::Tinted`, too faint for the board's solid primary.
+
+## AD-claude-872-trust-modal-ends-by-hook-001
+*decided at: 2026-10-21 · status: shipped*
+
+In the Marley layout Zed's `SecurityModal` keeps its body (what Restricted Mode prevents, the
+"trust all projects in" choice and its field) and its keys, and Marley replaces only its header
+and footer: `AlertModal::header` and `footer` set an `Option`, so two `when_some` calls after
+Zed's own replace them without touching Zed's lines. The title names the folder, its path under
+it; Not Now and Trust take #870's roles.
+
+Rejected: a Marley trust modal of its own, which would copy `trust_and_dismiss`'s scope handling;
+rebuilding the body, which would move Zed's checkbox code into a method.

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-872](open/TICKET-872-the-trust-modal.md) | feature | Zed's trust modal as the Dialogs board draws it (W3.4 follow-up) |
 | [TICKET-841](open/TICKET-841-forge-as-a-fleet-provider.md) | feature | Forge as a fleet provider (W4.1) |
 | [TICKET-842](open/TICKET-842-forge-sprint-board.md) | feature | Forge's sprint board (W4.2) |
 | [TICKET-843](open/TICKET-843-forge-around-marley.md) | feature | Forge around Marley (W4.3) |

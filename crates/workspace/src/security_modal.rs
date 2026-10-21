@@ -3,12 +3,14 @@
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
 use collections::{HashMap, HashSet};
 use gpui::{
-    DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle, Task, WeakEntity,
+    AnyElement, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle, Task,
+    WeakEntity,
 };
 
 use project::{
@@ -102,6 +104,49 @@ impl Render for SecurityModal {
             .single_trustable_path()
             .is_some()
             .then(|| self.trust_path_input.clone());
+
+        // Marley: the Dialogs board's header and footer, asked before the modal is built (#872).
+        let (marley_header, marley_footer) = cx
+            .try_global::<MarleyTrustLook>()
+            .map(|marley| marley.0)
+            .and_then(|look| {
+                let folders = self
+                    .restricted_paths
+                    .values()
+                    .map(|path| {
+                        self.shorten_path(&path.abs_path, path_style)
+                            .display()
+                            .to_string()
+                    })
+                    .collect::<Vec<_>>();
+                let modal = cx.weak_entity();
+                let trust: Rc<dyn Fn(&mut Window, &mut App)> = Rc::new({
+                    let modal = modal.clone();
+                    move |_, cx| {
+                        modal
+                            .update(cx, |modal, cx| modal.trust_and_dismiss(cx))
+                            .ok();
+                    }
+                });
+                let stay: Rc<dyn Fn(&mut Window, &mut App)> = Rc::new(move |_, cx| {
+                    modal
+                        .update(cx, |modal, cx| {
+                            modal.trusted = Some(false);
+                            modal.dismiss(cx);
+                        })
+                        .ok();
+                });
+                look(
+                    &MarleyTrust {
+                        folders: &folders,
+                        trust,
+                        stay,
+                    },
+                    window,
+                    cx,
+                )
+            })
+            .unzip();
 
         AlertModal::new("security-modal")
             .width(rems(40.))
@@ -305,8 +350,26 @@ impl Render for SecurityModal {
                             })),
                     ),
             )
+            // Marley: the board's ends replace Zed's in the Marley layout (#872).
+            .when_some(marley_header, |modal, header| modal.header(header))
+            .when_some(marley_footer, |modal, footer| modal.footer(footer))
             .into_any_element()
     }
+}
+
+// Marley: asked by `SecurityModal::render` for the modal's header and footer; Marley answers in
+// its own layout (#872).
+pub struct MarleyTrustLook(
+    pub fn(&MarleyTrust<'_>, &mut Window, &mut App) -> Option<(AnyElement, AnyElement)>,
+);
+
+impl gpui::Global for MarleyTrustLook {}
+
+// Marley: the folders asked about, and the two answers: trust them, or stay restricted (#872).
+pub struct MarleyTrust<'a> {
+    pub folders: &'a [String],
+    pub trust: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub stay: Rc<dyn Fn(&mut Window, &mut App)>,
 }
 
 impl SecurityModal {
