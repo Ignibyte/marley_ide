@@ -2854,6 +2854,20 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Forge as a fleet provider (`src/forge.rs`, `src/fleet_providers.rs`, #841)
+
+- `FleetProviderContent::Forge { name, url, projects, poll_seconds, bearer_env }`. `connect`
+  makes the MCP-over-HTTP client with the keyring's token for `url` (`keyring_token`), else the
+  `bearer_env` variable's. `poll_once` answers a Forge remote itself: `forge_handshake` (no
+  capabilities, so no `work_agent`; `poll_s` 15 by default; `stale_after_s` 300) and
+  `poll_forge`, `agent-list` per project id or once with none.
+- `forge::summaries` maps each running `AgentSessionDto`: `working` → Working,
+  `needs_attention` → Waiting, else Idle; the heartbeat is `last_seen_ms`, the last output
+  `state_since_ms`; the work item's key carries the ticket, the folder and a waiting session's
+  "silent N m", the line the Fleet row draws.
+- `SetForgeToken` opens `ForgeToken`, a masked editor whose Enter writes
+  `cx.write_credentials(url, "forge", token)` for the first Forge provider.
+
 ## The trust card (`src/trust_card.rs`, Zed's `security_modal.rs`, #872)
 
 - `trust_card::init` sets `MarleyTrustLook(look)`, which `SecurityModal::render` asks with a

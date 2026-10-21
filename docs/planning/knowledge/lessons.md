@@ -6412,3 +6412,14 @@ A scenario's `steps` run in the harness's shell, whose background jobs include t
 started; a bare `wait` there waits on Marley and never returns, and the run has to be stopped.
 Wait for a scenario's own job by its pid (`job & pid=$!; wait "$pid"`), or settle past its known
 end.
+
+## L-claude-841-a-stand-in-mcp-server-over-http-001
+*category: testing · topic: a scenario's MCP server over HTTP · from: pipeline 841*
+
+Zed's `ContextServer::http` talks to a stateless JSON-RPC server with no SSE: a scenario's
+stand-in needs only a Python `ThreadingHTTPServer` whose POST answers `initialize` (echo the
+client's `protocolVersion`, `capabilities: {tools: {}}`), returns 202 with no body for a
+notification (a message with no `id`), and answers `tools/call` with `structuredContent` beside a
+text copy; GET and DELETE can answer 405. Bind port 0 and write the port to a file the steps
+read. A token the provider reads from an environment variable reaches Marley when the scenario's
+`setup` exports it, which keeps the run off the user's keyring.

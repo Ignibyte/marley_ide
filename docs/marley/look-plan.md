@@ -155,7 +155,7 @@ folder, ticket and last output; tickets with ten statuses and a pipeline phase; 
 release branch; bulletins; and a knowledge base. It serves them over MCP (`agent-list`,
 `ticket-list`, `sprint-current`, `bulletin-list`, `knowledge-search`, and more).
 
-**W4.1 Forge as a fleet provider.** *L.* Board: ForgeAgents.
+**W4.1 Forge as a fleet provider.** *Done (#841, 2026-10-21).* *L.* Board: ForgeAgents.
 - A `forge` provider in `marley_fleet` that calls forge's MCP tools and answers in the fleet
   contract's shape, so the Fleet panel shows forge's agents with no new panel code.
 - Settings (proposed): `marley.forge.enabled`, `endpoint`, `projects`, `poll_seconds`. The bearer

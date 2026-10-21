@@ -1,7 +1,7 @@
 ---
 pipeline_id: 471897cc-1758-476e-9b84-e9ac6e337598
 ticket: docs/planning/tickets/open/TICKET-841-forge-as-a-fleet-provider.md
-status: Phase 1 — Plan PASS; ready for Phase 2 — Code
+status: Phase 4 — Complete PASS
 title: Forge as a fleet provider
 type: feature
 slice: The Marley look, W4.1 (docs/marley/look-plan.md)

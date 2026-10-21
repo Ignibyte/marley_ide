@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Forge in the Fleet panel** (#841, 2026-10-21). A `{ "kind": "forge", "url": … }` entry in
+  `marley.fleet.providers` shows Ignibyte Forge's running agents under their hosts, each with its
+  harness, ticket and folder; one silent past three minutes reads waiting, with how long.
+  `marley: set forge token` keeps Forge's token in the system keyring.
+
 - **Prompts as the board draws them** (#870, 2026-10-21). In the Marley layout a question such as
   "Save changes?" or "Close Claude Code? It is waiting." is a rounded card with its buttons in a
   row at the right: Cancel quiet at the left, the main button solid at the right, red when it

@@ -313,6 +313,17 @@ panes can be built, shown and tested:
   and `pseudo`), with the fixtures in its `fixtures/`. Its handshake says `poll_s: 2`, so the
   demo moves while you watch; the quiet agent reads stale about 18 s after the first reading.
 
+## Forge (#841)
+
+Ignibyte Forge does not speak this contract. A provider entry of kind `forge` names Forge's MCP
+endpoint, and Marley adapts it: it makes the handshake itself (no capabilities, polled every 15 s
+unless `poll_seconds` says otherwise) and reads Forge's `agent-list`, once per project id in
+`projects` or once for the token's own project. Each running session becomes an `AgentSummary`:
+its `agent_name`, its `harness` as the runtime, its `host` as `host_id`, its ticket and folder as
+the work item, `working` as working, `needs_attention` (running and silent past 180 s, Forge's
+rule) as waiting and anything else as idle. The token is the keyring's entry for the endpoint,
+written by `marley: set forge token`, else the variable `bearer_env` names.
+
 ## Security
 
 - Marley reads only, in `v1`. It never passes a provider's bearer into a log, a prompt or a

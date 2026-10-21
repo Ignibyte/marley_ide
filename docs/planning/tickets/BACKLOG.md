@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-841](open/TICKET-841-forge-as-a-fleet-provider.md) | feature | Forge as a fleet provider (W4.1; planned, its pair in `pipeline/queued/`) |
 | [TICKET-842](open/TICKET-842-forge-sprint-board.md) | feature | Forge's sprint board (W4.2) |
 | [TICKET-843](open/TICKET-843-forge-around-marley.md) | feature | Forge around Marley (W4.3) |
 | [TICKET-844](open/TICKET-844-settings-window.md) | feature | The settings window and every setting's control (W5) |

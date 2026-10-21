@@ -70,6 +70,7 @@ pub mod fleet;
 pub mod fleet_hosts;
 pub mod fleet_providers;
 pub mod focus_row;
+pub mod forge;
 pub mod github;
 pub mod groups;
 pub mod guide;
@@ -192,6 +193,10 @@ actions!(
         /// Shows Files, Changes and Outline in one Inspector column, or as a tab each again.
         #[derive(Eq)]
         ToggleInspector,
+        /// Asks for Ignibyte Forge's token and keeps it in the system keyring for the fleet's
+        /// Forge provider.
+        #[derive(Eq)]
+        SetForgeToken,
         /// Opens the Settings window on Marley's page.
         #[derive(Eq)]
         OpenSettings,
@@ -1176,6 +1181,7 @@ pub fn init(cx: &mut App) {
     toasts::init(cx);
     prompts::init(cx);
     trust_card::init(cx);
+    forge::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

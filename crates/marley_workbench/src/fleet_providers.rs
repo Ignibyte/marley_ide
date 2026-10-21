@@ -6,8 +6,8 @@
 //! stale, one that fails reads unreachable and is tried again later, and one that speaks another
 //! contract reads incompatible. One store's trouble touches only its own agents.
 //!
-//! A bearer token comes from the environment variable a provider names, and is never logged, shown
-//! or put in an error.
+//! A bearer token comes from the environment variable a provider names, or for Forge (#841) from the
+//! keyring first, and is never logged, shown or put in an error.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -26,13 +26,14 @@ use http_client::{AsyncBody, HttpClient, HttpRequestExt as _, Method, Request, U
 use marley_sdk::stale::DEFAULT_POLL_S;
 use marley_sdk::work::WORK_CONTRACT;
 use marley_sdk::{
-    AgentDetail, AgentList, AgentSummary, Changes, Handshake, HostSnapshot, is_stale,
+    AgentDetail, AgentList, AgentSummary, Changes, Handshake, HostSnapshot, Provider, is_stale,
 };
 use serde::de::DeserializeOwned;
 use settings::FleetProviderContent;
 use util::ResultExt as _;
 
 use crate::fleet::{Selected, Source, SourceState};
+use crate::forge;
 
 /// How long one call to a store may take before the poll gives up on it for this round.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -127,7 +128,11 @@ pub(crate) fn name_of(entry: &FleetProviderContent) -> String {
         }
         | FleetProviderContent::Http {
             name: Some(name), ..
+        }
+        | FleetProviderContent::Forge {
+            name: Some(name), ..
         } => name.clone(),
+        FleetProviderContent::Forge { .. } => "Forge".to_string(),
         FleetProviderContent::Mcp {
             command: Some(command),
             ..
@@ -263,13 +268,19 @@ fn back_off(remote: &mut Remote, now: u64) {
 /// One poll: the client and the handshake when there are none, then the list, or the changes
 /// since the cursor, and the detail of each wanted agent.
 async fn poll_once(remote: &mut Remote, wanted: &[Selected], cx: &AsyncApp) -> Result<(), Failure> {
-    if remote.client.is_none() {
-        remote.client = Some(connect(&remote.entry, &remote.name, cx).await?);
+    let client = client_of(remote, cx).await?;
+    if let FleetProviderContent::Forge {
+        projects,
+        poll_seconds,
+        ..
+    } = &remote.entry
+    {
+        let projects = projects.clone().unwrap_or_default();
+        remote.handshake = Some(forge_handshake(*poll_seconds));
+        remote.agents = poll_forge(&client, &projects, cx).await?;
+        remote.details.clear();
+        return Ok(());
     }
-    let client = remote
-        .client
-        .clone()
-        .context("the store's client did not start")?;
     let handshake = if let Some(handshake) = remote.handshake.clone() {
         handshake
     } else {
@@ -356,6 +367,54 @@ async fn poll_once(remote: &mut Remote, wanted: &[Selected], cx: &AsyncApp) -> R
     Ok(())
 }
 
+/// The remote's client, started when it has none.
+async fn client_of(remote: &mut Remote, cx: &AsyncApp) -> Result<Client, Failure> {
+    if remote.client.is_none() {
+        remote.client = Some(connect(&remote.entry, &remote.name, cx).await?);
+    }
+    Ok(remote
+        .client
+        .clone()
+        .context("the store's client did not start")?)
+}
+
+/// Forge speaks no contract of its own: Marley makes its handshake, with no capabilities, so no
+/// agent detail is asked for.
+fn forge_handshake(poll_seconds: Option<u64>) -> Handshake {
+    Handshake {
+        contract: WORK_CONTRACT.to_string(),
+        provider: Provider {
+            name: "forge".to_string(),
+            version: String::new(),
+        },
+        capabilities: Vec::new(),
+        poll_s: Some(poll_seconds.unwrap_or(forge::DEFAULT_POLL_S)),
+        stale_after_s: Some(forge::STALE_AFTER_S),
+    }
+}
+
+/// Forge's running agents: `agent-list` once per project, or once for the token's own.
+async fn poll_forge(
+    client: &Client,
+    projects: &[String],
+    cx: &AsyncApp,
+) -> Result<Vec<AgentSummary>, Failure> {
+    let arguments: Vec<serde_json::Value> = if projects.is_empty() {
+        vec![serde_json::json!({})]
+    } else {
+        projects
+            .iter()
+            .map(|project| serde_json::json!({ "project_id": project }))
+            .collect()
+    };
+    let mut agents = Vec::new();
+    for arguments in arguments {
+        let answer: forge::ForgeAgents = call(client, "agent-list", arguments, "", cx).await?;
+        agents.extend(forge::summaries(answer));
+    }
+    Ok(agents)
+}
+
 /// Starts the store's client.
 async fn connect(
     entry: &FleetProviderContent,
@@ -403,6 +462,24 @@ async fn connect(
         FleetProviderContent::Mcp { .. } => {
             anyhow::bail!("an mcp provider needs a \"command\" or a \"url\"")
         }
+        FleetProviderContent::Forge {
+            url, bearer_env, ..
+        } => {
+            let web = web_url(url)?;
+            let mut headers = HashMap::default();
+            let token = keyring_token(url, cx)
+                .await
+                .or_else(|| bearer(bearer_env.as_deref(), name));
+            if let Some(token) = token {
+                headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+            }
+            let (http, executor) =
+                cx.update(|cx| (cx.http_client(), cx.background_executor().clone()));
+            let server =
+                ContextServer::http(id, &web, headers, http, executor, Some(CALL_TIMEOUT))?;
+            server.start(cx).await?;
+            Ok(Client::Mcp(Arc::new(server)))
+        }
         FleetProviderContent::Http {
             url, bearer_env, ..
         } => {
@@ -415,6 +492,15 @@ async fn connect(
         }
         FleetProviderContent::Pseudo => anyhow::bail!("the pseudo provider has no client"),
     }
+}
+
+/// The keyring's token for `url`, which `marley: set forge token` writes.
+async fn keyring_token(url: &str, cx: &AsyncApp) -> Option<String> {
+    let read = cx.update(|cx| cx.read_credentials(url));
+    let (_, secret) = read.await.log_err()??;
+    String::from_utf8(secret)
+        .ok()
+        .filter(|token| !token.is_empty())
 }
 
 /// `url` as an HTTP or HTTPS URL.

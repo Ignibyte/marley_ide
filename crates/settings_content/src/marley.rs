@@ -396,6 +396,21 @@ pub enum FleetProviderContent {
         /// The environment variable that holds the bearer token.
         bearer_env: Option<String>,
     },
+    /// Ignibyte Forge's MCP server (#841): Marley reads its `agent-list` and shows its agents under
+    /// their hosts. The token is the keyring's entry for `url` (`marley: set forge token`), else
+    /// the variable `bearer_env` names.
+    Forge {
+        /// The name the panel shows. Default: "Forge".
+        name: Option<String>,
+        /// Forge's MCP endpoint, such as `http://forge:8080/mcp/forge`.
+        url: String,
+        /// The Forge project ids whose agents to list. Default: the token's own project.
+        projects: Option<Vec<String>>,
+        /// How often to ask, in seconds. Default: 15.
+        poll_seconds: Option<u64>,
+        /// The environment variable that holds the token when the keyring has none.
+        bearer_env: Option<String>,
+    },
 }
 
 /// A harness on another host, as `marley.harnesses` names it (#740).

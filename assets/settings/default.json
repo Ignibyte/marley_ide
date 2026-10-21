@@ -1866,7 +1866,9 @@
       "agent": "auto"
     },
     // The fleet (#607): the workflow stores the Fleet panel reads agents, their work and their
-    // hosts from. { "kind": "pseudo" } is Marley's own moving example data.
+    // hosts from. { "kind": "pseudo" } is Marley's own moving example data. Ignibyte Forge is
+    // { "kind": "forge", "url": "http://forge:8080/mcp/forge" } (#841), its token in the keyring
+    // (marley: set forge token); nothing reaches Forge until such an entry is here.
     "fleet": {
       "providers": [],
       // The hosts whose resources and agent processes Marley reads itself (#610), by running a
