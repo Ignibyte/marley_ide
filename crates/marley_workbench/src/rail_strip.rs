@@ -98,6 +98,55 @@ impl Strip {
     }
 }
 
+/// The Sessions tile (#832): `tx` with the count of sessions; a click opens the rail on Sessions.
+fn sessions_tile(count: usize, cx: &Context<Rail>) -> AnyElement {
+    let colors = cx.theme().colors();
+    div()
+        .id("marley-rail-strip-sessions")
+        .debug_selector(|| "marley-rail-strip-sessions".into())
+        .relative()
+        .size(TILE_SIZE)
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_lg()
+        .border_2()
+        .border_color(gpui::transparent_black())
+        .bg(colors.element_background)
+        .hover(|style| style.bg(colors.element_hover))
+        .cursor_pointer()
+        .tooltip(Tooltip::text("tmux Sessions"))
+        .child(
+            Label::new("tx")
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .buffer_font(cx),
+        )
+        .when(count > 0, |tile| {
+            tile.child(
+                div()
+                    .absolute()
+                    .top(px(-5.))
+                    .right(px(-5.))
+                    .min_w(px(16.))
+                    .h(px(16.))
+                    .px_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .bg(colors.element_active)
+                    .child(Label::new(count.to_string()).size(LabelSize::XSmall)),
+            )
+        })
+        .on_click(cx.listener(|rail, _, window, cx| {
+            rail.show_sessions(window, cx);
+            crate::toggle_rail_strip(cx);
+        }))
+        .into_any_element()
+}
+
 /// The count of a project's rows that wait on the user, over its tile's corner.
 fn strip_badge(index: usize, waiting: usize, cx: &App) -> Div {
     div()
@@ -261,6 +310,21 @@ impl Rail {
                 });
             let active = !group.closed && shown.as_ref() == Some(&group.workspace);
             tiles.push(self.render_strip_tile(row.index, &row.name, mark, active, waiting, cx));
+        }
+        // A Sessions tile under the projects while Marley looks on a tmux host (#832).
+        if let Some(tmux) = cx
+            .try_global::<crate::tmux_sessions::TmuxHosts>()
+            .filter(|tmux| !tmux.hosts.is_empty())
+        {
+            let count: usize = tmux
+                .hosts
+                .iter()
+                .map(|host| match &host.listing {
+                    crate::tmux_sessions::Listing::Sessions(sessions) => sessions.len(),
+                    _ => 0,
+                })
+                .sum();
+            tiles.push(sessions_tile(count, cx));
         }
         tiles
     }

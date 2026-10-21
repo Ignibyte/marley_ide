@@ -639,7 +639,7 @@ pub(crate) fn kill(name: &str, session: &str, cx: &App) -> Task<anyhow::Result<(
 }
 
 /// Lists every host again after [`LIST_AFTER_NEW`].
-fn list_soon(cx: &mut App) {
+pub(crate) fn list_soon(cx: &mut App) {
     let task = cx.spawn(async move |cx| {
         cx.background_executor().timer(LIST_AFTER_NEW).await;
         list_all(cx).await;
@@ -680,4 +680,65 @@ pub(crate) fn report(result: anyhow::Result<()>, window: &Window, cx: &App) {
             |_, _, _| None,
         );
     }
+}
+
+/// A host the rail's Sessions view offers to look on (#832).
+pub(crate) struct HostChoice {
+    /// The name `marley.tmux_hosts` gives it.
+    pub(crate) name: SharedString,
+    pub(crate) label: SharedString,
+    /// Where it comes from: this machine, or a saved ssh host.
+    pub(crate) from: &'static str,
+    /// Whether Marley looks on it now.
+    pub(crate) listed: bool,
+}
+
+/// This machine while tmux is installed (or while it is listed), then each saved ssh host, by the
+/// name `marley.tmux_hosts` takes.
+pub(crate) fn host_choices(cx: &App) -> Vec<HostChoice> {
+    let listed = listed_names(cx);
+    let here_listed = listed.iter().any(|name| name == LOCAL);
+    let here = (here_listed || installed(cx)).then(|| HostChoice {
+        name: SharedString::new_static(LOCAL),
+        label: SharedString::new_static("This machine"),
+        from: LOCAL,
+        listed: here_listed,
+    });
+    here.into_iter()
+        .chain(
+            crate::remote::saved_hosts(cx)
+                .into_iter()
+                .map(|host| HostChoice {
+                    listed: listed.iter().any(|name| *name == *host.label),
+                    name: host.label.clone(),
+                    label: host.label,
+                    from: "ssh_connections",
+                }),
+        )
+        .collect()
+}
+
+/// The names of the hosts Marley looks on now.
+fn listed_names(cx: &App) -> Vec<String> {
+    cx.try_global::<TmuxHosts>()
+        .map(|tmux| {
+            tmux.hosts
+                .iter()
+                .map(|host| host.name.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Adds `name` to `marley.tmux_hosts`, or takes it out (#832). The setting starts from the hosts
+/// listed now, so ticking a host while it is unset keeps this machine.
+pub(crate) fn set_listed(name: &str, listed: bool, cx: &App) {
+    let mut names = listed_names(cx);
+    names.retain(|known| known != name);
+    if listed {
+        names.push(name.to_string());
+    }
+    settings::update_settings_file(<dyn fs::Fs>::global(cx), cx, move |content, _| {
+        content.marley.get_or_insert_default().tmux_hosts = Some(names);
+    });
 }

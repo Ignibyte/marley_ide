@@ -953,6 +953,17 @@ own tmux server and with your tmux config, over an ssh that never asks for a pas
 Unlike `marley: open remote terminal`, which keeps its sessions on a tmux server of Marley's own,
 these are the host's own sessions, and any tmux client there sees them too.
 
+**The Sessions view** (#832). SESSIONS at the top of the rail, beside PROJECTS and THREADS, lists
+every tmux session on every host Marley looks on: a heading per host with a green dot (listed), red
+(the listing failed, with the reason under it) or grey (waiting), and a row per session saying the
+project it is placed under, whether it is attached here (a Marley tab holds it), attached
+elsewhere or detached, and its windows. Click a row to attach the session in that project, or to
+show its tab when it is attached here; right-click it for Show or Attach and **Close Session…**,
+which asks before ending the session. Under the sessions, **HOSTS TO LOOK ON** lists this machine
+and each host saved in `ssh_connections` with a checkbox that adds it to `marley.tmux_hosts` or
+takes it out. With the rail shrunk (#830), the `tx` tile under the projects carries the count of
+sessions and opens the rail on Sessions. A red dot on SESSIONS says a host could not be listed.
+
 ### The prompt at the bottom
 
 While the screen has room to spare, as in a new terminal or one you just cleared, Marley draws its

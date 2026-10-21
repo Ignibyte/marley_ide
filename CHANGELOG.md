@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A Sessions view for tmux** (#832, 2026-10-21). SESSIONS, beside PROJECTS and THREADS at the
+  top of the rail, lists every tmux session by host with the project it is placed under, whether
+  it is attached here, elsewhere or not, and its windows. Click to attach or show it; right-click
+  to close it, after a question. Tick the hosts to look on, this machine and each saved ssh host,
+  right there (`marley.tmux_hosts`). The shrunk rail gets a `tx` tile with the count.
+
 - **A project's own mark** (#831, 2026-10-21). A project's `logo.png` (or `logo.svg`) in its top
   folder is now its mark ahead of any favicon, and a project with no image shows its first letter
   on a color of its own. The mark shows on the rail's header, the strip's tile, Home's recent

@@ -1962,6 +1962,20 @@ alike.
   which ends only the attach client; Cancel keeps it. A window close, a quit or a replace asks
   nothing of tmux.
 
+- **The Sessions view** (`src/rail_sessions.rs`, #832): `SessionsView { Hidden, Shown }` on the
+  rail beside `ThreadsSide`; `projects_shown` gates the row keys, fold, Enter and the header's
+  add-project and empty-space menu. `render_sessions` reads `TmuxHosts` directly: per host a
+  `host_heading` (the listing's state as a dot, `label`, the count), `error_words`, and a
+  `session_row` per session whose line is `<placed under> · <attached here|attached
+  elsewhere|detached> · <windows>`. Placement and "attached here" come from `tmux_place` and
+  `tmux_attached_here`, split out of `placed_tmux` so the Projects view and Sessions agree.
+  `open_session` activates the attached terminal or calls `attach_tmux` in the placed group.
+  `close_session` prompts, awaits `tmux_sessions::kill`, then `list_soon`, or prompts the error.
+  HOSTS TO LOOK ON is `tmux_sessions::host_choices` (`local` while tmux is installed or listed,
+  then `remote::saved_hosts` by label) as checkboxes; `set_listed` writes `marley.tmux_hosts`
+  from the hosts listed now, so a first tick keeps this machine. `rail_strip.rs` adds
+  `sessions_tile` while any host is named.
+
 ## A project's own icon (`src/project_icons.rs`, `src/rail.rs`, #564)
 
 - `icon_in(root)`, blocking: Orca's fifteen names by extension (PNG, SVG, WebP, ICO), then the

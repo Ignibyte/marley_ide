@@ -6318,3 +6318,13 @@ says otherwise, and the scenario's profile copy does not. So the box's own sessi
 A scenario that clicks a rail row by its point sets `profile_setting marley.tmux_hosts '[]'` in
 `setup`, or its points move under it. Read the points from a probe run's shots (a run before
 the gate, so the receipt binds the final scenario), not from an earlier ticket's.
+
+## L-claude-832-a-right-click-menu-opens-at-the-pointer-so-click-its-entries-inside-001
+*category: process · topic: driving a rail row's menu in a scenario · from: pipeline 832*
+
+A rail row's `right_click_menu` opens with its top-left corner at the pointer, so an entry clicked
+at the same x as the right-click lands on the menu's edge and does nothing. Click an entry about
+40 px right of the right-click and at its row's offset below (the first entry about 17 px, each
+next one about 23 px more). A row removed earlier in a run (a closed session) moves every point
+below it up by a row's height (46 px for a two-line card), so read each later point from a probe
+run made after that step.

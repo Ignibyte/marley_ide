@@ -95,6 +95,8 @@ use crate::{MarleySettings, browser, launch, worktree_agents};
 pub mod containers;
 #[path = "rail_order.rs"]
 pub mod order;
+#[path = "rail_sessions.rs"]
+mod sessions;
 #[path = "rail_strip.rs"]
 mod strip;
 #[path = "rail_switcher.rs"]
@@ -240,6 +242,8 @@ pub struct Rail {
     _filter_edits: Subscription,
     /// The rail folded to a strip of project marks (#830).
     strip: strip::Strip,
+    /// Whether the Sessions view shows, every tmux session by host (#832).
+    sessions: sessions::SessionsView,
     brain: BrainSide,
     startup: StartupGroups,
     gate: OutputGate,
@@ -1137,6 +1141,7 @@ impl Rail {
             _focus: focus,
             _filter_edits: filter_edits,
             strip: strip::Strip::new(cx),
+            sessions: sessions::SessionsView::Hidden,
             brain: BrainSide::new(window, cx),
             threads: ThreadsSide::new(window, cx),
         }
@@ -3437,7 +3442,7 @@ impl Rail {
         cx: &mut Context<Self>,
     ) {
         // The row keys are the projects' (#745).
-        if self.threads.shown {
+        if !self.projects_shown() {
             return;
         }
         self.cursor = Some(to(&self.snapshot.rail));
@@ -3486,7 +3491,7 @@ impl Rail {
     /// Folds or unfolds the project at `index`, when it is not that way already and no filter
     /// decides what shows.
     fn fold(&mut self, index: usize, fold: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if self.threads.shown {
+        if !self.projects_shown() {
             return;
         }
         let expanded = self
@@ -3574,7 +3579,7 @@ impl Rail {
 
     /// Enter: what a click on the keyboard's row does.
     fn confirm(&mut self, _: &Confirm, window: &mut Window, cx: &mut Context<Self>) {
-        if self.threads.shown {
+        if !self.projects_shown() {
             return;
         }
         let selection = marley_rail::selection(&self.snapshot.rail);
@@ -4842,13 +4847,13 @@ impl Rail {
         };
         // Rusty's button left the header for the status bar (#739); the Projects | Threads switch
         // took the PROJECTS label's place (#745).
-        let threads = self.threads.shown;
+        let projects = self.projects_shown();
         header
             .child(self.render_view_switch(cx))
-            .child(div().flex_1().h_full().when(!threads, |space| {
+            .child(div().flex_1().h_full().when(projects, |space| {
                 space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
             }))
-            .when(!threads, |header| header.child(self.render_add_project()))
+            .when(projects, |header| header.child(self.render_add_project()))
             .child(
                 IconButton::new("marley-rail-shrink", IconName::ThreadsSidebarLeftOpen)
                     .icon_size(IconSize::Small)
@@ -5003,19 +5008,7 @@ impl Rail {
         let home = groups
             .iter()
             .position(|group| group.group.is_some_and(|id| groups::is_home(id, cx)));
-        let attached: HashSet<(SharedString, String)> = self
-            .snapshot
-            .terminals
-            .values()
-            .filter_map(|entry| {
-                let view = entry.view.upgrade()?;
-                let terminal = view.read(cx).terminal().read(cx);
-                let task = terminal.task()?;
-                let attach = tmux.attach_of(&task.spawned_task.full_label)?;
-                (task.status == TaskStatus::Running)
-                    .then(|| (attach.host.clone(), attach.session.clone()))
-            })
-            .collect();
+        let attached = self.tmux_attached_here(tmux, cx);
         for host in &tmux.hosts {
             if let (Some(index), Some(words)) = (home, crate::tmux_sessions::error_words(host)) {
                 placed
@@ -5040,6 +5033,32 @@ impl Rail {
             }
         }
         placed
+    }
+
+    /// The tmux sessions a Marley tab holds attached, by host and session (#821, #832).
+    fn tmux_attached_here(&self, tmux: &TmuxHosts, cx: &App) -> HashSet<(SharedString, String)> {
+        self.snapshot
+            .terminals
+            .values()
+            .filter_map(|entry| {
+                let view = entry.view.upgrade()?;
+                let terminal = view.read(cx).terminal().read(cx);
+                let task = terminal.task()?;
+                let attach = tmux.attach_of(&task.spawned_task.full_label)?;
+                (task.status == TaskStatus::Running)
+                    .then(|| (attach.host.clone(), attach.session.clone()))
+            })
+            .collect()
+    }
+
+    /// The group a session's row goes under: its project's, else Home (#821).
+    fn tmux_place(&self, host: &TmuxHost, session: &TmuxSession, cx: &App) -> Option<usize> {
+        let groups = &self.snapshot.groups;
+        tmux_group(groups, host, &session.folder).or_else(|| {
+            groups
+                .iter()
+                .position(|group| group.group.is_some_and(|id| groups::is_home(id, cx)))
+        })
     }
 
     /// One harness's section: its header, and its sessions' rows unless it is folded.
@@ -5173,33 +5192,36 @@ impl Rail {
         }
     }
 
-    /// PROJECTS and THREADS, the shown view's pressed (#745). While Threads shows, PROJECTS carries
-    /// the dot a project's attention would light on its row.
+    /// PROJECTS, THREADS and SESSIONS (#832), the shown view's pressed (#745). While another view
+    /// shows, PROJECTS carries the dot a project's attention would light on its row, and SESSIONS
+    /// a dot while a tmux host could not be listed.
     fn render_view_switch(&self, cx: &Context<Self>) -> impl IntoElement {
-        let threads = self.threads.shown;
-        let attention = threads && marley_rail::has_attention(&self.snapshot.rail);
-        let view_button =
-            |id: &'static str, label: &'static str, pressed: bool, to_threads: bool| {
-                Button::new(id, label)
-                    .label_size(LabelSize::XSmall)
-                    .style(ButtonStyle::Subtle)
-                    .toggle_state(pressed)
-                    .on_click(cx.listener(move |rail, _, window, cx| {
-                        rail.show_view(to_threads, window, cx);
-                    }))
-            };
+        let projects = self.projects_shown();
+        let threads = self.threads.shown && !self.sessions.shown();
+        let attention = !projects && marley_rail::has_attention(&self.snapshot.rail);
+        let host_down = !self.sessions.shown()
+            && cx.try_global::<TmuxHosts>().is_some_and(|tmux| {
+                tmux.hosts
+                    .iter()
+                    .any(|host| matches!(host.listing, Listing::Failed(_)))
+            });
+        let view_button = |id: &'static str, label: &'static str, pressed: bool| {
+            Button::new(id, label)
+                .label_size(LabelSize::XSmall)
+                .style(ButtonStyle::Subtle)
+                .toggle_state(pressed)
+        };
         h_flex()
             .gap_0p5()
             .child(
                 h_flex()
                     .debug_selector(|| "marley-rail-view-projects".into())
                     .gap_0p5()
-                    .child(view_button(
-                        "marley-rail-view-projects",
-                        "PROJECTS",
-                        !threads,
-                        false,
-                    ))
+                    .child(
+                        view_button("marley-rail-view-projects", "PROJECTS", projects).on_click(
+                            cx.listener(|rail, _, window, cx| rail.show_view(false, window, cx)),
+                        ),
+                    )
                     .when(attention, |button| {
                         button.child(Indicator::dot().color(Color::Accent))
                     }),
@@ -5207,21 +5229,55 @@ impl Rail {
             .child(
                 div()
                     .debug_selector(|| "marley-rail-view-threads".into())
-                    .child(view_button(
-                        "marley-rail-view-threads",
-                        "THREADS",
-                        threads,
-                        true,
-                    )),
+                    .child(
+                        view_button("marley-rail-view-threads", "THREADS", threads).on_click(
+                            cx.listener(|rail, _, window, cx| rail.show_view(true, window, cx)),
+                        ),
+                    ),
             )
+            .child(
+                h_flex()
+                    .debug_selector(|| "marley-rail-view-sessions".into())
+                    .gap_0p5()
+                    .child(
+                        view_button(
+                            "marley-rail-view-sessions",
+                            "SESSIONS",
+                            self.sessions.shown(),
+                        )
+                        .on_click(cx.listener(|rail, _, window, cx| {
+                            rail.show_sessions(window, cx);
+                        })),
+                    )
+                    .when(host_down, |button| {
+                        button.child(Indicator::dot().color(Color::Error))
+                    }),
+            )
+    }
+
+    /// Whether the projects' rows show: neither Threads nor Sessions.
+    const fn projects_shown(&self) -> bool {
+        !self.threads.shown && !self.sessions.shown()
+    }
+
+    /// Shows the Sessions view (#832).
+    fn show_sessions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.sessions.shown() {
+            return;
+        }
+        self.sessions = sessions::SessionsView::Shown;
+        self.threads.shown = false;
+        window.focus(&self.focus_handle, cx);
+        cx.notify();
     }
 
     /// Shows the Threads view, or the projects (#745); the Threads view's search field takes the
     /// keys.
     fn show_view(&mut self, threads: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if self.threads.shown == threads {
+        if self.threads.shown == threads && !self.sessions.shown() {
             return;
         }
+        self.sessions = sessions::SessionsView::Hidden;
         self.threads.shown = threads;
         if threads {
             // The CLI sessions the list shows beside Zed's conversations (#754).
@@ -11002,6 +11058,8 @@ impl Render for Rail {
             .map(|rail| {
                 if self.strip.shrunk {
                     rail
+                } else if self.sessions.shown() {
+                    rail.child(self.render_sessions(cx))
                 } else if self.threads.shown {
                     rail.child(self.render_threads_search(cx))
                         .children(self.render_inbox(cx))
