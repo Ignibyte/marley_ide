@@ -47,6 +47,30 @@
 # macOS ships.
 set -euo pipefail
 
+# Waits while a cargo shares this build's target directory. A cargo with a target directory of its
+# own (another project's, such as elephc's) cannot touch Marley's incremental cache, so it is not
+# waited for; one whose environment cannot be read (another user's, or macOS, which has no /proc)
+# is. `pgrep -x`, since `pgrep -f` would match this script's own command line.
+wait_for_cargo() {
+  local pid target busy
+  while :; do
+    busy=0
+    for pid in $(pgrep -x cargo || true); do
+      if ! target=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null); then
+        busy=1
+        break
+      fi
+      target=$(sed -n 's/^CARGO_TARGET_DIR=//p' <<<"$target")
+      if [[ $target == "${CARGO_TARGET_DIR:-}" ]]; then
+        busy=1
+        break
+      fi
+    done
+    ((busy)) || return 0
+    sleep 2
+  done
+}
+
 usage() {
   echo "usage: script/install-marley [--prefix DIR] [--regress] [--remote-server-only]   (DIR defaults to ~/.local)"
   echo "       on macOS also: [--app-dir DIR] [--remote-server-from HOST]   (DIR defaults to ~/Applications)"
@@ -172,7 +196,7 @@ install_mac() {
     export CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-$jobs}
     echo "==> $memory_gb GB here: LTO $CARGO_PROFILE_RELEASE_LTO, $CARGO_PROFILE_RELEASE_CODEGEN_UNITS codegen units, $CARGO_BUILD_JOBS jobs"
   fi
-  until ! pgrep -x cargo >/dev/null; do sleep 2; done
+  wait_for_cargo
   echo "==> building marley in the release profile"
   nice -n 10 cargo build --release -p zed --bin marley
   built=${CARGO_TARGET_DIR:-$root/target}/release/marley
@@ -353,7 +377,7 @@ stage_remote_server() {
   if ! rustup target list --installed | grep -qx "$target"; then
     rustup target add "$target"
   fi
-  until ! pgrep -x cargo >/dev/null; do sleep 2; done
+  wait_for_cargo
   echo "==> building the remote server for $target in the release profile"
   CC_x86_64_unknown_linux_musl=musl-gcc \
     cargo --config .cargo/bundle-config.toml build --release --target "$target" -p remote_server
@@ -387,9 +411,8 @@ stage_remote_server() {
   fi
 }
 
-# The target directory is shared by every project on the box. `pgrep -x`, since `pgrep -f`
-# would match this script's own command line.
-until ! pgrep -x cargo >/dev/null; do sleep 2; done
+# The target directory is shared by every project on the box that does not set its own.
+wait_for_cargo
 
 if ((server_only)); then
   stage_remote_server

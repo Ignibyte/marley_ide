@@ -10,9 +10,26 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
     @just --list
 
-# Wait until no cargo runs on the box.
+# Wait until no cargo shares this target directory: another project's cargo with a target of its
+# own (elephc's) is not waited for; one whose environment cannot be read is.
 idle:
-    @until ! pgrep -x cargo >/dev/null; do sleep 2; done
+    #!/usr/bin/env bash
+    set -euo pipefail
+    while :; do
+      busy=0
+      for pid in $(pgrep -x cargo || true); do
+        if ! environment=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null); then
+          busy=1
+          break
+        fi
+        if [[ $(sed -n 's/^CARGO_TARGET_DIR=//p' <<<"$environment") == "${CARGO_TARGET_DIR:-}" ]]; then
+          busy=1
+          break
+        fi
+      done
+      ((busy)) || exit 0
+      sleep 2
+    done
 
 # The gate on the change: every gate on its scope, and the receipt the commit needs.
 gate-diff: idle
