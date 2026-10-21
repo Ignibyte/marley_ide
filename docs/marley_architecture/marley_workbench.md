@@ -2854,6 +2854,19 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Toasts (`src/toasts.rs`, Zed's `notifications.rs`, #869)
+
+- `toasts::init` sets `MarleyToastLook(look)`, which `Workspace::show_toast` asks before it builds
+  the `MessageNotification`: `look` answers only in the Marley layout, with a `MarleyToast` whose
+  title becomes the message, whose line becomes `secondary_content` and whose dot becomes the
+  `content_icon` (`IconName::Circle`).
+- `split`: the title ends at the first ". " or ": " after a title of more than one word (so
+  `commands.rs`'s `marley: …` keeps its prefix); the line starts with a capital; a message with
+  neither is a title alone, its final period trimmed. `FAILURES` ("Could not", "failed",
+  "Failed") makes the dot `Color::Error`, else `Color::Accent`.
+- Notifications Marley builds as `MessageNotification`s itself, and app notifications, keep
+  their own content.
+
 ## The pickers (`src/pickers.rs`, `src/agents.rs`, Zed's `command_palette.rs` and `picker.rs`, #839)
 
 - `pickers::init` sets `MarleyPaletteGroups(marley_layout)`, which the palette asks when it opens:

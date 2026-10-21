@@ -5657,3 +5657,15 @@ rail's buttons. It leaves #747's tab list and #837's Inspector. Zed's layout get
 
 Rejected for now (asked of Chad): an overlay that slides over the editor and closes on a click away,
 which would host the panel outside any dock and need #747's observer machinery again.
+
+## AD-claude-869-toasts-split-one-string-001
+*decided at: 2026-10-21 · status: shipped*
+
+In the Marley layout a toast is drawn from its one message string, split where it is shown: Zed's
+`show_toast` asks Marley's `MarleyToastLook` hook, which titles the toast with the message up to
+its first ". " or ": " (a one-word title such as `marley:` does not count), puts the rest under it
+as a muted line, and picks a red dot for "Could not" or "failed" and the accent otherwise. Marley's
+43 `Toast::new` calls keep their single strings.
+
+Rejected: a title and a line on `Toast` itself, which would touch every call in Marley and Zed;
+restyling `MessageNotification`'s frame, which every Zed notification shares.

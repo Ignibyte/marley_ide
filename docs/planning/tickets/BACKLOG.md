@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-869](open/TICKET-869-toasts-and-prompts.md) | feature | Toasts and prompts as the boards draw them (W3.4 follow-up) |
+| [TICKET-870](open/TICKET-870-prompts-as-the-dialogs-board.md) | feature | Prompts as the Dialogs board draws them (W3.4 follow-up) |
 | [TICKET-841](open/TICKET-841-forge-as-a-fleet-provider.md) | feature | Forge as a fleet provider (W4.1) |
 | [TICKET-842](open/TICKET-842-forge-sprint-board.md) | feature | Forge's sprint board (W4.2) |
 | [TICKET-843](open/TICKET-843-forge-around-marley.md) | feature | Forge around Marley (W4.3) |

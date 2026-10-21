@@ -137,6 +137,7 @@ pub mod thread_tab;
 pub mod thread_tools;
 pub mod threads_page;
 pub mod tmux_sessions;
+pub mod toasts;
 pub mod turn_git;
 pub mod turn_undo;
 pub mod turns;
@@ -1169,6 +1170,7 @@ pub fn init(cx: &mut App) {
     panel_tabs::init(cx);
     drawer::init(cx);
     pickers::init(cx);
+    toasts::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

@@ -70,6 +70,19 @@ pub trait Notification:
 
 pub struct SuppressEvent;
 
+// Marley: asked by `Workspace::show_toast` for a toast's look; Marley's answers in its own layout
+// (#869).
+pub struct MarleyToastLook(pub fn(&str, &App) -> Option<MarleyToast>);
+
+impl gpui::Global for MarleyToastLook {}
+
+// Marley: a toast as Marley draws it: a title, a muted line under it and a dot (#869).
+pub struct MarleyToast {
+    pub title: SharedString,
+    pub line: Option<SharedString>,
+    pub dot: Color,
+}
+
 impl Workspace {
     pub fn has_notification(&self, id: &NotificationId) -> bool {
         self.notifications
@@ -195,15 +208,27 @@ impl Workspace {
 
     pub fn show_toast(&mut self, toast: Toast, cx: &mut Context<Self>) {
         self.dismiss_notification(&toast.id, cx);
+        // Marley: Marley draws a toast as a dot, a title and a muted line (#869).
+        let marley_look = cx
+            .try_global::<MarleyToastLook>()
+            .map(|marley| marley.0)
+            .and_then(|look| look(&toast.message, cx));
         self.show_notification(toast.id.clone(), cx, |cx| {
             cx.new(|cx| {
-                simple_message_notification::MessageNotification::new(toast.message, cx).when_some(
-                    toast.on_click,
-                    |this, (click_msg, on_click)| {
-                        this.primary_message(click_msg)
-                            .primary_on_click(move |window, cx| on_click(window, cx))
-                    },
-                )
+                let notification = match marley_look {
+                    Some(look) => {
+                        simple_message_notification::MessageNotification::new(look.title, cx)
+                            .when_some(look.line, |this, line| this.secondary_content(line))
+                            .content_icon(IconName::Circle, look.dot)
+                    }
+                    None => {
+                        simple_message_notification::MessageNotification::new(toast.message, cx)
+                    }
+                };
+                notification.when_some(toast.on_click, |this, (click_msg, on_click)| {
+                    this.primary_message(click_msg)
+                        .primary_on_click(move |window, cx| on_click(window, cx))
+                })
             })
         });
 
