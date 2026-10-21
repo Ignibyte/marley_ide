@@ -35,7 +35,8 @@ use picker::{Picker, PickerDelegate};
 use project::{AgentId, DisableAiSettings, Project};
 use settings::Settings as _;
 use ui::{
-    ButtonStyle, Headline, HeadlineSize, HighlightedLabel, ListItem, ListItemSpacing, prelude::*,
+    ButtonStyle, Headline, HeadlineSize, HighlightedLabel, ListItem, ListItemSpacing, Tooltip,
+    prelude::*,
 };
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
@@ -207,6 +208,10 @@ pub struct ThreadsPage {
     agent: Option<Chip>,
     /// Whether the archived conversations are listed.
     archived_open: bool,
+    /// The folder chosen; none lists every folder (#836).
+    folder: Option<String>,
+    /// The row the preview shows, by its key (#836).
+    selected: Option<String>,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -283,12 +288,24 @@ enum Chip {
     Cli(AgentKind),
 }
 
-/// The page's rows, by section, and the chips offered.
+/// The page's rows, the archived ones apart, and the chips and folders offered.
 struct Sections {
-    assistants: Vec<Row>,
-    others: Vec<Row>,
+    rows: Vec<Row>,
     archived: Vec<Row>,
     chips: Vec<Chip>,
+    folders: Vec<String>,
+}
+
+/// The day heading a row goes under, by when it last changed (#836).
+fn day_of(updated_at: DateTime<Utc>) -> &'static str {
+    let today = chrono::Local::now().date_naive();
+    let day = updated_at.with_timezone(&chrono::Local).date_naive();
+    match (today - day).num_days() {
+        ..=0 => "TODAY",
+        1 => "YESTERDAY",
+        2..=6 => "THIS WEEK",
+        _ => "EARLIER",
+    }
 }
 
 impl ThreadsPage {
@@ -320,6 +337,8 @@ impl ThreadsPage {
             search,
             agent: None,
             archived_open: false,
+            folder: None,
+            selected: None,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         }
@@ -329,10 +348,10 @@ impl ThreadsPage {
     fn sections(&self, cx: &App) -> Sections {
         let query = self.search.read(cx).text(cx).trim().to_lowercase();
         let mut sections = Sections {
-            assistants: Vec::new(),
-            others: Vec::new(),
+            rows: Vec::new(),
             archived: Vec::new(),
             chips: Vec::new(),
+            folders: Vec::new(),
         };
         // The store's entries hold the archived conversations too, each once.
         let mut records: Vec<&ThreadMetadata> = ThreadMetadataStore::try_global(cx)
@@ -350,16 +369,22 @@ impl ThreadsPage {
             if !sections.chips.contains(&chip) {
                 sections.chips.push(chip.clone());
             }
-            if self.agent.as_ref().is_some_and(|agent| *agent != chip) || !matches(record, &query) {
+            let row = row_of(record);
+            if let Some(folder) = &row.folder
+                && !sections.folders.contains(folder)
+            {
+                sections.folders.push(folder.clone());
+            }
+            if self.agent.as_ref().is_some_and(|agent| *agent != chip)
+                || !matches(record, &query)
+                || !self.folder_keeps(&row)
+            {
                 continue;
             }
-            let row = row_of(record);
             if record.archived {
                 sections.archived.push(row);
-            } else if crate::assistant::is_assistant(&record.agent_id) {
-                sections.assistants.push(row);
             } else {
-                sections.others.push(row);
+                sections.rows.push(row);
             }
         }
         let redactor = crate::mcp::agent_redactor(cx);
@@ -369,16 +394,29 @@ impl ThreadsPage {
             if !sections.chips.contains(&chip) {
                 sections.chips.push(chip.clone());
             }
+            if let Some(folder) = &row.folder
+                && !sections.folders.contains(folder)
+            {
+                sections.folders.push(folder.clone());
+            }
             if self.agent.as_ref().is_none_or(|agent| *agent == chip)
+                && self.folder_keeps(&row)
                 && matches_cli(&mut row, &session, &query, &search)
             {
-                sections.others.push(row);
+                sections.rows.push(row);
             }
         }
         sections
-            .others
+            .rows
             .sort_by_key(|row| std::cmp::Reverse(row.updated_at));
         sections
+    }
+
+    /// Whether the chosen folder, if any, keeps `row` (#836).
+    fn folder_keeps(&self, row: &Row) -> bool {
+        self.folder
+            .as_ref()
+            .is_none_or(|folder| row.folder.as_ref() == Some(folder))
     }
 
     fn render_chips(
@@ -394,9 +432,14 @@ impl ThreadsPage {
                 page.agent = None;
                 cx.notify();
             }));
-        h_flex()
-            .flex_wrap()
-            .gap_1()
+        v_flex()
+            .items_start()
+            .gap_0p5()
+            .child(
+                Label::new("WHO")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
             .child(all)
             .children(chips.iter().enumerate().map(|(index, chip)| {
                 let chosen = chip.clone();
@@ -412,6 +455,138 @@ impl ThreadsPage {
                         cx.notify();
                     }))
             }))
+    }
+
+    /// FOLDER: All and each folder the listed conversations ran in (#836).
+    fn render_folders(&self, folders: &[String], cx: &Context<Self>) -> impl IntoElement {
+        let all = Button::new("marley-threads-folder-all", "All")
+            .style(ButtonStyle::Subtle)
+            .toggle_state(self.folder.is_none())
+            .on_click(cx.listener(|page, _, _, cx| {
+                page.folder = None;
+                cx.notify();
+            }));
+        v_flex()
+            .w_full()
+            .items_start()
+            .gap_0p5()
+            .child(
+                Label::new("FOLDER")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(all)
+            .children(folders.iter().enumerate().map(|(index, folder)| {
+                let chosen = folder.clone();
+                let full: SharedString = folder.clone().into();
+                // The folder's own name, its whole path on hover: paths run past the column.
+                let name = std::path::Path::new(folder).file_name().map_or_else(
+                    || folder.clone(),
+                    |name| name.to_string_lossy().into_owned(),
+                );
+                Button::new(("marley-threads-folder", index), name)
+                    .style(ButtonStyle::Subtle)
+                    .truncate(true)
+                    .tooltip(Tooltip::text(full))
+                    .toggle_state(self.folder.as_ref() == Some(folder))
+                    .on_click(cx.listener(move |page, _, _, cx| {
+                        page.folder = Some(chosen.clone());
+                        cx.notify();
+                    }))
+            }))
+    }
+
+    /// The selected row's preview, or what to do with none (#836).
+    fn render_preview(
+        &self,
+        row: Option<&Row>,
+        project: &Entity<Project>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let Some(row) = row else {
+            return muted("Pick a conversation to see it here.");
+        };
+        let workspace = self.workspace.clone();
+        let (open_target, split_target) = (row.target.clone(), row.target.clone());
+        let split_workspace = self.workspace.clone();
+        let thread = match &row.target {
+            Target::Thread { thread_id, .. } => Some(*thread_id),
+            Target::Cli(_) => None,
+        };
+        v_flex()
+            .debug_selector(|| "marley-threads-preview".into())
+            .w_full()
+            .min_w_0()
+            .gap_2()
+            .child(
+                h_flex()
+                    .w_full()
+                    .min_w_0()
+                    .gap_2()
+                    .child(row.icon(project, cx).color(Color::Muted))
+                    .child(
+                        div().flex_1().min_w_0().child(
+                            Label::new(row.detail(project, cx))
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .truncate_start(),
+                        ),
+                    ),
+            )
+            .child(Headline::new(row.title.clone()).size(HeadlineSize::XSmall))
+            .child(
+                Label::new(format!("Last changed {}", row.when))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .children(row.snippet.clone().map(|snippet| {
+                Label::new(snippet)
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .italic()
+            }))
+            .child(
+                h_flex()
+                    .gap_1()
+                    .flex_wrap()
+                    .child(
+                        Button::new("marley-threads-preview-open", "Open")
+                            .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+                            .on_click(move |_, window, cx| {
+                                open_row(&workspace, &open_target, window, cx);
+                            }),
+                    )
+                    .child(
+                        Button::new("marley-threads-preview-split", "Open in a Split")
+                            .style(ButtonStyle::Subtle)
+                            .on_click(move |_, window, cx| {
+                                let split = split_workspace.update(cx, |workspace, cx| {
+                                    let pane = workspace.active_pane().clone();
+                                    let right = workspace.split_pane(
+                                        pane,
+                                        workspace::SplitDirection::Right,
+                                        window,
+                                        cx,
+                                    );
+                                    window.focus(&right.focus_handle(cx), cx);
+                                });
+                                if split.log_err().is_some() {
+                                    open_row(&split_workspace, &split_target, window, cx);
+                                }
+                            }),
+                    )
+                    .children(thread.map(|thread_id| {
+                        Button::new("marley-threads-preview-archive", "Archive")
+                            .style(ButtonStyle::Subtle)
+                            .on_click(move |_, _, cx| {
+                                if let Some(store) = ThreadMetadataStore::try_global(cx) {
+                                    store
+                                        .update(cx, |store, cx| store.archive(thread_id, None, cx));
+                                }
+                            })
+                    })),
+            )
+            .into_any_element()
     }
 
     fn render_section(
@@ -446,6 +621,9 @@ impl ThreadsPage {
         // reads its items, this page among them (PR-claude-701).
         let workspace = self.workspace.clone();
         let target = row.target.clone();
+        let key = row.key();
+        let selected = self.selected.as_ref() == Some(&key);
+        let page = cx.weak_entity();
         ListItem::new(SharedString::from(format!(
             "marley-threads-row-{}",
             row.key()
@@ -477,8 +655,18 @@ impl ThreadsPage {
                 .size(LabelSize::Small)
                 .color(Color::Muted),
         )
-        .on_click(move |_, window, cx| {
-            open_row(&workspace, &target, window, cx);
+        .toggle_state(selected)
+        // A click selects for the preview; a double-click opens, as Open does (#836).
+        .on_click(move |event, window, cx| {
+            if event.click_count() >= 2 {
+                open_row(&workspace, &target, window, cx);
+            } else {
+                page.update(cx, |page, cx| {
+                    page.selected = Some(key.clone());
+                    cx.notify();
+                })
+                .log_err();
+            }
         })
         .into_any_element()
     }
@@ -589,6 +777,64 @@ pub(crate) fn open_thread(
         .log_err();
 }
 
+impl ThreadsPage {
+    /// The rows under their day's heading, newest first, and the archived ones behind their toggle
+    /// (#836).
+    fn render_list(
+        &self,
+        rows: Vec<Row>,
+        archived_rows: Vec<Row>,
+        empty: bool,
+        project: &Entity<Project>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let archived_count = archived_rows.len();
+        let archived_open = self.archived_open;
+        let mut days: Vec<(&'static str, Vec<Row>)> = Vec::new();
+        for row in rows {
+            let day = day_of(row.updated_at);
+            match days.last_mut() {
+                Some((last, rows)) if *last == day => rows.push(row),
+                _ => days.push((day, vec![row])),
+            }
+        }
+        let archived = if archived_open {
+            self.render_section("ARCHIVED", archived_rows, project, cx)
+        } else {
+            Empty.into_any_element()
+        };
+        v_flex()
+            .id("marley-threads-list")
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .overflow_y_scroll()
+            .gap_3()
+            .when(empty, |list| list.child(muted("No conversation matches.")))
+            .children(
+                days.into_iter()
+                    .map(|(day, rows)| self.render_section(day, rows, project, cx)),
+            )
+            .when(archived_count > 0, |list| {
+                let label = if archived_open {
+                    format!("Hide archived ({archived_count})")
+                } else {
+                    format!("Show archived ({archived_count})")
+                };
+                list.child(
+                    Button::new("marley-threads-archived", label)
+                        .style(ButtonStyle::Subtle)
+                        .on_click(cx.listener(|page, _, _, cx| {
+                            page.archived_open = !page.archived_open;
+                            cx.notify();
+                        })),
+                )
+            })
+            .child(archived)
+            .into_any_element()
+    }
+}
+
 impl Render for ThreadsPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
@@ -600,22 +846,28 @@ impl Render for ThreadsPage {
             return div().into_any_element();
         };
         let sections = self.sections(cx);
-        let empty = sections.assistants.is_empty()
-            && sections.others.is_empty()
-            && sections.archived.is_empty();
-        let archived_count = sections.archived.len();
-        let archived_open = self.archived_open;
-        let archived = if archived_open {
-            self.render_section("ARCHIVED", sections.archived, &project, cx)
-        } else {
-            Empty.into_any_element()
-        };
+        let empty = sections.rows.is_empty() && sections.archived.is_empty();
+        let selected = self.selected.as_ref().and_then(|key| {
+            sections
+                .rows
+                .iter()
+                .chain(sections.archived.iter())
+                .find(|row| row.key() == *key)
+        });
+        let preview = self.render_preview(selected, &project, cx);
+        let filters = v_flex()
+            .w(px(200.))
+            .flex_none()
+            .overflow_hidden()
+            .gap_4()
+            .child(self.render_chips(&sections.chips, &project, cx))
+            .child(self.render_folders(&sections.folders, cx));
+        let list = self.render_list(sections.rows, sections.archived, empty, &project, cx);
         v_flex()
             .id("marley-threads")
             .debug_selector(|| "marley-threads".into())
             .track_focus(&self.focus_handle)
             .size_full()
-            .overflow_y_scroll()
             .p_4()
             .gap_3()
             .bg(colors.editor_background)
@@ -630,26 +882,26 @@ impl Render for ThreadsPage {
                     .rounded_md()
                     .child(self.search.clone()),
             )
-            .child(self.render_chips(&sections.chips, &project, cx))
-            .when(empty, |page| page.child(muted("No conversation matches.")))
-            .child(self.render_section("MARLEY AND RUSTY", sections.assistants, &project, cx))
-            .child(self.render_section("ALL CONVERSATIONS", sections.others, &project, cx))
-            .when(archived_count > 0, |page| {
-                let label = if archived_open {
-                    format!("Hide archived ({archived_count})")
-                } else {
-                    format!("Show archived ({archived_count})")
-                };
-                page.child(
-                    Button::new("marley-threads-archived", label)
-                        .style(ButtonStyle::Subtle)
-                        .on_click(cx.listener(|page, _, _, cx| {
-                            page.archived_open = !page.archived_open;
-                            cx.notify();
-                        })),
-                )
-            })
-            .child(archived)
+            .child(
+                h_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .items_start()
+                    .gap_4()
+                    .child(filters)
+                    .child(list)
+                    .child(
+                        div()
+                            .w(px(320.))
+                            .flex_none()
+                            .overflow_hidden()
+                            .pl_4()
+                            .border_l_1()
+                            .border_color(colors.border)
+                            .child(preview),
+                    ),
+            )
             .into_any_element()
     }
 }

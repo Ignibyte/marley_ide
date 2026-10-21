@@ -6347,3 +6347,21 @@ its folder setting, not the opened project.
 writes a scenario through a heredoc whose fixture runs `git … commit -qm init` is blocked as a
 commit without a green receipt, though nothing commits. Write a scenario that makes a commit in
 its fixtures with the file tool, and run it in a call of its own.
+
+## L-claude-836-a-full-width-button-centers-its-label-001
+*category: ui · topic: a column of buttons with dynamic labels · from: pipeline 836*
+
+`Button::full_width()` stretches the button and centers its label, and `Button` has no label
+alignment, so a left column of `full_width` buttons reads as a centered list. For a column of
+dynamic labels (folders, names), give each button `truncate(true)` without `full_width`, keep the
+label short (a path's file name, the whole path in `Tooltip::text`), and let the column clip with
+`overflow_hidden`.
+
+## L-claude-836-a-cold-start-types-the-first-palette-late-001
+*category: process · topic: scenario timing · from: pipeline 836*
+
+A scenario's first `ctrl-shift-p` after Marley starts can open and take its text seconds late
+(the first recorded run of #836 shot the palette half typed), and every later click then lands on
+the screen before. Give the first palette `settle 2` after the key and `settle 3` after the text,
+and read a shot's toggles (an orange label, not a hover's background) before trusting that a
+click landed.

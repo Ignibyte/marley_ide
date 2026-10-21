@@ -126,7 +126,7 @@ states. Block drawing is Marley's code.
 picked agent in the picked project, then the cards (agents at work, tasks, follow-ups, Rusty,
 recent projects, activity).
 
-**W2.3 Threads with a preview.** *M.* Board: Threads. `threads_page.rs`: filters at the left,
+**W2.3 Threads with a preview.** *Done (#836, 2026-10-21).* *M.* Board: Threads. `threads_page.rs`: filters at the left,
 cards by day, a preview with Open and Open in a Split.
 
 ## Wave 3: panels, drawers, pickers, notices

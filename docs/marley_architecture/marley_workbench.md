@@ -2647,9 +2647,16 @@ alike.
   either.
 - `sections` takes the store's entries (drafts left out; the entries hold the archived ones, each
   once, #754), newest `updated_at` first, keeps those whose title or folder paths hold the search
-  (case-insensitive) and whose agent is the chip's, and splits them: Marley and Rusty
-  (`assistant::is_assistant`), All conversations, Archived (shown on its button). The chips list
-  every agent the store holds.
+  (case-insensitive), whose agent is the chip's and whose folder is the chosen one, into one
+  `rows` list and `archived` (shown on its button). The chips and `folders` list every agent and
+  folder the store and the CLI rows hold.
+- **The layout (#836).** Three columns: `render_chips` (WHO) and `render_folders` (FOLDER, each
+  folder's file name, truncated, the path in a tooltip) in 200 px; `render_list`, the rows under
+  `day_of(updated_at)`'s headings (Today, Yesterday, This week within 7 days, Earlier, by the local
+  date); `render_preview` in 320 px for `selected` (a row's `key()`). `render_row` selects on a
+  click and opens on `click_count() == 2`. Open in a Split calls `Workspace::split_pane(Right)`
+  through the weak workspace, focuses the new pane, then `open_row`; Archive (a `Target::Thread`
+  only) is `ThreadMetadataStore::archive`, as the rail's row does.
 - **CLI sessions (#754).** `Row` names its `Target` (`Thread { thread_id, agent }` or
   `Cli(Arc<CliSession>)`), the moment it sorts by, and a search snippet; `icon`, `detail` and
   `key` draw it for the page, the rail's Threads view and Reopen Thread…, and `open_row` opens

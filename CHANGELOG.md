@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Threads page reads like a mail client** (#836, 2026-10-21). WHO and FOLDER filters sit at
+  the left, the conversations are cards under TODAY, YESTERDAY, THIS WEEK and EARLIER, and a click
+  fills a preview at the right: agent, folder, title, last change, the search's snippet, and Open,
+  Open in a Split and (for a Zed conversation) Archive. A double-click opens a card at once.
+
 - **Home opens on one prompt** (#835, 2026-10-21). Home's first card is a box, "What should an
   agent do?", with your agent CLIs as chips: type a task, pick an agent, press Enter or Start, and
   it starts with the task in Home's project. The old START and NEW AGENT buttons are links under

@@ -2634,11 +2634,15 @@ unsent: add your ask and send.
 group and folder, in a tab of the group you are in (#737). Zed's own thread history lives in its
 sidebar, which the Marley layout replaces with the rail; this page takes its place.
 
-- **What it lists:** each conversation's title, its agent and folder (`~` for your home folder),
-  and when it last changed, newest first. Marley's and Rusty's conversations come first, under
-  their own heading, then all the others. Archived ones stay folded behind Show archived.
-- **Finding one:** the search field matches titles and any part of a folder's path, and a chip per
-  agent keeps only that agent's conversations.
+- **What it lists:** each conversation as a card with its title, its agent and folder (`~` for
+  your home folder), and when it last changed, newest first, under TODAY, YESTERDAY, THIS WEEK and
+  EARLIER (#836). Archived ones stay folded behind Show archived.
+- **Finding one:** the search field matches titles and any part of a folder's path. At the left,
+  WHO keeps one agent's conversations and FOLDER one folder's (each named by its last part; hover
+  for the whole path).
+- **The preview** (#836): a click selects a card and shows it at the right: its agent and folder,
+  title, last change, what the search found in it, and Open, Open in a Split (a split to the right
+  of the active pane) and, for a Zed conversation, Archive. A double-click opens the card at once.
 - **Opening one:** a conversation already open comes forward in its tab; one an Agent Panel holds
   moves into a tab (#772). Any other opens in a tab of the page's group, with its earlier turns, its folder joining
   the project hidden when it needs to, as a new tab's does (#734).
