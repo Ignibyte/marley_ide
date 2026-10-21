@@ -12,6 +12,7 @@ use cloud_api_types::OrganizationConfiguration;
 use editor::{Editor, EditorEvent};
 use futures::{StreamExt, channel::mpsc};
 use fuzzy::StringMatchCandidate;
+// Marley: the segmented choices title-case their labels as the dropdown does (#844).
 use gpui::{
     Action, App, AsyncApp, AvailableSpace, ClipboardItem, DEFAULT_ADDITIONAL_WINDOW_SIZE, Div,
     Entity, FocusHandle, Focusable, Global, KeyContext, ListState, ReadGlobal as _, Role,
@@ -19,6 +20,7 @@ use gpui::{
     WeakEntity, Window, WindowBounds, WindowHandle, WindowOptions, actions, container_query, div,
     list, point, prelude::*, px, uniform_list,
 };
+use heck::ToTitleCase as _;
 
 use language::Buffer;
 use platform_title_bar::PlatformTitleBar;
@@ -1453,6 +1455,13 @@ fn render_settings_item_layout(
     sub_field: bool,
     cx: &mut Context<'_, SettingsWindow>,
 ) -> Stateful<Div> {
+    // Marley: a Marley row's reset reads "changed · reset", and its key shows under it (#844).
+    let marley = marley_row(json_path);
+    let (reset_fn, marley_reset) = if marley {
+        (None, reset_fn)
+    } else {
+        (reset_fn, None)
+    };
     // Note: the row itself is intentionally not exposed as a labeled group.
     // Each control names and describes itself (via the setting title and
     // description), so adding a group with the same label here would make
@@ -1490,6 +1499,16 @@ fn render_settings_item_layout(
                                     .color(Color::Muted)
                                     .size(LabelSize::Small),
                             )
+                        })
+                        .when_some(marley_reset, |this, reset_to_default| {
+                            this.child(
+                                Button::new("marley-reset-to-default", "changed · reset")
+                                    .style(ButtonStyle::Subtle)
+                                    .label_size(LabelSize::XSmall)
+                                    .color(Color::Accent)
+                                    .tooltip(Tooltip::text("Reset to Default"))
+                                    .on_click(move |_, window, cx| reset_to_default(window, cx)),
+                            )
                         }),
                 )
                 .child(
@@ -1497,7 +1516,15 @@ fn render_settings_item_layout(
                         .size(LabelSize::Small)
                         .color(Color::Muted)
                         .render_code_spans(),
-                ),
+                )
+                .when(marley, |this| {
+                    this.children(json_path.map(|path| {
+                        Label::new(path)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted)
+                            .buffer_font(cx)
+                    }))
+                }),
         )
         .child(control)
         .when(settings_window.sub_page_stack.is_empty(), |this| {
@@ -1509,6 +1536,11 @@ fn render_settings_item_layout(
                 cx,
             ))
         })
+}
+
+// Marley: whether a row edits one of Marley's own keys, which the Marley look draws (#844).
+fn marley_row(json_path: Option<&str>) -> bool {
+    json_path.is_some_and(|path| path.starts_with("marley."))
 }
 
 fn render_settings_item(
@@ -3696,20 +3728,40 @@ impl SettingsWindow {
                 let item_focus_handle = settings_window.content_handles[current_page_index]
                     [actual_item_index]
                     .focus_handle(cx);
+                // Marley: the Marley page draws each section as a card (#844).
+                let marley_card = settings_window.current_page().title == "Marley";
+                let is_header = matches!(item, SettingsPageItem::SectionHeader(_));
 
                 v_flex()
                     .id(("settings-page-item", actual_item_index))
                     .track_focus(&item_focus_handle)
                     .w_full()
                     .min_w_0()
-                    .child(item.render(
-                        settings_window,
-                        actual_item_index,
-                        bottom_border,
-                        extra_bottom_padding,
-                        window,
-                        cx,
-                    ))
+                    .child(
+                        div()
+                            .when(marley_card, |frame| {
+                                let colors = cx.theme().colors();
+                                frame
+                                    .mx_6()
+                                    .border_x_1()
+                                    .border_color(colors.border)
+                                    .bg(colors.panel_background)
+                                    .when(is_header, |frame| {
+                                        frame.mt_4().pt_2().border_t_1().rounded_t_lg()
+                                    })
+                                    .when(is_last_in_section, |frame| {
+                                        frame.border_b_1().rounded_b_lg()
+                                    })
+                            })
+                            .child(item.render(
+                                settings_window,
+                                actual_item_index,
+                                bottom_border,
+                                extra_bottom_padding && !marley_card,
+                                window,
+                                cx,
+                            )),
+                    )
                     .into_any_element()
             });
 
@@ -5227,6 +5279,57 @@ where
     let (current_value, disabled) = current_value
         .map(|current_value| (*current_value.value, current_value.disabled))
         .unwrap_or((variants()[0], false));
+
+    // Marley: a Marley row's choice of two or three is a row of buttons, as its board draws it
+    // (#844).
+    if marley_row(field.json_path) && (2..=3).contains(&variants().len()) {
+        let colors = cx.theme().colors();
+        return h_flex()
+            .p_0p5()
+            .gap_0p5()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .children(
+                variants()
+                    .iter()
+                    .zip(labels())
+                    .enumerate()
+                    .map(|(index, (value, label))| {
+                        let value = *value;
+                        let file = file.clone();
+                        let label = if should_do_titlecase {
+                            label.to_title_case()
+                        } else {
+                            (*label).to_string()
+                        };
+                        let picked = value == current_value;
+                        Button::new(("marley-choice", index), label)
+                            .style(if picked {
+                                ButtonStyle::Filled
+                            } else {
+                                ButtonStyle::Subtle
+                            })
+                            .color(if picked { Color::Default } else { Color::Muted })
+                            .disabled(disabled)
+                            .on_click(move |_, window, cx| {
+                                if value == current_value {
+                                    return;
+                                }
+                                update_settings_file(
+                                    file.clone(),
+                                    field.json_path,
+                                    window,
+                                    cx,
+                                    move |settings, app| (field.write)(settings, Some(value), app),
+                                )
+                                .log_err();
+                            })
+                    }),
+            )
+            .into_any_element();
+    }
 
     EnumVariantDropdown::new("dropdown", current_value, variants(), labels(), {
         move |value, window, cx| {

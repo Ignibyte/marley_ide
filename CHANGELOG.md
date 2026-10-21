@@ -47,6 +47,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Marley settings page as cards** (#844, 2026-10-21). Each section of the Settings window's
+  Marley page is a card; each row shows its key, a choice of two or three is a row of buttons, and
+  a setting away from its default says "changed · reset". Six settings that had no row now have
+  one: thread details, the review notes message, running the harness, harness writes, the
+  Cloudflare API and the price per million tokens.
+
 - **The rail's views as icons** (#873, 2026-10-21). The rail header's Projects, Threads and Sessions
   are a folder, a speech bubble and a terminal, like the header's other buttons, each named in its
   tooltip, so the header fits its row.

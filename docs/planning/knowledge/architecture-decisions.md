@@ -5694,3 +5694,15 @@ it; Not Now and Trust take #870's roles.
 
 Rejected: a Marley trust modal of its own, which would copy `trust_and_dismiss`'s scope handling;
 rebuilding the body, which would move Zed's checkbox code into a method.
+
+## AD-claude-844-marley-rows-by-key-prefix-001
+*decided at: 2026-10-21 · status: shipped*
+
+In Zed's Settings window a row is drawn the Marley way (its key under it, "changed · reset", an
+enum of two or three as framed buttons) when its `json_path` starts with `marley.`; the Marley
+page's section cards key on the page's title. Zed's renderers take the json path but not the
+page, so the prefix keeps each hunk to a test where Zed already holds the value, and a Marley key
+on another page reads the same.
+
+Rejected: a flag on `SettingsPage` threaded into every renderer, which would change Zed's
+renderer signatures.

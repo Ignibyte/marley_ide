@@ -233,7 +233,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
     ]
 }
 
-fn agents_section() -> [SettingsPageItem; 24] {
+fn agents_section() -> [SettingsPageItem; 28] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -733,6 +733,82 @@ fn agents_section() -> [SettingsPageItem; 24] {
                         .marley
                         .get_or_insert_default()
                         .agent_editor_in_tab = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Thread Details",
+            description: "A thread tab shows its details panel at the right: the files the agent read and changed, and its tools. The panel's own button sets it too.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.thread_details"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.thread_details.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().thread_details = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Review Notes Message",
+            description: "The message review notes reach an agent in. Unset, Marley's own asks the agent to check each note and change nothing the notes do not name. Write a line break as \\n.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.review_notes_template"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.review_notes_template.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().review_notes_template = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Run the Harness",
+            description: "Marley runs rustal-harness's runtime itself and follows it, when no harness command is set.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.embedded_harness"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.embedded_harness.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().embedded_harness = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Harness Writes",
+            description: "Marley calls the harness's write verbs from a session's tab and the palette, and follows the harness it runs with --grant write.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.harness_writes"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.harness_writes.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content.marley.get_or_insert_default().harness_writes = value;
                 },
             }),
             metadata: None,
@@ -1579,7 +1655,7 @@ fn push_section() -> [SettingsPageItem; 8] {
 // (#565). The project lists, and each use's mode past the check's, the stop kind's (#566), the
 // find tools' (#567), the stall kind's (#569), the click consequence's (#571), the inbox's
 // (#568) and the question route's (#570), live in settings.json.
-fn system_one_section() -> [SettingsPageItem; 18] {
+fn system_one_section() -> [SettingsPageItem; 20] {
     [
         SettingsPageItem::SectionHeader("System One"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -1728,6 +1804,56 @@ fn system_one_section() -> [SettingsPageItem; 18] {
                         .system_one
                         .get_or_insert_default()
                         .daily_budget_cents = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Cloudflare API",
+            description: "The Cloudflare API the cloudflare provider calls: https, or http on this machine.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.cloudflare_api"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.cloudflare_api.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .cloudflare_api = value;
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Price per Million Tokens",
+            description: "The compatible provider's price, in cents per million input tokens, which the daily budget counts.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("marley.system_one.price_cents_per_million_tokens"),
+                pick: |settings_content| {
+                    settings_content
+                        .marley
+                        .as_ref()
+                        .and_then(|marley| marley.system_one.as_ref())
+                        .and_then(|system_one| system_one.price_cents_per_million_tokens.as_ref())
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .marley
+                        .get_or_insert_default()
+                        .system_one
+                        .get_or_insert_default()
+                        .price_cents_per_million_tokens = value;
                 },
             }),
             metadata: None,

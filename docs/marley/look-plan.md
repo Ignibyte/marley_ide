@@ -178,7 +178,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 
 | Screen | Boards |
 |---|---|
-| Settings window and every setting's control | Settings, SettingsAll, Keymap |
+| Settings window and every setting's control (done, #844, 2026-10-21; lists and maps stay in settings.json) | Settings, SettingsAll, Keymap |
 | Rusty: Tasks, Decisions and Follow Up, Brain and pages, Memory, Skills, Secrets, Capture, Rusty's Server | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
 | MCP Servers, Agent Activity, the server form, what agents may do | Tools, MoreForms, AgentAccess |
 | System One | SystemOne |
