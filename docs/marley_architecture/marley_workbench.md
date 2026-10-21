@@ -2851,6 +2851,22 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## The bottom drawer (`src/drawer.rs`, Zed's `dock.rs` and `diagnostics.rs`, #838)
+
+- `drawer::init` sets two globals Zed's code asks: `MarleyDockHeader(tabs)`, which `Dock::render`
+  calls for an element above the shown panel, and `MarleyDiagnosticsDeploy(deploy)`, which
+  `ProjectDiagnosticsEditor::deploy` asks first (the status bar's indicator calls `deploy` directly,
+  the action goes through it too). Each new workspace gets a `ProblemsPanel` in the bottom dock.
+- `tabs`: for the bottom dock in the Marley layout, while the shown panel is `MarleyProblemsPanel`
+  or `DebugPanel` (`TABS`), a strip of a `Button` per tab the dock holds, the shown one lit, the
+  Problems label carrying the project's `diagnostic_summary` errors and warnings; a click
+  `activate_panel`s the other by name and focuses its `activation_focus_handle`.
+- `deploy`: in the Marley layout, `focus_panel::<ProblemsPanel>` and true; otherwise false, and
+  Zed opens its center tab.
+- `ProblemsPanel` draws a `ProjectDiagnosticsEditor` made for the workspace's project (its type
+  and `new` made public in Zed's crate), redraws when it does, and has no status-bar button: the
+  diagnostics count is its way in. `ToggleProblems` toggles it. Enabled only in the Marley layout.
+
 ## The Inspector (`src/inspector.rs`, `src/panel_tabs.rs`, #837)
 
 - `marley.side_inspector` (`MarleySettings.side_panels`, `SidePanels { Tabs, Inspector }`), on the

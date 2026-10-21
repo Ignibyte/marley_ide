@@ -136,7 +136,7 @@ Files, Changes and Outline in one column beside the pane, with a switcher at its
 a full-width tab each. This changes #747's panel tabs (`panel_tabs.rs`), so it needs Chad's call
 first (see the open decisions).
 
-**W3.2 The bottom drawer.** *L.* Board: BottomPanel.
+**W3.2 The bottom drawer.** *Done for Problems and Debug (#838, 2026-10-21; Output and Tasks later).* *L.* Board: BottomPanel.
 Problems, Debug, Output and Tasks as tabs of one drawer. Debug is Zed's debugger panel (#774
 keeps it in the bottom dock); Problems is Zed's diagnostics. Drawing them as one drawer touches
 Zed's dock code: start with Problems and Debug, and leave Output and Tasks for a later ticket.

@@ -59,6 +59,7 @@ pub mod component_tools;
 pub mod delegation;
 pub mod docs_tools;
 pub mod drafts;
+pub mod drawer;
 pub mod editor_tools;
 pub mod english;
 pub mod failed_checks;
@@ -421,6 +422,9 @@ actions!(
         /// project holds (#673).
         #[derive(Eq)]
         ToggleContainers,
+        /// Shows or hides the bottom drawer's Problems: the project's errors and warnings (#838).
+        #[derive(Eq)]
+        ToggleProblems,
         /// Opens Rusty's Brain tab, the vault with its own navigation and the page beside it, or
         /// brings it forward, while Rusty is on (#644, #678).
         #[derive(Eq)]
@@ -1150,6 +1154,7 @@ pub fn init(cx: &mut App) {
     mcp_servers::init(cx);
     status_buttons::init(cx);
     panel_tabs::init(cx);
+    drawer::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

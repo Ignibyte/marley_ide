@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom drawer** (#838, 2026-10-21). In the Marley layout the bottom dock has Problems and
+  Debug tabs at its top. The bottom row's diagnostics count opens Problems (Zed's project
+  diagnostics) there instead of in a center tab, and Debug is Zed's debugger, as before.
+
 - **Side panels in one Inspector** (#837, 2026-10-21). Use the Inspector (Marley page, Layout, or
   `marley: toggle inspector`) puts Files, Changes and Outline in one narrow column at the right of
   the pane you are in, with a switcher at its top, in place of a tab each. Off by default; the

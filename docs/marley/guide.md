@@ -711,6 +711,11 @@ Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like an
 - **Fleet and Knowledge** keep working while their own tab is in front: Fleet keeps reading its
   providers, Knowledge keeps the page it follows. A panel turned off (Knowledge while Rusty is off,
   Containers while hidden) closes its tab.
+- **The bottom drawer** (#838): in the Marley layout the bottom dock shows Problems and Debug as
+  tabs at its top, Problems with its count of errors and warnings. The bottom row's diagnostics
+  count (and `diagnostics: deploy`) opens the drawer on Problems, Zed's project diagnostics,
+  instead of a center tab; the Debug button opens it on Debug, and a debug session you start
+  shows there. A click on the other tab switches. Zed's layout keeps the diagnostics tab.
 - **Debug** stays in the bottom dock (#774). Its button is the first one at the left end of the
   status bar: a click opens the bottom dock on the Debug panel, and a second click closes it.
   Right-click it for Hide Button, which sets `debugger.button` to false. Setting

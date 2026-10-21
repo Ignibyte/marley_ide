@@ -72,7 +72,8 @@ pub fn init(cx: &mut App) {
     cx.observe_new(BufferDiagnosticsEditor::register).detach();
 }
 
-pub(crate) struct ProjectDiagnosticsEditor {
+// Marley: public, for the bottom drawer's Problems panel (#838).
+pub struct ProjectDiagnosticsEditor {
     pub project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
@@ -156,6 +157,14 @@ enum RetainExcerpts {
     Dirty,
 }
 
+// Marley: asked first by `deploy`, which stops when it answers true; Marley opens its bottom
+// drawer's Problems panel instead of a center tab (#838).
+pub struct MarleyDiagnosticsDeploy(
+    pub fn(&mut Workspace, &mut Window, &mut Context<Workspace>) -> bool,
+);
+
+impl Global for MarleyDiagnosticsDeploy {}
+
 impl ProjectDiagnosticsEditor {
     pub fn register(
         workspace: &mut Workspace,
@@ -165,7 +174,8 @@ impl ProjectDiagnosticsEditor {
         workspace.register_action(Self::deploy);
     }
 
-    fn new(
+    // Marley: public, for the bottom drawer's Problems panel (#838).
+    pub fn new(
         include_warnings: bool,
         project_handle: Entity<Project>,
         workspace: WeakEntity<Workspace>,
@@ -389,6 +399,14 @@ impl ProjectDiagnosticsEditor {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
+        // Marley: the bottom drawer takes the diagnostics in its layout (#838).
+        if let Some(marley) = cx
+            .try_global::<MarleyDiagnosticsDeploy>()
+            .map(|marley| marley.0)
+            && marley(workspace, window, cx)
+        {
+            return;
+        }
         if let Some(existing) = workspace.item_of_type::<ProjectDiagnosticsEditor>(cx) {
             let is_active = workspace
                 .active_item(cx)

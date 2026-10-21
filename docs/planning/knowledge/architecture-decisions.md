@@ -5633,3 +5633,16 @@ Rejected: the right dock, which already holds the Agent Panel and would hide it 
 was asked for, and which #747 moved these panels out of so they split and drag as tabs; a switcher
 inside Zed's dock, which needs a Zed hunk in `dock.rs` for a Marley look; saving the Inspector with
 the workspace, left for later since a click opens it again.
+
+## AD-claude-838-the-drawer-is-the-bottom-dock-with-a-strip-001
+*decided at: 2026-10-21 · status: shipped · builds on: AD-claude-774 (Debug keeps the bottom dock)*
+
+Marley's bottom drawer is Zed's bottom dock with a strip of tabs drawn over the shown panel by a
+hook in `Dock::render` (`MarleyDockHeader`), each tab a panel of the dock: Problems, a Marley panel
+hosting Zed's own `ProjectDiagnosticsEditor`, and Zed's debugger panel. A second hook in the
+diagnostics' `deploy` (`MarleyDiagnosticsDeploy`) sends the bottom row's count there in the Marley
+layout. Sizes, focus, buttons and the debugger's own switching to its panel stay Zed's.
+
+Rejected: a Marley drawer panel drawing the debugger panel's view inside itself, which would need
+#747's observer-and-retell machinery for a panel that lives in the same dock; a Problems list of
+Marley's own, which would re-read the language servers' diagnostics Zed's editor already groups.

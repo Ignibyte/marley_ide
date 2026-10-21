@@ -6373,3 +6373,14 @@ click landed.
 first edits went in, and failed on a settings page array whose new row was half added. Leave the
 tree alone while an install builds, or `git stash push -u` the next ticket's work, install, and
 `git stash pop` after.
+
+## L-claude-838-gdb-and-rust-analyzer-make-a-scenario-001
+*category: testing · topic: diagnostics and a debug session in a scenario · from: pipeline 838*
+
+A scenario gets real diagnostics from rust-analyzer with a two-line `Cargo.toml` beside a
+`src/main.rs` holding a syntax error: its native diagnostics come within 25 s, before any check
+builds (point `CARGO_TARGET_DIR` at `$E2E_WORK/target` anyway so a check never touches the shared
+target). A debug session comes from the box's gdb (17.2 speaks DAP): build a C file with
+`gcc -g -O0`, write `.zed/debug.json` with `"adapter": "GDB"`, `"request": "launch"`, the
+program and `"stopAtBeginningOfMainSubprogram": true`, then `debugger: start`, type the label,
+Enter: the program stops at `main` within 10 s.

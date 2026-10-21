@@ -1275,10 +1275,23 @@ impl Dock {
     }
 }
 
+// Marley: asked by `Dock::render` for an element to draw above the shown panel; Marley's bottom
+// drawer draws its tabs there (#838).
+pub struct MarleyDockHeader(
+    pub fn(&Dock, &WeakEntity<Dock>, &mut Window, &mut App) -> Option<gpui::AnyElement>,
+);
+
+impl gpui::Global for MarleyDockHeader {}
+
 impl Render for Dock {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dispatch_context = Self::dispatch_context();
         if let Some(entry) = self.visible_entry() {
+            // Marley: asked before the resize handle's closure holds `cx` (#838).
+            let marley_header = cx
+                .try_global::<MarleyDockHeader>()
+                .map(|marley| marley.0)
+                .and_then(|header| header(self, &cx.weak_entity(), window, cx));
             let position = self.position;
             let create_resize_handle = || {
                 let handle = div()
@@ -1359,12 +1372,17 @@ impl Render for Dock {
                     DockPosition::Right => this.border_l_1(),
                     DockPosition::Bottom => this.border_t_1(),
                 })
+                // Marley: the bottom drawer's tabs, above the panel (#838).
+                .children(marley_header)
                 .child(
                     div()
                         .map(|this| match self.position().axis() {
                             Axis::Horizontal => this.w_full().h_full(),
                             Axis::Vertical => this.h_full().w_full(),
                         })
+                        // Marley: below the drawer's tabs, the panel takes what is left (#838).
+                        .flex_1()
+                        .min_h_0()
                         .child(
                             entry
                                 .panel
