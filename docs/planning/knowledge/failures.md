@@ -4386,3 +4386,13 @@ panic at startup and no window opened. The diff's review missed it; a probe run 
 made before the gate to read the scenario's coordinates, found it in Marley's log. Fixed: the
 subscription is made in `cx.defer`, through a weak handle to the view, after the update ends;
 `render` reads the workspace, which runs outside it.
+
+## F-claude-833-a-status-item-shrank-below-its-content-and-was-drawn-over-001
+*severity: medium · category: gpui layout / the status bar · pipeline 833*
+
+The bottom row's focus item had `min_w_0` on its root. With Zed's language-server message also in
+the left half of the row, flex shrank the item below its content, and the items after it (search,
+the language server button, diagnostics) were laid out at the shrunk edge, over the waiting chip's
+Open button. The first probe run showed it; the review of the diff had not. Fixed: the root keeps
+its width (`flex_none`), its own long parts (a terminal's title, the request) are capped with
+`max_w` and truncate, and Zed's message, which truncates, is what gives way.

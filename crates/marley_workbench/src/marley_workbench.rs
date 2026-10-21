@@ -67,6 +67,7 @@ pub mod find;
 pub mod fleet;
 pub mod fleet_hosts;
 pub mod fleet_providers;
+pub mod focus_row;
 pub mod github;
 pub mod groups;
 pub mod guide;

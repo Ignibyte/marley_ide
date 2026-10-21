@@ -3238,3 +3238,11 @@ A view built by a hook that Zed calls from a workspace's own construction or upd
 needs the workspace (its project, a subscription to it) is set up in `cx.defer` through a weak
 handle to the view, or read in `render`. `TitleButtons` (#746) only stores the handle, which is why
 it never panicked.
+
+## PR-claude-833-a-status-item-caps-its-parts-instead-of-shrinking-001
+*severity: medium · prevents: F-claude-833-a-status-item-shrank-below-its-content-and-was-drawn-over-001*
+
+A Marley status bar item with text of unbounded length does not put `min_w_0` on its root: the
+status bar lays its siblings out at the root's shrunk width, and they draw over the overflow.
+Give each long part its own `max_w` with a truncating label, keep the root `flex_none`, and check
+the item in a scenario beside Zed's language-server message, the left half's widest item.

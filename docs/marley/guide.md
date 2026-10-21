@@ -707,6 +707,11 @@ Panel, Collab Panel, Fleet, Knowledge, Containers. Each sits in the rail like an
   status bar: a click opens the bottom dock on the Debug panel, and a second click closes it.
   Right-click it for Hide Button, which sets `debugger.button` to false. Setting
   `debugger.button` to true puts Zed's own button back among the dock buttons at the right.
+- **What has the focus** (#833) comes right after the Debug button: a file's type and path; a
+  terminal's title, the last command and how it exited (red when it failed), the command running
+  now, and its blocks and bookmarks; an agent thread's agent and what it is doing. Whenever an agent
+  waits on you, the row shows what it asks, Open to go where it waits (and Allow where the request
+  takes an answer in place), and how many more wait.
 - **Zed's layout** keeps its docks: switching to it closes the panel tabs, and the Debug button
   goes back among the bottom dock's buttons.
 - **After a restart** each panel tab is back in its pane, beside the editors that come back there

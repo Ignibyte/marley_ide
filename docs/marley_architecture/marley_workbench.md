@@ -2764,6 +2764,21 @@ screen opens Home after `rusty_unavailable`.
   then, else the panel's. `hide_setting` answers the panel's `hide_button_setting`, so the status
   bar draws Zed's Hide Button.
 
+## What has the focus, at the left (`src/focus_row.rs`, #833)
+
+- `FocusRow`, inserted after `DebugButton` by `status_buttons::init`, takes the active pane item
+  in `set_active_pane_item` as `Focus { None, File, Terminal, Thread }` (a `TerminalView` by
+  downcast, a `ThreadTab` by downcast, else any item with a `project_path`) and observes the
+  terminal or the conversation, so their changes redraw it. A file shows its extension chip and
+  project path; a terminal its title (capped), `working_directory_label`, the rail's
+  `command_snapshot` as `<cmd> · exit <n>` or `running: <cmd>`, the live block count, the
+  bookmarks from `MarleyBlockMarks` and the tmux count; a thread tab its agent
+  (`agents::thread_agent_name`), its `marley_rail::thread_status` and its title.
+- The waiting part reads the window's rail (found through `MultiWorkspace::sidebar` as Home does,
+  and observed): `Rail::inbox()`'s first entry, with Allow only when its answers allow, Open
+  (`open_inbox_entry`) and `+n more waiting`. The root keeps its width (`flex_none`) so Zed's
+  items after it shorten instead of drawing over it.
+
 ## A split opens Home (`src/pane_splits.rs`, `src/home_page.rs`, Zed's `pane.rs`, #785)
 
 - `pane_splits::init` registers capture listeners at each workspace's root for

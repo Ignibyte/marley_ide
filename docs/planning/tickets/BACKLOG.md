@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-833](open/TICKET-833-the-bottom-row-says-what-has-the-focus.md) | feature | The bottom row says what has the focus (W1.4) |
 | [TICKET-827](open/TICKET-827-rail-rows-say-their-state.md) | feature | Rail rows say their state by color (W2) |
 | [TICKET-825](open/TICKET-825-agent-thread-with-panels.md) | feature | The agent thread with panels around it (W2) |
 | [TICKET-826](open/TICKET-826-terminal-blocks-with-an-agent-beside.md) | feature | Terminal blocks with the agent beside them (W2) |
@@ -42,6 +41,8 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-859](open/TICKET-859-a-project-mark-in-notifications-and-the-switcher.md) | feature | A project's mark in its notifications and the switcher (W1.2 follow-up) |
 | [TICKET-860](open/TICKET-860-a-remote-projects-logo-over-ssh.md) | feature | A remote project's logo, read once over SSH (W1.2 follow-up) |
 | [TICKET-861](open/TICKET-861-a-sessions-page.md) | feature | The Sessions page: every tmux session as a table (W1.3 follow-up) |
+| [TICKET-862](open/TICKET-862-the-panel-buttons-become-a-labeled-group.md) | feature | The panel buttons become one labeled group (W1.4 follow-up) |
+| [TICKET-863](open/TICKET-863-cards-above-the-bottom-row-and-the-debugging-row.md) | feature | Cards above the bottom row, and the row while debugging (W1.4 follow-up) |
 | [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 | [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | The first command in a new zsh on a Mac has no block header |
 

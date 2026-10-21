@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom row says what has the focus** (#833, 2026-10-21). It starts with a file's type and
+  path; a terminal's title, the last command and its exit code, the command running now, and its
+  blocks and bookmarks; or an agent thread's agent and state. Whenever an agent waits on you, the
+  row says what it asks, with Open (and Allow where it takes one) and how many more wait.
+
 - **A Sessions view for tmux** (#832, 2026-10-21). SESSIONS, beside PROJECTS and THREADS at the
   top of the rail, lists every tmux session by host with the project it is placed under, whether
   it is attached here, elsewhere or not, and its windows. Click to attach or show it; right-click

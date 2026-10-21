@@ -123,6 +123,13 @@ pub struct ThreadTab {
     _subscriptions: Vec<Subscription>,
 }
 
+impl ThreadTab {
+    /// The conversation the tab shows.
+    pub(crate) const fn conversation(&self) -> &Entity<ConversationView> {
+        &self.conversation_view
+    }
+}
+
 impl std::fmt::Debug for ThreadTab {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter

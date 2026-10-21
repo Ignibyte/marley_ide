@@ -2273,7 +2273,7 @@ impl Rail {
 
     /// Shows what the inbox entry `key` waits in: its thread, its terminal, or its Browser tab
     /// with the focus on the paused click's card (#508).
-    fn open_inbox_entry(&self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_inbox_entry(&self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         match self.snapshot.inbox.get(key).cloned() {
             Some(InboxTarget::Thread { thread_key, .. }) => {
                 self.open_thread(&thread_key, window, cx).log_err();
@@ -2621,7 +2621,7 @@ impl Rail {
 
     /// Allow or Deny, or for a paused click Allow or Refuse (#508), or a Codex request's decision
     /// (#651), on the inbox entry `key`.
-    fn answer_inbox(
+    pub(crate) fn answer_inbox(
         &mut self,
         key: &str,
         answer: InboxAnswer,
@@ -5253,6 +5253,12 @@ impl Rail {
                         button.child(Indicator::dot().color(Color::Error))
                     }),
             )
+    }
+
+    /// What waits on the user, oldest first, as the inbox lists it (#508); the bottom row shows
+    /// its first (#833).
+    pub(crate) fn inbox(&self) -> &[InboxEntry] {
+        &self.snapshot.rail.inbox
     }
 
     /// Whether the projects' rows show: neither Threads nor Sessions.
@@ -9372,7 +9378,7 @@ const COMMAND_LINE_MAX: usize = 60;
 
 /// `terminal`'s last block for its row's line: the command on one line and cut, whether it runs,
 /// its exit and how long it took, and whether it reads a password (#551).
-fn command_snapshot(terminal: &Terminal) -> Option<CommandSnapshot> {
+pub(crate) fn command_snapshot(terminal: &Terminal) -> Option<CommandSnapshot> {
     let anchored = terminal.marley_anchored();
     // A block from before a restart is not the terminal's last command (#764).
     let block = anchored.live().last()?;

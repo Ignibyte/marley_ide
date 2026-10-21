@@ -33,9 +33,11 @@ pub(crate) fn init(cx: &mut App) {
             return;
         };
         let handle = workspace.weak_handle();
+        let handle_for_focus = handle.clone();
         let home = cx.new(|_| HomeButton { workspace: handle });
         let docks = workspace.all_docks().map(Entity::clone);
         let debug = cx.new(|cx| DebugButton::new(docks, cx));
+        let focus = cx.new(|cx| crate::focus_row::FocusRow::new(handle_for_focus, cx));
         workspace.status_bar().update(cx, |status_bar, cx| {
             status_bar.add_right_item(home, window, cx);
             // Debug at the left end, after the left dock's buttons, which `Workspace::new` adds
@@ -43,6 +45,11 @@ pub(crate) fn init(cx: &mut App) {
             match status_bar.position_of_item::<PanelButtons>() {
                 Some(position) => status_bar.insert_item_after(position, debug, window, cx),
                 None => status_bar.add_left_item(debug, window, cx),
+            }
+            // What has the focus, right after Debug (#833).
+            match status_bar.position_of_item::<DebugButton>() {
+                Some(position) => status_bar.insert_item_after(position, focus, window, cx),
+                None => status_bar.add_left_item(focus, window, cx),
             }
         });
     })
