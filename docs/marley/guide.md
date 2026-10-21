@@ -357,9 +357,11 @@ right-click its row and choose Delete Thread…: Marley asks first, then the thr
 Agent Panel, from the rail and from the agent's own sessions where the agent keeps them.
 
 While an agent waits on you, **Needs you** and a count sit between the filter and the projects
-(#508), with an entry for each wait, the one that has waited longest first. An entry names the
-agent and its project, what it asks, and how long it has waited (`now`, `3 m`, `1 h 5 m`); a click
-on it shows where it waits.
+(#508), with an entry for each wait, the one that has waited longest first. Each entry is a card
+(#840): the agent's icon on a tile, the agent and its project, how long it has waited (`now`,
+`3 m`, `1 h 5 m`), what it asks, and its buttons. The main answer (Allow, or a question's first
+option) is filled, the others outlined, and Stop turn and Cancel plain; an entry with no answer in
+place has Open. A click on the card, or Open, shows where it waits.
 
 - A tool call in a Zed agent thread that waits for your confirmation has Deny and Allow under its
   entry, which answer that one call as the thread's own buttons do. A prompt that offers more than

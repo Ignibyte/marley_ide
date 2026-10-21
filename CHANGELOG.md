@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Needs you as cards** (#840, 2026-10-21). The rail's Needs you entries are cards: the agent's
+  icon on a tile, who and where, how long it waited, what it asks, and buttons in three weights,
+  under a NEEDS YOU heading with its count and "longest first".
+
 - **The pickers as the board draws them** (#839, 2026-10-21). The command palette, before you
   type, groups its commands under Recent, Marley, and Editor and workspace; the New Agent picker
   shows each agent as a card with a line about it; the file finder opens with its preview.

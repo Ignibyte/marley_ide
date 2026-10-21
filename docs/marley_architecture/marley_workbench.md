@@ -255,9 +255,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   - `note_inbox` keeps when the rail first saw each key (`inbox_seen`, pruned at each refresh),
     sorts the entries by it and gives each its age through `waited_words`. While any entry shows,
     a 30-second timer refreshes the rail, so the ages move.
-  - `render_inbox` draws "Needs you" and the count between the filter and the rows, and each entry
-    as a `row_card` with its age at the end; Deny (Refuse for a click) and Allow sit under an
-    entry that answers in place. The buttons stop their click's propagation, so the card's click
+  - `render_inbox` draws "NEEDS YOU", the count in a pill and "longest first" between the filter
+    and the rows; each entry is a bordered card (#840): `render_inbox_card` (the `inbox_icon` on
+    a tile, who · where with the age at the end, the ask in two lines at most) over a line of the
+    chips and `render_inbox_buttons`, the answers styled by `answer_style` (Allow, a question's
+    first option and Continue tinted with the accent; Stop turn, Dismiss and Cancel subtle; the
+    rest outlined), or Open when none answers in place. The buttons stop their click's propagation, so the card's click
     does not open the entry as well.
   - Allow and Deny on a thread run `answer_thread`: out of the rail's update (`defer_in`), it finds
     the conversation's thread view again (`thread_view(&session)`) and calls the panel's own

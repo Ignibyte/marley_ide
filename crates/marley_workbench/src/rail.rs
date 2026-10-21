@@ -2393,18 +2393,31 @@ impl Rail {
                 .px_2()
                 .pt_1p5()
                 .gap_0p5()
+                // As the Inbox board heads it: the count in a pill, the order at the end (#840).
                 .child(
                     h_flex()
                         .px_2()
                         .gap_1()
                         .child(
-                            Label::new("Needs you")
-                                .size(LabelSize::Small)
+                            Label::new("NEEDS YOU")
+                                .size(LabelSize::XSmall)
                                 .color(Color::Warning),
                         )
                         .child(
-                            Label::new(entries.len().to_string())
-                                .size(LabelSize::Small)
+                            div()
+                                .px_1p5()
+                                .rounded_full()
+                                .bg(cx.theme().status().warning_background)
+                                .child(
+                                    Label::new(entries.len().to_string())
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Warning),
+                                ),
+                        )
+                        .child(div().flex_1())
+                        .child(
+                            Label::new("longest first")
+                                .size(LabelSize::XSmall)
                                 .color(Color::Muted),
                         ),
                 )
@@ -2418,11 +2431,9 @@ impl Rail {
         )
     }
 
-    /// One inbox entry: the agent and its project, what it asks and how long it has waited; a
-    /// click shows where it waits, and its buttons, when it has them, answer it there.
-    fn render_inbox_entry(&self, entry: &InboxEntry, cx: &Context<Self>) -> AnyElement {
-        let key = entry.key.clone();
-        let icon = match (entry.kind, self.snapshot.inbox.get(&entry.key)) {
+    /// The icon of an inbox entry's agent, by its kind.
+    fn inbox_icon(&self, entry: &InboxEntry) -> Icon {
+        match (entry.kind, self.snapshot.inbox.get(&entry.key)) {
             (InboxKind::Thread, Some(InboxTarget::Thread { icon, .. })) => match icon {
                 AgentIcon::Named(icon) => Icon::new(*icon),
                 AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
@@ -2438,32 +2449,74 @@ impl Rail {
             (InboxKind::Codex, _) => Icon::new(IconName::AiOpenAi),
             (InboxKind::Plan, _) => Icon::new(IconName::FileDoc),
             _ => Icon::new(IconName::ToolWeb),
-        };
+        }
+    }
+
+    /// An inbox entry's card as the Inbox board draws it: the icon on a tile, who and where over
+    /// the ask, how long it has waited at the right; a click shows where it waits (#840).
+    fn render_inbox_card(&self, entry: &InboxEntry, cx: &Context<Self>) -> Stateful<Div> {
+        let key = entry.key.clone();
+        let icon = self.inbox_icon(entry);
         let open_key = key.clone();
-        let card = row_card(
-            SharedString::from(format!("marley-rail-inbox-{key}")),
-            format!("marley-rail-inbox-icon-{key}"),
-            false,
-            icon.size(IconSize::Small)
-                .color(Color::Muted)
-                .into_any_element(),
-            Label::new(format!("{} · {}", entry.agent, entry.project))
-                .size(LabelSize::Small)
-                .truncate()
-                .into_any_element(),
-            vec![entry.ask.clone()],
-            cx,
-        )
-        .child(
-            Label::new(entry.waited.clone())
-                .size(LabelSize::XSmall)
-                .color(Color::Muted),
-        )
-        .on_click(cx.listener(move |rail, _, window, cx| {
-            rail.open_inbox_entry(&open_key, window, cx);
-        }));
-        let mut chips = self.render_chips(entry, cx);
-        chips.extend(self.render_route(entry));
+        let icon_key = key.clone();
+        let colors = cx.theme().colors();
+        h_flex()
+            .id(SharedString::from(format!("marley-rail-inbox-{key}")))
+            .w_full()
+            .items_start()
+            .gap_2()
+            .p_1p5()
+            .cursor_pointer()
+            .hover(|style| style.bg(colors.ghost_element_hover))
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-rail-inbox-icon-{icon_key}"))
+                    .size_6()
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_md()
+                    .bg(colors.element_background)
+                    .child(icon.size(IconSize::Small).color(Color::Accent)),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .child(
+                                div().flex_1().min_w_0().child(
+                                    Label::new(format!("{} · {}", entry.agent, entry.project))
+                                        .size(LabelSize::Small)
+                                        .truncate(),
+                                ),
+                            )
+                            .child(
+                                Label::new(entry.waited.clone())
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            ),
+                    )
+                    .child(
+                        div().line_clamp(2).child(
+                            Label::new(entry.ask.clone())
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        ),
+                    ),
+            )
+            .on_click(cx.listener(move |rail, _, window, cx| {
+                rail.open_inbox_entry(&open_key, window, cx);
+            }))
+    }
+
+    /// An inbox entry's buttons: its answers in their weights, or Open when none answers it in
+    /// place (#840).
+    fn render_inbox_buttons(&self, entry: &InboxEntry, cx: &Context<Self>) -> Div {
+        let key = entry.key.clone();
         // The answers wrap under the entry when the rail is narrow (#651).
         let buttons = (!entry.answers.is_empty()).then(|| {
             h_flex()
@@ -2489,9 +2542,7 @@ impl Rail {
                         SharedString::from(format!("marley-rail-inbox-{word}-{key}")),
                         label,
                     )
-                    .when(answer == InboxAnswer::Allow, |button| {
-                        button.style(ButtonStyle::Filled)
-                    })
+                    .style(answer_style(answer))
                     .when_some(answer.tooltip(), |button, tooltip| {
                         button.tooltip(Tooltip::text(tooltip))
                     })
@@ -2502,20 +2553,51 @@ impl Rail {
                     }))
                 }))
         });
+        // An entry no answer goes to in place says how to reach it, as the board's quiet Open (#840).
+        buttons.unwrap_or_else(|| {
+            let open_key = key.clone();
+            h_flex().justify_end().pr_1p5().child(
+                Button::new(
+                    SharedString::from(format!("marley-rail-inbox-open-{key}")),
+                    "Open",
+                )
+                .style(ButtonStyle::Subtle)
+                .label_size(LabelSize::Small)
+                .on_click(cx.listener(move |rail, _, window, cx| {
+                    cx.stop_propagation();
+                    rail.open_inbox_entry(&open_key, window, cx);
+                })),
+            )
+        })
+    }
+
+    /// One inbox entry: the agent and its project, what it asks and how long it has waited; a
+    /// click shows where it waits, and its buttons, when it has them, answer it there.
+    fn render_inbox_entry(&self, entry: &InboxEntry, cx: &Context<Self>) -> AnyElement {
+        let key = entry.key.clone();
+        let colors = cx.theme().colors();
+        let card = self.render_inbox_card(entry, cx);
+        let mut chips = self.render_chips(entry, cx);
+        chips.extend(self.render_route(entry));
+        let buttons = self.render_inbox_buttons(entry, cx);
         let selector = format!("marley-rail-inbox-entry-{key}");
-        let line = (!chips.is_empty() || buttons.is_some()).then(|| {
-            h_flex()
-                .pl_2()
-                .gap_1()
-                .justify_between()
-                .child(h_flex().flex_wrap().gap_1().children(chips))
-                .children(buttons)
-        });
+        let line = h_flex()
+            .pl_2()
+            .gap_1()
+            .justify_between()
+            .child(h_flex().flex_wrap().gap_1().children(chips))
+            .child(buttons);
         v_flex()
             .debug_selector(move || selector)
             .gap_0p5()
+            .pb_1()
+            .border_1()
+            .border_color(colors.border)
+            .rounded_md()
+            .bg(colors.elevated_surface_background)
+            .overflow_hidden()
             .child(card)
-            .children(line)
+            .child(line)
             .into_any_element()
     }
 
@@ -11291,4 +11373,16 @@ fn render_files_button(multi_workspace: &WeakEntity<MultiWorkspace>, cx: &App) -
                 window.dispatch_action(action, cx);
             }
         })
+}
+
+/// An inbox answer's weight, as the Inbox board draws it (#840): the main answer filled with the
+/// accent, the ones that stop or cancel plain, every other outlined.
+const fn answer_style(answer: InboxAnswer) -> ButtonStyle {
+    match answer {
+        InboxAnswer::Allow | InboxAnswer::Option(0) | InboxAnswer::Continue => {
+            ButtonStyle::Tinted(ui::TintColor::Accent)
+        }
+        InboxAnswer::StopTurn | InboxAnswer::Dismiss | InboxAnswer::Cancel => ButtonStyle::Subtle,
+        _ => ButtonStyle::Outlined,
+    }
 }

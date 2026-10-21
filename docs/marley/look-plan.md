@@ -144,7 +144,7 @@ Zed's dock code: start with Problems and Debug, and leave Output and Tasks for a
 **W3.3 Pickers.** *Done (#839, 2026-10-21; the agent cards a list, not a grid).* *M.* Board: Palette. The command palette's groups, the agent picker as a grid of
 cards with a line about each agent, the file finder's preview.
 
-**W3.4 Needs you, toasts and prompts.** *M.* Boards: Inbox, Dialogs, MoreForms.
+**W3.4 Needs you, toasts and prompts.** *Needs you done (#840, 2026-10-21); toasts and prompts are #869.* *M.* Boards: Inbox, Dialogs, MoreForms.
 The inbox entries with their buttons, toasts, the trust, close, quit and apply prompts, the
 pairing and agent-starts-agent prompts.
 
