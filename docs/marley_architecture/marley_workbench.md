@@ -1969,9 +1969,22 @@ alike.
   attribute order and quoting; a scheme, `//`, `..` or `data:` skipped; resolved against the
   page's folder, `public/`, then the root). The first file at most 256 KiB that decodes wins, made
   32 px on its long side as a BGRA `RenderImage`; each skip is one log line.
-- The rail keeps `ProjectIcon`s by the group's first folder: searched through `smol::unblock`
-  when a local group first shows, again on `WorktreeUpdatedEntries` touching a candidate, a page or
-  the file it shows, at most once a second; `project_icon` draws it at 16 px before the name.
+- Since #831 `logo` heads the names, and the state is the `ProjectMarks` global (not the rail's):
+  an `Entry` per first folder (image, chosen file, `Source { Search, Picked, Letter }`, the last
+  search's time, the running task, `again`). `want` searches a root not yet known, through
+  `background_spawn`, at most once a second per root, again when asked mid-search or when the pick
+  changed meanwhile; `files_changed` (from the rail's `WorktreeUpdatedEntries`) searches again for a
+  candidate, a page or the chosen file. `ProjectLogos` (its own `RegisterSetting` over
+  `marley.project_logos`, folder → file or `"letter"`) comes first, and `init`'s settings observer
+  searches again each root whose pick changed. `mark` reads without searching; `project_mark`
+  draws the image or the uppercase initial on the theme's player tint (`tint`, a hash of the
+  name). Readers: the rail's header (`header_icon`, built in `render_blocks`, always a mark for a
+  project), its strip tile, Home's recent rows (`want` per recent first folder) and
+  `TitleProjectMark` (`status_buttons.rs`), the view the `title_bar::MarleyProjectMark` hook makes,
+  which draws only an image and follows the project's worktrees from a `cx.defer`, since the title
+  bar builds it inside the workspace's update. Each reader observes the global. The header menu
+  sets the pick (`choose_logo` through `prompt_for_paths`, `set_logo`). Remote projects get their
+  letter (#860).
 
 ## The harness's sessions (`src/harness.rs`, #534)
 

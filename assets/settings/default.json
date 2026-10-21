@@ -1845,6 +1845,10 @@
     // Whether the rail is folded to a 60 px strip of project marks, each with a count of what waits
     // on you, its rows beside it under the pointer, and the filter as a popover (#830).
     "rail_shrunk": false,
+    // A project's mark, by its first folder, where you chose one (#831): the path of an image
+    // file, or "letter" for its name's first letter. A project not named here shows its logo.png
+    // or logo.svg, or another icon its folder holds, or its letter.
+    "project_logos": {},
     // Marley's own agent (#683): an agent that explains and configures Marley with Marley's tools,
     // kept from editing files. "agent" picks what it runs on, and what Rusty's entry runs on while
     // Rusty is on (#696): "auto" (the first found at start: Claude Code signed in, else Codex

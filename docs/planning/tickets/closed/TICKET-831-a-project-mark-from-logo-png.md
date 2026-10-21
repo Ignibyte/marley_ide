@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #831 (feature, the Marley look, W1.2)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [831-a-project-mark-from-logo-png.spec.md](../../pipeline/completed/831-a-project-mark-from-logo-png.spec.md)
 - **Source ticket:** Chad, 2026-10-20: "lets file all the tickets now and lets start on this", on
   [the Marley look plan](../../../marley/look-plan.md), item W1.2. The design canvas is
   https://claude.ai/artifact/FHSqmm3AyGP4Dy7QuzBiFn; its source is kept in the private design record,
   `docs/design/marley-canvas-2026-10-20`.
 - **Boards:** ProjectLogo
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's own mark** (#831, 2026-10-21). A project's `logo.png` (or `logo.svg`) in its top
+  folder is now its mark ahead of any favicon, and a project with no image shows its first letter
+  on a color of its own. The mark shows on the rail's header, the strip's tile, Home's recent
+  projects and, for an image, before the project's name in the title bar, and follows a change to
+  the file. Right-click a project's header to choose a logo file or a letter
+  (`marley.project_logos`).
+
 - **The rail folds to a strip** (#830, 2026-10-20). The new button at the right of the rail's
   header, `marley: toggle rail strip` or `marley.rail_shrunk` folds the rail to a 60 px strip with
   a tile per project: its icon or first letter, the shown project ringed, and a pink count of the

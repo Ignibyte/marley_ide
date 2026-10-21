@@ -216,6 +216,14 @@ pub struct MarleyTitleBarButtons(
 
 impl gpui::Global for MarleyTitleBarButtons {}
 
+// Marley: the project's mark before its name (#831), a view a Marley crate makes, as above.
+#[derive(Clone)]
+pub struct MarleyProjectMark(
+    pub Arc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> gpui::AnyView>,
+);
+
+impl gpui::Global for MarleyProjectMark {}
+
 pub struct TitleBar {
     platform_titlebar: Entity<PlatformTitleBar>,
     project: Entity<Project>,
@@ -231,6 +239,8 @@ pub struct TitleBar {
     _diagnostics_subscription: Option<gpui::Subscription>,
     // Marley: the view `MarleyTitleBarButtons` made for this title bar (#746).
     marley_buttons: Option<gpui::AnyView>,
+    // Marley: the view `MarleyProjectMark` made for this title bar (#831).
+    marley_project_mark: Option<gpui::AnyView>,
 }
 
 impl Render for TitleBar {
@@ -353,6 +363,8 @@ impl Render for TitleBar {
                                 .when(title_bar_settings.show_project_items, |title_bar| {
                                     title_bar
                                         .children(self.render_project_host(cx))
+                                        // Marley: the project's mark (#831).
+                                        .children(self.marley_project_mark.clone())
                                         .child(self.render_project_name(project_name, window, cx))
                                 })
                                 .when_some(
@@ -561,6 +573,11 @@ impl TitleBar {
             .try_global::<MarleyTitleBarButtons>()
             .cloned()
             .map(|hook| (hook.0)(workspace.weak_handle(), window, cx));
+        // Marley: the project's mark (#831).
+        let marley_project_mark = cx
+            .try_global::<MarleyProjectMark>()
+            .cloned()
+            .map(|hook| (hook.0)(workspace.weak_handle(), window, cx));
 
         let mut this = Self {
             platform_titlebar,
@@ -576,6 +593,7 @@ impl TitleBar {
             screen_share_popover_handle: PopoverMenuHandle::default(),
             _diagnostics_subscription: None,
             marley_buttons,
+            marley_project_mark,
         };
 
         this.observe_diagnostics(cx);

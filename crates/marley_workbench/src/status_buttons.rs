@@ -15,7 +15,7 @@ use gpui::{
 };
 use project::DisableAiSettings;
 use settings::{Settings as _, SettingsStore};
-use title_bar::MarleyTitleBarButtons;
+use title_bar::{MarleyProjectMark, MarleyTitleBarButtons};
 use ui::{IconButtonShape, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::dock::{Dock, PanelButtons, PanelHandle};
@@ -50,6 +50,92 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(MarleyTitleBarButtons(Arc::new(|workspace, _, cx| {
         cx.new(|cx| TitleButtons::new(workspace, cx)).into()
     })));
+    cx.set_global(MarleyProjectMark(Arc::new(|workspace, _, cx| {
+        cx.new(|cx| TitleProjectMark::new(workspace, cx)).into()
+    })));
+}
+
+/// The title bar's project mark (#831): the shown project's own image before its name. A project
+/// with only its letter shows nothing here, since its name beside the mark says the same.
+pub struct TitleProjectMark {
+    workspace: WeakEntity<Workspace>,
+    project_events: Option<Subscription>,
+}
+
+impl std::fmt::Debug for TitleProjectMark {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TitleProjectMark")
+            .finish_non_exhaustive()
+    }
+}
+
+impl TitleProjectMark {
+    fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+        cx.observe_global::<crate::project_icons::ProjectMarks>(|_, cx| cx.notify())
+            .detach();
+        cx.observe_global::<SettingsStore>(|_, cx| cx.notify())
+            .detach();
+        // The title bar makes this view while the workspace is being updated, so the workspace
+        // is read only once that update is over. The hook runs once per title bar, so a folder
+        // added or removed is followed here.
+        let view = cx.weak_entity();
+        cx.defer(move |cx| {
+            view.update(cx, Self::follow_project).log_err();
+        });
+        Self {
+            workspace,
+            project_events: None,
+        }
+    }
+
+    /// Follows the workspace's project for folders added or removed.
+    fn follow_project(&mut self, cx: &mut Context<Self>) {
+        let project = self
+            .workspace
+            .upgrade()
+            .map(|workspace| workspace.read(cx).project().clone());
+        self.project_events = project.map(|project| {
+            cx.subscribe(&project, |_, _, event: &project::Event, cx| {
+                if matches!(
+                    event,
+                    project::Event::WorktreeAdded(_) | project::Event::WorktreeRemoved(_)
+                ) {
+                    cx.notify();
+                }
+            })
+        });
+        cx.notify();
+    }
+
+    /// The shown project's first folder, while the project is local (a remote one's mark is its
+    /// letter until #860).
+    fn root(&self, cx: &App) -> Option<std::path::PathBuf> {
+        let key = self.workspace.upgrade()?.read(cx).project_group_key(cx);
+        if key.host().is_some() {
+            return None;
+        }
+        key.path_list().paths().first().cloned()
+    }
+}
+
+impl Render for TitleProjectMark {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let Some(root) = self.root(cx) else {
+            return div().into_any_element();
+        };
+        let wanted = root.clone();
+        cx.defer(move |cx| crate::project_icons::want(&wanted, cx));
+        match crate::project_icons::mark(&root, cx) {
+            crate::project_icons::ProjectMark::Image(image) => div()
+                .debug_selector(|| "marley-title-project-mark".into())
+                .flex_none()
+                .pr_1()
+                .child(gpui::img(image).size_4().rounded_sm())
+                .into_any_element(),
+            crate::project_icons::ProjectMark::Letter => div().into_any_element(),
+        }
+    }
 }
 
 /// The status bar's Home button, drawn only while its workspace is shown.

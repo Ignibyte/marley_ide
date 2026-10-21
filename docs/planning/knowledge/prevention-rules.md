@@ -3228,3 +3228,13 @@ A value eased by hand, one computed from an `Instant` at read time rather than b
 view's `render`, before any branch on the view's form, and stops asking once the ease has ended.
 When another view reads the value (a sidebar width read by `MultiWorkspace`), that view must
 re-render on this one's notify: `request_animation_frame` notifies only the view that called it.
+
+## PR-claude-831-a-view-a-workspace-hook-makes-reads-the-workspace-only-after-new-001
+*severity: high · prevents: F-claude-831-a-title-bar-view-read-the-workspace-inside-its-update-001*
+
+A view built by a hook that Zed calls from a workspace's own construction or update
+(`MarleyTitleBarButtons`, `MarleyProjectMark`, anything `TitleBar::new` or a status bar item's
+`new` calls) takes a `WeakEntity<Workspace>` and never reads or updates it in `new`. Whatever
+needs the workspace (its project, a subscription to it) is set up in `cx.defer` through a weak
+handle to the view, or read in `render`. `TitleButtons` (#746) only stores the handle, which is why
+it never panicked.

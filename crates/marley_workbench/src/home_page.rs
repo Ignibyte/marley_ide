@@ -168,8 +168,9 @@ pub(crate) struct MarleyHome {
     /// The rail the page lists the agents at work from, held weakly and observed, so a rail a
     /// layout swap replaced goes (#713).
     rail: Option<(WeakEntity<Rail>, Subscription)>,
-    /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703).
-    _activity: [Subscription; 2],
+    /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703), and the project
+    /// marks the recent projects show (#831).
+    _activity: [Subscription; 3],
     /// Rusty's cards, held while `marley.rusty.enabled` is on (#782).
     rusty: Option<Entity<RustyCards>>,
     /// Rusty's switch, which makes and drops the cards.
@@ -192,7 +193,7 @@ impl MarleyHome {
         let db = WorkspaceDb::global(cx);
         let recent_fs = Arc::clone(&fs);
         cx.spawn_in(window, async move |this, cx| {
-            let recent = db
+            let recent: Vec<Recent> = db
                 .recent_project_workspaces(recent_fs.as_ref())
                 .await
                 .log_err()
@@ -217,6 +218,12 @@ impl MarleyHome {
                 })
                 .collect();
             this.update(cx, |this, cx| {
+                // Each recent project's mark (#831), most of them not open.
+                for recent in &recent {
+                    if let Some(first) = recent.paths.first() {
+                        crate::project_icons::want(first, cx);
+                    }
+                }
                 this.recent = Some(recent);
                 cx.notify();
             })
@@ -232,6 +239,9 @@ impl MarleyHome {
             _activity: [
                 cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
                 cx.observe_global_in::<SettingsStore>(window, |_, _, cx| cx.notify()),
+                cx.observe_global_in::<crate::project_icons::ProjectMarks>(window, |_, _, cx| {
+                    cx.notify();
+                }),
             ],
             rusty: None,
             _rusty_switch: cx.observe_global_in::<crate::rusty::Rusty>(
@@ -410,11 +420,17 @@ impl MarleyHome {
                 let paths = recent.paths.clone();
                 let workspace = self.workspace.clone();
                 row(("marley-home-recent", index), cx)
-                    .child(
-                        Icon::new(IconName::Folder)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    )
+                    .child(paths.first().map_or_else(
+                        || {
+                            Icon::new(IconName::Folder)
+                                .size(IconSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        },
+                        |first| {
+                            crate::project_icons::project_mark(first, &recent.name, px(16.), cx)
+                        },
+                    ))
                     // The name keeps its width; a long folder is what gets cut.
                     .child(
                         div()

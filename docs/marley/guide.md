@@ -481,6 +481,14 @@ them. Click a thread to open the project and the thread; a port row's Open and S
 project first, while Copy, Stop and Restart work with the project closed. Next and Previous
 Thread pass over a closed project's threads.
 
+Each project has a mark (#831): its `logo.png`, else `logo.svg`, in its top folder, else another
+icon the folder holds (a favicon), else its name's first letter on a color of its own. The mark
+shows on its header in the rail, its tile in the strip, its row in Home's recent projects, and,
+when it is an image, before its name in the title bar. Change the file and the mark follows. To
+choose, right-click the project's header: **Choose Logo…** picks an image file, **Use a Letter**
+keeps the letter, and **Use the Project's Logo** goes back to the folder's own. The choice is kept
+in `marley.project_logos`. A remote project shows its letter for now.
+
 The rail folds to a strip (#830): click the panel button at the right of the rail's header
 (**Shrink the Rail**), run `marley: toggle rail strip`, or turn on **Shrink the Rail** on the Marley
 settings page (`marley.rail_shrunk`). The strip is 60 px wide with a tile per project: its icon, or

@@ -6308,3 +6308,13 @@ The same gate turns a fourth `bool` in a struct (`struct_excessive_bools`) into 
 (`RailStrip`, as `RailContainers`) or a small struct of the related flags (`Hover`), and a field
 added to `MarleySettings::from_settings` should cost one line, since that function sits at the
 100-line limit.
+
+## L-claude-831-a-clicking-scenario-sets-tmux-hosts-to-nothing-001
+*category: process · topic: the visual check of rail layouts · from: pipeline 831*
+
+The rail lists the tmux sessions of the machine it runs on (#808, #819) unless `marley.tmux_hosts`
+says otherwise, and the scenario's profile copy does not. So the box's own sessions (`tessera`,
+`lotline`, `aic`) show under Default in every scenario, and their number changes between runs.
+A scenario that clicks a rail row by its point sets `profile_setting marley.tmux_hosts '[]'` in
+`setup`, or its points move under it. Read the points from a probe run's shots (a run before
+the gate, so the receipt binds the final scenario), not from an earlier ticket's.

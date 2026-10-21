@@ -27,8 +27,8 @@ use git_ui::branch_diff::BranchDiff;
 use gpui::{
     Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, DismissEvent, Div,
     ElementId, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, MouseButton,
-    MouseDownEvent, Pixels, Point, PromptLevel, Render, RenderImage, Stateful, Subscription, Task,
-    WeakEntity, Window, anchored, deferred, img, px,
+    MouseDownEvent, Pixels, Point, PromptLevel, Render, Stateful, Subscription, Task, WeakEntity,
+    Window, anchored, deferred, img, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -227,8 +227,8 @@ pub struct Rail {
     /// The order the window saved: its projectless groups', which orders the groups a restart
     /// brings back (#601), and the one the user left by dragging (#602).
     saved_order: SavedOrder,
-    /// Each project's own icon, by its group's first folder (#564).
-    project_icons: HashMap<PathBuf, ProjectIcon>,
+    /// The project marks' cache (#831), whose searches redraw the rail.
+    _marks: Subscription,
     /// The order the rail showed when the pointer came over it, held until it leaves (#542) and
     /// while a drag from it is in flight (#602).
     hold: Hold,
@@ -666,11 +666,14 @@ fn closed_id(key: &ProjectGroupKey) -> EntityId {
 /// The toasts of a closed project that did not open (#606).
 struct ClosedProject;
 
-/// A header's icon: a projectless group's (#600), or the project's own (#564).
+/// A header's icon: a projectless group's (#600), or the project's mark, its own image (#564) or
+/// its letter (#831).
 fn header_icon(
     index: usize,
-    icon: Option<Arc<RenderImage>>,
+    root: Option<&Path>,
+    name: &str,
     projectless: bool,
+    cx: &App,
 ) -> Option<AnyElement> {
     if projectless {
         return Some(
@@ -680,31 +683,15 @@ fn header_icon(
                 .into_any_element(),
         );
     }
-    icon.map(|icon| project_icon(index, icon).into_any_element())
+    let root = root?;
+    Some(
+        div()
+            .debug_selector(move || format!("marley-rail-project-icon-{index}"))
+            .flex_none()
+            .child(crate::project_icons::project_mark(root, name, px(16.), cx))
+            .into_any_element(),
+    )
 }
-
-/// The repository's own icon on its project's header, at 16 px (#564).
-fn project_icon(index: usize, icon: Arc<RenderImage>) -> Div {
-    div()
-        .debug_selector(move || format!("marley-rail-project-icon-{index}"))
-        .flex_none()
-        .child(img(icon).size_4().rounded_sm())
-}
-
-/// A project's own icon on its header (#564).
-#[derive(Default)]
-struct ProjectIcon {
-    image: Option<Arc<RenderImage>>,
-    /// The file it came from, which a change to searches again.
-    chosen: Option<PathBuf>,
-    searched_at: Option<Instant>,
-    search: Option<Task<()>>,
-    /// Whether another search was asked for while this one ran.
-    again: bool,
-}
-
-/// How often a project's icon is searched for at most (#564).
-const ICON_SEARCH_EVERY: Duration = Duration::from_secs(1);
 
 /// A project's checkout, which its row's counts and pull request are read for (#531).
 #[derive(Clone)]
@@ -1144,7 +1131,7 @@ impl Rail {
             _agent_events: Self::observe_marks(window, cx),
             empty_menu: None,
             saved_order: SavedOrder::default(),
-            project_icons: HashMap::default(),
+            _marks: cx.observe_global::<crate::project_icons::ProjectMarks>(|_, cx| cx.notify()),
             hold: Hold::default(),
             _ports: [ports_scanned, settings_changed],
             _focus: focus,
@@ -1634,15 +1621,14 @@ impl Rail {
         });
     }
 
-    /// Searches each local project's folder for its icon the first time its group shows, and
-    /// forgets the groups that went (#564).
-    fn follow_icons(&mut self, cx: &Context<Self>) {
+    /// Asks for each local project's mark the first time its group shows (#564, #831).
+    fn follow_icons(&self, cx: &mut Context<Self>) {
         let roots: Vec<PathBuf> =
             self.snapshot
                 .groups
                 .iter()
                 .filter(|group| {
-                    // A closed local project keeps its icon, dimmed (#606).
+                    // A closed local project keeps its mark, dimmed (#606).
                     (group.closed && group.key.host().is_none())
                         || group.workspace.upgrade().is_some_and(|workspace| {
                             workspace.read(cx).project().read(cx).is_local()
@@ -1650,64 +1636,18 @@ impl Rail {
                 })
                 .filter_map(|group| group.key.path_list().paths().first().cloned())
                 .collect();
-        self.project_icons.retain(|root, _| roots.contains(root));
         for root in roots {
-            if !self.project_icons.contains_key(&root) {
-                self.search_icon(root, cx);
-            }
+            crate::project_icons::want(&root, cx);
         }
     }
 
-    /// Reads `root`'s icon off the main thread; a search asked for while one runs, or within a
-    /// second of the last, waits for its turn.
-    fn search_icon(&mut self, root: PathBuf, cx: &Context<Self>) {
-        let now = cx.background_executor().now();
-        let icon = self.project_icons.entry(root.clone()).or_default();
-        if icon.search.is_some() {
-            icon.again = true;
-            return;
-        }
-        let wait = icon
-            .searched_at
-            .map(|at| ICON_SEARCH_EVERY.saturating_sub(now.saturating_duration_since(at)))
-            .unwrap_or_default();
-        icon.search = Some(cx.spawn(async move |rail, cx| {
-            if !wait.is_zero() {
-                cx.background_executor().timer(wait).await;
-            }
-            let searched = root.clone();
-            let found = cx
-                .background_spawn(futures::future::lazy(move |_| {
-                    crate::project_icons::icon_in(&searched)
-                }))
-                .await;
-            rail.update(cx, |rail, cx| {
-                let now = cx.background_executor().now();
-                let Some(icon) = rail.project_icons.get_mut(&root) else {
-                    return;
-                };
-                let (chosen, image) = found.unzip();
-                icon.chosen = chosen;
-                icon.image = image;
-                icon.searched_at = Some(now);
-                icon.search = None;
-                if std::mem::take(&mut icon.again) {
-                    rail.search_icon(root, cx);
-                }
-                cx.notify();
-            })
-            .log_err();
-        }));
-    }
-
-    /// A project's files changed: its icon is searched again when a changed file can be one, or
-    /// is the one it shows (#564).
+    /// A project's files changed: its mark is searched for again when a changed file can be one,
+    /// or is the one it shows (#564).
     fn note_icon_files(
-        &mut self,
         project: &Entity<Project>,
         worktree: WorktreeId,
         changes: &UpdatedEntriesSet,
-        cx: &Context<Self>,
+        cx: &mut Context<Self>,
     ) {
         let Some(root) = project
             .read(cx)
@@ -1716,24 +1656,11 @@ impl Rail {
         else {
             return;
         };
-        let Some(icon) = self.project_icons.get(&root) else {
-            return;
-        };
-        let chosen = icon
-            .chosen
-            .as_ref()
-            .and_then(|chosen| chosen.strip_prefix(&root).ok())
-            .map(Path::to_path_buf);
-        let touched = changes.iter().any(|(path, _, _)| {
-            let relative = path.as_unix_str();
-            crate::project_icons::is_candidate(relative)
-                || chosen
-                    .as_deref()
-                    .is_some_and(|chosen| chosen == Path::new(relative))
-        });
-        if touched {
-            self.search_icon(root, cx);
-        }
+        crate::project_icons::files_changed(
+            &root,
+            changes.iter().map(|(path, _, _)| path.as_unix_str()),
+            cx,
+        );
     }
 
     /// Puts each project's kept changed lines and pull request on its row (#531).
@@ -2990,7 +2917,7 @@ impl Rail {
             cx.subscribe_in(
                 project,
                 window,
-                |rail, project, event: &project::Event, window, cx| {
+                |_, project, event: &project::Event, window, cx| {
                     // The project reports a folder before the `MultiWorkspace` rekeys the
                     // project's group. A rebuild in between would find the project in no group and
                     // forget its rows' recency and attention dots.
@@ -2998,7 +2925,7 @@ impl Rail {
                         cx.defer_in(window, Self::refresh);
                     } else if let project::Event::WorktreeUpdatedEntries(worktree, changes) = event
                     {
-                        rail.note_icon_files(project, *worktree, changes, cx);
+                        Self::note_icon_files(project, *worktree, changes, cx);
                     }
                 },
             ),
@@ -4952,13 +4879,14 @@ impl Rail {
                 };
                 let index = row.index;
                 let drag = run.map(|run| DraggedRailHeader::new(group, position, run, &row.name));
-                let icon = group
-                    .key
-                    .path_list()
-                    .paths()
-                    .first()
-                    .and_then(|root| self.project_icons.get(root))
-                    .and_then(|icon| icon.image.clone());
+                let root = group.key.path_list().paths().first().cloned();
+                let icon = header_icon(
+                    row.index,
+                    root.as_deref(),
+                    &row.name,
+                    group.group.is_some(),
+                    cx,
+                );
                 let header = v_flex()
                     // A line between one project's rows and the next project, as Warp's tab list
                     // draws one between its tabs.
@@ -5543,7 +5471,7 @@ impl Rail {
         &self,
         row: ProjectRow,
         group: &GroupEntry,
-        icon: Option<Arc<RenderImage>>,
+        icon: Option<AnyElement>,
         agent_search_path: Option<OsString>,
         drag: Option<DraggedRailHeader>,
         cx: &Context<Self>,
@@ -5617,7 +5545,7 @@ impl Rail {
                         Disclosure::new(("marley-rail-disclosure", id), false).disabled(true),
                     ))
                 })
-                .children(header_icon(index, icon, projectless.is_some()).map(|icon| {
+                .children(icon.map(|icon| {
                     if closed {
                         div().opacity(0.5).child(icon).into_any_element()
                     } else {
@@ -5808,6 +5736,25 @@ impl Rail {
                     },
                 ))
             });
+            // The project's mark (#831): a file the user picks, its letter, or its own files again.
+            let menu = match key.path_list().paths().first().cloned() {
+                Some(root) if key.host().is_none() => {
+                    let (choose, letter, own) = (root.clone(), root.clone(), root.clone());
+                    menu.separator()
+                        .item(ContextMenuEntry::new("Choose Logo…").handler(move |_, cx| {
+                            crate::project_icons::choose_logo(&choose, cx);
+                        }))
+                        .item(ContextMenuEntry::new("Use a Letter").handler(move |_, cx| {
+                            crate::project_icons::set_logo(&letter, Some("letter".into()), cx);
+                        }))
+                        .when(crate::project_icons::picked(&root, cx), |menu| {
+                            menu.item(ContextMenuEntry::new("Use the Project's Logo").handler(
+                                move |_, cx| crate::project_icons::set_logo(&own, None, cx),
+                            ))
+                        })
+                }
+                _ => menu,
+            };
             let closed_key = closed.then(|| key.clone());
             let menu = Self::archived_threads_menu(
                 menu.separator(),

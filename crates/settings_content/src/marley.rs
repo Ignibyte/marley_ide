@@ -191,6 +191,13 @@ pub struct MarleySettingsContent {
     ///
     /// Default: false
     pub rail_shrunk: Option<bool>,
+    /// A project's mark, by its first folder, where you chose one (#831): the path of an image
+    /// file, or "letter" for its name's first letter. A project not named here shows its
+    /// `logo.png` or `logo.svg`, or another icon its folder holds, or its letter. A project's
+    /// header menu in the rail sets it.
+    ///
+    /// Default: {}
+    pub project_logos: Option<BTreeMap<String, String>>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

@@ -4,14 +4,12 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyElement, App, Bounds, Context, Div, Focusable as _, FontWeight, Pixels, RenderImage, Task,
-    Window, anchored, canvas, deferred, img, point, px,
+    AnyElement, App, Bounds, Context, Div, Focusable as _, FontWeight, Pixels, Task, Window,
+    anchored, canvas, deferred, img, point, px,
 };
 use marley_rail::Row;
 use settings::Settings as _;
@@ -98,23 +96,6 @@ impl Strip {
     fn moving(&self) -> bool {
         self.motion.is_some_and(|started| started.elapsed() < EASE)
     }
-}
-
-/// A project's first letter, for a tile with no icon.
-fn initial(name: &str) -> String {
-    name.chars()
-        .find(|character| character.is_alphanumeric())
-        .map_or_else(
-            || "·".to_string(),
-            |character| character.to_uppercase().collect(),
-        )
-}
-
-/// A number from a project's name, so its tile keeps one tint.
-fn name_hash(name: &str) -> u32 {
-    let mut hasher = DefaultHasher::new();
-    name.hash(&mut hasher);
-    u32::try_from(hasher.finish() & u64::from(u32::MAX)).unwrap_or_default()
 }
 
 /// The count of a project's rows that wait on the user, over its tile's corner.
@@ -270,15 +251,16 @@ impl Rail {
                 .projects
                 .get(row.index)
                 .map_or(0, marley_rail::needs_you_count);
-            let icon = group
+            let mark = group
                 .key
                 .path_list()
                 .paths()
                 .first()
-                .and_then(|root| self.project_icons.get(root))
-                .and_then(|icon| icon.image.clone());
+                .map_or(crate::project_icons::ProjectMark::Letter, |root| {
+                    crate::project_icons::mark(root, cx)
+                });
             let active = !group.closed && shown.as_ref() == Some(&group.workspace);
-            tiles.push(self.render_strip_tile(row.index, &row.name, icon, active, waiting, cx));
+            tiles.push(self.render_strip_tile(row.index, &row.name, mark, active, waiting, cx));
         }
         tiles
     }
@@ -287,28 +269,26 @@ impl Rail {
         &self,
         index: usize,
         name: &str,
-        icon: Option<Arc<RenderImage>>,
+        mark: crate::project_icons::ProjectMark,
         active: bool,
         waiting: usize,
         cx: &Context<Self>,
     ) -> AnyElement {
         let colors = cx.theme().colors();
-        let tint = cx
-            .theme()
-            .players()
-            .color_for_participant(name_hash(name))
-            .cursor;
-        let has_icon = icon.is_some();
-        let face = icon.map_or_else(
-            || {
-                Label::new(initial(name))
+        let tint = crate::project_icons::tint(name, cx);
+        let (has_icon, face) = match mark {
+            crate::project_icons::ProjectMark::Image(image) => {
+                (true, img(image).size_6().rounded_sm().into_any_element())
+            }
+            crate::project_icons::ProjectMark::Letter => (
+                false,
+                Label::new(crate::project_icons::initial(name))
                     .size(LabelSize::Large)
                     .weight(FontWeight::SEMIBOLD)
                     .color(Color::Custom(tint))
-                    .into_any_element()
-            },
-            |icon| img(icon).size_6().rounded_sm().into_any_element(),
-        );
+                    .into_any_element(),
+            ),
+        };
         let tiles = Rc::clone(&self.strip.tiles);
         let group = self.snapshot.groups.get(index);
         let closed = group.is_some_and(|group| group.closed);

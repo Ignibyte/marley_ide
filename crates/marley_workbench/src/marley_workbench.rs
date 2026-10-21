@@ -1120,6 +1120,7 @@ pub fn init(cx: &mut App) {
     send_selection::init(cx);
     review_notes::init(cx);
     launch::init(cx);
+    project_icons::init(cx);
     terminal_drive::init(cx);
     autosuggest::init(cx);
     browser::init(cx);

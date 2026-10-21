@@ -4375,3 +4375,14 @@ so nothing asked for a frame: `MultiWorkspace` read the eased width once and dre
 only on the rail's next unrelated notify, a jump or a stall instead of an ease. Found in the
 review of the diff before any run. Fixed: `Strip::tick`, at the top of `Rail::render`, asks for
 frames while the ease runs in either form and forgets it once ended.
+
+## F-claude-831-a-title-bar-view-read-the-workspace-inside-its-update-001
+*severity: high · category: gpui / entity re-entrancy · pipeline 831*
+
+`TitleProjectMark::new`, the view the new `MarleyProjectMark` hook makes for each title bar, read
+`workspace.read(cx).project()` to subscribe to its worktrees. `TitleBar::new` runs inside the
+workspace's own update (the workspace builds its title bar), so the read hit gpui's double-lease
+panic at startup and no window opened. The diff's review missed it; a probe run of the scenario,
+made before the gate to read the scenario's coordinates, found it in Marley's log. Fixed: the
+subscription is made in `cx.defer`, through a weak handle to the view, after the update ends;
+`render` reads the workspace, which runs outside it.
