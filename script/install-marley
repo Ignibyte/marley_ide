@@ -8,10 +8,10 @@
 # (CONSTITUTION §7); `--skip-regress`, the old way to skip it, is still accepted.
 #
 # Under DIR (default ~/.local) it writes the binary lib/marley/marley, its launcher bin/marley,
-# share/applications/marley.desktop and the icon share/icons/hicolor/512x512/apps/marley.png
-# (Zed's dev-channel icon until #445 gives Marley its own). Run it again after a pull. Each file is
-# replaced by a rename, so a running Marley keeps the file it started from and runs the new build
-# from its next start.
+# share/applications/marley.desktop and Marley's mark (#829) as the icon
+# share/icons/hicolor/512x512/apps/marley.png and scalable/apps/marley.svg. Run it again after a
+# pull. Each file is replaced by a rename, so a running Marley keeps the file it started from and
+# runs the new build from its next start.
 #
 # The launcher exists for stderr. The `dev` channel installs no crash handler, so a panic goes to
 # stderr and nowhere else, and a Marley the menu starts has no terminal to show it. When stderr
@@ -437,6 +437,11 @@ EOF
 chmod 755 "$launcher"
 mv -f "$launcher" "$bin/marley"
 install -Dm644 crates/zed/resources/app-icon-dev.png "$prefix/share/icons/hicolor/512x512/apps/marley.png"
+install -Dm644 assets/images/marley_mark.svg "$prefix/share/icons/hicolor/scalable/apps/marley.svg"
+# A launcher reading an icon cache older than the new icon would keep drawing the old one.
+if [[ -f $prefix/share/icons/hicolor/icon-theme.cache ]] && command -v gtk-update-icon-cache >/dev/null; then
+  gtk-update-icon-cache -f -t "$prefix/share/icons/hicolor"
+fi
 # Only Marley's own scheme (#762): Marley must not become the handler for text files, folders or
 # stock Zed's zed:// links. xdg-open's generic mode, Hyprland's, takes Exec's first word as it
 # stands, quotes and all, so the program is quoted only when its path holds a space.

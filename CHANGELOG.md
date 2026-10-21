@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The cat mark** (#829, 2026-10-20). Marley's icon is Chad's drawing of Marley, an orange cat
+  with green eyes, on a dark rounded tile. It is the app icon (the launcher, the window, the macOS
+  bundle) and the mark at the left of the title bar, and About shows it with the line "Named for
+  Marley: a solid orange cat with green eyes." The install also puts a scalable copy in the icon
+  theme.
+
 - **Marley Night and Marley Day** (#828, 2026-10-20). Marley's own theme family, named for Chad's
   cat, a solid orange cat with green eyes: her orange as the accent, her green for success and added
   lines, warm darks for Night and cream for Day. Marley Night is the default with the system dark,

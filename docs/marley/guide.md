@@ -3989,6 +3989,10 @@ needs-you and conflicts pink, errors red. A `theme` of your own in `settings.jso
 an install that named One Dark keeps it until you pick Marley Night in the theme selector
 (`theme selector: toggle`, Ctrl+K Ctrl+T) or remove the key.
 
+Marley's mark is Marley herself (#829): Chad's drawing of her head, orange with green eyes, on a
+dark rounded tile. It is the app icon, the mark at the left of the title bar, and the picture in
+About (`zed: about`), which also says who Marley was named for.
+
 On Omarchy, **Follow Omarchy's Theme** (`marley.omarchy_theme`, off by default) draws Marley in the
 desktop's theme (#759). Turned on, Marley writes a theme template to
 `~/.config/omarchy/themed/marley.json.tpl` and a hook to

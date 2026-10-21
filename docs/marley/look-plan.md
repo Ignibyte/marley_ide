@@ -58,7 +58,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 - The Omarchy theme (#759) keeps working: following Omarchy still overrides.
 - Visual check: `component_preview` in both themes, the Main board's screen in both themes.
 
-**W0.2 The cat mark.** *S.* Board: Theme.
+**W0.2 The cat mark.** *Done (#829, 2026-10-20).* Board: Theme.
 - The app icon at every size (`crates/zed/resources/app-icon*.png`, the desktop entry's icon),
   drawn from the Theme board's SVG; the title bar's mark.
 - Chad sets the wording of the line about Marley wherever it shows (About, first run).

@@ -1552,6 +1552,8 @@ fn open_about_window(cx: &mut App) {
         message: SharedString,
         commit: Option<SharedString>,
         full_version: SharedString,
+        // Marley: the line about Marley shows on its own channel only (#829).
+        is_marley: bool,
     }
 
     impl AboutWindow {
@@ -1580,6 +1582,7 @@ fn open_about_window(cx: &mut App) {
                 message,
                 commit,
                 full_version,
+                is_marley: matches!(release_channel, ReleaseChannel::Dev),
             }
         }
 
@@ -1626,6 +1629,16 @@ fn open_about_window(cx: &mut App) {
                             .items_center()
                             .child(img(self.app_icon.clone()).size_16().flex_none())
                             .child(Headline::new(self.message.clone()))
+                            // Marley: the line about the cat Marley is named for (#829).
+                            .when(self.is_marley, |this| {
+                                this.child(
+                                    Label::new(
+                                        "Named for Marley: a solid orange cat with green eyes.",
+                                    )
+                                    .color(Color::Muted)
+                                    .size(LabelSize::Small),
+                                )
+                            })
                             .when_some(self.commit.clone(), |this, commit| {
                                 this.child(
                                     Label::new("Commit")

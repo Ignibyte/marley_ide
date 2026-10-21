@@ -6282,3 +6282,16 @@ light system cannot be reached: the headless sway's portal reports the dev box's
 A debug build reads `assets/` at runtime (L-claude-815), so a new theme needs no rebuild for the
 check, and the installed build is grepped for it after the next install.
 
+
+## L-claude-829-a-mark-is-drawn-in-its-subjects-colors-and-seen-at-16-px-before-it-is-locked-001
+*category: design · topic: an icon or mark drawn from a palette · from: pipeline 829*
+
+A mark of something with a color of its own is drawn in that color. The plan put the theme's two
+roles on the cat, a dark head on a coat-orange tile (as the canvas's app-icon variant did), and the
+512 px render read as a black cat; Marley is orange, so the head took the coat and the tile the
+dark. Render the mark with `rsvg-convert` at 512 and at 16 px (scaled up with `-filter point` to
+read the pixels) before any file is written from it: a 16 px drawing's fine parts, here eyes of
+radius 0.65, vanish at the title bar's size, and a dark ring round a light fill keeps them. A tile
+of its own carries the mark on both themes; on a ground close to the tile, the subject alone shows.
+The PNGs go in the tree with the command that made them in their ledger rows, so a merge can
+render them again.

@@ -326,6 +326,14 @@ impl Render for TitleBar {
                     let mut render_project_items = title_bar_settings.show_branch_name
                         || title_bar_settings.show_project_items;
                     title_bar
+                        // Marley: its mark, Chad's cat, in color, so an image rather than a
+                        // one-color `IconName` (#829).
+                        .child(
+                            gpui::img("images/marley_mark.svg")
+                                .size(IconSize::Medium.rems())
+                                .flex_none()
+                                .mr_1(),
+                        )
                         .when_some(
                             self.application_menu.clone().filter(|_| !show_menus),
                             |title_bar, menu| {
