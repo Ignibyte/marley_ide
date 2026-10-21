@@ -5275,9 +5275,9 @@ impl Rail {
         }
     }
 
-    /// PROJECTS, THREADS and SESSIONS (#832), the shown view's pressed (#745). While another view
-    /// shows, PROJECTS carries the dot a project's attention would light on its row, and SESSIONS
-    /// a dot while a tmux host could not be listed.
+    /// Projects, Threads and Sessions (#832) as icons like the header's other buttons (#873), the
+    /// shown view's pressed (#745). While another view shows, Projects carries the dot a project's
+    /// attention would light on its row, and Sessions a dot while a tmux host could not be listed.
     fn render_view_switch(&self, cx: &Context<Self>) -> impl IntoElement {
         let projects = self.projects_shown();
         let threads = self.threads.shown && !self.sessions.shown();
@@ -5288,11 +5288,11 @@ impl Rail {
                     .iter()
                     .any(|host| matches!(host.listing, Listing::Failed(_)))
             });
-        let view_button = |id: &'static str, label: &'static str, pressed: bool| {
-            Button::new(id, label)
-                .label_size(LabelSize::XSmall)
-                .style(ButtonStyle::Subtle)
+        let view_button = |id: &'static str, icon: IconName, name: &'static str, pressed: bool| {
+            IconButton::new(id, icon)
+                .icon_size(IconSize::Small)
                 .toggle_state(pressed)
+                .tooltip(Tooltip::text(name))
         };
         h_flex()
             .gap_0p5()
@@ -5301,7 +5301,13 @@ impl Rail {
                     .debug_selector(|| "marley-rail-view-projects".into())
                     .gap_0p5()
                     .child(
-                        view_button("marley-rail-view-projects", "PROJECTS", projects).on_click(
+                        view_button(
+                            "marley-rail-view-projects",
+                            IconName::Folder,
+                            "Projects",
+                            projects,
+                        )
+                        .on_click(
                             cx.listener(|rail, _, window, cx| rail.show_view(false, window, cx)),
                         ),
                     )
@@ -5313,7 +5319,13 @@ impl Rail {
                 div()
                     .debug_selector(|| "marley-rail-view-threads".into())
                     .child(
-                        view_button("marley-rail-view-threads", "THREADS", threads).on_click(
+                        view_button(
+                            "marley-rail-view-threads",
+                            IconName::Thread,
+                            "Threads",
+                            threads,
+                        )
+                        .on_click(
                             cx.listener(|rail, _, window, cx| rail.show_view(true, window, cx)),
                         ),
                     ),
@@ -5325,7 +5337,8 @@ impl Rail {
                     .child(
                         view_button(
                             "marley-rail-view-sessions",
-                            "SESSIONS",
+                            IconName::TerminalAlt,
+                            "Sessions",
                             self.sessions.shown(),
                         )
                         .on_click(cx.listener(|rail, _, window, cx| {

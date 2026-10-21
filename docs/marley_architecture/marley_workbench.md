@@ -3035,8 +3035,9 @@ screen opens Home after `rusty_unavailable`.
 ## Threads in the rail (`src/rail.rs`, `src/threads_page.rs`, `src/home_page.rs`, `src/status_buttons.rs`, #745)
 
 - `Rail::threads: ThreadsSide { shown, search, … }`, the view's state outside `Rail::new`'s body.
-  `render_view_switch` draws PROJECTS and THREADS as `Button`s (XSmall, the shown one toggled);
-  PROJECTS takes an accent `Indicator::dot()` while Threads shows and
+  `render_view_switch` draws Projects, Threads and Sessions as `IconButton`s (Folder, Thread,
+  TerminalAlt, `IconSize::Small`, the shown one toggled, each named in its tooltip; words until
+  #873); Projects takes an accent `Indicator::dot()` while Threads shows and
   `marley_rail::has_attention` holds. `show_view` flips the view and moves the focus (the search
   field, or the rail); `toggle_thread_history` answers `sidebar::ToggleThreadHistory`, bound to
   `ctrl-g` in the Marley keymap's `MarleyRail && !Picker` block.

@@ -32,6 +32,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The rail's views as icons** (#873, 2026-10-21). The rail header's Projects, Threads and Sessions
+  are a folder, a speech bubble and a terminal, like the header's other buttons, each named in its
+  tooltip, so the header fits its row.
+
 - **The trust question as a card** (#872, 2026-10-21). Opening a folder Marley has not trusted asks
   "Trust <folder>?" with its path, a line on what trust allows, and Not Now and Trust at the right;
   Zed's list of what Restricted Mode prevents and the choice to trust a whole folder stay.

@@ -273,7 +273,8 @@ Stop 11.5 removes everything the tour made.
 
 Start Marley from the app menu (Super+Space, then type `Marley`), or run `marley`.
 
-- [ ] The rail runs down the left: a header reading PROJECTS and THREADS, PROJECTS lit (#745),
+- [ ] The rail runs down the left: a header with Projects, Threads and Sessions as a folder, a
+  speech bubble and a terminal icon, the folder lit (#745, #873),
   Add Project (a folder with a plus) and a filter field under it.
 - [ ] The rail's first row is Default, a group with a group icon, a chevron and a `+` (#700,
   #743). Stop 1.8 looks inside it.
@@ -643,8 +644,8 @@ settings page (1.4). This stop writes to your real vault, inside one folder it m
 8. Right-click `marley-tour`, choose Delete, and answer Delete.
 9. Click a `marley-tour-b` terminal's row and press Ctrl+Alt+V.
 
-- [ ] Step 1: a toast says Rusty is off and where to turn it on. The rail's header reads PROJECTS
-  and THREADS with Rusty off or on (#745).
+- [ ] Step 1: a toast says Rusty is off and where to turn it on. The rail's header shows the
+  Projects and Threads icons with Rusty off or on (#745, #873).
 - [ ] Step 2: a Brain tab opens in `marley-tour`'s group, with its row in the rail (#678, #743).
   On its left, the search field ("Search the brain…") with a `+` after it and your vault's folders
   with their page counts; on its right, "Pick a page on the left.". `marley-tour` appears and is
@@ -1052,7 +1053,7 @@ Needs 2.16's conversation, or any agent conversation you had before.
 - [ ] Step 3: only the conversations whose title or folder holds the word stay.
 - [ ] Step 4: the conversation opens in a tab of the group you are looking at, with its earlier
   turns; the second click brings that tab forward, and no second tab opens.
-- [ ] Step 5: the projects come back, PROJECTS lit. While THREADS showed, a dot on PROJECTS meant
+- [ ] Step 5: the projects come back, the folder icon lit. While Threads showed, a dot by the folder meant
   a project needed you.
 - [ ] Step 6: the Threads page opens in a tab: a search field, a chip per agent after All, then
   MARLEY AND RUSTY, then ALL CONVERSATIONS, each row with its agent, folder and time (#737); Show
