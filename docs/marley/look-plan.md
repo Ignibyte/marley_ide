@@ -141,7 +141,7 @@ Problems, Debug, Output and Tasks as tabs of one drawer. Debug is Zed's debugger
 keeps it in the bottom dock); Problems is Zed's diagnostics. Drawing them as one drawer touches
 Zed's dock code: start with Problems and Debug, and leave Output and Tasks for a later ticket.
 
-**W3.3 Pickers.** *M.* Board: Palette. The command palette's groups, the agent picker as a grid of
+**W3.3 Pickers.** *Done (#839, 2026-10-21; the agent cards a list, not a grid).* *M.* Board: Palette. The command palette's groups, the agent picker as a grid of
 cards with a line about each agent, the file finder's preview.
 
 **W3.4 Needs you, toasts and prompts.** *M.* Boards: Inbox, Dialogs, MoreForms.

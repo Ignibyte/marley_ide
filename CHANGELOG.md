@@ -11,6 +11,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ## [Unreleased]
 
+### Added
+
+- **The pickers as the board draws them** (#839, 2026-10-21). The command palette, before you
+  type, groups its commands under Recent, Marley, and Editor and workspace; the New Agent picker
+  shows each agent as a card with a line about it; the file finder opens with its preview.
+
 ### Changed
 
 - **Files pops out at the left** (#868, 2026-10-21). In the Marley layout the project panel is no

@@ -535,7 +535,9 @@ A project's `+` ("New in this project") starts things in that project.
 A group with no folder has the first four. Ctrl+Alt+N opens the New Agent picker ("Start an
 agent…") in either layout. So does every pane's `+` (New Agent… at its head, then Reopen Thread…),
 and in the Marley layout the status bar's sparkle, Ctrl+? and Zed's `agent: new thread` too, in
-place of Zed's Agent Panel, which starts nothing in a group with no folder (#744). Zed's agents are marked Thread and the CLIs Terminal, and typing filters the list.
+place of Zed's Agent Panel, which starts nothing in a group with no folder (#744). Each agent is a
+card (#839): its icon on a tile, its name over a line about it ("Zed's own agent, any model.", "The
+CLI, in a block terminal."), and Thread or Terminal at the end; typing filters the list.
 After the agent, it asks where (#735):
 
 - **The project's root** comes first in a group with a project, marked "this project" (#744), so
@@ -2646,6 +2648,15 @@ unsent: add your ask and send.
   everything Marley's tools hand agents is (#516).
 - The old thread stays as it was. Harness seats and managers are not offered: each is a window onto
   an agent that already runs.
+
+### The pickers (#839)
+
+In the Marley layout the command palette, before you type, lists its commands under three
+headings: RECENT (the ones you ran from it before, newest use first), MARLEY (Marley's own), and
+EDITOR AND WORKSPACE (the rest). Typing searches them all, without headings, as Zed does. The file
+finder (Ctrl+P) opens with the selected file's preview at the right; its footer's Preview button or
+Ctrl+Alt+P moves or hides it, and the finder keeps that choice. Zed's layout keeps Zed's palette and
+a finder without the preview until you turn it on.
 
 ### The Threads page
 

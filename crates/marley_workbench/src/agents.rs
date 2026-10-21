@@ -1210,6 +1210,23 @@ impl Start {
         }
     }
 
+    /// The line under the agent's name in the New Agent picker, as the Palette board words it
+    /// (#839).
+    fn about(&self) -> &'static str {
+        match self {
+            Self::Thread(agent) if *agent == Agent::NativeAgent.id() => {
+                "Zed's own agent, any model."
+            }
+            Self::Thread(agent) => match agent.0.as_ref() {
+                "Marley" => "Answers about Marley and drives it. Edits nothing.",
+                "Rusty" => "Your brain, tasks and notes.",
+                CLAUDE_AGENT => "Claude in a thread, with Marley's tools.",
+                _ => "An agent in a thread.",
+            },
+            Self::Cli(_) => "The CLI, in a block terminal.",
+        }
+    }
+
     /// Starts the choice in `folder`, in `workspace`: a thread in a tab, or the CLI in a new
     /// terminal, as a launch config starts one (#527).
     fn run_in(
@@ -1547,7 +1564,7 @@ impl PickerDelegate for NewAgentDelegate {
         index: usize,
         selected: bool,
         _: &mut Window,
-        _: &mut Context<Picker<Self>>,
+        cx: &mut Context<Picker<Self>>,
     ) -> Option<Self::ListItem> {
         let found = self.matches.get(index)?;
         if let Some((_, harness)) = &self.remote {
@@ -1614,27 +1631,59 @@ impl PickerDelegate for NewAgentDelegate {
             });
         }
         let choice = self.choices.get(found.candidate_id)?;
-        let icon = match &choice.icon {
-            AgentIcon::Named(name) => Icon::new(*name),
-            AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
-        };
-        Some(
-            ListItem::new(index)
-                .inset(true)
-                .spacing(ListItemSpacing::Sparse)
-                .toggle_state(selected)
-                .start_slot(icon.color(Color::Muted))
-                .child(HighlightedLabel::new(
-                    choice.name.clone(),
-                    found.positions.clone(),
-                ))
-                .end_slot(
-                    Label::new(choice.start.place())
+        Some(render_choice(
+            choice,
+            index,
+            selected,
+            found.positions.clone(),
+            cx,
+        ))
+    }
+}
+
+/// An agent in the New Agent picker as a card: its icon on a tile, its name over a line about it,
+/// and where it runs (#839).
+fn render_choice(
+    choice: &Choice,
+    index: usize,
+    selected: bool,
+    positions: Vec<usize>,
+    cx: &App,
+) -> ListItem {
+    let icon = match &choice.icon {
+        AgentIcon::Named(name) => Icon::new(*name),
+        AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
+    };
+    let tile = div()
+        .size_8()
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_md()
+        .bg(cx.theme().colors().element_background)
+        .child(icon.color(Color::Accent));
+    ListItem::new(index)
+        .inset(true)
+        .spacing(ListItemSpacing::Sparse)
+        .toggle_state(selected)
+        .start_slot(tile)
+        .child(
+            v_flex()
+                .min_w_0()
+                .child(HighlightedLabel::new(choice.name.clone(), positions))
+                .child(
+                    Label::new(choice.start.about())
                         .size(LabelSize::Small)
-                        .color(Color::Muted),
+                        .color(Color::Muted)
+                        .truncate(),
                 ),
         )
-    }
+        .end_slot(
+            Label::new(choice.start.place())
+                .size(LabelSize::Small)
+                .color(Color::Muted),
+        )
 }
 
 #[cfg(test)]

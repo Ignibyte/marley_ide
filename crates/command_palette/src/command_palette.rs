@@ -135,16 +135,27 @@ impl CommandPalette {
             })
             .collect();
 
-        let delegate = CommandPaletteDelegate::new(
+        let mut delegate = CommandPaletteDelegate::new(
             cx.entity().downgrade(),
             entity,
             commands,
             previous_focus_handle,
         );
 
+        // Marley: grouped, with headings, in Marley's layout (#839).
+        delegate.marley_groups = cx
+            .try_global::<MarleyPaletteGroups>()
+            .map(|marley| marley.0)
+            .is_some_and(|groups| groups(cx));
+        let grouped = delegate.marley_groups;
         let picker = cx.new(|cx| {
             // One-shot action; there's nothing to reopen.
-            let picker = Picker::uniform_list(delegate, window, cx)
+            let picker = if grouped {
+                Picker::list(delegate, window, cx)
+            } else {
+                Picker::uniform_list(delegate, window, cx)
+            };
+            let picker = picker
                 .initial_width(rems(38.0))
                 .reopenable(false, cx)
                 .show_scrollbar(true);
@@ -207,6 +218,29 @@ pub struct CommandPaletteDelegate {
         postage::dispatch::Receiver<(Vec<Command>, Vec<StringMatch>, CommandInterceptResult)>,
     )>,
     query_history: QueryHistory,
+    // Marley: whether an empty query lists its commands in groups under headings (#839).
+    marley_groups: bool,
+}
+
+// Marley: asked when the palette opens whether to group its commands (#839).
+pub struct MarleyPaletteGroups(pub fn(&App) -> bool);
+
+impl gpui::Global for MarleyPaletteGroups {}
+
+// Marley: an empty query's groups, in their order, and their headings (#839).
+const MARLEY_GROUPS: [&str; 3] = ["RECENT", "MARLEY", "EDITOR AND WORKSPACE"];
+
+impl Command {
+    // Marley: the group a command lists under: used before, Marley's own, the rest (#839).
+    fn marley_group(&self) -> usize {
+        if self.usage.is_some() {
+            0
+        } else if self.name.starts_with("marley:") {
+            1
+        } else {
+            2
+        }
+    }
 }
 
 struct Command {
@@ -334,6 +368,7 @@ impl CommandPaletteDelegate {
             latest_query: String::new(),
             updating_matches: None,
             query_history: QueryHistory::default(),
+            marley_groups: false,
         }
     }
 
@@ -380,6 +415,15 @@ impl CommandPaletteDelegate {
         }
         self.commands = commands;
         self.matches = new_matches;
+        // Marley: an empty query's commands in their groups, each group in Zed's order (#839).
+        if self.marley_groups && self.latest_query.is_empty() {
+            let commands = &self.commands;
+            self.matches.sort_by_key(|found| {
+                commands
+                    .get(found.candidate_id)
+                    .map_or(MARLEY_GROUPS.len(), Command::marley_group)
+            });
+        }
         if self.matches.is_empty() {
             self.selected_ix = 0;
         } else {
@@ -514,7 +558,8 @@ impl CommandPaletteDelegate {
 }
 
 impl PickerDelegate for CommandPaletteDelegate {
-    type ListItem = ListItem;
+    // Marley: a row may carry its group's heading above it (#839).
+    type ListItem = AnyElement;
 
     fn name() -> &'static str {
         "command palette"
@@ -770,8 +815,20 @@ impl PickerDelegate for CommandPaletteDelegate {
     ) -> Option<Self::ListItem> {
         let matching_command = self.matches.get(ix)?;
         let command = self.commands.get(matching_command.candidate_id)?;
+        // Marley: the heading over a group's first row (#839).
+        let heading = (self.marley_groups && self.latest_query.is_empty())
+            .then(|| command.marley_group())
+            .filter(|group| {
+                ix == 0
+                    || self
+                        .matches
+                        .get(ix - 1)
+                        .and_then(|before| self.commands.get(before.candidate_id))
+                        .is_none_or(|before| before.marley_group() != *group)
+            })
+            .and_then(|group| MARLEY_GROUPS.get(group).copied());
 
-        Some(
+        let row = Some(
             ListItem::new(ix)
                 .inset(true)
                 .spacing(ListItemSpacing::Sparse)
@@ -807,7 +864,20 @@ impl PickerDelegate for CommandPaletteDelegate {
                                 }),
                         ),
                 ),
-        )
+        );
+        Some(match (heading, row) {
+            (Some(heading), Some(row)) => v_flex()
+                .child(
+                    div().px_3().pt_2().pb_1().child(
+                        Label::new(heading)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+                )
+                .child(row)
+                .into_any_element(),
+            (_, row) => row?.into_any_element(),
+        })
     }
 
     fn render_footer(

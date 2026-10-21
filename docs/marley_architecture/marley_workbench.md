@@ -2851,6 +2851,17 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## The pickers (`src/pickers.rs`, `src/agents.rs`, Zed's `command_palette.rs` and `picker.rs`, #839)
+
+- `pickers::init` sets `MarleyPaletteGroups(marley_layout)`, which the palette asks when it opens:
+  true makes it a `Picker::list`, sorts an empty query's matches by `Command::marley_group` (used
+  before, `marley:`, the rest; stable, so each group keeps Zed's order) and draws `MARLEY_GROUPS`'
+  heading over a group's first row (the delegate's `ListItem` is an `AnyElement` for it).
+- It sets `MarleyPreviewDefault(preview_default)`, which `Picker::new` asks only when the key-value
+  store holds no layout for the delegate: `Right` for "file finder" in the Marley layout.
+- `agents.rs`: `Start::about`, a line per agent as the board words it; `render_choice` draws a
+  choice as a card (a tile with its icon, name over the line, the place at the end).
+
 ## Files at the left (`src/rail.rs`, `src/panel_tabs.rs`, `src/inspector.rs`, #868)
 
 - `apply_defaults` puts the project panel in the left dock and turns its `starts_open` off in the

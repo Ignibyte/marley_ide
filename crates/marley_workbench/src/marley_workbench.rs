@@ -94,6 +94,7 @@ pub mod notifications;
 pub mod omarchy_theme;
 pub mod pane_splits;
 pub mod panel_tabs;
+pub mod pickers;
 pub mod plan_review;
 pub mod playwright_scripts;
 pub mod ports;
@@ -1167,6 +1168,7 @@ pub fn init(cx: &mut App) {
     status_buttons::init(cx);
     panel_tabs::init(cx);
     drawer::init(cx);
+    pickers::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

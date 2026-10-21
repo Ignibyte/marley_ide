@@ -61,6 +61,12 @@ pub enum ScrollBehavior {
     PreserveOffset,
 }
 
+// Marley: asked for a picker's preview layout, by the delegate's name, when the key-value store
+// holds none; Marley opens the file finder with its preview (#839).
+pub struct MarleyPreviewDefault(pub fn(&'static str, &App) -> Option<preview::Layout>);
+
+impl gpui::Global for MarleyPreviewDefault {}
+
 actions!(
     picker,
     [
@@ -596,6 +602,12 @@ impl<D: PickerDelegate> Picker<D> {
             preview.layout = persistence::load_last_preview_layout(D::name(), cx)
                 .log_err()
                 .flatten()
+                // Marley: its default for a picker it names, when none is stored (#839).
+                .or_else(|| {
+                    cx.try_global::<MarleyPreviewDefault>()
+                        .map(|marley| marley.0)
+                        .and_then(|default| default(D::name(), cx))
+                })
                 .unwrap_or_default();
         };
         let has_preview = preview.is_some();

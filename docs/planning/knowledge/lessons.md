@@ -6384,3 +6384,13 @@ target). A debug session comes from the box's gdb (17.2 speaks DAP): build a C f
 `gcc -g -O0`, write `.zed/debug.json` with `"adapter": "GDB"`, `"request": "launch"`, the
 program and `"stopAtBeginningOfMainSubprogram": true`, then `debugger: start`, type the label,
 Enter: the program stops at `main` within 10 s.
+
+## L-claude-839-a-uniform-list-cannot-take-a-heading-row-001
+*category: ui · topic: headings in a picker · from: pipeline 839*
+
+A picker made with `Picker::uniform_list` measures one row and gives every row that height, so a
+heading drawn over some rows clips or overlaps. To put headings in a picker's rows, make it with
+`Picker::list` (rows measured one by one; fine over the palette's thousand commands) and return an
+`AnyElement` from `render_match` with the heading outside the `ListItem`, so the selection's
+highlight covers the row alone. A row that only grows a second line everywhere (the agent cards)
+stays a uniform list.
