@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Prompts as the board draws them** (#870, 2026-10-21). In the Marley layout a question such as
+  "Save changes?" or "Close Claude Code? It is waiting." is a rounded card with its buttons in a
+  row at the right: Cancel quiet at the left, the main button solid at the right, red when it
+  closes, quits or deletes something. Zed's layout keeps Zed's prompts.
+
 - **Toasts as the board draws them** (#869, 2026-10-21). In the Marley layout a toast shows a dot,
   red for a failure and orange otherwise, its first sentence as a title and the rest as a muted
   line under it, with its button. Zed's layout keeps Zed's toasts.

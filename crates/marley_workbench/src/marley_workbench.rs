@@ -101,6 +101,7 @@ pub mod ports;
 pub mod process;
 pub mod project_icons;
 pub mod prompt_colors;
+pub mod prompts;
 pub mod push;
 pub mod rail;
 pub mod remote;
@@ -1171,6 +1172,7 @@ pub fn init(cx: &mut App) {
     drawer::init(cx);
     pickers::init(cx);
     toasts::init(cx);
+    prompts::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

@@ -2854,6 +2854,18 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Prompts (`src/prompts.rs`, Zed's `ui_prompt.rs`, #870)
+
+- `prompts::init` sets `MarleyPromptLook(card)`, which `ZedPromptRenderer::render` asks with a
+  `MarleyPrompt` (level, plain message and detail, actions, the cancel's index, the active index,
+  and `answer`, which emits `PromptResponse`): `card` answers only in the Marley layout, and the
+  renderer puts the card in its keyed, focused frame, so Enter, Escape and the arrows stay Zed's.
+- `role`: a cancel (`PromptButton::Cancel` or "Cancel", "Dismiss", "Not Now") is quiet; the first
+  action is danger when its first word is in `DANGER`, else primary; the rest are plain. The row
+  runs backwards, the main button at the right; `render_button` draws each role as a solid,
+  filled or bare `Stateful<Div>`, with `border_focused` on an arrow-chosen button other than the
+  first. `plain` drops Zed's backticks.
+
 ## Toasts (`src/toasts.rs`, Zed's `notifications.rs`, #869)
 
 - `toasts::init` sets `MarleyToastLook(look)`, which `Workspace::show_toast` asks before it builds

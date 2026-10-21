@@ -5669,3 +5669,16 @@ as a muted line, and picks a red dot for "Could not" or "failed" and the accent 
 
 Rejected: a title and a line on `Toast` itself, which would touch every call in Marley and Zed;
 restyling `MessageNotification`'s frame, which every Zed notification shares.
+
+## AD-claude-870-prompts-drawn-by-marley-in-zeds-frame-001
+*decided at: 2026-10-21 · status: shipped*
+
+In the Marley layout a `window.prompt` keeps Zed's `ZedPromptRenderer` (the scrim, the focus,
+the keys, the answer) and draws Marley's card inside it: the renderer asks the `MarleyPromptLook`
+hook with the prompt's plain text, its actions and an answer callback. Buttons take the Dialogs
+board's weights by role: cancel quiet, the first action danger for a destructive verb or primary,
+the rest plain, the row reversed so the main one sits at the right.
+
+Rejected: a Marley prompt builder set with `App::set_prompt_builder`, which `ui_prompt` resets on
+every settings change and which would copy the renderer's key handling into a Marley crate (§20);
+`ButtonStyle::Tinted`, too faint for the board's solid primary.

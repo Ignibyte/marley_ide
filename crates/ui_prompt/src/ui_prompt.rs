@@ -1,7 +1,9 @@
+use std::rc::Rc;
+
 use gpui::{
-    App, Decorations, Entity, EventEmitter, FocusHandle, Focusable, PromptButton, PromptHandle,
-    PromptLevel, PromptResponse, RenderablePromptHandle, SharedString, TextStyleRefinement, Window,
-    div, prelude::*,
+    AnyElement, App, Decorations, Entity, EventEmitter, FocusHandle, Focusable, PromptButton,
+    PromptHandle, PromptLevel, PromptResponse, RenderablePromptHandle, SharedString,
+    TextStyleRefinement, Window, div, prelude::*,
 };
 use markdown::{Markdown, MarkdownElement, MarkdownStyle};
 use settings::{Settings, SettingsStore};
@@ -26,6 +28,24 @@ fn process_settings(cx: &mut App) {
     }
 }
 
+// Marley: asked by `ZedPromptRenderer::render` for the card's content; Marley draws a prompt as
+// the Dialogs board does in its own layout (#870).
+pub struct MarleyPromptLook(pub fn(&MarleyPrompt<'_>, &mut Window, &mut App) -> Option<AnyElement>);
+
+impl gpui::Global for MarleyPromptLook {}
+
+// Marley: what the hook draws from, and `answer`, which answers the prompt with an action's index
+// (#870).
+pub struct MarleyPrompt<'a> {
+    pub level: PromptLevel,
+    pub message: &'a str,
+    pub detail: Option<&'a str>,
+    pub actions: &'a [String],
+    pub cancel: Option<usize>,
+    pub active: usize,
+    pub answer: Rc<dyn Fn(usize, &mut Window, &mut App)>,
+}
+
 /// Use this function in conjunction with [App::set_prompt_builder] to force
 /// GPUI to use the internal prompt system.
 fn zed_prompt_renderer(
@@ -40,6 +60,12 @@ fn zed_prompt_renderer(
     let renderer = cx.new({
         |cx| ZedPromptRenderer {
             _level: level,
+            marley_level: level,
+            marley_message: SharedString::new(message),
+            marley_detail: detail
+                .filter(|text| !text.is_empty())
+                .map(SharedString::new),
+            marley_cancel: actions.iter().position(PromptButton::is_cancel),
             message: cx.new(|cx| Markdown::new(SharedString::new(message), None, None, cx)),
             actions: actions.iter().map(|a| a.label().to_string()).collect(),
             focus: cx.focus_handle(),
@@ -55,6 +81,11 @@ fn zed_prompt_renderer(
 
 pub struct ZedPromptRenderer {
     _level: PromptLevel,
+    // Marley: the plain text and the cancel action, for `MarleyPromptLook` (#870).
+    marley_level: PromptLevel,
+    marley_message: SharedString,
+    marley_detail: Option<SharedString>,
+    marley_cancel: Option<usize>,
     message: Entity<Markdown>,
     actions: Vec<String>,
     focus: FocusHandle,
@@ -110,6 +141,27 @@ impl ZedPromptRenderer {
 
 impl Render for ZedPromptRenderer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Marley: asked before Zed's card is built, while `cx` is free (#870).
+        let marley_card = cx
+            .try_global::<MarleyPromptLook>()
+            .map(|marley| marley.0)
+            .and_then(|look| {
+                let renderer = cx.weak_entity();
+                let prompt = MarleyPrompt {
+                    level: self.marley_level,
+                    message: &self.marley_message,
+                    detail: self.marley_detail.as_deref(),
+                    actions: &self.actions,
+                    cancel: self.marley_cancel,
+                    active: self.active_action_id,
+                    answer: Rc::new(move |index, _, cx| {
+                        renderer
+                            .update(cx, |_, cx| cx.emit(PromptResponse(index)))
+                            .ok();
+                    }),
+                };
+                look(&prompt, window, cx)
+            });
         let settings = ThemeSettings::get_global(cx);
 
         let dialog = v_flex()
@@ -154,6 +206,22 @@ impl Render for ZedPromptRenderer {
                             }))
                     })),
             );
+
+        // Marley: Marley's card in the same keyed, focused frame (#870).
+        let dialog = match marley_card {
+            Some(card) => v_flex()
+                .key_context("Prompt")
+                .cursor_default()
+                .track_focus(&self.focus)
+                .on_action(cx.listener(Self::confirm))
+                .on_action(cx.listener(Self::cancel))
+                .on_action(cx.listener(Self::select_next))
+                .on_action(cx.listener(Self::select_previous))
+                .on_action(cx.listener(Self::select_first))
+                .on_action(cx.listener(Self::select_last))
+                .child(card),
+            None => dialog,
+        };
 
         let decorations = window.window_decorations();
         let inset = window.client_inset().unwrap_or(Pixels::ZERO);
