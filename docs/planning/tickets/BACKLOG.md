@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-827](open/TICKET-827-rail-rows-say-their-state.md) | feature | Rail rows say their state by color (W2) |
 | [TICKET-825](open/TICKET-825-agent-thread-with-panels.md) | feature | The agent thread with panels around it (W2) |
 | [TICKET-826](open/TICKET-826-terminal-blocks-with-an-agent-beside.md) | feature | Terminal blocks with the agent beside them (W2) |
 | [TICKET-834](open/TICKET-834-the-window-chrome.md) | feature | The window chrome: title bar, tabs and menus (W2.1) |

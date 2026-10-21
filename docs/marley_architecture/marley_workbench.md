@@ -372,6 +372,13 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
     `take_zed_sidebar` hands a fresh Zed sidebar the blob with the rail's width in it.
   - `serialized_state` and `restore_serialized_state` run inside the `MultiWorkspace`'s update,
     so they touch only the rail's fields and the kept Zed sidebar.
+- **Row looks** (#827): `row_card` takes `impl Into<RowIcon>`; a `RowIcon::new(element, kind,
+  state)` draws on `RowKind::tint` (the theme's status backgrounds, the raised surface for a
+  shell, the accent at 15 % for Browser) with `RowState::dot` at the corner, and the caller colors
+  its first muted line with `RowState::line`. States come from `terminal_row_state` (agent
+  status, a shell's running or failed command, the bell) and `thread_row_state` (as
+  `thread_attention_class`). `project_name` draws a folded header's summary in `Conflict` while
+  `ProjectRow::attention`.
 - **The strip** (`rail_strip.rs`, #830). `marley.rail_shrunk` (`MarleySettings::rail_strip`,
   `RailStrip { Open, Shrunk }`) folds the rail to 60 px. `toggle_rail_strip` (the crate root,
   the `marley::ToggleRailStrip` action, the header's Shrink button and the strip's Open) writes the

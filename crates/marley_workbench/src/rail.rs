@@ -5619,6 +5619,7 @@ impl Rail {
                     row.highlight,
                     name_color,
                     row.summary,
+                    row.attention,
                 ))
                 .child(Self::render_header_end(
                     index,
@@ -6239,11 +6240,14 @@ impl Rail {
             .title
             .clone()
             .unwrap_or_else(|| SharedString::new_static("Untitled thread"));
-        let icon = match &thread.icon {
-            AgentIcon::Named(icon) => Icon::new(*icon),
-            AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
+        let state = thread_row_state(row.status, row.attention);
+        let icon = thread_row_icon(&thread.icon, state);
+        let subtitle = RowLine {
+            text: thread_subtitle(&thread.agent_name, row.status),
+            state: None,
+            color: state.line(cx),
+            cut: Cut::End,
         };
-        let subtitle = thread_subtitle(&thread.agent_name, row.status);
         // The status mark shows until the pointer is over the row, and Archive while it is (#605),
         // as a terminal row's bell gives way to its close button.
         let archive = IconButton::new(
@@ -6282,9 +6286,7 @@ impl Rail {
             SharedString::from(format!("marley-rail-thread-{key}")),
             format!("marley-rail-thread-icon-{key}"),
             row.selected,
-            icon.size(IconSize::Small)
-                .color(Color::Muted)
-                .into_any_element(),
+            icon,
             row_label(row.title, row.highlight, Color::Default),
             vec![subtitle],
             cx,
@@ -6409,6 +6411,12 @@ impl Rail {
             .then(|| Self::interrupted_chip(id, &terminal.workspace, &terminal.view, cx));
         let limited = row.usage.limit.is_some();
         let (quota, usage_tooltip) = usage_parts(&row);
+        let state = terminal_row_state(&row);
+        let kind = if row.agent.is_some() {
+            RowKind::AgentTerminal
+        } else {
+            RowKind::Shell
+        };
         let mut lines: Vec<CardLine> = row
             .subtitle
             .map(|subtitle| {
@@ -6437,6 +6445,13 @@ impl Rail {
             .map(CardLine::from)
             .chain(interrupted.map(|chip| CardLine::Element(chip.into_any_element())))
             .collect();
+        // The first line says the row's state by its color, unless it says something of its own
+        // (a limit, an error) (#827).
+        if let Some(CardLine::Text(first)) = lines.first_mut()
+            && first.color == Color::Muted
+        {
+            first.color = state.line(cx);
+        }
         // Blank lines make up two, so a command's or an agent's activity line that comes and goes
         // moves neither the title nor the rows under it (#796).
         let blanks = 2usize.saturating_sub(lines.len());
@@ -6445,7 +6460,7 @@ impl Rail {
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
             row.selected,
-            icon,
+            RowIcon::new(icon, kind, Some(state)),
             row_label(row.title, row.highlight, Color::Default),
             lines,
             cx,
@@ -6971,7 +6986,7 @@ impl Rail {
             ("marley-rail-browser", id),
             format!("marley-rail-browser-icon-{id}"),
             row.selected,
-            icon,
+            RowIcon::new(icon, RowKind::Browser, None),
             row_label(row.title, row.highlight, Color::Default),
             row.host.into_iter().collect(),
             cx,
@@ -8019,7 +8034,7 @@ fn tmux_row(
         SharedString::from(format!("marley-rail-tmux-{element}")),
         format!("marley-rail-tmux-icon-{element}"),
         false,
-        icon,
+        RowIcon::new(icon, RowKind::Tmux, None),
         title,
         vec![RowLine::muted(crate::tmux_sessions::session_words(session))],
         cx,
@@ -10492,6 +10507,7 @@ fn project_name(
     highlight: Vec<usize>,
     color: Color,
     summary: Option<String>,
+    attention: bool,
 ) -> impl IntoElement {
     h_flex()
         .min_w_0()
@@ -10500,9 +10516,14 @@ fn project_name(
         .child(div().min_w_0().child(row_label(name, highlight, color)))
         .children(summary.map(|summary| {
             div().flex_none().child(
+                // A folded project's summary says in color that something under it needs you (#827).
                 Label::new(summary)
                     .size(LabelSize::XSmall)
-                    .color(Color::Muted),
+                    .color(if attention {
+                        Color::Conflict
+                    } else {
+                        Color::Muted
+                    }),
             )
         }))
 }
@@ -10709,6 +10730,94 @@ impl RowLine {
     }
 }
 
+/// What a row's state is, as its tile's dot and its first line's color say it (#827).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RowState {
+    Working,
+    NeedsYou,
+    Done,
+    Idle,
+}
+
+impl RowState {
+    /// The rail's own reading of how much a row needs the user; one that stopped reporting still
+    /// reads as working.
+    const fn from_attention(attention: marley_rail::Attention) -> Self {
+        match attention {
+            marley_rail::Attention::NeedsYou => Self::NeedsYou,
+            marley_rail::Attention::DoneUnseen => Self::Done,
+            marley_rail::Attention::Working | marley_rail::Attention::NotReporting => Self::Working,
+            marley_rail::Attention::Idle => Self::Idle,
+        }
+    }
+
+    fn dot(self, cx: &App) -> Hsla {
+        let status = cx.theme().status();
+        match self {
+            Self::Working => status.warning,
+            Self::NeedsYou => status.conflict,
+            Self::Done => status.success,
+            Self::Idle => cx.theme().colors().text_muted.opacity(0.5),
+        }
+    }
+
+    fn line(self, cx: &App) -> Color {
+        match self {
+            Self::Working => Color::Warning,
+            Self::NeedsYou => Color::Conflict,
+            Self::Done => Color::Custom(cx.theme().colors().text_accent),
+            Self::Idle => Color::Muted,
+        }
+    }
+}
+
+/// What kind of row a tile is tinted for (#827).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RowKind {
+    Thread,
+    AgentTerminal,
+    Shell,
+    Browser,
+    Tmux,
+}
+
+impl RowKind {
+    fn tint(self, cx: &App) -> Hsla {
+        let status = cx.theme().status();
+        match self {
+            Self::Thread => status.warning_background,
+            Self::AgentTerminal => status.info_background,
+            Self::Shell => raised(cx),
+            Self::Browser => cx.theme().colors().text_accent.opacity(0.15),
+            Self::Tmux => status.hint_background,
+        }
+    }
+}
+
+/// A row's icon, and the kind and state it is drawn with, when it has them.
+struct RowIcon {
+    element: AnyElement,
+    look: Option<(RowKind, Option<RowState>)>,
+}
+
+impl RowIcon {
+    const fn new(element: AnyElement, kind: RowKind, state: Option<RowState>) -> Self {
+        Self {
+            element,
+            look: Some((kind, state)),
+        }
+    }
+}
+
+impl From<AnyElement> for RowIcon {
+    fn from(element: AnyElement) -> Self {
+        Self {
+            element,
+            look: None,
+        }
+    }
+}
+
 /// Where a row's line loses its text when it does not fit (#618).
 #[derive(Clone, Copy)]
 enum Cut {
@@ -10764,11 +10873,40 @@ fn row_card(
     id: impl Into<ElementId>,
     icon_selector: String,
     selected: bool,
-    icon: AnyElement,
+    icon: impl Into<RowIcon>,
     title: AnyElement,
     lines: Vec<impl Into<CardLine>>,
     cx: &App,
 ) -> Stateful<Div> {
+    let RowIcon {
+        element: icon,
+        look,
+    } = icon.into();
+    let slot = h_flex()
+        .debug_selector(move || icon_selector)
+        .flex_none()
+        .size_7()
+        .justify_center();
+    // A row that knows its kind sits on that kind's tint, its state a dot at the corner (#827).
+    let slot = match look {
+        Some((kind, state)) => slot
+            .relative()
+            .rounded_md()
+            .bg(kind.tint(cx))
+            .child(icon)
+            .children(state.map(|state| {
+                div()
+                    .absolute()
+                    .bottom(px(-2.))
+                    .right(px(-2.))
+                    .size_2p5()
+                    .rounded_full()
+                    .border_2()
+                    .border_color(cx.theme().colors().panel_background)
+                    .bg(state.dot(cx))
+            })),
+        None => slot.rounded_full().bg(raised(cx)).child(icon),
+    };
     row_frame(id, selected, cx)
         .map(|row| match lines.len() {
             0 | 1 => row.h_11(),
@@ -10778,16 +10916,7 @@ fn row_card(
         .gap_2p5()
         .pl_2()
         .pr_1p5()
-        .child(
-            h_flex()
-                .debug_selector(move || icon_selector)
-                .flex_none()
-                .size_7()
-                .justify_center()
-                .rounded_full()
-                .bg(raised(cx))
-                .child(icon),
-        )
+        .child(slot)
         .child(
             v_flex()
                 .min_w_0()
@@ -10820,6 +10949,50 @@ fn row_card(
 
 /// A thread row's second line: the agent, then what it is doing, as an agent CLI's terminal row
 /// reads (`marley_agent::status_line`).
+/// A terminal row's state (#827): its agent's, else a bell's, a running or failed command's, else
+/// idle.
+fn terminal_row_state(row: &TerminalRow) -> RowState {
+    let command = row.command.as_ref();
+    match row.agent.map(|agent| agent.status) {
+        Some(AgentStatus::Waiting) => RowState::NeedsYou,
+        Some(AgentStatus::Failed) if row.bell => RowState::NeedsYou,
+        Some(AgentStatus::Working) => RowState::Working,
+        None if command.is_some_and(|command| command.running) => RowState::Working,
+        // A shell whose last command failed asks for a look, as the board's `exit 101` row does.
+        None if command.is_some_and(|command| command.exit_code.is_some_and(|code| code != 0)) => {
+            RowState::NeedsYou
+        }
+        _ if row.bell => RowState::Done,
+        _ => RowState::Idle,
+    }
+}
+
+/// A thread row's icon, its agent's, on the thread kind's tile with its state (#827).
+fn thread_row_icon(icon: &AgentIcon, state: RowState) -> RowIcon {
+    let icon = match icon {
+        AgentIcon::Named(icon) => Icon::new(*icon),
+        AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
+    };
+    RowIcon::new(
+        icon.size(IconSize::Small)
+            .color(Color::Muted)
+            .into_any_element(),
+        RowKind::Thread,
+        Some(state),
+    )
+}
+
+/// A thread row's state (#827), as `marley_rail::thread_attention_class` reads it.
+const fn thread_row_state(status: ThreadStatus, attention: bool) -> RowState {
+    RowState::from_attention(match status {
+        ThreadStatus::Waiting => marley_rail::Attention::NeedsYou,
+        ThreadStatus::Error if attention => marley_rail::Attention::NeedsYou,
+        ThreadStatus::Done if attention => marley_rail::Attention::DoneUnseen,
+        ThreadStatus::Running => marley_rail::Attention::Working,
+        ThreadStatus::Error | ThreadStatus::Done => marley_rail::Attention::Idle,
+    })
+}
+
 fn thread_subtitle(agent_name: &str, status: ThreadStatus) -> String {
     format!("{agent_name} · {}", status.label())
 }

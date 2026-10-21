@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rail rows say their state** (#827, 2026-10-21). A terminal's, thread's, Browser tab's and tmux
+  session's icon now sits on a tile tinted for its kind, with a dot for its state, and its first
+  line takes the state's color: working amber, waiting on you pink, done green with the accent,
+  idle muted. A shell whose last command failed reads as waiting on you. A folded project's
+  summary is pink while something under it waits.
+
 - **The bottom row says what has the focus** (#833, 2026-10-21). It starts with a file's type and
   path; a terminal's title, the last command and its exit code, the command running now, and its
   blocks and bookmarks; or an agent thread's agent and state. Whenever an agent waits on you, the

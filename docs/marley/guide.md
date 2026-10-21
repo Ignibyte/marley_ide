@@ -498,6 +498,13 @@ one there, or click the tile to switch to the project. The magnifier at the top,
 rail focused, opens the filter in a popover; Escape closes it. The button at the strip's top opens
 the rail again at the width you left it. The strip stays across restarts.
 
+Each row says its kind and state at a glance (#827). Its icon sits on a tile tinted for its kind
+(an agent thread, an agent in a terminal, a shell, a Browser tab, a tmux session) with a dot at the
+corner, and its first line takes the same color: amber while it works, pink while it waits on you
+(a shell whose last command failed too), green with the accent when it finished while you looked
+elsewhere, muted when idle. A folded project's summary (`1 waiting`) turns pink while something
+under it waits.
+
 ### Threads in the rail
 
 The rail's header reads PROJECTS and THREADS (#745); the one showing is lit. THREADS, or Ctrl+G with
