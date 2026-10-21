@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The agent thread with its details** (#825, 2026-10-21). In Marley, your messages in an agent
+  thread are bubbles on the right and the message box is a rounded card. A thread in a tab shows
+  a details panel at its right: the agent and its model, how much of its context it has used, and
+  the files it changed with their lines added and removed (click one to open it). Hide it with its
+  ×, or `marley: toggle thread details` (`marley.thread_details`).
+
 - **Rail rows say their state** (#827, 2026-10-21). A terminal's, thread's, Browser tab's and tmux
   session's icon now sits on a tile tinted for its kind, with a dot for its state, and its first
   line takes the state's color: working amber, waiting on you pink, done green with the accent,

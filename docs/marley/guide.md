@@ -2582,6 +2582,13 @@ store in a tab.
   turns, as the panel loads a thread from its history (#736). A thread you deleted in the meantime
   leaves no tab, and a tab on a folder its project did not hold reaches that folder again.
 
+In Marley a thread reads as a conversation (#825): your messages are bubbles on the right, the
+agent's answers run on the left, and the message box is a rounded card. A thread in a tab has a
+**DETAILS** panel at its right: the agent and its model, how much of its context it has used (when
+the agent reports it), and the files it changed, each with its lines added and removed; click one
+to open it. The × hides the panel in every thread tab, and the button at the tab's top right
+brings it back, as `marley: toggle thread details` does (`marley.thread_details`).
+
 ### New Thread with Context (#717)
 
 From an open thread, **New Thread with Context…** (the thread tab's right-click menu, or

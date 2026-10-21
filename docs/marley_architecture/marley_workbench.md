@@ -2375,6 +2375,20 @@ alike.
   acts only for the shown one. Groups made at start (#700) and reopened after a relaunch (#601)
   leave the window's focus alone.
 
+## A thread tab's details, bubbles and composer card (`src/thread_tab.rs`, Zed's `thread_view.rs`, #825)
+
+- `ThreadTab::render` is an `h_flex` of the conversation and, while `ThreadDetails`
+  (`marley.thread_details`, its own `RegisterSetting`) is on, `render_details`: the root
+  `ThreadView`'s `agent_icon`/`agent_display_name` and `current_model_id`, CONTEXT from
+  `AcpThread::token_usage` (a bar in thousandths), and FILES CHANGED from the action log's
+  `changed_buffers` with `action_log::DiffStats::single_file`, each opening its `ProjectPath` in
+  the window's active workspace. `follow_details_thread` observes the thread and its action log
+  once per thread entity. `ToggleThreadDetails` and the panel's buttons write the setting.
+- In `thread_view.rs`, behind `MarleyThreadHost`: a top-level user message's column is
+  `items_end` and its box a 75 %-wide rounded bubble on the accent at 8 %; the message editor's
+  strip is a rounded, bordered card with margins.
+
+
 ## New Thread with Context (`src/handoff.rs`, `src/thread_tab.rs`, #717)
 
 - `NewThreadWithContext` (registered by `handoff::init`, which `thread_tab::init` calls) acts on

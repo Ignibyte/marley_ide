@@ -1849,6 +1849,9 @@
     // file, or "letter" for its name's first letter. A project not named here shows its logo.png
     // or logo.svg, or another icon its folder holds, or its letter.
     "project_logos": {},
+    // Whether a thread in a tab shows its details beside it: the agent and model, the context it
+    // has used and the files it changed (#825).
+    "thread_details": true,
     // Marley's own agent (#683): an agent that explains and configures Marley with Marley's tools,
     // kept from editing files. "agent" picks what it runs on, and what Rusty's entry runs on while
     // Rusty is on (#696): "auto" (the first found at start: Claude Code signed in, else Codex

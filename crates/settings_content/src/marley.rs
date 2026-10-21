@@ -198,6 +198,12 @@ pub struct MarleySettingsContent {
     ///
     /// Default: {}
     pub project_logos: Option<BTreeMap<String, String>>,
+    /// Whether a thread in a tab shows its details beside it: the agent and model, the context it
+    /// has used and the files it changed (#825). The panel's own button and `marley: toggle thread
+    /// details` set it.
+    ///
+    /// Default: true
+    pub thread_details: Option<bool>,
     /// Whether Marley starts Claude Code with its own permission prompts or with
     /// `--dangerously-skip-permissions` (#532). An entry of `agent_permissions_by_project` wins
     /// for its project.

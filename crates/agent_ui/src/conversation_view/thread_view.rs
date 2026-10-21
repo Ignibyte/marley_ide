@@ -5012,15 +5012,24 @@ impl ThreadView {
                 )
         });
 
+        // Marley: the message box as a rounded card (#825).
+        let marley_card = has_messages && cx.has_global::<crate::MarleyThreadHost>();
         h_flex()
             .py_2()
             .bg(editor_bg_color)
             .justify_center()
             .on_action(cx.listener(Self::handle_message_editor_move_up))
+            .when(marley_card, |this| {
+                this.mx_3()
+                    .mb_3()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(cx.theme().colors().border)
+            })
             .map(|this| {
                 if has_messages {
                     this.on_action(cx.listener(Self::expand_message_editor))
-                        .border_t_1()
+                        .when(!marley_card, |this| this.border_t_1())
                         .border_color(cx.theme().colors().border)
                         .when(editor_expanded, |this| this.h(vh(0.8, window)))
                 } else {
@@ -6881,6 +6890,8 @@ impl ThreadView {
                 .entries()
                 .get(entry_ix.saturating_sub(1))
                 .is_none_or(|entry| !entry.is_indented());
+        // Marley: a top-level user message draws as a bubble while Marley hosts threads (#825).
+        let marley_bubble = !is_indented && cx.has_global::<crate::MarleyThreadHost>();
 
         let mut assistant_message_is_blank = false;
 
@@ -6941,6 +6952,8 @@ impl ThreadView {
                     .px_2()
                     .gap_1p5()
                     .w_full()
+                    // Marley: the user's message as a bubble on the right (#825).
+                    .when(marley_bubble, |this| this.items_end())
                     .when(can_restore_checkpoint && has_checkpoint_button, |this| {
                         this.children(message.client_id.clone().map(|client_id| {
                             h_flex()
@@ -6963,12 +6976,21 @@ impl ThreadView {
                     .child(
                         div()
                             .relative()
+                            // Marley: a bubble keeps to 75 % of the width, on the accent (#825).
+                            .when(marley_bubble, |this| this.max_w(relative(0.75)))
                             .child(
                                 div()
                                     .py_3()
                                     .px_2()
                                     .rounded_md()
                                     .bg(cx.theme().colors().editor_background)
+                                    .when(marley_bubble, |this| {
+                                        this.px_3().rounded_xl().bg(cx
+                                            .theme()
+                                            .colors()
+                                            .text_accent
+                                            .opacity(0.08))
+                                    })
                                     .border_1()
                                     .when(is_indented, |this| {
                                         this.py_2().px_2().when(opaque_window, |this| {

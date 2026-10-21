@@ -6328,3 +6328,14 @@ at the same x as the right-click lands on the menu's edge and does nothing. Clic
 next one about 23 px more). A row removed earlier in a run (a closed session) moves every point
 below it up by a row's height (46 px for a two-line card), so read each later point from a probe
 run made after that step.
+
+## L-claude-825-a-scripted-acp-agent-writes-a-file-through-the-client-001
+*category: process · topic: e2e scenarios with a thread that edits · from: pipeline 825*
+
+A scripted ACP agent (#822's, as `MARLEY_ASSISTANT_ADAPTER`) gives a thread a changed file by
+sending the client an `fs/write_text_file` request (its own `id`, the session id, an absolute
+`path` and `content`) inside its `session/prompt` handling, then reading stdin until the reply
+with that `id` and no `method` comes back, before it streams its answer and ends the turn. Zed
+writes the file and records it in the thread's `ActionLog`, so the Edits bar and anything reading
+`changed_buffers` show it. The path is under the session's `cwd`, which for Marley's own agent is
+its folder setting, not the opened project.

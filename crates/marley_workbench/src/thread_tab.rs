@@ -59,7 +59,7 @@ use project::{AgentId, DisableAiSettings, Project, Worktree};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
-use ui::{Callout, Severity, prelude::*};
+use ui::{Callout, Severity, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::item::{Item, ItemEvent, SerializableItem};
@@ -76,9 +76,37 @@ actions!(
         OpenThreadInCenter,
         /// Moves the thread in the active center tab back into the Agent Panel.
         #[derive(Eq)]
-        MoveThreadToPanel
+        MoveThreadToPanel,
+        /// Shows or hides the details beside a thread in a tab: its agent, model, context use and
+        /// changed files.
+        #[derive(Eq)]
+        ToggleThreadDetails
     ]
 );
+
+/// `marley.thread_details`: whether a thread tab shows its details panel (#825).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, settings::RegisterSetting)]
+pub struct ThreadDetails(bool);
+
+impl settings::Settings for ThreadDetails {
+    fn from_settings(content: &settings::SettingsContent) -> Self {
+        Self(
+            content
+                .marley
+                .as_ref()
+                .and_then(|marley| marley.thread_details)
+                .unwrap_or(true),
+        )
+    }
+}
+
+/// Writes the opposite of `marley.thread_details`, which every thread tab follows.
+fn toggle_thread_details(cx: &App) {
+    let shown = !ThreadDetails::get_global(cx).0;
+    settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+        content.marley.get_or_insert_default().thread_details = Some(shown);
+    });
+}
 
 /// Starts a thread in a center tab of the shown group (#734).
 ///
@@ -117,6 +145,8 @@ impl<'de> Deserialize<'de> for NewAgentThread {
 /// (#734).
 pub struct ThreadTab {
     conversation_view: Entity<ConversationView>,
+    /// The thread the details panel follows, by its entity, and its subscriptions (#825).
+    details_thread: Option<(EntityId, [Subscription; 2])>,
     /// The hidden worktree of the thread's folder, when the tab made one (#734): a project holds a
     /// hidden worktree only weakly, so the tab keeps it while it shows the thread.
     _folder: Option<Entity<Worktree>>,
@@ -150,6 +180,7 @@ pub(crate) fn init(cx: &mut App) {
         width: crate::agent_panel_width::width_label,
     });
     cx.observe_global::<SettingsStore>(filter_palette).detach();
+    cx.on_action(|_: &ToggleThreadDetails, cx| toggle_thread_details(cx));
     // New Thread with Context, the tab menu's other item (#717).
     crate::handoff::init(cx);
     load_saved_tabs(cx);
@@ -243,8 +274,11 @@ impl ThreadTab {
                 }
             }));
         }
+        // The details panel shows and hides with its setting (#825).
+        subscriptions.push(cx.observe_global::<SettingsStore>(|_, cx| cx.notify()));
         Self {
             conversation_view,
+            details_thread: None,
             _folder: folder,
             _subscriptions: subscriptions,
         }
@@ -606,11 +640,267 @@ impl ThreadTab {
 
 impl Render for ThreadTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex()
+        let details = ThreadDetails::get_global(cx).0;
+        let panel = details.then(|| self.render_details(cx));
+        h_flex()
             .size_full()
+            .relative()
             .bg(cx.theme().colors().panel_background)
-            .children(self.no_model_callout(cx))
-            .child(self.conversation_view.clone())
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .children(self.no_model_callout(cx))
+                    .child(self.conversation_view.clone()),
+            )
+            .children(panel)
+            .when(!details, |tab| {
+                tab.child(
+                    div().absolute().top_1().right_1().child(
+                        IconButton::new("marley-thread-details-show", IconName::ListTree)
+                            .icon_size(IconSize::Small)
+                            .tooltip(Tooltip::text("Show Thread Details"))
+                            .on_click(|_, _, cx| toggle_thread_details(cx)),
+                    ),
+                )
+            })
+    }
+}
+
+impl ThreadTab {
+    /// Follows the thread the conversation shows, so its token use and edits redraw the panel.
+    fn follow_details_thread(
+        &mut self,
+        thread: &Entity<acp_thread::AcpThread>,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .details_thread
+            .as_ref()
+            .is_some_and(|(id, _)| *id == thread.entity_id())
+        {
+            return;
+        }
+        let action_log = thread.read(cx).action_log().clone();
+        self.details_thread = Some((
+            thread.entity_id(),
+            [
+                cx.observe(thread, |_, _, cx| cx.notify()),
+                cx.observe(&action_log, |_, _, cx| cx.notify()),
+            ],
+        ));
+    }
+
+    /// The details beside the thread (#825): its agent and model, the context it has used, and
+    /// the files it changed.
+    fn render_details(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let view = self.conversation_view.read(cx).root_thread_view();
+        if let Some(view) = &view {
+            let thread = view.read(cx).thread.clone();
+            self.follow_details_thread(&thread, cx);
+        }
+        let header = h_flex()
+            .justify_between()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(cx.theme().colors().border)
+            .child(section_label("DETAILS"))
+            .child(
+                IconButton::new("marley-thread-details-hide", IconName::Close)
+                    .icon_size(IconSize::XSmall)
+                    .tooltip(Tooltip::text("Hide Thread Details"))
+                    .on_click(|_, _, cx| toggle_thread_details(cx)),
+            );
+        let body = view.map(|view| {
+            let view = view.read(cx);
+            let thread = view.thread.read(cx);
+            let icon = view.agent_icon_from_external_svg.as_ref().map_or_else(
+                || Icon::new(view.agent_icon),
+                |path| Icon::from_external_svg(path.clone()),
+            );
+            let model = view
+                .current_model_id(cx)
+                .unwrap_or_else(|| "its default model".to_string());
+            let usage = thread
+                .token_usage()
+                .map(|usage| (usage.used_tokens, usage.max_tokens));
+            let files: Vec<(SharedString, u32, u32, Option<project::ProjectPath>)> = thread
+                .action_log()
+                .read(cx)
+                .changed_buffers(cx)
+                .map(|(buffer, diff)| {
+                    let file = buffer.read(cx).file().cloned();
+                    let name = file.as_ref().map_or_else(
+                        || SharedString::new_static("untitled"),
+                        |file| SharedString::from(file.path().as_unix_str().to_string()),
+                    );
+                    let stats = action_log::DiffStats::single_file(diff.read(cx));
+                    let path = file.map(|file| project::ProjectPath {
+                        worktree_id: file.worktree_id(cx),
+                        path: Arc::clone(file.path()),
+                    });
+                    (name, stats.lines_added, stats.lines_removed, path)
+                })
+                .collect();
+            v_flex()
+                .gap_4()
+                .p_3()
+                .child(
+                    v_flex()
+                        .gap_1()
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(icon.size(IconSize::Small).color(Color::Muted))
+                                .child(
+                                    Label::new(view.agent_display_name.clone())
+                                        .size(LabelSize::Small),
+                                ),
+                        )
+                        .child(
+                            Label::new(model)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .child(context_section(usage, cx))
+                .child(files_section(files, cx))
+        });
+        v_flex()
+            .debug_selector(|| "marley-thread-details".into())
+            .w(px(DETAILS_WIDTH))
+            .flex_none()
+            .h_full()
+            .border_l_1()
+            .border_color(cx.theme().colors().border)
+            .bg(cx.theme().colors().panel_background)
+            .child(header)
+            .children(body)
+            .into_any_element()
+    }
+}
+
+/// The details panel's width.
+const DETAILS_WIDTH: f32 = 280.;
+
+fn section_label(text: &'static str) -> Label {
+    Label::new(text).size(LabelSize::XSmall).color(Color::Muted)
+}
+
+/// CONTEXT: how much of its window the thread has used, with a bar, or that the agent does not say.
+fn context_section(usage: Option<(u64, u64)>, cx: &App) -> AnyElement {
+    let body = match usage {
+        Some((used, max)) if max > 0 => {
+            // In thousandths, which a u16 holds and an f32 takes whole.
+            let thousandths = u16::try_from(used.min(max) * 1000 / max).unwrap_or(1000);
+            let share = f32::from(thousandths) / 1000.;
+            v_flex()
+                .gap_1()
+                .child(
+                    Label::new(format!("{} of {}", humanize(used), humanize(max)))
+                        .size(LabelSize::Small),
+                )
+                .child(
+                    div()
+                        .h_1()
+                        .w_full()
+                        .rounded_full()
+                        .bg(cx.theme().colors().element_background)
+                        .child(
+                            div()
+                                .h_full()
+                                .w(relative(share))
+                                .rounded_full()
+                                .bg(cx.theme().colors().text_accent),
+                        ),
+                )
+                .into_any_element()
+        }
+        _ => Label::new("not reported by the agent")
+            .size(LabelSize::Small)
+            .color(Color::Muted)
+            .into_any_element(),
+    };
+    v_flex()
+        .gap_1()
+        .child(section_label("CONTEXT"))
+        .child(body)
+        .into_any_element()
+}
+
+/// FILES CHANGED: each file the thread edited and has not had kept or rejected, a click opening it.
+fn files_section(
+    files: Vec<(SharedString, u32, u32, Option<project::ProjectPath>)>,
+    cx: &App,
+) -> AnyElement {
+    let empty = files.is_empty();
+    v_flex()
+        .gap_1()
+        .child(section_label("FILES CHANGED"))
+        .when(empty, |section| {
+            section.child(
+                Label::new("none yet")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+        })
+        .children(
+            files
+                .into_iter()
+                .enumerate()
+                .map(|(index, (name, added, removed, path))| {
+                    h_flex()
+                        .id(("marley-thread-details-file", index))
+                        .gap_2()
+                        .px_1()
+                        .rounded_sm()
+                        .hover(|style| style.bg(cx.theme().colors().element_hover))
+                        .cursor_pointer()
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .child(Label::new(name).size(LabelSize::Small).truncate()),
+                        )
+                        .child(
+                            Label::new(format!("+{added}"))
+                                .size(LabelSize::XSmall)
+                                .color(Color::Created),
+                        )
+                        .child(
+                            Label::new(format!("−{removed}"))
+                                .size(LabelSize::XSmall)
+                                .color(Color::Deleted),
+                        )
+                        .on_click(move |_, window, cx| {
+                            let Some(path) = path.clone() else {
+                                return;
+                            };
+                            let Some(multi_workspace) =
+                                window.root::<workspace::MultiWorkspace>().flatten()
+                            else {
+                                return;
+                            };
+                            let workspace = multi_workspace.read(cx).workspace().clone();
+                            workspace.update(cx, |workspace, cx| {
+                                workspace
+                                    .open_path(path, None, true, window, cx)
+                                    .detach_and_log_err(cx);
+                            });
+                        })
+                }),
+        )
+        .into_any_element()
+}
+
+/// A token count as the Agent Panel writes it: `48k`, `1.2M`.
+fn humanize(count: u64) -> String {
+    match count {
+        0..1_000 => count.to_string(),
+        1_000..1_000_000 => format!("{}k", count / 1_000),
+        _ => format!("{}.{}M", count / 1_000_000, count % 1_000_000 / 100_000),
     }
 }
 
