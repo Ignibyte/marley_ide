@@ -4396,3 +4396,12 @@ the language server button, diagnostics) were laid out at the shrunk edge, over 
 Open button. The first probe run showed it; the review of the diff had not. Fixed: the root keeps
 its width (`flex_none`), its own long parts (a terminal's title, the request) are capped with
 `max_w` and truncate, and Zed's message, which truncates, is what gives way.
+
+## F-claude-834-a-flex-slot-between-the-title-bars-groups-got-no-width-001
+*severity: medium · category: gpui layout / the title bar · pipeline 834*
+
+The title bar's palette field went into a `flex_1` slot pushed between the left and right groups.
+The left group takes the row's free width, so the slot got none: the field drew squeezed at the
+right, its key binding over the agent pills. The probe run's first shot showed it. Fixed: the slot
+is absolute at the row's `left: 50%`, and the view is a fixed 440 px field shifted left by half
+its width, so it sits over the bar's middle without taking clicks from the groups.

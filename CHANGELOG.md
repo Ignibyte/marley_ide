@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The title bar's palette field and agent pills** (#834, 2026-10-21). In the Marley layout the
+  title bar's middle holds "Search, run a command, or ask an agent", which opens the command
+  palette, and its right counts the agents at work ("1 agent working") and those waiting on you
+  ("1 needs you"); click the pink one to go to the oldest request.
+
 - **Terminal blocks framed, timed and asking an agent** (#826, 2026-10-21). Each block is framed
   in its state's color (running, passed, failed) and, once it ends, shows how long it took. A failed
   block offers **Ask an agent** (fix it) and **Explain** (why it failed, changing nothing); with no

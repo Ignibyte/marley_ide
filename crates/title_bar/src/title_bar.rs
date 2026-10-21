@@ -224,6 +224,14 @@ pub struct MarleyProjectMark(
 
 impl gpui::Global for MarleyProjectMark {}
 
+// Marley: the title bar's middle, the palette field (#834), a view a Marley crate makes, as above.
+#[derive(Clone)]
+pub struct MarleyTitleBarCenter(
+    pub Arc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> gpui::AnyView>,
+);
+
+impl gpui::Global for MarleyTitleBarCenter {}
+
 pub struct TitleBar {
     platform_titlebar: Entity<PlatformTitleBar>,
     project: Entity<Project>,
@@ -241,6 +249,8 @@ pub struct TitleBar {
     marley_buttons: Option<gpui::AnyView>,
     // Marley: the view `MarleyProjectMark` made for this title bar (#831).
     marley_project_mark: Option<gpui::AnyView>,
+    // Marley: the view `MarleyTitleBarCenter` made for this title bar (#834).
+    marley_center: Option<gpui::AnyView>,
 }
 
 impl Render for TitleBar {
@@ -390,6 +400,20 @@ impl Render for TitleBar {
                 children.push(banner.clone().into_any_element())
             }
         }
+
+        // Marley: the title bar's middle (#834), over the bar's center: the left group takes the
+        // row's free width, so a flex child would get none. The view sizes itself.
+        children.extend(self.marley_center.clone().map(|center| {
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(relative(0.5))
+                .flex()
+                .items_center()
+                .child(center)
+                .into_any_element()
+        }));
 
         let status = self.client.status();
         let status = &*status.borrow();
@@ -578,6 +602,11 @@ impl TitleBar {
             .try_global::<MarleyProjectMark>()
             .cloned()
             .map(|hook| (hook.0)(workspace.weak_handle(), window, cx));
+        // Marley: the title bar's middle (#834).
+        let marley_center = cx
+            .try_global::<MarleyTitleBarCenter>()
+            .cloned()
+            .map(|hook| (hook.0)(workspace.weak_handle(), window, cx));
 
         let mut this = Self {
             platform_titlebar,
@@ -594,6 +623,7 @@ impl TitleBar {
             _diagnostics_subscription: None,
             marley_buttons,
             marley_project_mark,
+            marley_center,
         };
 
         this.observe_diagnostics(cx);

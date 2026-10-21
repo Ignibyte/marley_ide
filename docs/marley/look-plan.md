@@ -116,7 +116,7 @@ Framed blocks with state colors, the failed block's actions, the running block's
 prompt bar's chips, the block map, the agent bar, the waiting-command card, restored and remote
 states. Block drawing is Marley's code.
 
-**W2.1 The window chrome.** *M–L.* Board: Chrome.
+**W2.1 The window chrome.** *Done (#834, 2026-10-21: the palette field and agent pills; tabs and menus #866).* *M–L.* Board: Chrome.
 - Title bar: project mark and branch, the palette field, agent pills, Rusty and Marley buttons.
 - Tabs as pills that show their kind and state; the + menu with Marley's real shortcuts; the
   split menu drawn as pictures; the tmux close prompt.

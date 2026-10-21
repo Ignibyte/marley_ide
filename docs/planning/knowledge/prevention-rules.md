@@ -3246,3 +3246,11 @@ A Marley status bar item with text of unbounded length does not put `min_w_0` on
 status bar lays its siblings out at the root's shrunk width, and they draw over the overflow.
 Give each long part its own `max_w` with a truncating label, keep the root `flex_none`, and check
 the item in a scenario beside Zed's language-server message, the left half's widest item.
+
+## PR-claude-834-the-title-bars-middle-is-placed-absolutely-001
+*severity: medium · prevents: F-claude-834-a-flex-slot-between-the-title-bars-groups-got-no-width-001*
+
+Content for the middle of Zed's title bar is not a flex child among the title bar's `children`:
+the left group grows to the free width. Place it absolutely at the row's `left: relative(0.5)`
+with a fixed width and a negative left margin of half that width, never as a full-width
+absolute overlay, which would take the groups' clicks.

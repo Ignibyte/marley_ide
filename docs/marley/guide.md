@@ -1969,6 +1969,14 @@ decision opens in the Brain tab, a task in the Tasks tab on its list. While Rust
 connected, the Rusty card says why, and the lists come back once it connects. `rusty: open home`
 and `marley rusty` (#749) open Home where you are.
 
+### The title bar's middle and its pills
+
+In the Marley layout the middle of the title bar is a field, **Search, run a command, or ask an
+agent**, with the palette's key: a click opens the command palette (#834). At its right, before
+the buttons, pills count the agents at work ("1 agent working", amber; its tooltip names them) and
+those waiting on you ("1 needs you", pink); click the pink one to go to the oldest request, as the
+rail's Needs you does.
+
 ### Buttons at the right of the status bar
 
 Home sits at the right of the status bar, and the Rusty and Marley agents at the right of the

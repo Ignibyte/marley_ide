@@ -15,7 +15,7 @@ use gpui::{
 };
 use project::DisableAiSettings;
 use settings::{Settings as _, SettingsStore};
-use title_bar::{MarleyProjectMark, MarleyTitleBarButtons};
+use title_bar::{MarleyProjectMark, MarleyTitleBarButtons, MarleyTitleBarCenter};
 use ui::{IconButtonShape, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::dock::{Dock, PanelButtons, PanelHandle};
@@ -60,6 +60,66 @@ pub(crate) fn init(cx: &mut App) {
     cx.set_global(MarleyProjectMark(Arc::new(|workspace, _, cx| {
         cx.new(|cx| TitleProjectMark::new(workspace, cx)).into()
     })));
+    cx.set_global(MarleyTitleBarCenter(Arc::new(|_, _, cx| {
+        cx.new(|cx| {
+            cx.observe_global::<SettingsStore>(|_, cx| cx.notify())
+                .detach();
+            TitleCenter
+        })
+        .into()
+    })));
+}
+
+/// The palette field's width in the title bar (#834).
+const PALETTE_FIELD_WIDTH: f32 = 440.;
+
+/// The title bar's middle in the Marley layout (#834): a field that opens the command palette.
+#[derive(Debug)]
+pub struct TitleCenter;
+
+impl Render for TitleCenter {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if crate::MarleySettings::get_global(cx).layout != settings::MarleyLayout::Marley {
+            return div().into_any_element();
+        }
+        let colors = cx.theme().colors();
+        h_flex()
+            .id("marley-title-palette")
+            .debug_selector(|| "marley-title-palette".into())
+            // Centered on the title bar's middle: the hook's slot starts there.
+            .w(px(PALETTE_FIELD_WIDTH))
+            .ml(px(-PALETTE_FIELD_WIDTH / 2.))
+            .h(px(26.))
+            .px_2()
+            .gap_2()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border_variant)
+            .bg(colors.element_background)
+            .hover(|style| style.bg(colors.element_hover))
+            .cursor_pointer()
+            .child(
+                Icon::new(IconName::MagnifyingGlass)
+                    .size(IconSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(
+                div().flex_1().min_w_0().child(
+                    Label::new("Search, run a command, or ask an agent")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .truncate(),
+                ),
+            )
+            .child(ui::KeyBinding::for_action(
+                &zed_actions::command_palette::Toggle,
+                cx,
+            ))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(Box::new(zed_actions::command_palette::Toggle), cx);
+            })
+            .into_any_element()
+    }
 }
 
 /// The title bar's project mark (#831): the shown project's own image before its name. A project
@@ -303,6 +363,8 @@ impl StatusItemView for DebugButton {
 /// Rusty's and the Marley agent's conversations in one workspace's title bar (#746, #778).
 pub struct TitleButtons {
     workspace: WeakEntity<Workspace>,
+    /// The window's rail, which the agent pills count from (#834), observed once found.
+    rail: Option<(WeakEntity<crate::Rail>, Subscription)>,
 }
 
 impl std::fmt::Debug for TitleButtons {
@@ -323,12 +385,115 @@ impl TitleButtons {
             .detach();
         cx.observe_global::<crate::assistant::Assistant>(|_, cx| cx.notify())
             .detach();
-        Self { workspace }
+        Self {
+            workspace,
+            rail: None,
+        }
+    }
+}
+
+impl TitleButtons {
+    /// The window's rail, observed once found, as Home and the bottom row find it.
+    fn rail(&mut self, window: &Window, cx: &mut Context<Self>) -> Option<Entity<crate::Rail>> {
+        let multi_workspace = window.root::<workspace::MultiWorkspace>().flatten()?;
+        let rail = multi_workspace
+            .read(cx)
+            .sidebar()?
+            .to_any()
+            .downcast::<crate::Rail>()
+            .ok()?;
+        let followed = self
+            .rail
+            .as_ref()
+            .is_some_and(|(followed, _)| followed.entity_id() == rail.entity_id());
+        if !followed {
+            let subscription = cx.observe(&rail, |_, _, cx| cx.notify());
+            self.rail = Some((rail.downgrade(), subscription));
+        }
+        Some(rail)
+    }
+
+    /// The agents at work and those waiting on the user, counted as pills (#834).
+    fn agent_pills(&mut self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if crate::MarleySettings::get_global(cx).layout != settings::MarleyLayout::Marley {
+            return None;
+        }
+        let rail = self.rail(window, cx)?;
+        let at_work = rail.read(cx).agents_at_work();
+        let working: Vec<String> = at_work
+            .iter()
+            .filter(|agent| agent.state == "working")
+            .map(|agent| format!("{} · {}", agent.title, agent.project))
+            .collect();
+        let waiting = at_work
+            .iter()
+            .filter(|agent| matches!(agent.state, "waiting" | "failed"))
+            .count();
+        if working.is_empty() && waiting == 0 {
+            return None;
+        }
+        let status = cx.theme().status();
+        let pill = |id: &'static str, color: gpui::Hsla, text: String| {
+            h_flex()
+                .id(id)
+                .debug_selector(move || id.to_string())
+                .h(px(22.))
+                .px_2()
+                .gap_1p5()
+                .rounded_full()
+                .bg(color.opacity(0.15))
+                .child(div().size_1p5().rounded_full().bg(color))
+                .child(
+                    Label::new(text)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Custom(color)),
+                )
+        };
+        let working_words = match working.len() {
+            1 => "1 agent working".to_string(),
+            count => format!("{count} agents working"),
+        };
+        let names = working.join("\n");
+        let rail = rail.downgrade();
+        Some(
+            h_flex()
+                .gap_1()
+                .mr_1()
+                .when(!working.is_empty(), |pills| {
+                    pills.child(
+                        pill("marley-title-working", status.warning, working_words)
+                            .tooltip(Tooltip::text(names)),
+                    )
+                })
+                .when(waiting > 0, |pills| {
+                    pills.child(
+                        pill(
+                            "marley-title-needs-you",
+                            status.conflict,
+                            format!("{waiting} needs you"),
+                        )
+                        .cursor_pointer()
+                        .tooltip(Tooltip::text("Open the oldest request"))
+                        .on_click(move |_, window, cx| {
+                            rail.update(cx, |rail, cx| {
+                                if let Some(key) =
+                                    rail.inbox().first().map(|entry| entry.key.clone())
+                                {
+                                    rail.open_inbox_entry(&key, window, cx);
+                                }
+                            })
+                            .log_err();
+                        }),
+                    )
+                })
+                .into_any_element(),
+        )
     }
 }
 
 impl Render for TitleButtons {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let pills = self.agent_pills(window, cx);
         let ai = !DisableAiSettings::get_global(cx).disable_ai;
         // Rusty's entry is there only while Rusty is on and connected and an agent runs it.
         let rusty = ai && crate::assistant::rusty_present(cx);
@@ -337,6 +502,7 @@ impl Render for TitleButtons {
         let marley_workspace = self.workspace.clone();
         h_flex()
             .gap_1()
+            .children(pills)
             .when(rusty, |buttons| {
                 buttons.child(
                     IconButton::new("marley-title-rusty", crate::rusty::RUSTY_ICON)

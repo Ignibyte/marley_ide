@@ -2889,6 +2889,17 @@ screen opens Home after `rusty_unavailable`.
   panel's own stands for the editor used last, at both of the panel's reads of the active editor
   (#773 widens it to any active item that is not an editor).
 
+## The title bar's palette field and agent pills (`src/status_buttons.rs`, Zed's `title_bar.rs`, #834)
+
+- `MarleyTitleBarCenter`, the third title bar hook, makes `TitleCenter` per title bar; the title
+  bar puts it in an absolute slot at its row's horizontal middle (the left group takes the row's
+  free width, so a flex slot would get none), and the view, a 440 px field shifted by half its
+  width, draws nothing outside the Marley layout. A click dispatches
+  `zed_actions::command_palette::Toggle`; the binding comes from `KeyBinding::for_action`.
+- `TitleButtons::agent_pills` finds the window's rail (as Home and the focus row do, observed) and
+  counts `Rail::agents_at_work` by state: working, and waiting or failed. The pink pill opens
+  `Rail::inbox()`'s first entry with `open_inbox_entry`; the amber pill's tooltip lists the agents.
+
 ## Marley and Rusty in the title bar (`src/status_buttons.rs`, Zed's `title_bar.rs`, #746)
 
 - `title_bar::MarleyTitleBarButtons` (a Zed hunk, its ledger row extended) holds a function from a
