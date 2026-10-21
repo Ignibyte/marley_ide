@@ -265,6 +265,18 @@ pub(crate) fn open_prompt(
     window: &mut Window,
     cx: &mut App,
 ) -> anyhow::Result<()> {
+    open_prompt_seeded(workspace, kind, others, None, window, cx)
+}
+
+/// [`open_prompt`], its prompt holding `seed`: Forge's board starts an agent on a ticket (#842).
+pub(crate) fn open_prompt_seeded(
+    workspace: &WeakEntity<Workspace>,
+    kind: AgentKind,
+    others: Vec<AgentKind>,
+    seed: Option<String>,
+    window: &mut Window,
+    cx: &mut App,
+) -> anyhow::Result<()> {
     let workspace = workspace.upgrade().context("the project was closed")?;
     workspace.update(cx, |workspace, cx| {
         let plan = match plan(workspace, cx) {
@@ -283,7 +295,13 @@ pub(crate) fn open_prompt(
         let hooks = global_create_worktree_tasks(workspace, cx);
         let handle = cx.entity().downgrade();
         workspace.toggle_modal(window, cx, |window, cx| {
-            WorktreePrompt::new(handle, kind, others, plan, hooks, window, cx)
+            let prompt = WorktreePrompt::new(handle, kind, others, plan, hooks, window, cx);
+            if let Some(seed) = seed {
+                prompt
+                    .editor
+                    .update(cx, |editor, cx| editor.set_text(seed, window, cx));
+            }
+            prompt
         });
     });
     Ok(())

@@ -79,7 +79,7 @@ impl fmt::Debug for Remote {
 
 /// How Marley reaches a store.
 #[derive(Clone)]
-enum Client {
+pub(crate) enum Client {
     Mcp(Arc<ContextServer>),
     Http {
         base: String,
@@ -415,8 +415,8 @@ async fn poll_forge(
     Ok(agents)
 }
 
-/// Starts the store's client.
-async fn connect(
+/// Starts the store's client; Forge's board starts its own from the fleet's entry (#842).
+pub(crate) async fn connect(
     entry: &FleetProviderContent,
     name: &str,
     cx: &AsyncApp,
@@ -575,6 +575,27 @@ async fn call<T: DeserializeOwned>(
     match select(pin!(asking), pin!(executor.timer(CALL_TIMEOUT))).await {
         Either::Left((answer, _)) => answer.map_err(Failure::Failed),
         Either::Right(_) => Err(Failure::TimedOut),
+    }
+}
+
+/// Calls `tool` with `arguments` and reads its answer, for a caller outside the fleet's poll: a
+/// call that takes longer than `CALL_TIMEOUT` is an error.
+pub(crate) async fn call_tool<T: DeserializeOwned>(
+    client: &Client,
+    tool: &str,
+    arguments: serde_json::Value,
+    cx: &AsyncApp,
+) -> anyhow::Result<T> {
+    match call(client, tool, arguments, "", cx).await {
+        Ok(answer) => Ok(answer),
+        Err(Failure::TimedOut) => Err(anyhow::anyhow!(
+            "{tool} gave no answer in {} s",
+            CALL_TIMEOUT.as_secs()
+        )),
+        Err(Failure::Incompatible(contract)) => {
+            Err(anyhow::anyhow!("{tool}: the store speaks {contract}"))
+        }
+        Err(Failure::Failed(error)) => Err(error),
     }
 }
 

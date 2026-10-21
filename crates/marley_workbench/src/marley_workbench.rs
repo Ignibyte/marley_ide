@@ -71,6 +71,7 @@ pub mod fleet_hosts;
 pub mod fleet_providers;
 pub mod focus_row;
 pub mod forge;
+pub mod forge_board;
 pub mod github;
 pub mod groups;
 pub mod guide;
@@ -197,6 +198,9 @@ actions!(
         /// Forge provider.
         #[derive(Eq)]
         SetForgeToken,
+        /// Opens Forge's sprint board: the current sprint's tickets by status.
+        #[derive(Eq)]
+        OpenForgeBoard,
         /// Opens the Settings window on Marley's page.
         #[derive(Eq)]
         OpenSettings,
@@ -1182,6 +1186,7 @@ pub fn init(cx: &mut App) {
     prompts::init(cx);
     trust_card::init(cx);
     forge::init(cx);
+    forge_board::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

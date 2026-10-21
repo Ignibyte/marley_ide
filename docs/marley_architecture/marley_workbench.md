@@ -2854,6 +2854,19 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Forge's sprint board (`src/forge_board.rs`, #842)
+
+- `ForgeBoard`, an `Item` opened by `OpenForgeBoard`, reaches Forge through
+  `fleet_providers::connect` with the first `forge` entry and `fleet_providers::call_tool`.
+  `refresh` reads `sprint-current`, the sprint's `ticket-list` (`status: all`), `agent-list` and
+  the selected ticket's `ticket-get` with comments; `generation` keeps the newest read. A 30 s
+  timer reads again.
+- `COLUMNS` maps statuses to the five columns (QA holds `qa-review`, `qa-failure`, `qa-pass`, and
+  its cards show which); a card's agent is the session whose `current_ticket` names its number.
+- `act(tool, arguments)` writes (`ticket-claim`, `ticket-update {status}` from Move to…'s
+  `MOVES`, `ticket-comment` from the field's Enter), toasts a refusal and reads again. Start here in
+  a worktree calls `worktree_agents::open_prompt_seeded` with the ticket's text.
+
 ## Forge as a fleet provider (`src/forge.rs`, `src/fleet_providers.rs`, #841)
 
 - `FleetProviderContent::Forge { name, url, projects, poll_seconds, bearer_env }`. `connect`

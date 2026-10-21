@@ -162,7 +162,7 @@ release branch; bulletins; and a knowledge base. It serves them over MCP (`agent
   token comes from the system keyring, never `settings.json`.
 - Agent state follows forge's own rule: running and silent past 3 minutes reads needs attention.
 
-**W4.2 The sprint board.** *L.* Board: ForgeBoard.
+**W4.2 The sprint board.** *Done (#842, 2026-10-21).* *L.* Board: ForgeBoard.
 - A tab: columns for Open, In progress, In review, QA (qa-review, qa-failure, qa-pass) and Done,
   each card a ticket with its kind, phase and agent; a ticket's detail on the right.
 - Actions through forge's tools: claim, move, comment; "Start here in a worktree" hands the

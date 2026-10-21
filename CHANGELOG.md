@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Forge's sprint board** (#842, 2026-10-21). `marley: open forge board` shows the current
+  sprint's tickets in Open, In progress, In review, QA and Done, each card with its kind, phase and
+  the agent on it; a ticket's detail at the right with its comments, and Claim, Move to…, Comment
+  and Start here in a worktree, written to Forge.
+
 - **Forge in the Fleet panel** (#841, 2026-10-21). A `{ "kind": "forge", "url": … }` entry in
   `marley.fleet.providers` shows Ignibyte Forge's running agents under their hosts, each with its
   harness, ticket and folder; one silent past three minutes reads waiting, with how long.
