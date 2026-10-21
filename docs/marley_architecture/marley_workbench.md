@@ -2854,6 +2854,17 @@ screen opens Home after `rusty_unavailable`.
   and a file from the button, and moves a tab through its menu, checking that no second terminal
   starts.
 
+## Forge around Marley (`src/forge_watch.rs`, #843)
+
+- `ForgeWatch` (Global) follows `SettingsStore`: a `forge` entry starts a keeper that reads
+  `agent-list`, `sprint-current`, the sprint's `ticket-list` and `bulletin-list` every 30 s into a
+  `ForgeSnapshot` (agents, the sprint and days left, done/total, QA failures newest first,
+  bulletins, an unreachable reason), written only on a change; no entry, no keeper and no
+  snapshot.
+- `render_rail_section` (called by the rail between Needs you and the projects),
+  `render_home_card` (Home's FORGE card after Rusty's) and `ForgeItem` (the bottom row, after
+  `FocusRow`) draw it; each opens `OpenForgeBoard`. Dismissed bulletins stay hidden for the session.
+
 ## Forge's sprint board (`src/forge_board.rs`, #842)
 
 - `ForgeBoard`, an `Item` opened by `OpenForgeBoard`, reaches Forge through

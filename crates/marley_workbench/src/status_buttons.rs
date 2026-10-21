@@ -38,6 +38,7 @@ pub(crate) fn init(cx: &mut App) {
         let docks = workspace.all_docks().map(Entity::clone);
         let debug = cx.new(|cx| DebugButton::new(docks, cx));
         let focus = cx.new(|cx| crate::focus_row::FocusRow::new(handle_for_focus, cx));
+        let forge = cx.new(crate::forge_watch::ForgeItem::new);
         workspace.status_bar().update(cx, |status_bar, cx| {
             status_bar.add_right_item(home, window, cx);
             // Debug at the left end, after the left dock's buttons, which `Workspace::new` adds
@@ -50,6 +51,11 @@ pub(crate) fn init(cx: &mut App) {
             match status_bar.position_of_item::<DebugButton>() {
                 Some(position) => status_bar.insert_item_after(position, focus, window, cx),
                 None => status_bar.add_left_item(focus, window, cx),
+            }
+            // Forge's agents and its newest QA failure, after what has the focus (#843).
+            match status_bar.position_of_item::<crate::focus_row::FocusRow>() {
+                Some(position) => status_bar.insert_item_after(position, forge, window, cx),
+                None => status_bar.add_left_item(forge, window, cx),
             }
         });
     })

@@ -54,46 +54,46 @@ const MOVES: [&str; 8] = [
 const REFRESH: Duration = Duration::from_secs(30);
 
 /// The most tickets one read lists, Forge's own limit.
-const TICKET_LIMIT: u32 = 200;
+pub(crate) const TICKET_LIMIT: u32 = 200;
 
 /// A ticket, the fields the board reads.
 #[derive(Debug, Clone, Deserialize)]
-struct Ticket {
-    id: String,
-    number: i64,
+pub(crate) struct Ticket {
+    pub(crate) id: String,
+    pub(crate) number: i64,
     #[serde(default)]
-    title: String,
+    pub(crate) title: String,
     #[serde(default)]
-    description: String,
+    pub(crate) description: String,
     #[serde(rename = "type", default)]
-    kind: String,
+    pub(crate) kind: String,
     #[serde(default)]
-    status: String,
-    phase: Option<String>,
-    updated_at: Option<String>,
+    pub(crate) status: String,
+    pub(crate) phase: Option<String>,
+    pub(crate) updated_at: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct Tickets {
+pub(crate) struct Tickets {
     #[serde(default)]
-    tickets: Vec<Ticket>,
+    pub(crate) tickets: Vec<Ticket>,
 }
 
 /// The current sprint, the fields the board reads.
 #[derive(Debug, Clone, Deserialize)]
-struct Sprint {
-    id: String,
-    number: i64,
+pub(crate) struct Sprint {
+    pub(crate) id: String,
+    pub(crate) number: i64,
     #[serde(default)]
-    name: String,
+    pub(crate) name: String,
     #[serde(default)]
-    github_release_branch: String,
-    ends_at: Option<String>,
+    pub(crate) github_release_branch: String,
+    pub(crate) ends_at: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct SprintAnswer {
-    sprint: Option<Sprint>,
+pub(crate) struct SprintAnswer {
+    pub(crate) sprint: Option<Sprint>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -150,7 +150,7 @@ fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
 }
 
 /// The fleet's first Forge provider.
-fn forge_entry(cx: &App) -> Option<FleetProviderContent> {
+pub(crate) fn forge_entry(cx: &App) -> Option<FleetProviderContent> {
     MarleySettings::get_global(cx)
         .fleet_providers
         .iter()
@@ -441,7 +441,7 @@ fn age(time: Option<&str>) -> String {
 }
 
 /// The days left in the sprint, from its end.
-fn days_left(sprint: &Sprint) -> Option<String> {
+pub(crate) fn days_left(sprint: &Sprint) -> Option<String> {
     let ends = DateTime::parse_from_rfc3339(sprint.ends_at.as_deref()?).ok()?;
     let days = ends
         .with_timezone(&Utc)

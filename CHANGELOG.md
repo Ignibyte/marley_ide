@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Forge around Marley** (#843, 2026-10-21). With a Forge provider set, the rail shows a FORGE
+  section with Forge's online agents and their state, Home a FORGE card with the sprint's progress,
+  what is working, what needs you, what failed QA and Forge's bulletins, and the bottom row
+  "Forge · N online · #N QA failed"; each opens the sprint board.
+
 - **Forge's sprint board** (#842, 2026-10-21). `marley: open forge board` shows the current
   sprint's tickets in Open, In progress, In review, QA and Done, each card with its kind, phase and
   the agent on it; a ticket's detail at the right with its comments, and Claim, Move to…, Comment

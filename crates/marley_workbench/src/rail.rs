@@ -223,7 +223,7 @@ pub struct Rail {
     _multi_workspace_subscriptions: [Subscription; 2],
     /// Claude Code's hook events, which move its terminals' rows (#519), its turns (#509), and the
     /// terminals' unread marks (#538); the projectless groups (#600); the harness (#534).
-    _agent_events: [Subscription; 14],
+    _agent_events: [Subscription; 15],
     /// The menu a right-click on the rail's empty space opens, where it opened (#600).
     empty_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     /// The order the window saved: its projectless groups', which orders the groups a restart
@@ -1007,8 +1007,8 @@ impl Rail {
     /// sessions (#534, #740), Codex's requests (#651), its arms to continue at a reset (#715) and,
     /// while the Threads view shows, the CLI sessions it lists (#754), the delegations that
     /// ended after their caller closed (#716), the harnesses' scheduled tasks (#719), and the
-    /// tmux sessions' hosts (#808).
-    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 14] {
+    /// tmux sessions' hosts (#808), and what Forge last said (#843).
+    fn observe_marks(window: &Window, cx: &mut Context<Self>) -> [Subscription; 15] {
         [
             cx.observe_global_in::<crate::schedule_runs::Schedules>(window, Self::refresh),
             cx.observe_global_in::<crate::plan_review::PendingPlans>(window, Self::refresh),
@@ -1028,6 +1028,7 @@ impl Rail {
             cx.observe_global_in::<crate::running_errors::ErrorMarks>(window, Self::refresh),
             cx.observe_global_in::<groups::Groups>(window, Self::groups_changed),
             cx.observe_global_in::<TmuxHosts>(window, |_, _, cx| cx.notify()),
+            cx.observe_global_in::<crate::forge_watch::ForgeWatch>(window, |_, _, cx| cx.notify()),
         ]
     }
 
@@ -11342,6 +11343,7 @@ impl Render for Rail {
                 } else {
                     rail.child(self.render_filter(cx))
                         .children(self.render_inbox(cx))
+                        .children(crate::forge_watch::render_rail_section(cx))
                         .child(self.render_rows(self.render_blocks(None, cx), cx))
                 }
             })

@@ -177,7 +177,7 @@ pub(crate) struct MarleyHome {
     rail: Option<(WeakEntity<Rail>, Subscription)>,
     /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703), and the project
     /// marks the recent projects show (#831).
-    _activity: [Subscription; 3],
+    _activity: [Subscription; 4],
     /// Rusty's cards, held while `marley.rusty.enabled` is on (#782).
     rusty: Option<Entity<RustyCards>>,
     /// Rusty's switch, which makes and drops the cards.
@@ -249,6 +249,9 @@ impl MarleyHome {
                 cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
                 cx.observe_global_in::<SettingsStore>(window, |_, _, cx| cx.notify()),
                 cx.observe_global_in::<crate::project_icons::ProjectMarks>(window, |_, _, cx| {
+                    cx.notify();
+                }),
+                cx.observe_global_in::<crate::forge_watch::ForgeWatch>(window, |_, _, cx| {
                     cx.notify();
                 }),
             ],
@@ -782,6 +785,10 @@ impl Render for MarleyHome {
                     ),
             )
             .children(self.rusty.clone())
+            .children(
+                crate::forge_watch::render_home_card(cx)
+                    .map(|forge| card("FORGE", "marley-home-forge", forge, cx)),
+            )
             .child(card(
                 "AGENT ACTIVITY",
                 "marley-home-activity",

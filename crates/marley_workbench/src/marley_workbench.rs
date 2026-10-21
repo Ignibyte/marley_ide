@@ -72,6 +72,7 @@ pub mod fleet_providers;
 pub mod focus_row;
 pub mod forge;
 pub mod forge_board;
+pub mod forge_watch;
 pub mod github;
 pub mod groups;
 pub mod guide;
@@ -1187,6 +1188,7 @@ pub fn init(cx: &mut App) {
     trust_card::init(cx);
     forge::init(cx);
     forge_board::init(cx);
+    forge_watch::init(cx);
     rich_input::init(cx);
     prompt_colors::init(cx);
     send_selection::init(cx);

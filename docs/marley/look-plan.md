@@ -169,7 +169,7 @@ release branch; bulletins; and a knowledge base. It serves them over MCP (`agent
   ticket to New Agent in Worktree (#510).
 - Depends on W4.1.
 
-**W4.3 Forge around Marley.** *S–M.* Board: ForgeAgents.
+**W4.3 Forge around Marley.** *Done (#843, 2026-10-21).* *S–M.* Board: ForgeAgents.
 A Forge section in the rail, a card on Home, a chip in the bottom row, bulletins.
 
 ## Wave 5: every other screen
