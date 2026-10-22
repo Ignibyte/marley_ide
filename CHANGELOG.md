@@ -51,6 +51,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Browser's picks are a panel** (#879, 2026-10-22). Picks leave the tray above the page for
+  "Picks for the agent" at its right: each pick a card with its summary, where its listener is, a
+  Note field and a primary Send, or what was sent.
+
 - **A harness session's tab** (#878, 2026-10-22). The tab's header names the session, its harness
   and its state, with its views as chips; its question is a card with a button per answer, the
   first primary; Send sits at the foot.

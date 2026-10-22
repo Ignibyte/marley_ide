@@ -7447,6 +7447,7 @@ impl BrowserView {
         let colors = cx.theme().colors();
         let (border_variant, background) = (colors.border_variant, colors.panel_background);
         let error = error.map(|error| Self::render_pick_error(error, cx));
+        let count = picks.len();
         let rows: Vec<_> = picks
             .into_iter()
             .map(|row| self.render_pick_row(row, window, cx))
@@ -7455,12 +7456,27 @@ impl BrowserView {
             v_flex()
                 .id("browser-picks")
                 .flex_none()
-                .w_full()
-                .max_h(rems(9.))
+                .w(px(320.))
+                .h_full()
+                .gap_2()
+                .p_2()
                 .overflow_y_scroll()
-                .border_b_1()
+                .border_l_1()
                 .border_color(border_variant)
                 .bg(background)
+                .child(
+                    h_flex()
+                        .px_1()
+                        .gap_1()
+                        .child(Label::new("Picks for the agent").size(LabelSize::Small))
+                        .when(count > 0, |header| {
+                            header.child(
+                                Label::new(count.to_string())
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            )
+                        }),
+                )
                 .children(error)
                 .children(rows)
                 .into_any_element(),
@@ -7508,12 +7524,11 @@ impl BrowserView {
             checking,
         } = row;
         let sent_already = sent.is_some();
-        // One height for every row, sent or not, so the page below moves by whole rows.
+        let field = (!sent_already).then(|| self.caption(id, window, cx));
+        let colors = cx.theme().colors();
         let head = h_flex()
             .w_full()
-            .h_9()
             .gap_2()
-            .px_2()
             .child(
                 Label::new(format!("Pick {id}"))
                     .size(LabelSize::Small)
@@ -7521,23 +7536,90 @@ impl BrowserView {
             )
             .child(
                 div()
-                    .flex_none()
-                    .max_w(rems(20.))
-                    .child(Label::new(summary).size(LabelSize::Small).truncate()),
-            )
-            .when_some(place, |row, place| {
-                row.child(Self::render_listener_place(id, place, cx))
-            });
-        let body = if let Some(caption) = sent {
-            let said = if caption.is_empty() {
-                "Sent to the terminal".to_string()
-            } else {
-                format!("Sent: {caption}")
-            };
-            head.child(
-                h_flex()
                     .flex_1()
                     .min_w_0()
+                    .child(Label::new(summary).size(LabelSize::Small).truncate()),
+            )
+            .child(
+                IconButton::new(("browser-pick-discard", id), IconName::Close)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text(if sent_already {
+                        "Remove from the tray; the agent can still read it"
+                    } else {
+                        "Discard"
+                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
+            );
+        let body = Self::render_pick_body(id, sent, field, cx);
+        let send = (!sent_already).then(|| {
+            crate::prompts::render_button(id, "Send", crate::prompts::Role::Primary, false, cx)
+                .cursor_pointer()
+                .tooltip(Tooltip::text("Type it into the terminal you used last"))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.send_pick(id, window, cx);
+                }))
+        });
+        v_flex()
+            .gap_1p5()
+            .p_2()
+            .rounded_lg()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .child(head)
+            .when_some(place, |card, place| {
+                card.child(Self::render_listener_place(id, place, cx))
+            })
+            .child(body)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .justify_between()
+                    .child(Self::render_check(id, verdict, checking, cx))
+                    .children(send),
+            )
+    }
+
+    /// A pick card's middle (#879): what was sent, or the Note field whose Enter sends it.
+    fn render_pick_body(
+        id: usize,
+        sent: Option<String>,
+        field: Option<Entity<Editor>>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors();
+        sent.map_or_else(
+            || {
+                v_flex()
+                    .gap_1()
+                    .child(
+                        Label::new("Note")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        div()
+                            .key_context("MarleyPickCaption")
+                            .on_action(cx.listener(move |this, _: &SendPick, window, cx| {
+                                this.send_pick(id, window, cx);
+                            }))
+                            .px_2()
+                            .py_1()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .bg(colors.editor_background)
+                            .children(field),
+                    )
+                    .into_any_element()
+            },
+            |caption| {
+                let said = if caption.is_empty() {
+                    "Sent to the terminal".to_string()
+                } else {
+                    format!("Sent: {caption}")
+                };
+                h_flex()
                     .gap_1()
                     .child(
                         Icon::new(IconName::Check)
@@ -7549,47 +7631,10 @@ impl BrowserView {
                             .size(LabelSize::Small)
                             .color(Color::Muted)
                             .truncate(),
-                    ),
-            )
-        } else {
-            let field = self.caption(id, window, cx);
-            let colors = cx.theme().colors();
-            head.child(
-                div()
-                    .key_context("MarleyPickCaption")
-                    .on_action(cx.listener(move |this, _: &SendPick, window, cx| {
-                        this.send_pick(id, window, cx);
-                    }))
-                    .flex_1()
-                    .min_w_0()
-                    .px_2()
-                    .py_0p5()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.editor_background)
-                    .child(field),
-            )
-            .child(
-                Button::new(("browser-pick-send", id), "Send")
-                    .style(ButtonStyle::Filled)
-                    .tooltip(Tooltip::text("Type it into the terminal you used last"))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.send_pick(id, window, cx);
-                    })),
-            )
-        };
-        body.child(Self::render_check(id, verdict, checking, cx))
-            .child(
-                IconButton::new(("browser-pick-discard", id), IconName::Close)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text(if sent_already {
-                        "Remove from the tray; the agent can still read it"
-                    } else {
-                        "Discard"
-                    }))
-                    .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
-            )
+                    )
+                    .into_any_element()
+            },
+        )
     }
 
     /// A pick's check in its tray row (#505): the latest check's verdict, which opens the
@@ -7746,7 +7791,8 @@ impl Render for BrowserView {
             .and_then(|(frame, metadata)| Placement::new(frame, metadata, window));
         let annotations = self.render_annotations(placement, cx);
         let annotating = !matches!(self.annotate_mode, AnnotateMode::Off);
-        let trays = [self.render_scripts_tray(cx), self.render_tray(window, cx)];
+        let scripts = self.render_scripts_tray(cx);
+        let picks = self.render_tray(window, cx);
         let toolbar = self.render_toolbar(cx);
         let comparison = self.render_comparison(cx);
         let dialog = dialog.map(|dialog| self.render_dialog(&dialog, cx));
@@ -7777,29 +7823,37 @@ impl Render for BrowserView {
                 .into_iter()
                 .flatten(),
             )
-            .children(trays.into_iter().flatten())
+            .children(scripts)
+            // The page, and the picks at its right, as the Browser board draws them (#879).
             .child(
-                div()
-                    .relative()
+                h_flex()
                     .flex_1()
                     .min_h_0()
                     .w_full()
-                    .overflow_hidden()
-                    .child(PageElement {
-                        hub: self.hub.clone(),
-                        view: cx.entity(),
-                        target: self.target.clone().filter(|_| attached),
-                        focus_handle: self.focus_handle.clone(),
-                        frame,
-                        metadata,
-                        annotating,
-                    })
-                    .children(annotations)
-                    .when_some(message, |this, (headline, hint)| {
-                        this.child(Self::render_message(headline, hint))
-                    })
-                    .children(comparison)
-                    .children(dialog),
+                    .child(
+                        div()
+                            .relative()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .overflow_hidden()
+                            .child(PageElement {
+                                hub: self.hub.clone(),
+                                view: cx.entity(),
+                                target: self.target.clone().filter(|_| attached),
+                                focus_handle: self.focus_handle.clone(),
+                                frame,
+                                metadata,
+                                annotating,
+                            })
+                            .children(annotations)
+                            .when_some(message, |this, (headline, hint)| {
+                                this.child(Self::render_message(headline, hint))
+                            })
+                            .children(comparison)
+                            .children(dialog),
+                    )
+                    .children(picks),
             )
             // Over everything, as Chromium's own popup would be.
             .children(self.select_menu.as_ref().map(|select| {

@@ -5536,6 +5536,12 @@ One agent of the fleet in full, in the center, read-only and not serialized.
   their own tabs). Each part checks the handshake's capability as the snapshot does.
 - **Item.** The tab's title is the agent's name, its icon `IconName::Server`; `type Event = ()`.
 
+## The Browser's picks panel (`src/browser.rs`, #879)
+
+- The picks sit at the page's right: `render_tray` is a 320 px aside, shown while the tab has a
+  pick or a pick error; `render_pick_row` draws each as a card, `render_pick_body` its Note field
+  or what was sent. The page takes the rest of the width.
+
 ## The Browser toolbar's look (`src/browser.rs`, #850)
 
 - The address box leads with the project's name (`hub.project_of(target)`) and ends with
