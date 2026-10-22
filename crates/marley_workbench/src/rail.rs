@@ -5195,6 +5195,13 @@ impl Rail {
                     .py_1()
                     .gap_2()
                     .cursor_pointer()
+                    // The harness's state as a dot before its name, green while it answers, as
+                    // the Fleet board draws it (#886).
+                    .child(div().flex_none().size(px(7.)).rounded_full().bg(if stale {
+                        says_color.color(cx)
+                    } else {
+                        cx.theme().status().success
+                    }))
                     .child(
                         Label::new(title)
                             .size(LabelSize::XSmall)

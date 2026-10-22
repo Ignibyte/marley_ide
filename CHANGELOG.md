@@ -56,6 +56,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The harness's rail header, a task's runs and the seat form** (#886, 2026-10-22). The rail's
+  Harness header leads with a dot, green while the harness answers; a scheduled task's history is
+  a card with each run's outcome as a chip; New Harness Seat picks its agent in a framed toggle and
+  ends with Cancel and a primary Create.
+
 - **The Marley Guide in Marley's colours** (#884, 2026-10-22). The guide takes Marley Night's
   colours in the dark scheme and Marley Day's in the light, and draws each article as a card.
 

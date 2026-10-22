@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #886 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [886-harness-rail-runs-seat.spec.md](../../pipeline/completed/886-harness-rail-runs-seat.spec.md)
 - **Source ticket:** split from TICKET-878 while planning it (2026-10-22): #878 kept a session's
   tab.
 - **Boards:** Fleet, MoreTabs, OpenConnect
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

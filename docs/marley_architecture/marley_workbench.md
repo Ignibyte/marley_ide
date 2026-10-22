@@ -2170,6 +2170,13 @@ alike.
   field, Views, Send, the status) lay the tab out as the `MoreTabs` board draws it, the lines
   between the question and Send.
 
+
+### The rail header, a task's runs and the seat form (#886)
+
+- The Harness header leads with a dot, green while the harness answers. `ScheduleView` draws a
+  task and its runs in one card, each outcome a tinted chip. `NewSeatModal::render_agents` is a
+  framed toggle; the form ends with #870's Cancel and primary Create.
+
 ## Home's own page (`src/home_page.rs`, `src/rail.rs`, #701)
 
 - `MarleyHome` (an `Item`: Home, `ListTree`) is drawn with `card`, `row` and `muted`, which live

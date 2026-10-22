@@ -850,6 +850,50 @@ impl NewSeatModal {
     }
 
     /// The Harness choice, while more than one harness can take the seat (#740).
+    /// The agent the seat runs, picked in a framed toggle (#886).
+    fn render_agents(&self, cx: &Context<Self>) -> impl IntoElement {
+        let agent_button = |id: &'static str, label: &'static str, agent: SeatAgent| {
+            Button::new(id, label)
+                .style(ButtonStyle::Subtle)
+                .toggle_state(self.agent == agent)
+                .selected_label_color(Color::Accent)
+                .on_click(cx.listener(move |modal, _, _, cx| {
+                    modal.agent = agent;
+                    cx.notify();
+                }))
+        };
+        v_flex()
+            .gap_0p5()
+            .child(
+                Label::new("Agent")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            // A framed toggle, as the OpenConnect board draws it (#886), only as wide as
+            // its two buttons.
+            .child(
+                h_flex().child(
+                    h_flex()
+                        .flex_none()
+                        .gap_0p5()
+                        .p_0p5()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                        .child(agent_button(
+                            "harness-seat-claude",
+                            "Claude Code",
+                            SeatAgent::Claude,
+                        ))
+                        .child(agent_button(
+                            "harness-seat-codex",
+                            "Codex",
+                            SeatAgent::Codex,
+                        )),
+                ),
+            )
+    }
+
     fn render_slots(&self, cx: &Context<Self>) -> AnyElement {
         v_flex()
             .gap_0p5()
@@ -936,15 +980,6 @@ impl Focusable for NewSeatModal {
 
 impl Render for NewSeatModal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let agent_button = |id: &'static str, label: &'static str, agent: SeatAgent| {
-            Button::new(id, label)
-                .style(ButtonStyle::Filled)
-                .toggle_state(self.agent == agent)
-                .on_click(cx.listener(move |modal, _, _, cx| {
-                    modal.agent = agent;
-                    cx.notify();
-                }))
-        };
         v_flex()
             .key_context("NewHarnessSeat")
             .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(DismissEvent)))
@@ -970,41 +1005,45 @@ impl Render for NewSeatModal {
                 form.child(self.render_slots(cx))
             })
             .child(Self::render_field("Name", &self.name, cx))
-            .child(
-                v_flex()
-                    .gap_0p5()
-                    .child(
-                        Label::new("Agent")
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(agent_button(
-                                "harness-seat-claude",
-                                "Claude Code",
-                                SeatAgent::Claude,
-                            ))
-                            .child(agent_button(
-                                "harness-seat-codex",
-                                "Codex",
-                                SeatAgent::Codex,
-                            )),
-                    ),
-            )
+            .child(self.render_agents(cx))
             .child(Self::render_field("Folder", &self.folder, cx))
             .child(Self::render_field("Role", &self.role, cx))
             .when_some(self.status.clone(), |this, (status, color)| {
                 this.child(Label::new(status).size(LabelSize::Small).color(color))
             })
-            .child(
-                h_flex().justify_end().child(
-                    Button::new("harness-seat-create", "Create")
-                        .style(ButtonStyle::Filled)
-                        .disabled(self.running.is_some())
-                        .on_click(cx.listener(|modal, _, window, cx| modal.create(window, cx))),
-                ),
-            )
+            // Cancel and a primary Create (#886); Create is dimmed with no click while a seat is
+            // being made.
+            .child({
+                let creating = self.running.is_some();
+                h_flex()
+                    .justify_end()
+                    .gap_2()
+                    .child(
+                        crate::prompts::render_button(
+                            0,
+                            "Cancel",
+                            crate::prompts::Role::Quiet,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            1,
+                            "Create · Enter",
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .when(creating, |button| button.opacity(0.5))
+                        .when(!creating, |button| {
+                            button.cursor_pointer().on_click(
+                                cx.listener(|modal, _, window, cx| modal.create(window, cx)),
+                            )
+                        }),
+                    )
+            })
     }
 }

@@ -526,11 +526,18 @@ impl ScheduleView {
                     .w_32()
                     .child(Label::new(time).size(LabelSize::Small).color(Color::Muted)),
             )
+            // The outcome as a chip tinted by its colour, as the MoreTabs board draws it (#886).
             .child(
-                div().w_16().child(
-                    Label::new(outcome.to_string())
-                        .size(LabelSize::Small)
-                        .color(color),
+                div().w_20().child(
+                    div()
+                        .px_1p5()
+                        .rounded_sm()
+                        .bg(color.color(cx).opacity(0.14))
+                        .child(
+                            Label::new(outcome.to_string())
+                                .size(LabelSize::XSmall)
+                                .color(color),
+                        ),
                 ),
             )
             .child(
@@ -593,13 +600,24 @@ impl Render for ScheduleView {
             .p_4()
             .gap_3()
             .bg(colors.editor_background)
-            .child(Headline::new(self.task.clone()).size(HeadlineSize::Small))
+            // The task and its runs in one card (#886).
             .child(
-                Label::new(summary)
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                v_flex()
+                    .max_w(px(760.))
+                    .gap_2()
+                    .p_4()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.elevated_surface_background)
+                    .child(Headline::new(self.task.clone()).size(HeadlineSize::Small))
+                    .child(
+                        Label::new(summary)
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(runs),
             )
-            .child(runs)
     }
 }
 
