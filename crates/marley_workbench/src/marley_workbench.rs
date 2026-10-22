@@ -58,6 +58,7 @@ pub mod commands;
 pub mod component_library;
 pub mod component_tools;
 pub mod delegation;
+pub mod diff_header;
 pub mod docs_tools;
 pub mod drafts;
 pub mod drawer;
@@ -182,6 +183,7 @@ use workspace::{MultiWorkspace, ProjectGroup, Sidebar as _, Toast, Workspace};
 
 pub use agents::NewAgent;
 pub use commands::{Invoked, args_if_invoked};
+pub use diff_header::add_toolbar_items;
 pub use rail::{KeptSidebar, Rail};
 
 actions!(

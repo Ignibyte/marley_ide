@@ -177,6 +177,13 @@ impl ViewedMarks {
     }
 }
 
+/// How many files of the project diff whose editor is `editor` are ticked Viewed (#893).
+pub(crate) fn viewed(editor: &Editor, cx: &App) -> usize {
+    editor
+        .addon::<ViewedAddon>()
+        .map_or(0, |addon| addon.marks.read(cx).ticked.len())
+}
+
 /// Drops the stored mark of `path`.
 fn forget(path: String, cx: &App) {
     let store = KeyValueStore::global(cx);

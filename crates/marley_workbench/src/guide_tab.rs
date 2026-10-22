@@ -63,6 +63,8 @@ pub(crate) struct GuideTab {
     /// The project's folder, which the chips' paths are shown relative to.
     root: Option<PathBuf>,
     focus_handle: FocusHandle,
+    /// Why Send To's last send went nowhere (#893).
+    send_error: Option<SharedString>,
 }
 
 /// Opens `guide` in `workspace`, or replaces the sections of its open tab with the same title;
@@ -96,6 +98,7 @@ pub(crate) fn open(
             workspace: handle,
             root,
             focus_handle: cx.focus_handle(),
+            send_error: None,
         };
         tab.set_guide(guide, cx);
         tab
@@ -325,6 +328,114 @@ impl Render for GuideTab {
                             .child(chips)
                     })
             }))
+            .child(self.render_send_to(cx))
+    }
+}
+
+impl GuideTab {
+    /// The project diff's editor in the guide's workspace, which holds the review's notes.
+    fn diff_editor(&self, cx: &App) -> Option<Entity<Editor>> {
+        let workspace = self.workspace.upgrade()?;
+        let diff = workspace.read(cx).items_of_type::<ProjectDiff>(cx).next()?;
+        Some(diff.read(cx).editor(cx).read(cx).rhs_editor().clone())
+    }
+
+    /// Send To, as the `DiffReview` board ends the guide (#893, D2): how many notes wait, and a row
+    /// per agent in the workspace's terminals with whether it can take them now; a row sends the
+    /// diff's unsent notes.
+    fn render_send_to(&self, cx: &Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors();
+        let notes = self
+            .diff_editor(cx)
+            .map_or(0, |editor| editor.read(cx).unsent_review_notes(cx).len());
+        let targets = self
+            .workspace
+            .upgrade()
+            .map(|workspace| crate::send_selection::agent_targets(workspace.read(cx), cx))
+            .unwrap_or_default();
+        let waiting = match notes {
+            0 => "No notes to send yet: add them in the diff".to_string(),
+            1 => "1 note to send".to_string(),
+            count => format!("{count} notes to send"),
+        };
+        let empty = targets.is_empty().then(|| {
+            Label::new("No agent runs in a terminal of this window.")
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+        });
+        let rows = targets.into_iter().enumerate().map(|(index, target)| {
+            let name = format!("{} · {}", target.kind.display_name(), target.project);
+            let state = crate::review_notes::readiness(&target);
+            h_flex()
+                .id(("marley-guide-send-to", index))
+                .gap_2()
+                .px_2()
+                .py_1()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .cursor_pointer()
+                .hover(|row| row.bg(colors.element_hover))
+                .child(
+                    Icon::new(IconName::Send)
+                        .size(IconSize::Small)
+                        .color(Color::Accent),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new(name).size(LabelSize::Small).truncate()),
+                )
+                .child(
+                    Label::new(state)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .on_click(cx.listener(move |guide, _, window, cx| {
+                    guide.send_to(target.clone(), window, cx);
+                }))
+        });
+        v_flex()
+            .gap_1p5()
+            .p_3()
+            .rounded_lg()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(Label::new("Send to").size(LabelSize::Small))
+                    .child(
+                        Label::new(waiting)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+            )
+            .children(rows)
+            .children(empty)
+            .children(
+                self.send_error
+                    .clone()
+                    .map(|error| Label::new(error).size(LabelSize::Small).color(Color::Error)),
+            )
+    }
+
+    fn send_to(
+        &mut self,
+        target: crate::send_selection::Target,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let result = self.diff_editor(cx).map_or(
+            Err("Open the diff and add notes there, then send them."),
+            |editor| {
+                crate::review_notes::send_notes_to(target, &editor, window.window_handle(), cx)
+            },
+        );
+        self.send_error = result.err().map(SharedString::new_static);
+        cx.notify();
     }
 }
 

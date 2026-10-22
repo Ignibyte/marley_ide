@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The diff review's header, the guide's Send To, and plan review's tabs and turns** (#893,
+  2026-10-22). Over the project diff a header names what it holds: uncommitted changes on the
+  branch, the files, the lines added and removed, how many files are viewed, and Copy Notes. The
+  review guide ends with Send To, a row per agent that can take the notes. Plan review shows Plan
+  and Changes as tabs with the version, and lists the terminal's turns with Show Diff, Keep and
+  Undo This Turn….
+
 - **The Browser's download bar, and what goes with a pick** (#896, 2026-10-22). A file the page
   saves shows in a bar under it with its folder, Open and Show, in place of the toast. The picks
   panel ends with what goes with the picks (a screenshot, the source line, the console error),

@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #893 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [893-diff-review-header-and-turns.spec.md](../../pipeline/completed/893-diff-review-header-and-turns.spec.md)
 - **Source ticket:** from TICKET-888 (2026-10-22): #888 drew the guide; these are new views.
 - **Boards:** Review, DiffReview
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

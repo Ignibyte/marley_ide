@@ -13,7 +13,9 @@ use std::rc::Rc;
 
 use editor::actions::SendReviewToAgent;
 use editor::{Editor, ReviewNote};
-use gpui::{AnyWindowHandle, App, ClipboardItem, Context, Focusable as _, WeakEntity, Window};
+use gpui::{
+    AnyWindowHandle, App, ClipboardItem, Context, Entity, Focusable as _, WeakEntity, Window,
+};
 use marley_agent::ReviewLine;
 use settings::Settings as _;
 use util::ResultExt as _;
@@ -74,6 +76,29 @@ fn open_picker(
     workspace.toggle_modal(window, cx, |window, cx| {
         TargetPicker::new(rows, placeholder, on_pick, window_handle, window, cx)
     });
+    Ok(())
+}
+
+/// Puts the unsent notes of `editor`'s diff on the clipboard as an agent would get them, as the
+/// picker's Copy notes does (#893).
+pub(crate) fn copy_notes(editor: &Entity<Editor>, cx: &App) {
+    let notes = editor.read(cx).unsent_review_notes(cx);
+    cx.write_to_clipboard(ClipboardItem::new_string(prompt(&notes, None, cx)));
+}
+
+/// Sends the unsent notes of `editor`'s diff to `target`, as the picker's row for it does (#893);
+/// the message says why nothing went.
+pub(crate) fn send_notes_to(
+    target: Target,
+    editor: &Entity<Editor>,
+    window: AnyWindowHandle,
+    cx: &mut App,
+) -> Result<(), &'static str> {
+    let notes = editor.read(cx).unsent_review_notes(cx);
+    if notes.is_empty() {
+        return Err("This diff has no review notes that were not sent.");
+    }
+    deliver(Pick::Agent(target), &editor.downgrade(), &notes, window, cx);
     Ok(())
 }
 

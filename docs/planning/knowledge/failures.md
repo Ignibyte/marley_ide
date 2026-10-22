@@ -4427,3 +4427,13 @@ the line), but a stale click could as easily have typed into it. Cause: the harn
 Claude Code's (#877) and Codex's (#725) stores but not tmux's socket. Fix: #880 exports
 `TMUX_TMPDIR=$E2E_PROFILE/tmux`, unsets `TMUX` and `TMUX_PANE`, and stops the run's server at
 cleanup.
+
+## F-claude-893-a-toolbar-item-read-the-workspace-001
+*found: 2026-10-22 · while: testing #893 · severity: high*
+
+The diff review's header, a `ToolbarItemView`, read the workspace in `set_active_pane_item` to
+reach the project's repository. The pane tells its toolbar of the active item from inside the
+workspace's update, so the first run's Marley panicked ("cannot read workspace::Workspace while
+it is already being updated") as the project diff opened. Fixed: the item keeps the workspace's
+project, taken when the toolbar is built, and reads that. A toolbar item never reads or updates
+its workspace in `set_active_pane_item`.

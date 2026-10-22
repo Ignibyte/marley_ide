@@ -4295,6 +4295,20 @@ below describe what #743 retired.
   time a row starts needing the user it pulses once over; gpui's animation shows the last frame
   under reduced motion.
 
+## The diff review's header (`src/diff_header.rs`, #893)
+
+- `add_toolbar_items`, which Zed's `initialize_pane` calls, adds `DiffHeader` to each pane's
+  toolbar. While the active item acts as a `ProjectDiff` it sits at `PrimaryLeft`: the active
+  repository's branch, the diff's files (its multibuffer's buffers) and lines
+  (`calculate_changed_lines`, as Zed's own count at the right), `viewed_marks::viewed`, and Copy
+  Notes (`review_notes::copy_notes`). It keeps the workspace's project, not the workspace: the
+  pane tells it of the active item inside the workspace's update.
+- The guide tab ends with `render_send_to`: `send_selection::agent_targets` with their
+  readiness; a row runs `review_notes::send_notes_to` on the workspace's project diff.
+- Plan review's `render_tabs` draws Plan and Changes over the left area once a plan has an
+  earlier version, with "Version N · K of M answered"; `render_turns` lists `Turns::of` its
+  terminal with Show Diff (Zed's `CommitView`), Keep and Undo This Turn… (`turn_undo`).
+
 ## The Sessions page (`src/sessions_page.rs`, #861)
 
 - `marley: open sessions page`, or Open as a Page under the rail's Sessions view, opens

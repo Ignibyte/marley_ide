@@ -41,7 +41,7 @@ use marley_agent::plan_questions::{self, Answer, PlanPart, Question, QuestionKin
 use marley_agent::report::{self, Refusal};
 use marley_agent::{PlanNote, ReviewLine};
 use marley_mcp::agent_socket::AgentRequest;
-use marley_rail::{InboxEntry, InboxKind};
+use marley_rail::{InboxEntry, InboxKind, TurnMark};
 use serde_json::Value;
 use settings::SettingsStore;
 use terminal_view::TerminalView;
@@ -735,6 +735,8 @@ pub(crate) struct PlanReview {
     /// Whether the left area shows the changes rather than the plan.
     showing_changes: bool,
     _overall_edited: Subscription,
+    /// Redraws the tab as its terminal's turns come and are kept or undone (#893).
+    _turns: Subscription,
 }
 
 /// A run of the plan as the tab draws it (#728).
@@ -823,6 +825,7 @@ impl PlanReview {
             changes: None,
             showing_changes: false,
             _overall_edited: overall_edited,
+            _turns: cx.observe_global::<crate::turns::Turns>(|_, cx| cx.notify()),
         }
     }
 
@@ -1574,34 +1577,8 @@ impl PlanReview {
             .p_3()
             .gap_3()
             .child(Label::new(self.title.clone()).size(LabelSize::Large))
-            .when_some(self.changes.as_ref(), |column, changes| {
-                let showing_changes = self.showing_changes;
-                column.child(
-                    h_flex()
-                        .gap_2()
-                        .child(
-                            Label::new(format!("Version {}", self.versions.len()))
-                                .size(LabelSize::Small),
-                        )
-                        .child(DiffStat::new(
-                            "plan-review-version-stat",
-                            changes.added,
-                            changes.removed,
-                        ))
-                        .child(
-                            Button::new(
-                                "plan-review-changes",
-                                if showing_changes { "Plan" } else { "Changes" },
-                            )
-                            .label_size(LabelSize::Small)
-                            .on_click(cx.listener(|tab, _, _, cx| {
-                                tab.showing_changes = !tab.showing_changes;
-                                cx.notify();
-                            })),
-                        ),
-                )
-            })
-            .when(questions > 0, |column| {
+            // With an earlier version the tabs' line carries the count (#893).
+            .when(questions > 0 && self.changes.is_none(), |column| {
                 column.child(
                     Label::new(format!("{answered} of {questions} answered"))
                         .size(LabelSize::Small),
@@ -1642,6 +1619,7 @@ impl PlanReview {
                             .child(self.overall.clone()),
                     ),
             )
+            .children(self.render_turns(cx))
             .when(is_plan, |column| {
                 column.child(Self::answer_buttons(
                     waiting,
@@ -1653,6 +1631,202 @@ impl PlanReview {
             .when(!is_plan, |column| {
                 column.child(Self::send_notes_button(unsent, cx))
             })
+    }
+
+    /// Plan and Changes as tabs over the left area, and the version's line (#893), once the plan
+    /// has an earlier version.
+    fn render_tabs(&self, cx: &Context<Self>) -> Option<impl IntoElement + use<>> {
+        let changes = self.changes.as_ref()?;
+        let colors = cx.theme().colors();
+        let (answered, questions) = self.answered(cx);
+        let tab = |id: &'static str, label: &'static str, chosen: bool, changes: bool| {
+            h_flex()
+                .id(id)
+                .gap_1p5()
+                .px_3()
+                .py_1p5()
+                .border_b_2()
+                .border_color(if chosen {
+                    colors.text_accent
+                } else {
+                    gpui::transparent_black()
+                })
+                .cursor_pointer()
+                .child(Label::new(label).size(LabelSize::Small).color(if chosen {
+                    Color::Default
+                } else {
+                    Color::Muted
+                }))
+                .on_click(cx.listener(move |tab, _, _, cx| {
+                    tab.showing_changes = changes;
+                    cx.notify();
+                }))
+        };
+        let version = self.versions.len();
+        let line = if questions > 0 {
+            format!("Version {version} · {answered} of {questions} answered")
+        } else {
+            format!("Version {version}")
+        };
+        Some(
+            v_flex()
+                .flex_none()
+                .border_b_1()
+                .border_color(colors.border)
+                .child(
+                    h_flex()
+                        .px_2()
+                        .child(tab(
+                            "plan-review-tab-plan",
+                            "Plan",
+                            !self.showing_changes,
+                            false,
+                        ))
+                        .child(
+                            tab(
+                                "plan-review-tab-changes",
+                                "Changes",
+                                self.showing_changes,
+                                true,
+                            )
+                            .child(DiffStat::new(
+                                "plan-review-version-stat",
+                                changes.added,
+                                changes.removed,
+                            )),
+                        ),
+                )
+                .child(
+                    div()
+                        .px_4()
+                        .py_1()
+                        .child(Label::new(line).size(LabelSize::XSmall).color(Color::Muted)),
+                ),
+        )
+    }
+
+    /// The terminal the reviewed text came from, by its view's id, when it came from one.
+    fn terminal_id(&self) -> Option<u64> {
+        match &self.subject {
+            Subject::Plan { view } => Some(view.as_u64()),
+            Subject::Reply(ReplyOrigin::Terminal { view, .. }) => Some(view.entity_id().as_u64()),
+            Subject::File { .. } | Subject::Reply(ReplyOrigin::Thread { .. }) => None,
+        }
+    }
+
+    /// This terminal's turns (#893, D3), newest first, as the Review board draws them: each with
+    /// its files and what was done with it, Show Diff, Keep and Undo This Turn….
+    fn render_turns(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let id = self.terminal_id()?;
+        let turns = crate::turns::Turns::of(id, cx);
+        if turns.is_empty() {
+            return None;
+        }
+        let colors = cx.theme().colors();
+        let rows = turns.iter().enumerate().rev().map(|(index, turn)| {
+            let state = match turn.mark {
+                Some(TurnMark::Kept) => "kept",
+                Some(TurnMark::Undone) => "undone",
+                None if turn.failed => "failed",
+                None => "to review",
+            };
+            let files = match turn.files {
+                1 => "1 file".to_string(),
+                count => format!("{count} files"),
+            };
+            let undone = turn.mark == Some(TurnMark::Undone);
+            let (show, keep, undo) = (turn.sha.clone(), turn.sha.clone(), turn.sha.clone());
+            v_flex()
+                .gap_1()
+                .p_2()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .child(
+                    Label::new(format!("Turn {} · {}", index + 1, turn.title))
+                        .size(LabelSize::Small)
+                        .truncate(),
+                )
+                .child(
+                    Label::new(format!("{files} · {state}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(
+                    h_flex()
+                        .gap_1()
+                        .child(
+                            action_button(100 + index * 3, "Show Diff", Role::Quiet, true, cx)
+                                .on_click(cx.listener(move |_, _, window, cx| {
+                                    Self::show_turn(id, show.clone(), window, cx);
+                                })),
+                        )
+                        .when(!undone, |row| {
+                            row.child(
+                                action_button(
+                                    101 + index * 3,
+                                    "Keep",
+                                    Role::Plain,
+                                    turn.mark.is_none(),
+                                    cx,
+                                )
+                                .on_click(move |_, _, cx| crate::turn_undo::keep(id, &keep, cx)),
+                            )
+                            .child(
+                                action_button(
+                                    102 + index * 3,
+                                    "Undo This Turn…",
+                                    Role::Plain,
+                                    true,
+                                    cx,
+                                )
+                                .on_click(move |_, window, cx| {
+                                    crate::turn_undo::undo(id, &undo, window, cx);
+                                }),
+                            )
+                        }),
+                )
+        });
+        Some(
+            v_flex()
+                .gap_1p5()
+                .child(
+                    Label::new("This terminal's turns")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .children(rows)
+                .into_any_element(),
+        )
+    }
+
+    /// Opens the turn `sha` of the terminal `id` in Zed's commit view, in the workspace that holds
+    /// this tab, as the rail's turn row does (#509).
+    fn show_turn(id: u64, sha: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(repository) = crate::turns::Turns::repository_of(id, &sha, cx) else {
+            return;
+        };
+        let me = cx.entity_id();
+        let workspace = crate::mcp::window_workspaces(window, cx)
+            .into_iter()
+            .find(|workspace| {
+                workspace
+                    .read(cx)
+                    .items_of_type::<Self>(cx)
+                    .any(|tab| tab.entity_id() == me)
+            });
+        let Some(workspace) = workspace else {
+            return;
+        };
+        git_ui::commit_view::CommitView::open(
+            sha,
+            repository,
+            workspace.downgrade(),
+            None,
+            None,
+            window,
+            cx,
+        );
     }
 
     /// A file's or a reply's Send Notes, with how many notes it sends (#729).
@@ -1884,60 +2058,63 @@ impl Render for PlanReview {
         context_style.container_style.text.font_size = Some(small.into());
         context_style.paragraph_line_height = relative(1.5);
         context_style.base_text_style.color = cx.theme().colors().text_muted;
+        let tabs = self.render_tabs(cx);
         h_flex()
             .key_context("PlanReview")
             .size_full()
             .bg(background)
             .child(
-                if let Some(editor) = self
-                    .changes
-                    .as_ref()
-                    .filter(|_| self.showing_changes)
-                    .map(|changes| changes.editor.clone())
-                {
-                    // The diff takes no notes: its own area, out of the plan's key context.
-                    div()
-                        .id("plan-review-changes")
-                        .flex_1()
-                        .h_full()
-                        .p_2()
-                        .child(editor)
-                        .into_any_element()
-                } else {
-                    v_flex()
-                        .id("plan-review-plan")
-                        .key_context("PlanReviewPlan")
-                        .track_focus(&self.plan_focus)
-                        .on_action(cx.listener(Self::comment))
-                        // Before the Markdown's own handling, which may stop the event.
-                        .capture_any_mouse_down(cx.listener(
-                            |tab, _: &MouseDownEvent, window, cx| {
-                                window.focus(&tab.plan_focus, cx);
-                            },
-                        ))
-                        .on_mouse_down(
-                            MouseButton::Right,
-                            cx.listener(|tab, event: &MouseDownEvent, window, cx| {
-                                tab.open_menu(event.position, window, cx);
-                            }),
-                        )
-                        .flex_1()
-                        .h_full()
-                        .overflow_y_scroll()
-                        .p_4()
-                        .children(self.parts.iter().map(|part| {
-                            match part {
-                                Part::Text { markdown, .. } => {
-                                    MarkdownElement::new(markdown.clone(), style.clone())
-                                        .into_any_element()
+                v_flex().flex_1().min_w_0().h_full().children(tabs).child(
+                    if let Some(editor) = self
+                        .changes
+                        .as_ref()
+                        .filter(|_| self.showing_changes)
+                        .map(|changes| changes.editor.clone())
+                    {
+                        // The diff takes no notes: its own area, out of the plan's key context.
+                        div()
+                            .id("plan-review-changes")
+                            .flex_1()
+                            .min_h_0()
+                            .p_2()
+                            .child(editor)
+                            .into_any_element()
+                    } else {
+                        v_flex()
+                            .id("plan-review-plan")
+                            .key_context("PlanReviewPlan")
+                            .track_focus(&self.plan_focus)
+                            .on_action(cx.listener(Self::comment))
+                            // Before the Markdown's own handling, which may stop the event.
+                            .capture_any_mouse_down(cx.listener(
+                                |tab, _: &MouseDownEvent, window, cx| {
+                                    window.focus(&tab.plan_focus, cx);
+                                },
+                            ))
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(|tab, event: &MouseDownEvent, window, cx| {
+                                    tab.open_menu(event.position, window, cx);
+                                }),
+                            )
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .p_4()
+                            .children(self.parts.iter().map(|part| {
+                                match part {
+                                    Part::Text { markdown, .. } => {
+                                        MarkdownElement::new(markdown.clone(), style.clone())
+                                            .into_any_element()
+                                    }
+                                    Part::Card(index) => self
+                                        .render_card(*index, &context_style, cx)
+                                        .into_any_element(),
                                 }
-                                Part::Card(index) => self
-                                    .render_card(*index, &context_style, cx)
-                                    .into_any_element(),
-                            }
-                        }))
-                        .into_any_element()
-                },
+                            }))
+                            .into_any_element()
+                    },
+                ),
             )
             .child(self.render_column(border, cx))
             .children(self.menu.as_ref().map(|(menu, position, _)| {

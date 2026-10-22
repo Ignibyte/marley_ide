@@ -1508,6 +1508,8 @@ fn initialize_pane(
             toolbar.add_item(highlights_tree_item, window, cx);
             let project_diff_toolbar = cx.new(|cx| ProjectDiffToolbar::new(workspace, cx));
             toolbar.add_item(project_diff_toolbar, window, cx);
+            // Marley: the diff review's header over the project diff (#893).
+            marley_workbench::add_toolbar_items(toolbar, workspace, window, cx);
             let staged_diff_toolbar = cx.new(|cx| StagedDiffToolbar::new(workspace, cx));
             toolbar.add_item(staged_diff_toolbar, window, cx);
             let unstaged_diff_toolbar = cx.new(|cx| UnstagedDiffToolbar::new(workspace, cx));
