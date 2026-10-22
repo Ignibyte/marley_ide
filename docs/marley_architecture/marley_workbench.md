@@ -5574,6 +5574,12 @@ One agent of the fleet in full, in the center, read-only and not serialized.
   their own tabs). Each part checks the handshake's capability as the snapshot does.
 - **Item.** The tab's title is the agent's name, its icon `IconName::Server`; `type Event = ()`.
 
+## The Browser's console drawer (`src/browser.rs`, #887)
+
+- The toolbar's Console button counts the page's errors and opens `render_drawer` under the page:
+  Console from `BrowserHub::console_entries`, Network from `network_entries`, newest last. The
+  drawer is the tab's own and stays open across reloads.
+
 ## The Browser's picks panel (`src/browser.rs`, #879)
 
 - The picks sit at the page's right: `render_tray` is a 320 px aside, shown while the tab has a

@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Browser's console drawer** (#887, 2026-10-22). The Browser toolbar's Console button,
+  which counts the page's errors, opens a drawer under the page: Console (time, level, message,
+  where) and Network (method, status, URL, time). A held click and the page's own dialogs answer
+  with the prompts' buttons.
+
 - **The System tab's other pages** (#885, 2026-10-22). Install and update, Troubleshooting (shell
   integration, Rusty, Claude Code, Codex, the plugin, the other agent CLIs and git, each with what
   was found), Shell integration, Marley's MCP endpoint, Marley's Chromium, Fleet providers and For

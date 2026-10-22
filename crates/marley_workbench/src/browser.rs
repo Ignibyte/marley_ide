@@ -5093,6 +5093,8 @@ pub struct BrowserView {
     checking: HashSet<usize>,
     /// The Playwright scripts tray, while it is open (#523).
     scripts_tray: Option<ScriptsTray>,
+    /// The drawer under the page, and which of its tabs shows (#887); none while it is closed.
+    drawer: Option<Drawer>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -5285,6 +5287,7 @@ impl BrowserView {
             comparison: None,
             checking: HashSet::new(),
             scripts_tray: None,
+            drawer: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -5831,21 +5834,35 @@ impl BrowserView {
             .child(div().flex_1().min_w_0().child(Label::new(sentence)))
             // A button's click answers the card and goes no further, so the card takes no focus
             // as it leaves.
+            // The board's labelled buttons, with the keys the card takes once it has the focus
+            // (#887).
             .child(
-                Button::new("marley-browser-pause-refuse", "Refuse").on_click(cx.listener(
-                    |this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.answer_pause(false, window, cx);
-                    },
-                )),
+                crate::prompts::render_button(
+                    0,
+                    "Refuse · Esc",
+                    crate::prompts::Role::Plain,
+                    false,
+                    cx,
+                )
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.answer_pause(false, window, cx);
+                })),
             )
             .child(
-                Button::new("marley-browser-pause-allow", "Allow")
-                    .style(ButtonStyle::Filled)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.answer_pause(true, window, cx);
-                    })),
+                crate::prompts::render_button(
+                    1,
+                    "Allow · Enter",
+                    crate::prompts::Role::Primary,
+                    false,
+                    cx,
+                )
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.answer_pause(true, window, cx);
+                })),
             )
     }
 
@@ -6767,6 +6784,7 @@ impl BrowserView {
             )
             .child(reload_or_stop)
             .child(self.render_address(target, cx))
+            .child(self.render_console_button(target, cx))
             .child(Self::render_scripts_button(self.scripts_tray.is_some(), cx))
             .child(Self::render_page_tools(showing, picking, annotating, cx))
             // An outside client that acted in the page within the minute, and the way to stop it
@@ -6889,6 +6907,117 @@ impl BrowserView {
                         }
                     })),
             )
+    }
+
+    /// The toolbar's Console button (#887): it opens the drawer under the page, and counts the
+    /// page's errors and exceptions (D1).
+    fn render_console_button(&self, target: &str, cx: &Context<Self>) -> impl IntoElement {
+        let errors = self
+            .hub
+            .read(cx)
+            .console_entries(target)
+            .iter()
+            .filter(|entry| is_error(&entry.level))
+            .count();
+        let label = if errors > 0 {
+            format!("Console {errors}")
+        } else {
+            "Console".to_string()
+        };
+        Button::new("browser-console", label)
+            .start_icon(Icon::new(IconName::Terminal).size(IconSize::Small))
+            .label_size(LabelSize::Small)
+            .toggle_state(self.drawer.is_some())
+            .when(errors > 0, |button| button.color(Color::Error))
+            .tooltip(Tooltip::text("The page's console and requests"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.drawer = match this.drawer {
+                    Some(_) => None,
+                    None => Some(Drawer::Console),
+                };
+                cx.notify();
+            }))
+    }
+
+    /// The drawer under the page (#887): Console and Network, what the page logged and fetched,
+    /// newest last (D3).
+    fn render_drawer(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let drawer = self.drawer?;
+        let target = self.target.as_deref().unwrap_or_default();
+        let hub = self.hub.read(cx);
+        let console = hub.console_entries(target);
+        let network = hub.network_entries(target);
+        let colors = cx.theme().colors();
+        let tab = |id: &'static str, label: String, which: Drawer| {
+            Button::new(id, label)
+                .label_size(LabelSize::Small)
+                .toggle_state(drawer == which)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.drawer = Some(which);
+                    cx.notify();
+                }))
+        };
+        let rows: Vec<AnyElement> = match drawer {
+            Drawer::Console => console.iter().map(|entry| console_row(entry, cx)).collect(),
+            Drawer::Network => network.iter().map(|entry| network_row(entry, cx)).collect(),
+        };
+        let empty = rows.is_empty().then(|| {
+            Label::new(match drawer {
+                Drawer::Console => "The page has logged nothing.",
+                Drawer::Network => "The page has fetched nothing.",
+            })
+            .size(LabelSize::Small)
+            .color(Color::Muted)
+        });
+        Some(
+            v_flex()
+                .flex_none()
+                .h(px(220.))
+                .w_full()
+                .border_t_1()
+                .border_color(colors.border)
+                .bg(colors.panel_background)
+                .child(
+                    h_flex()
+                        .px_2()
+                        .py_1()
+                        .gap_1()
+                        .border_b_1()
+                        .border_color(colors.border_variant)
+                        .child(tab(
+                            "browser-drawer-console",
+                            format!("Console {}", console.len()),
+                            Drawer::Console,
+                        ))
+                        .child(tab(
+                            "browser-drawer-network",
+                            format!("Network {}", network.len()),
+                            Drawer::Network,
+                        ))
+                        .child(div().flex_1())
+                        .child(
+                            IconButton::new("browser-drawer-close", IconName::Close)
+                                .icon_size(IconSize::Small)
+                                .tooltip(Tooltip::text("Close the Drawer"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.drawer = None;
+                                    cx.notify();
+                                })),
+                        ),
+                )
+                .child(
+                    v_flex()
+                        .id("browser-drawer-rows")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .px_2()
+                        .py_1()
+                        .children(rows)
+                        .children(empty),
+                )
+                .into_any_element(),
+        )
     }
 
     /// The toolbar's Playwright scripts button (#523), lit while the tray is open.
@@ -7162,21 +7291,38 @@ impl BrowserView {
                             .p_3()
                             .justify_end()
                             .gap_1()
+                            // The prompts' buttons (#887).
                             .when(dialog.kind != DialogKind::Alert, |this| {
                                 this.child(
-                                    Button::new("browser-dialog-cancel", "Cancel")
-                                        .color(Color::Muted)
-                                        .on_click(cx.listener(|this, _, window, cx| {
+                                    crate::prompts::render_button(
+                                        0,
+                                        "Cancel",
+                                        crate::prompts::Role::Quiet,
+                                        false,
+                                        cx,
+                                    )
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(
+                                        |this, _, window, cx| {
                                             this.dismiss_dialog(&DismissDialog, window, cx);
-                                        })),
+                                        },
+                                    )),
                                 )
                             })
                             .child(
-                                Button::new("browser-dialog-accept", accept)
-                                    .style(ButtonStyle::Filled)
-                                    .on_click(cx.listener(|this, _, window, cx| {
+                                crate::prompts::render_button(
+                                    1,
+                                    accept,
+                                    crate::prompts::Role::Primary,
+                                    false,
+                                    cx,
+                                )
+                                .cursor_pointer()
+                                .on_click(cx.listener(
+                                    |this, _, window, cx| {
                                         this.answer_dialog(&AnswerDialog, window, cx);
-                                    })),
+                                    },
+                                )),
                             ),
                     ),
             )
@@ -7757,6 +7903,124 @@ impl BrowserView {
     }
 }
 
+/// The drawer's tabs (#887).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Drawer {
+    Console,
+    Network,
+}
+
+/// Whether a console entry's level is an error or an exception (#887, D1).
+fn is_error(level: &str) -> bool {
+    matches!(level, "error" | "exception")
+}
+
+/// `ms` Unix milliseconds as a local time of day, when it is finite and from 1970 to about 2096.
+fn time_of_day(ms: f64) -> Option<String> {
+    if !ms.is_finite() || !(0.0..=4.0e15).contains(&ms) {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation)] // rounded, and well inside i64's range
+    let ms = ms.round() as i64;
+    let at = chrono::DateTime::from_timestamp_millis(ms)?;
+    Some(
+        at.with_timezone(&chrono::Local)
+            .format("%H:%M:%S")
+            .to_string(),
+    )
+}
+
+/// A console entry as the drawer lists it: its time, its level, the message and where it came
+/// from.
+fn console_row(entry: &ConsoleEntry, cx: &App) -> AnyElement {
+    let time = entry.time_ms.and_then(time_of_day).unwrap_or_default();
+    let color = match entry.level.as_str() {
+        "error" | "exception" => Color::Error,
+        "warning" => Color::Warning,
+        _ => Color::Muted,
+    };
+    let place = entry.source.as_deref().map(|source| {
+        let file = source.rsplit('/').next().unwrap_or(source);
+        entry
+            .line
+            .map_or_else(|| file.to_string(), |line| format!("{file}:{line}"))
+    });
+    h_flex()
+        .w_full()
+        .gap_3()
+        .py_0p5()
+        .child(
+            div()
+                .flex_none()
+                .w(px(64.))
+                .child(Label::new(time).size(LabelSize::XSmall).color(Color::Muted)),
+        )
+        .child(
+            div().flex_none().w(px(64.)).child(
+                Label::new(entry.level.clone())
+                    .size(LabelSize::XSmall)
+                    .color(color),
+            ),
+        )
+        .child(
+            div().flex_1().min_w_0().child(
+                Label::new(entry.text.clone())
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .truncate(),
+            ),
+        )
+        .children(place.map(|place| {
+            Label::new(place)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted)
+        }))
+        .into_any_element()
+}
+
+/// A request as the drawer lists it: its method, its status, the URL and how long it took.
+fn network_row(entry: &NetworkEntry, cx: &App) -> AnyElement {
+    let (status, color) = match (entry.status, &entry.failure) {
+        (_, Some(failure)) => (failure.clone(), Color::Error),
+        (Some(status), None) if status >= 400 => (status.to_string(), Color::Error),
+        (Some(status), None) => (status.to_string(), Color::Muted),
+        (None, None) => ("…".to_string(), Color::Muted),
+    };
+    let took = entry
+        .duration_ms
+        .map(|ms| format!("{ms} ms"))
+        .unwrap_or_default();
+    h_flex()
+        .w_full()
+        .gap_3()
+        .py_0p5()
+        .child(
+            div().flex_none().w(px(56.)).child(
+                Label::new(entry.method.clone())
+                    .size(LabelSize::XSmall)
+                    .buffer_font(cx),
+            ),
+        )
+        .child(
+            div().flex_none().w(px(96.)).child(
+                Label::new(status)
+                    .size(LabelSize::XSmall)
+                    .color(color)
+                    .truncate(),
+            ),
+        )
+        .child(
+            div().flex_1().min_w_0().child(
+                Label::new(entry.url.clone())
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .truncate(),
+            ),
+        )
+        .child(Label::new(took).size(LabelSize::XSmall).color(Color::Muted))
+        .into_any_element()
+}
+
 /// Where the page at `address` runs (#850, D1): "port N · this machine" for this machine, the host
 /// otherwise, none for an address with no host.
 fn place_of(address: &str) -> Option<String> {
@@ -7863,6 +8127,7 @@ impl Render for BrowserView {
                     )
                     .children(picks),
             )
+            .children(self.render_drawer(cx))
             // Over everything, as Chromium's own popup would be.
             .children(self.select_menu.as_ref().map(|select| {
                 deferred(

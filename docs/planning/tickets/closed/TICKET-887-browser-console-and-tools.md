@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #887 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [887-console-drawer.spec.md](../../pipeline/completed/887-console-drawer.spec.md)
 - **Source ticket:** split from TICKET-879 while planning it (2026-10-22): #879 made the picks a
   panel.
 - **Boards:** Browser, BrowserTools
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
