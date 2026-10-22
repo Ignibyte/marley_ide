@@ -713,6 +713,10 @@ export MARLEY_RUSTY_MCP=$E2E_WORK/no-rusty-mcp
 export MARLEY_CODEX=$E2E_WORK/no-codex
 # Nor does it write into the user's Codex home (#725): a run's Codex home is its own.
 export CODEX_HOME=$E2E_WORK/codex-home
+# Nor does it list the user's Claude Code sessions (#877): the Threads view reads Claude Code's
+# transcripts under `CLAUDE_CONFIG_DIR`, and a click that lands on one of the user's opens a
+# `claude --resume` of their real conversation in the run.
+export CLAUDE_CONFIG_DIR=$E2E_WORK/claude-config
 # Nor at the user's Omarchy (#759): a run's is empty, and its refresh a program that is not there.
 export MARLEY_OMARCHY_HOME=$E2E_WORK/omarchy-home
 export MARLEY_OMARCHY_REFRESH=$E2E_WORK/no-omarchy-refresh

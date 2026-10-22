@@ -4405,3 +4405,13 @@ The left group takes the row's free width, so the slot got none: the field drew 
 right, its key binding over the agent pills. The probe run's first shot showed it. Fixed: the slot
 is absolute at the row's `left: 50%`, and the view is a fixed 440 px field shifted left by half
 its width, so it sits over the bar's middle without taking clicks from the groups.
+
+## F-claude-877-a-scenario-resumed-a-real-session-001
+*found: 2026-10-21 · while: planning #875 · severity: high*
+
+#645's scenario, run after #873 had turned the rail header's words into icons, clicked x 42 for
+its Brain entry, hit the Threads icon, and its next click opened a Threads row: one of the user's
+Claude Code sessions, which the run's Marley resumed as `claude --resume …` in its terminal. It
+stopped at Claude Code's first-run question and the run's end stopped it. Cause: the harness gave
+each run its own `CODEX_HOME` (#725) but not `CLAUDE_CONFIG_DIR`, so the run's Threads view listed
+the user's Claude Code transcripts. Fix: #877 exports `CLAUDE_CONFIG_DIR=$E2E_WORK/claude-config`.

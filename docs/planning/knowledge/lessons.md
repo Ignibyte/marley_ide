@@ -6423,3 +6423,11 @@ notification (a message with no `id`), and answers `tools/call` with `structured
 text copy; GET and DELETE can answer 405. Bind port 0 and write the port to a file the steps
 read. A token the provider reads from an environment variable reaches Marley when the scenario's
 `setup` exports it, which keeps the run off the user's keyring.
+
+## L-claude-877-a-rail-header-change-moves-old-clicks-001
+*category: testing · topic: scenarios after a layout change · from: pipeline 877*
+
+A change to the rail header's layout (#873) moves every point older scenarios click there, and a
+stale click lands on whatever sits there now. Before running an older scenario after such a
+change, read its first shot, or run it with its stop-early switch, before letting it click on;
+the coordinates are re-measured at the regression (§7). Thirteen scenarios click the rail header.
