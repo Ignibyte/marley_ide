@@ -1083,6 +1083,37 @@ fn talk_to(
     crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
 }
 
+/// Opens Marley's own agent in the pane right of the active one, working in `folder`, with `text`
+/// in its message box (#865); gives back the tab, or none while the Marley entry is off.
+pub(crate) fn ask_beside(
+    workspace: &mut Workspace,
+    folder: PathBuf,
+    text: String,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) -> Option<Entity<crate::thread_tab::ThreadTab>> {
+    let agent = cx
+        .global::<Assistant>()
+        .applied
+        .of(Entry::Marley)
+        .map(|(agent, _)| agent)?;
+    let (agent, _) = thread_agent_of(Entry::Marley, agent == MarleyAssistantAgent::Zed);
+    let content = agent_ui::AgentInitialContent::ContentBlock {
+        blocks: vec![agent_client_protocol::schema::v2::ContentBlock::Text(
+            agent_client_protocol::schema::v2::TextContent::new(text),
+        )],
+        auto_submit: false,
+    };
+    crate::thread_tab::open_beside(
+        workspace,
+        agent,
+        util::path_list::PathList::new(&[folder]),
+        content,
+        window,
+        cx,
+    )
+}
+
 /// The agent a new thread of `entry` runs, and on Zed's agent the entry's profile.
 fn thread_agent_of(entry: Entry, on_zed: bool) -> (agent_ui::Agent, Option<AgentProfileId>) {
     if on_zed {

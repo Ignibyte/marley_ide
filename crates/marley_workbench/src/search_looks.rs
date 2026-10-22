@@ -20,7 +20,9 @@ pub fn init(cx: &mut App) {
         footer: code_actions_footer,
     });
     cx.set_global(editor::MarleyRenameLook);
-    cx.set_global(agent_ui::MarleyThreadLook);
+    cx.set_global(agent_ui::MarleyThreadLook {
+        extra_chip: crate::beside::apply_chip,
+    });
 }
 
 /// A branch's dot and note (#891, D2): the coat's orange and "current" for the head, the lilac and

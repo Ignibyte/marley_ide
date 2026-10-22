@@ -18,8 +18,12 @@
 use std::collections::HashMap;
 use std::path::{Component, Path};
 use std::sync::Arc;
+use std::time::Duration;
 
-use gpui::{AnyElement, App, Context, Entity, EntityId, Focusable, Global, MouseButton, Pixels};
+use gpui::{
+    Animation, AnimationExt as _, AnyElement, App, Context, Entity, EntityId, Focusable, Global,
+    MouseButton, Pixels, px, relative,
+};
 use marley_terminal::BlockState;
 use settings::{MarleyBlockDensity, Settings as _, SettingsStore};
 use terminal::Terminal;
@@ -176,10 +180,13 @@ fn header(
         v_flex().child(row().child(command).children(place))
     };
     let focus_handle = view.focus_handle(cx);
+    let running = block.state == BlockState::Running;
     Some(
         header
             .id(("marley-block-header", index))
+            .relative()
             .size_full()
+            .when(running, |header| header.child(progress_line(index, cx)))
             // The header stands for the prompt's text, which is not there to select: a press on
             // it and its release are the header's, so the terminal under it starts no selection
             // and reports no click to its program. The press still focuses the terminal, as one
@@ -191,6 +198,35 @@ fn header(
             .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .into_any_element(),
     )
+}
+
+/// The thin line along a running block's top (#865, D3): a 30% bar sliding across, or still and
+/// full width under reduced motion.
+fn progress_line(index: usize, cx: &App) -> AnyElement {
+    let color = cx.theme().colors().text_accent;
+    if cx.reduce_motion() {
+        return div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .h(px(2.))
+            .w_full()
+            .bg(color.opacity(0.5))
+            .into_any_element();
+    }
+    div()
+        .absolute()
+        .top_0()
+        .h(px(2.))
+        .w(relative(0.3))
+        .rounded_full()
+        .bg(color)
+        .with_animation(
+            ("marley-block-progress", index),
+            Animation::new(Duration::from_millis(1200)).repeat(),
+            |line, delta| line.left(relative(delta * 0.7)),
+        )
+        .into_any_element()
 }
 
 /// `folder` as the header shows it, short enough to leave the branch room: the home folder as `~`,

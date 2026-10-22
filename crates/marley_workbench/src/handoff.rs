@@ -269,7 +269,7 @@ fn start(
                     content,
                     window,
                     cx,
-                );
+                )
             })
             .log_err();
     })

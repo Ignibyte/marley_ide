@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #865 (feature, the Marley look, W2 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [865-agent-beside-a-terminal-and-progress.spec.md](../../pipeline/completed/865-agent-beside-a-terminal-and-progress.spec.md)
 - **Source ticket:** split from TICKET-826 while planning it (2026-10-21): the AgentTerminal board
   shows an agent panel at the terminal's right that reads a failed block and proposes a fix to
   apply, and a running block with a progress line, which #826 leaves out.
 - **Boards:** AgentTerminal
 - **Size:** L
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

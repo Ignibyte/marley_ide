@@ -37,6 +37,7 @@ pub mod agents;
 pub mod asks;
 pub mod assistant;
 pub mod autosuggest;
+pub mod beside;
 pub mod block_filter;
 pub mod block_headers;
 pub mod block_tables;

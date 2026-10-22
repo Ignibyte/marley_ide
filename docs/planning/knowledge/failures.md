@@ -4456,3 +4456,13 @@ on it moved the editor's caret and closed the menu, and the row's own click neve
 menu's `uniform_list` calls `occlude()`, so the editor under it gets no mouse, but the popover
 around it does not, and the new row sat outside the list. Fixed: the row occludes. A row added
 to one of Zed's pop-ups outside its list occludes, or the editor under it takes the click.
+
+## F-claude-865-a-hook-called-from-a-render-read-its-own-view-001
+*found: 2026-10-22 · while: testing #865 · severity: high*
+
+#865's Apply chip is a function Zed's thread view calls from its own render. It found the
+terminal a thread was asked from by reading each linked tab's root thread view to compare
+threads, and one of those views was the one rendering, so the first Ask Marley panicked
+("cannot read ThreadView while it is already being updated"). Fixed: the hook is handed the
+asking view's id, and the link compares ids, never reading the view. A Marley function a Zed view
+calls during its render never reads that view; it takes what it needs as arguments.

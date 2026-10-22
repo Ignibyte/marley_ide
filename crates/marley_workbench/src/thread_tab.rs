@@ -1228,7 +1228,7 @@ pub(crate) fn active_conversation(
 }
 
 /// Opens a new thread of `agent`, working in `folders`, with `content` in its message box, in the
-/// pane right of the active one, split off it when there is none (#717).
+/// pane right of the active one, split off it when there is none (#717); gives back its tab.
 pub(crate) fn open_beside(
     workspace: &mut Workspace,
     agent: Agent,
@@ -1236,10 +1236,10 @@ pub(crate) fn open_beside(
     content: AgentInitialContent,
     window: &mut Window,
     cx: &mut Context<Workspace>,
-) {
+) -> Option<Entity<ThreadTab>> {
     let Some(panel) = workspace.panel::<AgentPanel>(cx) else {
         refuse(workspace, "This window has no Agent Panel.", cx);
-        return;
+        return None;
     };
     let fs = Arc::clone(&workspace.app_state().fs);
     let thread = ThreadSpec {
@@ -1270,6 +1270,7 @@ pub(crate) fn open_beside(
         });
     workspace.add_item(pane, Box::new(tab.clone()), None, true, true, window, cx);
     window.focus(&tab.read(cx).focus_handle(cx), cx);
+    Some(tab)
 }
 
 /// Whether `workspace`'s active item is a thread tab on `agent` (#772: the Manager read in a tab).

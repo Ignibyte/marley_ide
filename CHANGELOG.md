@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Ask Marley beside a terminal, and Apply** (#865, 2026-10-22). A failed block offers Ask
+  Marley, which opens Marley's agent in the pane at the terminal's right with the block in its
+  message box. When the answer proposes a command in a code block, Apply runs it in that terminal.
+  A running block's header carries a thin moving line.
+
 - **The thread's plan, card labels, reply chips, terminal and checks** (#864, 2026-10-22). An
   agent thread's details panel lists its plan with how much is done, peeks at its newest terminal
   call's last lines, and checks the files it changed for errors. Its edit and run cards carry EDIT

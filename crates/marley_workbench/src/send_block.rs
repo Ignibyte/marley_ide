@@ -225,8 +225,8 @@ pub(crate) fn chip(
         return None;
     }
     // Ask an agent to fix it, or to explain it; with no agent running, Claude Code starts with it
-    // (#826).
-    let (fix_view, explain_view) = (view.clone(), view.clone());
+    // (#826). Or ask Marley's own agent beside the terminal (#865).
+    let (fix_view, explain_view, beside_view) = (view.clone(), view.clone(), view.clone());
     Some(
         h_flex()
             .gap_1()
@@ -248,8 +248,56 @@ pub(crate) fn chip(
                         send(&explain_view, index, Request::Explain, window, cx);
                     }),
             )
+            .child(
+                Button::new(("marley-ask-beside", index), "Ask Marley")
+                    .style(ButtonStyle::Subtle)
+                    .label_size(LabelSize::XSmall)
+                    .tooltip(ui::Tooltip::text(
+                        "Open Marley's agent beside this terminal with the block",
+                    ))
+                    .on_click(move |_, window, cx| {
+                        cx.stop_propagation();
+                        ask_beside(&beside_view, index, window, cx);
+                    }),
+            )
             .into_any_element(),
     )
+}
+
+/// Opens Marley's own agent beside `view` with the block at `index` and "Fix it" in its message box,
+/// working in the block's folder, and links the thread to the terminal for Apply (#865).
+/// Deferred, as `send` is: the click runs while the workspace is being updated.
+fn ask_beside(view: &Entity<TerminalView>, index: usize, window: &Window, cx: &mut App) {
+    let view = view.clone();
+    window.defer(cx, move |window, cx| {
+        let Some(workspace) = view.read(cx).marley_workspace().upgrade() else {
+            return;
+        };
+        let Some(block) = text_for(&view, index, cx) else {
+            return;
+        };
+        let folder = {
+            let terminal = view.read(cx).terminal().read(cx);
+            terminal
+                .blocks()
+                .get(index)
+                .and_then(|block| block.prompt.pwd.as_deref().map(std::path::PathBuf::from))
+                .or_else(|| terminal.working_directory())
+        };
+        let Some(folder) = folder else {
+            return;
+        };
+        let text = format!(
+            "This command failed. Fix it, and give the command to run in a code block:\n\n{block}"
+        );
+        let window_handle = window.window_handle();
+        let tab = workspace.update(cx, |workspace, cx| {
+            crate::assistant::ask_beside(workspace, folder, text, window, cx)
+        });
+        if let Some(tab) = tab {
+            crate::beside::link(&tab, &view, window_handle, cx);
+        }
+    });
 }
 
 /// How long the block at `index` took, once it finished (#826).

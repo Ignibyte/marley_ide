@@ -4320,6 +4320,15 @@ below describe what #743 retired.
   and `editor::MarleyRenameLook` makes the rename block show "Renaming: Old → New · Enter". The completion rows' kind letter and right-hand
   detail are Zed's settings, defaulted in `assets/settings/default.json`.
 
+## An agent beside a terminal (`src/beside.rs`, `src/send_block.rs`, #865)
+
+- A failed block's Ask Marley runs `assistant::ask_beside` (the Marley entry's agent, through
+  `thread_tab::open_beside`, working in the block's folder) and `beside::link`s the tab to the
+  terminal. `beside::apply_chip`, `MarleyThreadLook`'s `extra_chip`, matches the asking thread
+  view by its id (it is being drawn), and offers the newest answer's one-line fenced command as
+  Apply, typed with a Return into that terminal.
+- `block_headers::progress_line` slides a thin accent bar along a running block's header.
+
 ## The thread's plan, terminal and checks (`src/thread_tab.rs`, #864)
 
 - The details panel (#825) adds PLAN (`AcpThread::plan`), ITS TERMINAL (the newest

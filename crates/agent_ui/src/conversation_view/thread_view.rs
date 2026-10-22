@@ -568,8 +568,14 @@ impl PermissionSelection {
 }
 
 /// Marley: while set, edit and run cards carry framed EDIT and RUN labels and a finished answer
-/// ends with reply chips, as the Main board draws the thread (#864).
-pub struct MarleyThreadLook;
+/// ends with reply chips, as the Main board draws the thread (#864), and with the chip
+/// `extra_chip` gives for the thread, such as Apply (#865).
+#[derive(Clone, Copy)]
+pub struct MarleyThreadLook {
+    /// Given the asking thread view's id (the view is being drawn, so not to be read) and its
+    /// thread.
+    pub extra_chip: fn(gpui::EntityId, &Entity<AcpThread>, &App) -> Option<AnyElement>,
+}
 
 impl gpui::Global for MarleyThreadLook {}
 
@@ -7723,8 +7729,11 @@ impl ThreadView {
         };
 
         // Marley: reply chips under the finished answer, over the faded controls (#864).
-        let marley_chips = (is_thread_bottom && cx.has_global::<MarleyThreadLook>())
-            .then(|| self.render_marley_chips(entry_ix, cx));
+        let marley_chips = cx
+            .try_global::<MarleyThreadLook>()
+            .copied()
+            .filter(|_| is_thread_bottom)
+            .map(|look| self.render_marley_chips(entry_ix, look, cx));
         let controls = h_flex()
             .w_full()
             .py_1p5()
@@ -7760,7 +7769,12 @@ impl ThreadView {
 
     /// Marley: the board's reply chips (#864); each puts its words in the message box and sends
     /// nothing.
-    fn render_marley_chips(&self, entry_ix: usize, cx: &Context<Self>) -> impl IntoElement {
+    fn render_marley_chips(
+        &self,
+        entry_ix: usize,
+        look: MarleyThreadLook,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
         const CHIPS: [(&str, &str); 3] = [
             ("Continue", "Continue."),
             ("Explain", "Explain what you changed and why."),
@@ -7783,6 +7797,7 @@ impl ThreadView {
                         window.focus(&focus, cx);
                     }))
             }))
+            .children((look.extra_chip)(cx.entity_id(), &self.thread, cx))
     }
 
     fn is_thread_feedback_enabled(&self, cx: &App) -> bool {
