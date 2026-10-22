@@ -88,6 +88,7 @@ pub use conversation_view::{ConversationView, StateChange};
 // Marley: the thread's look, which Marley sets (#864).
 pub use conversation_view::MarleyThreadLook;
 pub use external_source_prompt::ExternalSourcePrompt;
+pub use inline_prompt_editor::MarleyInlineAssistLook;
 pub(crate) use mode_selector::ModeSelector;
 pub(crate) use model_selector::ModelSelector;
 pub(crate) use model_selector_popover::ModelSelectorPopover;

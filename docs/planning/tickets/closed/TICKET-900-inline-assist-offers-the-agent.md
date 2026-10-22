@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #900 (feature, the Marley look, W6)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [900-inline-assist-offers-the-agent.spec.md](../../pipeline/completed/900-inline-assist-offers-the-agent.spec.md)
 - **Source ticket:** split from TICKET-899 while planning it (2026-10-22): a run has no LLM
   provider, so inline assist shows only "Configure at least one LLM provider" and its prompt
   cannot be shot.
 - **Boards:** EditorPopups
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

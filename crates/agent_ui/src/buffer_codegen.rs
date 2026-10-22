@@ -255,6 +255,11 @@ impl BufferCodegen {
         self.active_alternative().read(cx).last_equal_ranges()
     }
 
+    /// Marley: the range the assist works on, for the line under its prompt (#900).
+    pub fn range(&self) -> Range<Anchor> {
+        self.range.clone()
+    }
+
     pub fn selected_text<'a>(&self, cx: &'a App) -> Option<&'a str> {
         self.active_alternative().read(cx).selected_text()
     }

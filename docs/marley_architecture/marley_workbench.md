@@ -1433,6 +1433,14 @@ alike.
   `Row` a label and a `Pick` (`Agent(Target)` or `Copy`), and `on_pick` what the confirm does.
   `Target` gains `ready` (its seat in `State::Idle`); `Target`, `agent_targets` and the picker are
   `pub(crate)`.
+- **Inline assist's line (#900).** `inline_assist_line` is `agent_ui::MarleyInlineAssistLook`'s
+  function, set in `search_looks::init`. Zed's prompt hands it the workspace and the prompt's
+  lines, read from `BufferCodegen::range` since the editor is drawing the prompt. With no agent
+  in a terminal of the window it draws nothing; with one it names the lines, the agent and its
+  terminal's title (the first line, at most 32 characters), with several how many. Its click runs
+  `send_lines` with those lines: inline assist keeps its range as a highlight and leaves the
+  editor a caret, so the selection's own lines would be none. `send_selection` is `send_lines`
+  with no lines given.
 
 ## An agent that drives a running program (`src/terminal_drive.rs`, #525)
 

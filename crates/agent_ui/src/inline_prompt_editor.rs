@@ -4,7 +4,7 @@ use collections::{HashMap, VecDeque};
 use editor::actions::Paste;
 use editor::code_context_menus::CodeContextMenu;
 use editor::display_map::{CreaseId, EditorMargins};
-use editor::{AnchorRangeExt as _, MultiBufferOffset, ToOffset as _};
+use editor::{AnchorRangeExt as _, MultiBufferOffset, ToOffset as _, ToPoint as _};
 use editor::{
     ContextMenuOptions, Editor, EditorElement, EditorEvent, EditorMode, EditorStyle, MultiBuffer,
 };
@@ -57,6 +57,15 @@ struct SessionState {
     session_id: Uuid,
     completion: CompletionState,
 }
+
+/// Marley: a line under a file's inline assist prompt, given the prompt's lines from 1 (#900).
+/// The prompt is drawn by the editor it sits in, so the function reads neither.
+#[derive(Clone, Copy)]
+pub struct MarleyInlineAssistLook {
+    pub line: fn(&WeakEntity<Workspace>, Range<u32>, &App) -> Option<AnyElement>,
+}
+
+impl gpui::Global for MarleyInlineAssistLook {}
 
 pub struct PromptEditor<T> {
     pub editor: Entity<Editor>,
@@ -148,6 +157,26 @@ impl<T: 'static> Render for PromptEditor<T> {
             .render_markdown(markdown, markdown_style(window, cx))
             .into_any_element();
 
+        // Marley: the offer to send the lines to the window's terminal agent (#900).
+        let marley_line = match &self.mode {
+            PromptEditorMode::Buffer { codegen, .. } => cx
+                .try_global::<MarleyInlineAssistLook>()
+                .copied()
+                .and_then(|look| {
+                    let range = codegen.read(cx).range();
+                    let snapshot = codegen.read(cx).buffer(cx).read(cx).snapshot(cx);
+                    let start = range.start.to_point(&snapshot);
+                    let end = range.end.to_point(&snapshot);
+                    let last = if end.column == 0 && end.row > start.row {
+                        end.row - 1
+                    } else {
+                        end.row
+                    };
+                    (look.line)(&self.workspace, start.row + 1..last + 1, cx)
+                }),
+            PromptEditorMode::Terminal { .. } => None,
+        };
+
         v_flex()
             .key_context("InlineAssistant")
             .capture_action(cx.listener(Self::paste))
@@ -227,6 +256,13 @@ impl<T: 'static> Render for PromptEditor<T> {
                             ),
                     ),
             )
+            .when_some(marley_line, |this, line| {
+                this.child(
+                    h_flex()
+                        .child(div().flex_none().w(left_gutter_width + px(6.)))
+                        .child(div().min_w_0().flex_1().child(line)),
+                )
+            })
             .when_some(explanation, |this, _| {
                 this.child(
                     h_flex()

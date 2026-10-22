@@ -9,6 +9,7 @@
 //! the reference instead, and nothing is typed while the agent waits on a permission or a
 //! question, which a paste would answer.
 
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -16,8 +17,8 @@ use std::sync::atomic::AtomicBool;
 use editor::Editor;
 use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
-    AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Global, Render, Task, WeakEntity, Window,
+    AnyElement, AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId,
+    EventEmitter, FocusHandle, Focusable, Global, Render, Task, WeakEntity, Window,
 };
 use language::Point;
 use marley_agent::{AgentKind, claude_events};
@@ -27,6 +28,7 @@ use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::{HighlightedLabel, ListItem, ListItemSpacing, prelude::*};
 use util::ResultExt as _;
+use workspace::item::Item as _;
 use workspace::notifications::NotificationId;
 use workspace::{ModalView, Toast, Workspace};
 use zed_actions::agent::AddSelectionToThread;
@@ -159,13 +161,27 @@ fn send_selection(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Result<(), &'static str> {
+    send_lines(workspace, None, window, cx)
+}
+
+/// [`send_selection`], with `lines` in place of the selection's when given: inline assist keeps
+/// its lines as a highlight and leaves the editor only a caret (#900).
+fn send_lines(
+    workspace: &mut Workspace,
+    lines: Option<(u32, u32)>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
     let editor = workspace
         .active_item(cx)
         .and_then(|item| item.act_as::<Editor>(cx))
         .filter(|editor| editor.focus_handle(cx).contains_focused(window, cx))
         .ok_or("Marley sends the selection of a file's editor: put the focus in one first.")?;
-    let selection = selection_of(&editor, cx)
+    let mut selection = selection_of(&editor, cx)
         .ok_or("Marley sends the selection of a file's editor: this one shows no file.")?;
+    if lines.is_some() {
+        selection.lines = lines;
+    }
     let mut targets = agent_targets(workspace, cx);
     let window_handle = window.window_handle();
     match targets.len() {
@@ -401,6 +417,69 @@ pub(crate) fn agent_targets(workspace: &Workspace, cx: &App) -> Vec<Target> {
         .into_iter()
         .filter_map(|(project, view)| target_of(project, view, cx))
         .collect()
+}
+
+/// Inline assist's line under its prompt (#900): its lines and the agent a terminal of the
+/// window runs, and a click sends those lines as `marley: send selection to agent` sends a
+/// selection. No agent, no line.
+pub(crate) fn inline_assist_line(
+    workspace: &WeakEntity<Workspace>,
+    lines: Range<u32>,
+    cx: &App,
+) -> Option<AnyElement> {
+    let workspace = workspace.upgrade()?;
+    let targets = agent_targets(workspace.read(cx), cx);
+    let to = match targets.as_slice() {
+        [] => return None,
+        [target] => {
+            // A terminal's title can be its whole command line; the line keeps to one row.
+            let title = target.view.read(cx).tab_content_text(0, cx);
+            let first = title.lines().next().unwrap_or_default().trim();
+            let title = util::truncate_and_trailoff(first, 32);
+            format!("{} in \u{201c}{title}\u{201d}", target.kind.display_name())
+        }
+        several => format!("one of the {} agents in this window", several.len()),
+    };
+    let span = (lines.start, lines.end - 1);
+    let lines = if lines.len() <= 1 {
+        format!("line {}", lines.start)
+    } else {
+        format!("lines {}\u{2013}{}", lines.start, lines.end - 1)
+    };
+    let workspace = workspace.downgrade();
+    Some(
+        h_flex()
+            .id("marley-inline-assist-send")
+            .debug_selector(|| "marley-inline-assist-send".into())
+            .py_0p5()
+            .gap_1()
+            .cursor_pointer()
+            .child(
+                div().min_w_0().child(
+                    Label::new(format!("Or send {lines} to {to}"))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .truncate(),
+                ),
+            )
+            .child(
+                div().flex_none().child(
+                    Label::new("\u{b7} marley: send selection to agent")
+                        .size(LabelSize::Small)
+                        .color(Color::Disabled),
+                ),
+            )
+            .on_click(move |_, window, cx| {
+                workspace
+                    .update(cx, |workspace, cx| {
+                        if let Err(message) = send_lines(workspace, Some(span), window, cx) {
+                            show_toast(workspace, message, cx);
+                        }
+                    })
+                    .log_err();
+            })
+            .into_any_element(),
+    )
 }
 
 /// The terminal views of `workspace`, center and docked, with its project's name.

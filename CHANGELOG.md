@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Inline assist offers the agent** (#900, 2026-10-22). While an agent runs in a terminal of the
+  window, inline assist's prompt in a file carries a line: "Or send lines 20–22 to Claude Code in
+  …". A click on it types the reference to those lines at the agent's prompt, as `marley: send
+  selection to agent` does.
+
 - **Port rows, containers and Collab as the Splits board draws them** (#890, 2026-10-22). A port
   row under a project shows its port on a teal tile and its URL over what serves it, and ends
   with Open, or Copy for a container's port. The Containers panel lists a row per container with

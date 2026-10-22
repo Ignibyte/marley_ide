@@ -4475,3 +4475,12 @@ That call asks every item in the workspace whether it is dirty, Home's page amon
 first Start with a recent project panicked ("cannot read MarleyHome while it is already being
 updated"). Fixed: Start spawns and opens the project from the task, after the update has ended.
 A page that opens or closes projects does it from a spawned task, never inside its own update.
+
+## F-claude-900-inline-assist-leaves-the-editor-a-caret-001
+*found: 2026-10-22 · while: testing #900 · severity: medium*
+
+#900's line under inline assist's prompt first ran `marley: send selection to agent` on click.
+The agent got `@src/main.rs` with no lines: inline assist turns the selection into a highlight of
+its range and leaves the editor only a caret, so the action read no selection. Fixed: the click
+sends the lines the prompt was given (`send_lines`), and the prompt reads them from its codegen's
+range. While inline assist is open, its range is the selection; the editor's own is a caret.

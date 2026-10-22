@@ -194,7 +194,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 ## Wave 6: polish
 
 - **Editor pop-ups** (EditorPopups; completions, hover and code actions done, #856, 2026-10-22;
-  Ask an agent to fix this and the rename note done, #899; inline assist's line #900): completions, hover, code actions,
+  Ask an agent to fix this and the rename note done, #899; inline assist's line done, #900): completions, hover, code actions,
   rename, inline assist.
 - **Empty and error states** (States; done, #857 and #894, 2026-10-22): no project, no threads, no filter match, Rusty dropped,
   Chromium missing, an agent CLI missing, forge offline, the harness stopped.
