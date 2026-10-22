@@ -4435,17 +4435,30 @@ impl Rail {
                 .get(index)
                 .map(|project| SharedString::from(project.name.clone()))
         };
+        let project_root = |index: usize| {
+            self.snapshot
+                .groups
+                .get(index)
+                .and_then(|group| group.key.path_list().paths().first().cloned())
+        };
         marley_rail::switcher_rows(rail, |row| self.shown_at.get(row).copied())
             .into_iter()
             .filter_map(|row| match row {
                 SwitcherRow::Terminal(row) => {
                     let project = project_name(row.project)?;
-                    Some(SwitcherEntry::Terminal { row, project })
+                    let root = project_root(row.project);
+                    Some(SwitcherEntry::Terminal { row, project, root })
                 }
                 SwitcherRow::Thread(row) => {
                     let project = project_name(row.project)?;
+                    let root = project_root(row.project);
                     let icon = self.snapshot.threads.get(&row.key)?.icon.clone();
-                    Some(SwitcherEntry::Thread { row, project, icon })
+                    Some(SwitcherEntry::Thread {
+                        row,
+                        project,
+                        root,
+                        icon,
+                    })
                 }
             })
             .collect()

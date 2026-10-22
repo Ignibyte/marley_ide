@@ -637,6 +637,7 @@ fn manager_posted(slot: &Slot, records: Vec<ManagerRecord>, cx: &mut App) {
     for record in &records {
         log::info!("harness: {entry} posted a {}: {}", record.kind, record.line);
         cx.show_system_notification(SystemNotification {
+            image: None,
             tag: SharedString::from(format!("marley-manager-{tag}{}", record.id)),
             title: SharedString::from(format!("{entry}: {}", record.kind_word())),
             body: SharedString::from(record.line.clone()),

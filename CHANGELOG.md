@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A project's logo on its notifications and in the switcher** (#859, 2026-10-22). A desktop
+  notification from a project's terminal carries the project's logo, and the rail's switcher
+  shows each row's project mark beside its name.
+
 - **Ask an agent to fix this, and the rename note** (#899, 2026-10-22). The code actions menu
   ends with "Ask an agent to fix this…", which types "Fix this:", the line and the error there at
   the prompt of the agent in a terminal of the window (`marley: ask agent to fix`). An inline

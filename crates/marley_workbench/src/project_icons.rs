@@ -435,6 +435,17 @@ fn search(root: &Path, cx: &mut App) {
     }
 }
 
+/// The file the mark of the project holding `path` came from (#859): of the projects whose mark
+/// was read, the deepest folder that holds `path`; none for a project drawn with its letter.
+pub fn logo_file_for(path: &Path, cx: &App) -> Option<PathBuf> {
+    cx.try_global::<ProjectMarks>()?
+        .marks
+        .iter()
+        .filter(|(root, entry)| entry.image.is_some() && path.starts_with(root))
+        .max_by_key(|(root, _)| root.components().count())
+        .and_then(|(_, entry)| entry.chosen.clone())
+}
+
 /// Whether the user chose `root`'s mark (#831).
 pub fn picked(root: &Path, cx: &App) -> bool {
     ProjectLogos::get_global(cx).0.contains_key(root)

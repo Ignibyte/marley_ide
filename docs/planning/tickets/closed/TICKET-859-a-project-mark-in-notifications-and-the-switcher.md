@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #859 (feature, the Marley look, W1.2 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [859-project-mark-in-notifications-and-switcher.spec.md](../../pipeline/completed/859-project-mark-in-notifications-and-switcher.spec.md)
 - **Source ticket:** split from TICKET-831 while planning it (2026-10-20): the ProjectLogo board
   shows the mark on a project's desktop notifications and in the switcher, which #831 leaves out.
 - **Boards:** ProjectLogo
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

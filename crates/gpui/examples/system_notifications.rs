@@ -43,6 +43,7 @@ impl Render for SystemNotificationExample {
                             this.revision += 1;
                             let revision = this.revision;
                             cx.show_system_notification(SystemNotification {
+                                image: None,
                                 tag: NOTIFICATION_TAG.into(),
                                 title: format!("Example notification {revision}").into(),
                                 body: "This notification was posted by the GPUI example.".into(),

@@ -300,6 +300,7 @@ fn notify(slot: &Slot, run: &str, task: &str, line: &str, cx: &App) {
         |name| format!("{task} on {name} found something"),
     );
     cx.show_system_notification(SystemNotification {
+        image: None,
         tag: SharedString::from(format!("marley-finding-{run}")),
         title: SharedString::from(title),
         body: SharedString::from(line.to_string()),

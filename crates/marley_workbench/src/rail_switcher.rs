@@ -3,6 +3,8 @@
 //! switcher. Each further press steps down the list, and letting go of the modifiers held to open
 //! it opens the selected row.
 
+use std::path::{Path, PathBuf};
+
 use gpui::{
     AnyElement, ClickEvent, Context, EventEmitter, FocusHandle, Focusable, Modifiers,
     ModifiersChangedEvent, Render, ScrollHandle, Subscription, Window,
@@ -18,15 +20,17 @@ use crate::agents::AgentIcon;
 /// A row of the switcher, with what it draws beside the rail's row.
 #[derive(Debug, Clone)]
 pub(super) enum SwitcherEntry {
-    /// A terminal, and its project's name.
+    /// A terminal, and its project's name and folder, whose mark goes beside the name (#859).
     Terminal {
         row: Box<TerminalRow>,
         project: SharedString,
+        root: Option<PathBuf>,
     },
-    /// A thread, its project's name and its agent's icon.
+    /// A thread, its project's name and folder, and its agent's icon.
     Thread {
         row: ThreadRow,
         project: SharedString,
+        root: Option<PathBuf>,
         icon: AgentIcon,
     },
 }
@@ -166,7 +170,7 @@ impl RailSwitcher {
     fn render_entry(&self, index: usize, entry: &SwitcherEntry, cx: &Context<Self>) -> AnyElement {
         let selected = index == self.selected;
         let row = match entry {
-            SwitcherEntry::Terminal { row, project } => {
+            SwitcherEntry::Terminal { row, project, root } => {
                 ListItem::new(("marley-switcher-terminal", index))
                     .toggle_state(selected)
                     .rounded()
@@ -179,6 +183,7 @@ impl RailSwitcher {
                         h_flex()
                             .gap_2()
                             .child(Label::new(row.title.clone()).size(LabelSize::Small))
+                            .children(root.as_deref().map(|root| project_mark(root, project, cx)))
                             .child(
                                 Label::new(project.clone())
                                     .size(LabelSize::XSmall)
@@ -187,12 +192,20 @@ impl RailSwitcher {
                     )
                     .into_any_element()
             }
-            SwitcherEntry::Thread { row, project, icon } => thread_item(
+            SwitcherEntry::Thread {
+                row,
+                project,
+                root,
+                icon,
+            } => thread_item(
                 SharedString::from(format!("marley-switcher-thread-{}", row.key)),
                 row.clone(),
                 icon,
             )
             .selected(selected)
+            .when_some(root.as_deref(), |item, root| {
+                item.project_mark(project_mark(root, project, cx))
+            })
             .project_name(project.clone())
             .base_bg(cx.theme().colors().elevated_surface_background)
             .into_any_element(),
@@ -257,4 +270,9 @@ impl Render for RailSwitcher {
                     .children(rows),
             )
     }
+}
+
+/// A row's project mark beside its name (#859): its logo, or its letter.
+fn project_mark(root: &Path, project: &str, cx: &App) -> AnyElement {
+    crate::project_icons::project_mark(root, project, px(12.), cx)
 }

@@ -4320,6 +4320,14 @@ below describe what #743 retired.
   and `editor::MarleyRenameLook` makes the rename block show "Renaming: Old → New · Enter". The completion rows' kind letter and right-hand
   detail are Zed's settings, defaulted in `assets/settings/default.json`.
 
+## A project's mark on banners and the switcher (#859)
+
+- `project_icons::logo_file_for(path)` gives the file the mark of the project holding `path` came
+  from. `notifications::post` passes it, found from the terminal's working folder, as
+  `SystemNotification.image`, which gpui on Linux sends as the `image-path` hint.
+- The rail switcher's rows keep their project's folder and draw `project_icons::project_mark`
+  before the project's name; thread rows through `ThreadItem::project_mark`.
+
 ## The diff review's header (`src/diff_header.rs`, #893)
 
 - `add_toolbar_items`, which Zed's `initialize_pane` calls, adds `DiffHeader` to each pane's

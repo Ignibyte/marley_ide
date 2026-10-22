@@ -73,7 +73,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 - Code: `rail.rs`, `rail_switcher.rs`. The 180 ms width animation and reduced-motion jump come
   from the States board.
 
-**W1.2 A project's mark from `logo.png`.** *Done (#831, 2026-10-21; notifications and the switcher #859, remote projects #860).* *M.* Board: ProjectLogo.
+**W1.2 A project's mark from `logo.png`.** *Done (#831, 2026-10-21; notifications and the switcher done, #859, 2026-10-22; remote projects #860).* *M.* Board: ProjectLogo.
 - Look for `logo.png`, then `logo.svg`, in the project's top folder; a file picked in Settings
   wins; otherwise the name's first letter on a tint of its own. `marley.project_logo` (proposed).
 - Read once and cached; a remote project's file is read once over SSH and kept; a change to the

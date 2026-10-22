@@ -57,6 +57,8 @@ pub struct ThreadItem {
     removed: Option<usize>,
     project_paths: Option<Arc<[PathBuf]>>,
     project_name: Option<SharedString>,
+    /// Marley: the project's mark, drawn before its name (#859).
+    project_mark: Option<AnyElement>,
     worktrees: Vec<ThreadItemWorktreeInfo>,
     is_remote: bool,
     archived: bool,
@@ -92,6 +94,7 @@ impl ThreadItem {
             removed: None,
             project_paths: None,
             project_name: None,
+            project_mark: None,
             worktrees: Vec::new(),
             is_remote: false,
             archived: false,
@@ -186,6 +189,12 @@ impl ThreadItem {
 
     pub fn project_paths(mut self, paths: Arc<[PathBuf]>) -> Self {
         self.project_paths = Some(paths);
+        self
+    }
+
+    /// Marley: the project's mark, drawn before its name (#859).
+    pub fn project_mark(mut self, mark: impl IntoElement) -> Self {
+        self.project_mark = Some(mark.into_any_element());
         self
     }
 
@@ -499,27 +508,29 @@ impl RenderOnce for ThreadItem {
                         .when(
                             has_project_name || has_project_paths || has_worktree,
                             |this| {
-                                this.when_some(self.project_name, |this, name| {
-                                    this.child(
-                                        Label::new(name).size(LabelSize::Small).color(Color::Muted),
+                                this.children(self.project_mark)
+                                    .when_some(self.project_name, |this, name| {
+                                        this.child(
+                                            Label::new(name)
+                                                .size(LabelSize::Small)
+                                                .color(Color::Muted),
+                                        )
+                                    })
+                                    .when(
+                                        has_project_name && (has_project_paths || has_worktree),
+                                        |this| this.child(dot_separator()),
                                     )
-                                })
-                                .when(
-                                    has_project_name && (has_project_paths || has_worktree),
-                                    |this| this.child(dot_separator()),
-                                )
-                                .when_some(project_paths, |this, paths| {
-                                    this.child(
-                                        Label::new(paths)
-                                            .size(LabelSize::Small)
-                                            .color(Color::Muted),
-                                    )
-                                })
-                                .when(has_project_paths && has_worktree, |this| {
-                                    this.child(dot_separator())
-                                })
-                                .children(
-                                    linked_worktrees.into_iter().map(|wt| {
+                                    .when_some(project_paths, |this, paths| {
+                                        this.child(
+                                            Label::new(paths)
+                                                .size(LabelSize::Small)
+                                                .color(Color::Muted),
+                                        )
+                                    })
+                                    .when(has_project_paths && has_worktree, |this| {
+                                        this.child(dot_separator())
+                                    })
+                                    .children(linked_worktrees.into_iter().map(|wt| {
                                         let worktree_label = wt.worktree_name.clone().map(|name| {
                                             if wt.highlight_positions.is_empty() {
                                                 Label::new(name)
@@ -583,8 +594,7 @@ impl RenderOnce for ThreadItem {
                                             .when_some(branch_label, |this, label| {
                                                 this.child(label)
                                             })
-                                    }),
-                                )
+                                    }))
                             },
                         )
                         .when(

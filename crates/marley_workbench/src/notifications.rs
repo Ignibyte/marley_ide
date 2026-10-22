@@ -161,6 +161,7 @@ pub(crate) fn on_seat_change(
         tag,
         SharedString::from(title),
         &banner_body(event, seat),
+        view,
         window,
         cx,
     );
@@ -217,7 +218,7 @@ pub(crate) fn notify(
         || view.tab_content_text(0, cx),
         |title| SharedString::from(title.to_owned()),
     );
-    post(tag, title, body, window, cx);
+    post(tag, title, body, view, window, cx);
 }
 
 /// Shows a desktop notification that `view`'s agent may be stuck (#569), unless the user is
@@ -234,17 +235,31 @@ pub(crate) fn notify_stall(
         return;
     }
     let tag = SharedString::from(format!("marley-stall-{}", cx.entity_id()));
-    post(tag, SharedString::from(title.to_owned()), body, window, cx);
+    post(
+        tag,
+        SharedString::from(title.to_owned()),
+        body,
+        view,
+        window,
+        cx,
+    );
 }
 
-/// Shows the notification `tag` from the terminal of `cx`, and keeps its sender for the click.
+/// Shows the notification `tag` from the terminal of `cx`, with its project's logo when it has
+/// one (#859), and keeps its sender for the click.
 fn post(
     tag: SharedString,
     title: SharedString,
     body: &str,
+    view: &TerminalView,
     window: &Window,
     cx: &mut Context<TerminalView>,
 ) {
+    let image = view
+        .terminal()
+        .read(cx)
+        .working_directory()
+        .and_then(|folder| crate::project_icons::logo_file_for(&folder, cx));
     let sender = (window.window_handle(), cx.entity().downgrade());
     cx.default_global::<Senders>().0.insert(tag.clone(), sender);
     cx.show_system_notification(SystemNotification {
@@ -252,6 +267,7 @@ fn post(
         title,
         body: SharedString::from(body.to_owned()),
         actions: Vec::new(),
+        image,
     });
 }
 

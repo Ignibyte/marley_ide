@@ -1356,6 +1356,7 @@ mod tests {
     ) {
         cx.update(|cx| {
             cx.show_system_notification(SystemNotification {
+                image: None,
                 tag: "thread-1".into(),
                 title: "Task started".into(),
                 body: "Running tests".into(),
@@ -1368,12 +1369,14 @@ mod tests {
         cx.update(|cx| {
             cx.set_app_identity("com.example.tasks", "Tasks");
             cx.show_system_notification(SystemNotification {
+                image: None,
                 tag: "thread-1".into(),
                 title: "Task started".into(),
                 body: "Running tests".into(),
                 actions: Vec::new(),
             });
             cx.show_system_notification(SystemNotification {
+                image: None,
                 tag: "thread-1".into(),
                 title: "Task finished".into(),
                 body: "All tests passed".into(),
@@ -1392,6 +1395,7 @@ mod tests {
         assert_eq!(
             cx.delivered_system_notifications(),
             [SystemNotification {
+                image: None,
                 tag: "thread-1".into(),
                 title: "Task finished".into(),
                 body: "All tests passed".into(),
@@ -1471,6 +1475,7 @@ mod tests {
         cx.update(|cx| {
             cx.set_app_identity("com.example.tasks", "Tasks");
             cx.show_system_notification(SystemNotification {
+                image: None,
                 tag: "thread-1".into(),
                 title: "Task finished".into(),
                 body: "All tests passed".into(),

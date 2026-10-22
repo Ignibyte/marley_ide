@@ -44,6 +44,10 @@ impl SystemNotificationState {
             .summary(&notification.title)
             .body(&notification.body)
             .action(DEFAULT_ACTION, DEFAULT_ACTION);
+        // Marley: the image as the specification's `image-path` hint (#859).
+        if let Some(image) = &notification.image {
+            builder.image_path(&image.to_string_lossy());
+        }
         let mut action_ids = HashMap::new();
         for (index, action) in notification.actions.iter().enumerate() {
             let transport_id = format!("gpui-action-{index}");

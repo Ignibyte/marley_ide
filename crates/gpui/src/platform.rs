@@ -678,6 +678,9 @@ pub struct SystemNotification {
     /// Buttons offered on the notification. Platforms that cannot display
     /// action buttons show the notification without them.
     pub actions: Vec<SystemNotificationAction>,
+    /// Marley: an image file shown with the notification, such as the project's logo (#859).
+    /// Platforms that cannot show one leave it out.
+    pub image: Option<std::path::PathBuf>,
 }
 
 /// A button offered on a [`SystemNotification`].
