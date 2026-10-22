@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #860 (feature, the Marley look, W1.2 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [860-a-remote-projects-logo-over-ssh.spec.md](../../pipeline/completed/860-a-remote-projects-logo-over-ssh.spec.md)
 - **Source ticket:** split from TICKET-831 while planning it (2026-10-20): the ProjectLogo board
   says a remote project's file is read once over SSH and kept.
 - **Boards:** ProjectLogo
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

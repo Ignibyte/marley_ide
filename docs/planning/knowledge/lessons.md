@@ -6441,3 +6441,13 @@ tab under Changes, in the Inspector too, with the commits the board lists. The s
 Marley's code and Zed's Git Graph but never opened the panel the board names. Before building a
 view a board draws inside one of Zed's panels, open that panel in a run and look at every tab it
 has.
+
+## L-claude-860-a-closed-remote-group-in-a-run-001
+*learned: 2026-10-22 · while: testing #860*
+
+A run cannot show a remote project offline by restarting Marley on the `ssh://` URL with the host
+down: the connection fails and the window lists no group. A window keeps its groups' keys, so
+make the remote project's window hold a local project too (close the local window, open the local
+project from Home's Recent Projects there) and restart with the last session (`launch_marley_with`
+and no arguments): the remote group comes back as a closed row. `marley home` opens Home in the
+running Marley without a click.

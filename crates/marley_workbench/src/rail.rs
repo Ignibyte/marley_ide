@@ -1628,8 +1628,26 @@ impl Rail {
         });
     }
 
-    /// Asks for each local project's mark the first time its group shows (#564, #831).
+    /// Asks for each project's mark the first time its group shows (#564, #831), a remote
+    /// project's through its project while open and from the kept copy while closed (#860).
     fn follow_icons(&self, cx: &mut Context<Self>) {
+        let remote: Vec<_> = self
+            .snapshot
+            .groups
+            .iter()
+            .filter_map(|group| {
+                let host = group.key.host()?;
+                let root = group.key.path_list().paths().first()?.clone();
+                let project = group
+                    .workspace
+                    .upgrade()
+                    .map(|workspace| workspace.read(cx).project().clone());
+                Some((root, host, project))
+            })
+            .collect();
+        for (root, host, project) in remote {
+            crate::project_icons::want_remote(&root, &host, project.as_ref(), cx);
+        }
         let roots: Vec<PathBuf> =
             self.snapshot
                 .groups

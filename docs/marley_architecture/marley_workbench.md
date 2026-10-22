@@ -2081,6 +2081,16 @@ alike.
 - `recent_look`, set as `recent_projects::MarleyRecentLook` in `init`, gives each Open Recent row
   its mark (`project_mark` at 26 px after `want`, or `letter_mark` for a remote project) and its
   place: "this window", "ssh", or the days since it was opened.
+- **A remote project's mark (#860).** `Rail::follow_icons` calls `want_remote(root, host,
+  project)` for each group with a host, its project while open; the entry's `Remote` holds that
+  project (weak) and the kept copy, `<data dir>/project_logos/<hash of host and folder>`. For
+  such an entry with `Source::Search`, `search` runs `remote_icon`: `open_candidate` finds the
+  first name the remote worktree lists within the cap and reads it with `Project::open_image`;
+  the bytes go to the kept copy (`keep`, the other extensions removed) and the mark's file is
+  that copy, so #859's notifications have a local file. A host that answers with no candidate
+  drops the kept copy (`forget`); one that cannot be reached (no project, disconnected, a failed
+  read) leaves the mark to the kept copy, which is how a closed remote group draws it after a
+  restart. Declared icons (`index.html`) and Open Recent's remote rows stay out.
 
 ## The harness's sessions (`src/harness.rs`, #534)
 

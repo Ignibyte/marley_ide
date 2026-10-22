@@ -5,6 +5,9 @@
 //! Home and the title bar), kept in one global cache by the project's first folder, with the
 //! user's pick from `marley.project_logos` first and the name's first letter last.
 //!
+//! Since #860 a remote project's mark is read once through its project from the remote worktree's
+//! files and kept in Marley's data folder, which draws it while the host cannot be reached.
+//!
 //! The candidates are Orca's fifteen names, each as PNG, SVG, WebP, then ICO, then the icon an
 //! `index.html` declares with `<link rel="icon">`. The first that reads, is at most 256 KiB and
 //! decodes wins; one that fails is logged by name and the search goes on. The image is made 32
@@ -17,10 +20,15 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use gpui::{AnyElement, App, FontWeight, Global, Pixels, RenderImage, Task, img};
+use gpui::{
+    AnyElement, App, AsyncApp, Entity, FontWeight, Global, Pixels, RenderImage, Task, WeakEntity,
+    img,
+};
+use project::{ImageItem, Project, ProjectPath};
 use regex::Regex;
 use settings::{RegisterSetting, Settings, SettingsContent, SettingsStore};
 use ui::{Label, LabelSize, prelude::*};
+use util::rel_path::RelPath;
 
 /// The names searched for at a project's root, in order: its logo first (#831).
 const NAMES: &[&str] = &[
@@ -276,6 +284,18 @@ struct Entry {
     search: Option<Task<()>>,
     /// Whether another search was asked for while this one ran.
     again: bool,
+    /// Where a remote project's mark is read from (#860).
+    remote: Option<Remote>,
+}
+
+/// A remote project's mark (#860): read through its project, while it is open and connected, from
+/// the remote worktree's files; kept in Marley's data folder, so a closed or unreachable project
+/// still has it.
+#[derive(Clone)]
+struct Remote {
+    project: Option<WeakEntity<Project>>,
+    /// The kept copy, named by its host and folder, without its extension.
+    kept: PathBuf,
 }
 
 /// Every project's mark, by its first folder (#831): the rail, its strip, Home and the title bar
@@ -353,6 +373,182 @@ pub fn want(root: &Path, cx: &mut App) {
     }
 }
 
+/// Searches for a remote project's mark (#860) the first time it is asked for, and again when its
+/// project is newly open. `host` and `root` name the kept copy.
+pub fn want_remote(
+    root: &Path,
+    host: &impl std::hash::Hash,
+    project: Option<&Entity<Project>>,
+    cx: &mut App,
+) {
+    let mut hasher = DefaultHasher::new();
+    host.hash(&mut hasher);
+    root.hash(&mut hasher);
+    let kept = paths::data_dir()
+        .join("project_logos")
+        .join(format!("{:016x}", hasher.finish()));
+    let project = project.map(Entity::downgrade);
+    let entry = cx
+        .default_global::<ProjectMarks>()
+        .marks
+        .entry(root.to_path_buf())
+        .or_default();
+    let newly_open = project.as_ref().is_some_and(|project| {
+        entry
+            .remote
+            .as_ref()
+            .and_then(|remote| remote.project.as_ref())
+            .is_none_or(|known| known.entity_id() != project.entity_id())
+    });
+    if entry.remote.is_some() && !newly_open {
+        return;
+    }
+    entry.remote = Some(Remote { project, kept });
+    search(root, cx);
+}
+
+/// A remote project's mark (#860): its first candidate the remote worktree lists, read through the
+/// project and kept, else the kept copy. The mark's file is the kept copy, a local file.
+async fn remote_icon(
+    root: &Path,
+    remote: Remote,
+    cx: &mut AsyncApp,
+) -> Option<(PathBuf, Arc<RenderImage>)> {
+    let found = remote
+        .project
+        .as_ref()
+        .and_then(WeakEntity::upgrade)
+        .map_or(Candidate::Unreachable, |project| {
+            project.update(cx, |project, cx| open_candidate(project, root, cx))
+        });
+    match found {
+        Candidate::Unreachable => {}
+        // The host answers and holds no logo now: the kept copy goes too.
+        Candidate::None => {
+            let kept = remote.kept;
+            cx.background_spawn(futures::future::lazy(move |_| forget(&kept)))
+                .await;
+            return None;
+        }
+        Candidate::Opening(extension, opening) => match opening.await {
+            Ok(item) => {
+                let bytes = item.read_with(cx, |item, _| item.image.bytes().to_vec());
+                let kept = remote.kept.with_extension(extension);
+                return cx
+                    .background_spawn(futures::future::lazy(move |_| {
+                        keep(&kept, &bytes);
+                        let image = decode(&kept, &bytes)
+                            .inspect_err(|error| {
+                                log::info!("project icons: skipped {}: {error:#}", kept.display());
+                            })
+                            .ok()?;
+                        Some((kept, Arc::new(image)))
+                    }))
+                    .await;
+            }
+            Err(error) => log::info!(
+                "project icons: could not read {}'s mark from its host: {error:#}",
+                root.display()
+            ),
+        },
+    }
+    cx.background_spawn(futures::future::lazy(move |_| {
+        EXTENSIONS.iter().find_map(|extension| {
+            let path = remote.kept.with_extension(extension);
+            path.exists()
+                .then(|| read_icon(&path))
+                .flatten()
+                .map(|image| (path, image))
+        })
+    }))
+    .await
+}
+
+/// What a remote project's worktree offers for its mark.
+enum Candidate {
+    /// The project is not connected, or does not hold the folder: the kept copy stands in.
+    Unreachable,
+    /// It lists no candidate within the cap.
+    None,
+    /// The first candidate, with its extension, being read.
+    Opening(&'static str, Task<anyhow::Result<Entity<ImageItem>>>),
+}
+
+/// Opens the first candidate `root`'s remote worktree lists.
+fn open_candidate(project: &mut Project, root: &Path, cx: &mut Context<Project>) -> Candidate {
+    if project.is_disconnected(cx) {
+        return Candidate::Unreachable;
+    }
+    let path_style = project.path_style(cx);
+    let Some(worktree) = project
+        .visible_worktrees(cx)
+        .find(|worktree| worktree.read(cx).abs_path().as_ref() == root)
+    else {
+        return Candidate::Unreachable;
+    };
+    let worktree = worktree.read(cx);
+    let found = NAMES.iter().find_map(|name| {
+        EXTENSIONS.iter().find_map(|extension| {
+            let name = PathBuf::from(format!("{name}.{extension}"));
+            let relative = RelPath::new(&name, path_style).ok()?.into_arc();
+            let entry = worktree.entry_for_path(&relative)?;
+            entry
+                .is_file()
+                .then_some((*extension, relative, entry.size))
+        })
+    });
+    let Some((extension, relative, size)) = found else {
+        return Candidate::None;
+    };
+    if size > MOST_BYTES {
+        log::info!(
+            "project icons: skipped {}'s {}: {size} bytes, over {MOST_BYTES}",
+            root.display(),
+            relative.as_unix_str()
+        );
+        return Candidate::None;
+    }
+    let path = ProjectPath {
+        worktree_id: worktree.id(),
+        path: relative,
+    };
+    Candidate::Opening(extension, project.open_image(path, cx))
+}
+
+/// Removes a remote mark's kept copies, under every extension. Blocking.
+fn forget(kept: &Path) {
+    for extension in EXTENSIONS {
+        let copy = kept.with_extension(extension);
+        if copy.exists()
+            && let Err(error) = std::fs::remove_file(&copy)
+        {
+            log::error!(
+                "project icons: could not remove {}: {error}",
+                copy.display()
+            );
+        }
+    }
+}
+
+/// Writes a remote mark's bytes to `kept`, the copies under its other extensions removed. Blocking.
+fn keep(kept: &Path, bytes: &[u8]) {
+    let written = kept
+        .parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| {
+            for extension in EXTENSIONS {
+                let other = kept.with_extension(extension);
+                if other != kept && other.exists() {
+                    std::fs::remove_file(&other)?;
+                }
+            }
+            std::fs::write(kept, bytes)
+        });
+    if let Err(error) = written {
+        log::error!("project icons: could not keep {}: {error}", kept.display());
+    }
+}
+
 /// A project's files changed: its mark is searched for again when a changed file can be one, or
 /// is the one it shows (#564). `changed` are relative to `root`.
 pub fn files_changed<'a>(root: &Path, changed: impl IntoIterator<Item = &'a str>, cx: &mut App) {
@@ -389,6 +585,7 @@ fn search(root: &Path, cx: &mut App) {
         .marks
         .entry(root.clone())
         .or_default();
+    let remote = entry.remote.clone();
     if entry.search.is_some() {
         entry.again = true;
         return;
@@ -404,13 +601,17 @@ fn search(root: &Path, cx: &mut App) {
                 cx.background_executor().timer(wait).await;
             }
             let (searched, followed) = (root.clone(), source.clone());
-            let found = cx
-                .background_spawn(futures::future::lazy(move |_| match followed {
-                    Source::Search => icon_in(&searched),
-                    Source::Picked(path) => read_icon(&path).map(|image| (path, image)),
-                    Source::Letter => None,
-                }))
-                .await;
+            let found = match (remote, followed) {
+                (Some(remote), Source::Search) => remote_icon(&searched, remote, cx).await,
+                (_, followed) => {
+                    cx.background_spawn(futures::future::lazy(move |_| match followed {
+                        Source::Search => icon_in(&searched),
+                        Source::Picked(path) => read_icon(&path).map(|image| (path, image)),
+                        Source::Letter => None,
+                    }))
+                    .await
+                }
+            };
             cx.update(|cx| {
                 let now = cx.background_executor().now();
                 let current = source_for(&root, cx);

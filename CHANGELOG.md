@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A remote project's logo** (#860, 2026-10-22). A project over SSH with `logo.png` (or another
+  of the names a local project's mark is found by) shows it as its mark. Marley reads the file
+  once through the project and keeps a copy in its data folder, so the mark stays when the host
+  cannot be reached, as on a closed project's row after a restart.
+
 - **One focus ring, and the rail's labels fade as it folds** (#895, 2026-10-22). A control
   reached with the keyboard shows 2 px of the focus color just outside its shape: buttons,
   switches, tree rows, choice cards, text fields and the Settings window's search field, added
