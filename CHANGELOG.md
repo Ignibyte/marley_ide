@@ -51,6 +51,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Plan review's question cards** (#881, 2026-10-22). The recommended choice carries a
+  Recommended chip, Accept recommended and Skip sit at each card's foot, and Approve, Send Answers,
+  Send Feedback and Send Notes are drawn as the prompts' buttons.
+
 - **The Browser's picks are a panel** (#879, 2026-10-22). Picks leave the tray above the page for
   "Picks for the agent" at its right: each pick a card with its summary, where its listener is, a
   Note field and a primary Send, or what was sent.

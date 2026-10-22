@@ -26,12 +26,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use crate::prompts::Role;
 use agent_ui::{AgentPanel, ConversationView};
 use editor::{Editor, EditorEvent, EditorMode};
 use gpui::{
     Anchor, AnyWindowHandle, App, AppContext as _, Context, DismissEvent, Entity, EntityId,
     EventEmitter, FocusHandle, Focusable, FontWeight, Global, MouseButton, MouseDownEvent, Pixels,
-    Point, SharedString, Subscription, WeakEntity, Window, actions, anchored, deferred,
+    Point, SharedString, Stateful, Subscription, WeakEntity, Window, actions, anchored, deferred,
 };
 use language::LanguageRegistry;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
@@ -1405,30 +1406,20 @@ impl PlanReview {
             .border_color(border)
             .bg(surface)
             .child(
-                h_flex()
-                    .justify_between()
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(
-                                Label::new(format!("Question {} of {total}", index + 1))
-                                    .size(LabelSize::Small)
-                                    .color(Color::Muted),
-                            )
-                            .child(
-                                Label::new(state_words)
-                                    .size(LabelSize::Small)
-                                    .color(state_color),
-                            ),
-                    )
-                    .when(waiting && !settled, |header| {
-                        header.child(Self::card_buttons(
-                            index,
-                            recommended.is_some() && state == CardState::Open,
-                            card.skipped,
-                            cx,
-                        ))
-                    }),
+                h_flex().justify_between().child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Label::new(format!("Question {} of {total}", index + 1))
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        )
+                        .child(
+                            Label::new(state_words)
+                                .size(LabelSize::Small)
+                                .color(state_color),
+                        ),
+                ),
             )
             .child(Label::new(card.question.prompt.clone()).weight(FontWeight::SEMIBOLD))
             .when_some(card.context.clone(), |card_view, context| {
@@ -1440,19 +1431,26 @@ impl PlanReview {
                     .iter()
                     .enumerate()
                     .map(|(choice, item)| {
-                        let label = choice_label(item, recommended.as_deref());
-                        Checkbox::new(
-                            ("plan-review-choice", index * 1000 + choice),
-                            ToggleState::from(card.picked.get(choice).copied().unwrap_or(false)),
-                        )
-                        .label(label)
-                        .label_size(LabelSize::Small)
-                        .disabled(settled || !waiting)
-                        .on_click(cx.listener(
-                            move |tab, state: &ToggleState, _, cx| {
-                                tab.pick(index, choice, state.selected(), cx);
-                            },
-                        ))
+                        let is_recommended = recommended.as_deref() == Some(item.label.as_str());
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Checkbox::new(
+                                    ("plan-review-choice", index * 1000 + choice),
+                                    ToggleState::from(
+                                        card.picked.get(choice).copied().unwrap_or(false),
+                                    ),
+                                )
+                                .label(choice_label(item))
+                                .label_size(LabelSize::Small)
+                                .disabled(settled || !waiting)
+                                .on_click(cx.listener(
+                                    move |tab, state: &ToggleState, _, cx| {
+                                        tab.pick(index, choice, state.selected(), cx);
+                                    },
+                                )),
+                            )
+                            .when(is_recommended, |row| row.child(recommended_chip(cx)))
                     }),
             )
             .when(!settled, |card_view| {
@@ -1465,6 +1463,15 @@ impl PlanReview {
                         .border_color(border)
                         .child(card.words.clone()),
                 )
+            })
+            // Accept recommended and Skip at the card's foot, as the Review board draws them (#881).
+            .when(waiting && !settled, |card_view| {
+                card_view.child(Self::card_buttons(
+                    index,
+                    recommended.is_some() && state == CardState::Open,
+                    card.skipped,
+                    cx,
+                ))
             })
             .into_any_element()
     }
@@ -1650,18 +1657,15 @@ impl PlanReview {
 
     /// A file's or a reply's Send Notes, with how many notes it sends (#729).
     fn send_notes_button(unsent: usize, cx: &Context<Self>) -> impl IntoElement {
+        let label = if unsent > 0 {
+            format!("Send Notes ({unsent})")
+        } else {
+            "Send Notes".to_string()
+        };
         h_flex().child(
-            Button::new(
-                "plan-review-send-notes",
-                if unsent > 0 {
-                    format!("Send Notes ({unsent})")
-                } else {
-                    "Send Notes".to_string()
-                },
-            )
-            .style(ButtonStyle::Filled)
-            .disabled(unsent == 0)
-            .on_click(cx.listener(|tab, _, window, cx| tab.send_notes(window, cx))),
+            action_button(13, &label, Role::Primary, unsent > 0, cx).when(unsent > 0, |button| {
+                button.on_click(cx.listener(|tab, _, window, cx| tab.send_notes(window, cx)))
+            }),
         )
     }
 
@@ -1673,22 +1677,25 @@ impl PlanReview {
         cx: &Context<Self>,
     ) -> impl IntoElement {
         h_flex()
+            .id(("plan-review-card-buttons", index))
             .gap_2()
             .when(offer_recommended, |row| {
                 row.child(
-                    Button::new(("plan-review-accept", index), "Accept recommended")
-                        .label_size(LabelSize::Small)
-                        .on_click(cx.listener(move |tab, _, _, cx| {
+                    action_button(0, "Accept recommended", Role::Primary, true, cx).on_click(
+                        cx.listener(move |tab, _, _, cx| {
                             tab.accept_recommended(index, cx);
-                        })),
+                        }),
+                    ),
                 )
             })
             .child(
-                Button::new(
-                    ("plan-review-skip", index),
+                action_button(
+                    1,
                     if skipped { "Unskip" } else { "Skip" },
+                    Role::Quiet,
+                    true,
+                    cx,
                 )
-                .label_size(LabelSize::Small)
                 .on_click(cx.listener(move |tab, _, _, cx| tab.skip(index, cx))),
             )
     }
@@ -1705,24 +1712,28 @@ impl PlanReview {
             // An approval carries no text, so unsent answers take Approve's place (#728).
             .when(answers_pending, |row| {
                 row.child(
-                    Button::new("plan-review-answers", "Send Answers")
-                        .style(ButtonStyle::Filled)
-                        .disabled(!waiting)
-                        .on_click(cx.listener(|tab, _, _, cx| tab.send_answers(cx))),
+                    action_button(10, "Send Answers", Role::Primary, waiting, cx)
+                        .when(waiting, |button| {
+                            button.on_click(cx.listener(|tab, _, _, cx| tab.send_answers(cx)))
+                        }),
                 )
             })
             .when(!answers_pending, |row| {
                 row.child(
-                    Button::new("plan-review-approve", "Approve")
-                        .style(ButtonStyle::Filled)
-                        .disabled(!waiting)
-                        .on_click(cx.listener(|tab, _, _, cx| tab.approve(cx))),
+                    action_button(11, "Approve", Role::Primary, waiting, cx)
+                        .when(waiting, |button| {
+                            button.on_click(cx.listener(|tab, _, _, cx| tab.approve(cx)))
+                        }),
                 )
-                .child(
-                    Button::new("plan-review-feedback", "Send Feedback")
-                        .disabled(!waiting || !has_feedback)
-                        .on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx))),
-                )
+                .child({
+                    let enabled = waiting && has_feedback;
+                    action_button(12, "Send Feedback", Role::Plain, enabled, cx).when(
+                        enabled,
+                        |button| {
+                            button.on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx)))
+                        },
+                    )
+                })
             })
     }
 }
@@ -1762,17 +1773,34 @@ fn changes_from(
     }
 }
 
-/// A choice as its card shows it: its label, its reason, and whether the agent recommends it.
-fn choice_label(choice: &plan_questions::Choice, recommended: Option<&str>) -> String {
-    let label = choice.reason.as_ref().map_or_else(
+/// One of the tab's actions as #870 draws a button (#881); a disabled one is dimmed and the caller
+/// gives it no click (D1).
+fn action_button(index: usize, label: &str, role: Role, enabled: bool, cx: &App) -> Stateful<Div> {
+    crate::prompts::render_button(index, label, role, false, cx)
+        .when(enabled, Styled::cursor_pointer)
+        .when(!enabled, |button| button.opacity(0.5))
+}
+
+/// The board's chip on the choice the agent recommends, in place of "(recommended)" in its text
+/// (#881).
+fn recommended_chip(cx: &App) -> impl IntoElement {
+    div()
+        .px_1p5()
+        .rounded_sm()
+        .bg(cx.theme().colors().text_accent.opacity(0.16))
+        .child(
+            Label::new("Recommended")
+                .size(LabelSize::XSmall)
+                .color(Color::Accent),
+        )
+}
+
+/// A choice as its card shows it: its label and its reason.
+fn choice_label(choice: &plan_questions::Choice) -> String {
+    choice.reason.as_ref().map_or_else(
         || choice.label.clone(),
         |reason| format!("{} — {reason}", choice.label),
-    );
-    if recommended == Some(choice.label.as_str()) {
-        format!("{label} (recommended)")
-    } else {
-        label
-    }
+    )
 }
 
 /// The plan's runs of Markdown, each its own entity, and its question cards (#728).

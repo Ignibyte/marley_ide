@@ -3487,6 +3487,12 @@ below describe what #743 retired.
 - The rail (#729): Review Last Reply in `terminal_context_menu` calls `review_terminal_reply`; in
   the thread row's menu it opens the thread, then dispatches `ReviewLastReply` deferred.
 
+
+### The cards' look (#881)
+
+- The recommended choice carries `recommended_chip`; `card_buttons` sit at the card's foot; the
+  tab's actions are `action_button`s, #870's `render_button`, dimmed with no click when disabled.
+
 ## Guided review (`src/guide_tab.rs`, `src/review_tools.rs`, #733)
 
 - `review_tools::guide_open` checks the guide (`guide_of`: a title, 1 to 30 sections, absolute
