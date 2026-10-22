@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Sessions page** (#861, 2026-10-22). `marley: open sessions page`, or Open as a Page under
+  the rail's Sessions view, opens every tmux session as a table: how many run on how many hosts and
+  how many are attached, a row per session with its host, windows, folder, state, Attach and
+  Close…, New Session, and the hosts Marley looks on. Close asks first.
+
 - **The Browser drawer's Recordings, and Send to the agent** (#892, 2026-10-22). The drawer lists
   the recordings Record saved, each with when, how long and Send; its Console has Send to the
   agent. Send types a line into the terminal you used last naming what the agent should read.

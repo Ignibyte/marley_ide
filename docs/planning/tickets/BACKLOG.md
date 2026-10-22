@@ -18,7 +18,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-895](open/TICKET-895-rail-shrink-motion-and-focus-ring.md) | feature | The rail's shrink in motion, and one focus ring (W6, from #858) |
 | [TICKET-859](open/TICKET-859-a-project-mark-in-notifications-and-the-switcher.md) | feature | A project's mark in its notifications and the switcher (W1.2 follow-up) |
 | [TICKET-860](open/TICKET-860-a-remote-projects-logo-over-ssh.md) | feature | A remote project's logo, read once over SSH (W1.2 follow-up) |
-| [TICKET-861](open/TICKET-861-a-sessions-page.md) | feature | The Sessions page: every tmux session as a table (W1.3 follow-up) |
 | [TICKET-862](open/TICKET-862-the-panel-buttons-become-a-labeled-group.md) | feature | The panel buttons become one labeled group (W1.4 follow-up) |
 | [TICKET-863](open/TICKET-863-cards-above-the-bottom-row-and-the-debugging-row.md) | feature | Cards above the bottom row, and the row while debugging (W1.4 follow-up) |
 | [TICKET-864](open/TICKET-864-the-thread-plan-chips-terminal-peek-and-checks.md) | feature | The thread's plan, reply chips, terminal peek and checks (W2 follow-up) |

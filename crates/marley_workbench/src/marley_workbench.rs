@@ -122,6 +122,7 @@ pub mod schedule_runs;
 pub mod scrollback;
 pub mod send_block;
 pub mod send_selection;
+pub mod sessions_page;
 pub mod settings_change;
 pub mod settings_tools;
 pub mod shared_plugin;
@@ -1212,6 +1213,7 @@ pub fn init(cx: &mut App) {
     component_library::init(cx);
     system_pages::init(cx);
     tab_tiles::init(cx);
+    sessions_page::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);
     block_tables::init(cx);

@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #861 (feature, the Marley look, W1.3 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [861-sessions-page.spec.md](../../pipeline/completed/861-sessions-page.spec.md)
 - **Source ticket:** split from TICKET-832 while planning it (2026-10-21): the TmuxSessions board
   shows a center page beside the rail's Sessions view, which #832 leaves out.
 - **Boards:** TmuxSessions
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -4295,6 +4295,15 @@ below describe what #743 retired.
   time a row starts needing the user it pulses once over; gpui's animation shows the last frame
   under reduced motion.
 
+## The Sessions page (`src/sessions_page.rs`, #861)
+
+- `marley: open sessions page`, or Open as a Page under the rail's Sessions view, opens
+  `SessionsPage`, which observes the `TmuxHosts` global the rail's view reads. `rows` flattens
+  each host's listing; the header counts them; New Session runs `tmux_sessions::new_session_in`
+  in the window's first visible worktree; a row's Attach runs `tmux_sessions::attach` and its
+  Close… prompts, then `tmux_sessions::kill`. The hosts come from `host_choices` and
+  `error_words`.
+
 ## Empty and error states (`src/states.rs`, #857)
 
 - `EmptyState` is the States board's card: a glyph tile, a title, a line and one action as #870's

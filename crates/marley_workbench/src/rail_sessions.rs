@@ -3,8 +3,8 @@
 
 use gpui::{AnyElement, App, Context, PromptLevel, SharedString, Task, Window};
 use ui::{
-    Checkbox, ContextMenu, Icon, IconSize, Label, LabelSize, ToggleState, prelude::*,
-    right_click_menu,
+    Button, ButtonStyle, Checkbox, ContextMenu, Icon, IconSize, Label, LabelSize, ToggleState,
+    prelude::*, right_click_menu,
 };
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
@@ -68,6 +68,23 @@ impl Rail {
             }
         }
         children.push(host_choices(cx));
+        children.push(
+            div()
+                .px_2()
+                .pt_2()
+                .child(
+                    Button::new("marley-rail-sessions-page", "Open as a Page")
+                        .style(ButtonStyle::Subtle)
+                        .label_size(LabelSize::Small)
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(
+                                Box::new(crate::sessions_page::OpenSessionsPage),
+                                cx,
+                            );
+                        }),
+                )
+                .into_any_element(),
+        );
         v_flex()
             .id("marley-rail-sessions")
             .flex_1()
