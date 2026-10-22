@@ -2037,6 +2037,13 @@ alike.
   sets the pick (`choose_logo` through `prompt_for_paths`, `set_logo`). Remote projects get their
   letter (#860).
 
+
+### Marks in Open Recent (#854)
+
+- `recent_look`, set as `recent_projects::MarleyRecentLook` in `init`, gives each Open Recent row
+  its mark (`project_mark` at 26 px after `want`, or `letter_mark` for a remote project) and its
+  place: "this window", "ssh", or the days since it was opened.
+
 ## The harness's sessions (`src/harness.rs`, #534)
 
 - `marley.harness` (`MarleySettings::harness`, Zed's `ContextServerCommand`) names rustal-harness's

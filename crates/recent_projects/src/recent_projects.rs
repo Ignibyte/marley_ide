@@ -25,7 +25,7 @@ use disconnected_overlay::DisconnectedOverlay;
 use fuzzy_nucleo::{StringMatch, StringMatchCandidate, match_strings};
 use gpui::{
     Action, AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
-    Subscription, Task, TaskExt, WeakEntity, Window, actions, px,
+    Global, Subscription, Task, TaskExt, WeakEntity, Window, actions, px,
 };
 
 use picker::{
@@ -57,6 +57,50 @@ actions!(
 );
 
 #[derive(Clone, Debug)]
+// Marley: what a row of the picker tells Marley's look (#854).
+pub struct MarleyRecentRow<'a> {
+    /// The project's first folder.
+    pub root: Option<&'a Path>,
+    pub name: &'a str,
+    /// When it was last opened, for a recent project.
+    pub opened: Option<DateTime<Utc>>,
+    pub remote: bool,
+    /// Whether the row is one of this window's own.
+    pub this_window: bool,
+}
+
+// Marley: the mark Marley draws before a row's match and the label after it, "where" the project
+// is (#854). Without it, the rows are Zed's.
+#[derive(Clone, Copy)]
+pub struct MarleyRecentLook(
+    pub fn(&MarleyRecentRow, &mut App) -> (AnyElement, Option<SharedString>),
+);
+
+impl Global for MarleyRecentLook {}
+
+// Marley: the look's mark and label for `row`, when Marley set one (#854).
+fn marley_recent_look(
+    row: &MarleyRecentRow,
+    cx: &mut App,
+) -> (Option<AnyElement>, Option<AnyElement>) {
+    let Some(look) = cx.try_global::<MarleyRecentLook>().copied() else {
+        return (None, None);
+    };
+    let (mark, place) = (look.0)(row, cx);
+    let place = place.map(|place| {
+        div()
+            .ml_auto()
+            .flex_none()
+            .child(
+                Label::new(place)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .into_any_element()
+    });
+    (Some(mark), place)
+}
+
 pub struct RecentProjectEntry {
     pub name: SharedString,
     pub full_path: SharedString,
@@ -1249,6 +1293,16 @@ impl PickerDelegate for RecentProjectsDelegate {
                 let worktree_id = folder.worktree_id;
                 let positions = positions.clone();
                 let show_path = self.style == ProjectPickerStyle::Modal;
+                let (marley_mark, marley_place) = marley_recent_look(
+                    &MarleyRecentRow {
+                        root: Some(&folder.path),
+                        name: &folder.name,
+                        opened: None,
+                        remote: folder.connection_options.is_some(),
+                        this_window: true,
+                    },
+                    cx,
+                );
 
                 let secondary_actions = h_flex()
                     .gap_1()
@@ -1297,6 +1351,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                 .when(show_icon, |this| {
                                     this.child(Icon::new(icon).color(Color::Muted))
                                 })
+                                // Marley: the project's mark (#854).
+                                .children(marley_mark)
                                 .child(
                                     v_flex()
                                         .min_w_0()
@@ -1330,6 +1386,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                             )
                                         }),
                                 )
+                                // Marley: where the project is (#854).
+                                .children(marley_place)
                                 .when(!show_path, |this| {
                                     this.tooltip(move |_, cx| {
                                         if let Some(branch) = tooltip_branch.clone() {
@@ -1361,6 +1419,22 @@ impl PickerDelegate for RecentProjectsDelegate {
                 let tooltip_path: SharedString = ordered_paths.join("\n").into();
                 let icon = icon_for_project_group(key);
                 let show_icon = self.filtered_entries_include_remote_project();
+                let marley_root = paths.ordered_paths().next().cloned();
+                let marley_name = marley_root
+                    .as_deref()
+                    .and_then(Path::file_name)
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let (marley_mark, marley_place) = marley_recent_look(
+                    &MarleyRecentRow {
+                        root: marley_root.as_deref(),
+                        name: &marley_name,
+                        opened: None,
+                        remote: key.host().is_some(),
+                        this_window: true,
+                    },
+                    cx,
+                );
 
                 let mut path_start_offset = 0;
                 let (match_labels, path_highlights): (Vec<_>, Vec<_>) = paths
@@ -1460,6 +1534,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                 .when(show_icon, |this| {
                                     this.child(Icon::new(icon).color(Color::Muted))
                                 })
+                                // Marley: the project's mark (#854).
+                                .children(marley_mark)
                                 .child({
                                     let mut highlighted = highlighted_match;
                                     if !self.render_paths {
@@ -1467,6 +1543,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                     }
                                     highlighted.render(window, cx)
                                 })
+                                // Marley: where the project is (#854).
+                                .children(marley_place)
                                 .tooltip(Tooltip::text(tooltip_path)),
                         )
                         .end_slot(secondary_actions)
@@ -1625,6 +1703,23 @@ impl PickerDelegate for RecentProjectsDelegate {
                     SerializedWorkspaceLocation::Remote(options) => Some(options),
                 });
                 let show_icon = self.filtered_entries_include_remote_project();
+                let marley_root = identity_paths.ordered_paths().next().cloned();
+                let marley_name = marley_root
+                    .as_deref()
+                    .and_then(Path::file_name)
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let opened = workspace.timestamp;
+                let (marley_mark, marley_place) = marley_recent_look(
+                    &MarleyRecentRow {
+                        root: marley_root.as_deref(),
+                        name: &marley_name,
+                        opened: Some(opened),
+                        remote: !is_local,
+                        this_window: false,
+                    },
+                    cx,
+                );
 
                 Some(
                     ListItem::new(ix)
@@ -1641,6 +1736,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                 .when(show_icon, |this| {
                                     this.child(Icon::new(icon).color(Color::Muted))
                                 })
+                                // Marley: the project's mark (#854).
+                                .children(marley_mark)
                                 .child({
                                     let mut highlighted = highlighted_match;
                                     if !self.render_paths {
@@ -1648,6 +1745,8 @@ impl PickerDelegate for RecentProjectsDelegate {
                                     }
                                     highlighted.render(window, cx)
                                 })
+                                // Marley: where the project is (#854).
+                                .children(marley_place)
                                 .tooltip(move |_, cx| {
                                     Tooltip::with_meta(
                                         primary_confirm_tooltip,

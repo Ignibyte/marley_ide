@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Open Recent shows each project's mark** (#854, 2026-10-22). Each row leads with the
+  project's logo or letter, as the rail draws it, and ends with where it is: this window, ssh, or
+  how many days since it was opened.
+
 - **The focused pane is outlined** (#853, 2026-10-22). With the center split, the pane that has
   focus gets a 2 px outline in the accent. `active_pane_modifiers.border_size: 0` turns it off.
 

@@ -316,6 +316,7 @@ impl std::fmt::Debug for ProjectMark {
 /// Starts the cache, and searches again each mark whose pick in the settings changed.
 pub fn init(cx: &mut App) {
     cx.set_global(ProjectMarks::default());
+    cx.set_global(recent_projects::MarleyRecentLook(recent_look));
     cx.observe_global::<SettingsStore>(|cx| {
         let changed: Vec<PathBuf> = cx
             .global::<ProjectMarks>()
@@ -517,28 +518,61 @@ pub fn project_mark(root: &Path, name: &str, size: Pixels, cx: &App) -> AnyEleme
             .flex_none()
             .rounded_sm()
             .into_any_element(),
-        ProjectMark::Letter => {
-            let tint = tint(name, cx);
-            let label_size = if size >= px(24.) {
-                LabelSize::Large
-            } else {
-                LabelSize::XSmall
-            };
-            div()
-                .size(size)
-                .flex_none()
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded_sm()
-                .bg(tint.opacity(0.18))
-                .child(
-                    Label::new(initial(name))
-                        .size(label_size)
-                        .weight(FontWeight::SEMIBOLD)
-                        .color(Color::Custom(tint)),
-                )
-                .into_any_element()
-        }
+        ProjectMark::Letter => letter_mark(name, size, cx),
     }
+}
+
+/// `name`'s first letter on its tint, at `size`.
+fn letter_mark(name: &str, size: Pixels, cx: &App) -> AnyElement {
+    let tint = tint(name, cx);
+    let label_size = if size >= px(24.) {
+        LabelSize::Large
+    } else {
+        LabelSize::XSmall
+    };
+    div()
+        .size(size)
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_sm()
+        .bg(tint.opacity(0.18))
+        .child(
+            Label::new(initial(name))
+                .size(label_size)
+                .weight(FontWeight::SEMIBOLD)
+                .color(Color::Custom(tint)),
+        )
+        .into_any_element()
+}
+
+/// A row of Open Recent as the `SearchMore` board draws it (#854): the project's mark, and where it
+/// is: this window, ssh, or how many days since it was last opened. A remote project's mark is its
+/// letter, since its folder is not here to search.
+fn recent_look(
+    row: &recent_projects::MarleyRecentRow,
+    cx: &mut App,
+) -> (AnyElement, Option<SharedString>) {
+    let size = px(26.);
+    let mark = match row.root {
+        Some(root) if !row.remote => {
+            want(root, cx);
+            project_mark(root, row.name, size, cx)
+        }
+        _ => letter_mark(row.name, size, cx),
+    };
+    let place = if row.this_window {
+        Some(SharedString::new_static("this window"))
+    } else if row.remote {
+        Some(SharedString::new_static("ssh"))
+    } else {
+        row.opened
+            .map(|opened| match (chrono::Utc::now() - opened).num_days() {
+                ..=0 => SharedString::new_static("today"),
+                1 => SharedString::new_static("yesterday"),
+                days => format!("{days} d ago").into(),
+            })
+    };
+    (mark, place)
 }
