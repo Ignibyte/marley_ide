@@ -47,6 +47,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The focused pane is outlined** (#853, 2026-10-22). With the center split, the pane that has
+  focus gets a 2 px outline in the accent. `active_pane_modifiers.border_size: 0` turns it off.
+
 - **Save as Workflow and Run** (#852, 2026-10-21). Saving a block shows its command with each
   parameter as a chip and says how many parts became parameters; running a workflow shows the
   command filled in as the values are typed. Both end with a primary button.

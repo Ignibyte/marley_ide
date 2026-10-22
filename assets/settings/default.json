@@ -89,7 +89,8 @@
   // Active pane styling settings.
   "active_pane_modifiers": {
     // Inset border size of the active pane, in pixels.
-    "border_size": 0.0,
+    // Marley: 2, so a split outlines its focused pane in the theme's `pane.focused_border` (#853).
+    "border_size": 2.0,
     // Opacity of the inactive panes. 0 means transparent, 1 means opaque.
     // Values are clamped to the [0.0, 1.0] range.
     "inactive_opacity": 1.0,

@@ -1586,7 +1586,9 @@ mod element {
                             0.,
                             gpui::transparent_black(),
                             border,
-                            cx.theme().colors().border_selected,
+                            // Marley: the focused pane's own colour, which Marley's theme makes the
+                            // accent without touching every selected border (#853).
+                            cx.theme().colors().pane_focused_border,
                             BorderStyle::Solid,
                         ));
                     }

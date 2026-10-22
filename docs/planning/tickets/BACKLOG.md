@@ -14,7 +14,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-879](open/TICKET-879-browser-tools-and-panels.md) | feature | The Browser's panels and tools (W5, from #850) |
 | [TICKET-881](open/TICKET-881-plan-review-turns-and-diff-review.md) | feature | Plan review, turns and the diff review (W5, from #851) |
 | [TICKET-882](open/TICKET-882-launch-remote-and-block-tools.md) | feature | The Launch menu, remote terminals and the block tools (W5, from #852) |
-| [TICKET-853](open/TICKET-853-splits-and-ports.md) | feature | Splits, the switcher, ports, containers and collab (W5) |
+| [TICKET-883](open/TICKET-883-switcher-ports-containers-collab.md) | feature | The Ctrl Tab switcher, port rows, Containers and Collab (W5, from #853) |
 | [TICKET-854](open/TICKET-854-search-and-more.md) | feature | Project search, recent, branches, history, extensions, the guide (W5) |
 | [TICKET-855](open/TICKET-855-system-pages.md) | feature | New pages: this build, data folders, troubleshooting (W5) |
 | [TICKET-856](open/TICKET-856-editor-pop-ups.md) | feature | The editor's pop-ups in the theme (W6) |
