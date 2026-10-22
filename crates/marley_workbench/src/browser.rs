@@ -4249,6 +4249,8 @@ async fn follow_navigation(
                     this.record_navigation(generation, &target, url.as_deref(), true);
                 })
                 .ok();
+                // The guide's Try it links ask for a command through the fragment (#897).
+                cx.update(|cx| run_try_it(&target, url.as_deref(), cx));
                 refresh_history(this, generation, &target, url, cx).await;
                 refresh_info(this, generation, &target, cx).await;
             }
@@ -9980,6 +9982,24 @@ fn short_address(url: &str) -> &str {
     let end = rest.find(['?', '#']).unwrap_or(rest.len());
     let address = rest.get(..end).unwrap_or(rest);
     address.strip_suffix('/').unwrap_or(address)
+}
+
+/// Runs the command a Try it link asks for when `target` moved to `url` within its document, in
+/// the window of the tab that shows it (#897); any other move asks for nothing.
+fn run_try_it(target: &str, url: Option<&str>, cx: &mut App) {
+    let Some(action) = url.and_then(crate::guide::try_it) else {
+        return;
+    };
+    let Some(view) = view_of(target, cx) else {
+        return;
+    };
+    let window = view.read(cx).window;
+    let Some(action) = cx.build_action(action, None).log_err() else {
+        return;
+    };
+    window
+        .update(cx, |_, window, cx| window.dispatch_action(action, cx))
+        .log_err();
 }
 
 /// Shows the page `target` for an agent that acts in it (#492): its tab comes to the front of its

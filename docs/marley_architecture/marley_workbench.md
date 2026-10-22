@@ -4297,6 +4297,14 @@ below describe what #743 retired.
   time a row starts needing the user it pulses once over; gpui's animation shows the last frame
   under reduced motion.
 
+## The guide's Try it (`src/guide.rs`, `src/browser.rs`, #897)
+
+- A Try it link in `guide/index.html` points at `#try=<word>`. The hub's
+  `Page.navigatedWithinDocument` arm calls `run_try_it`, which asks `guide::try_it`: the page must
+  be the guide's own file under the data folder and the word on `TRY_IT`, six commands; the
+  command is built by name and dispatched in the window of the tab that shows the page. The
+  page's script clears the fragment after a click, so the link runs again. No page gets a binding.
+
 ## Search, branches and extensions (`src/search_looks.rs`, #891)
 
 - `init` sets three Zed globals: `search::project_search::MarleySearchLook` (the count reads "I

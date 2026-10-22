@@ -22,6 +22,32 @@ pub(crate) fn init(cx: &App) {
     .detach();
 }
 
+/// The commands a Try it link may run (#897, D2), by the word after `#try=`.
+const TRY_IT: [(&str, &str); 6] = [
+    ("threads", "marley::OpenThreads"),
+    ("sessions", "marley::OpenSessionsPage"),
+    ("system", "marley::OpenSystemPages"),
+    ("components", "marley::OpenComponentLibrary"),
+    ("changes", "git_panel::ToggleFocus"),
+    ("strip", "marley::ToggleRailStrip"),
+];
+
+/// The command a Try it link asks for (#897): `url` is the guide's own page, written under the
+/// data folder, with a `#try=<word>` fragment whose word is on [`TRY_IT`]. Any other page, or any
+/// other word, asks for nothing.
+pub(crate) fn try_it(url: &str) -> Option<&'static str> {
+    let url = url::Url::parse(url).ok()?;
+    let word = url.fragment()?.strip_prefix("try=")?;
+    let page = paths::data_dir().join("guide").join("index.html");
+    if url.scheme() != "file" || url.to_file_path().ok()? != page {
+        return None;
+    }
+    TRY_IT
+        .iter()
+        .find(|(key, _)| *key == word)
+        .map(|(_, action)| *action)
+}
+
 /// Writes the page to `guide/index.html` under `data_dir`, unless the file there holds it
 /// already, so an updated Marley shows its own guide; returns the file's path.
 pub(crate) fn write_page_in(data_dir: &Path) -> anyhow::Result<PathBuf> {

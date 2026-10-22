@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Try it links in the Marley Guide** (#897, 2026-10-22). A Try it link beside a command in the
+  guide runs it in the guide's window: the Sessions page, the System tab, Changes with its History
+  tab, the Component Library, the Threads page, the rail's strip. Only the guide's own page can
+  ask, and only for the commands on its list.
+
 - **The diff review's header, the guide's Send To, and plan review's tabs and turns** (#893,
   2026-10-22). Over the project diff a header names what it holds: uncommitted changes on the
   branch, the files, the lines added and removed, how many files are viewed, and Copy Notes. The

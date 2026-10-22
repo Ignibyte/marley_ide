@@ -6431,3 +6431,13 @@ A change to the rail header's layout (#873) moves every point older scenarios cl
 stale click lands on whatever sits there now. Before running an older scenario after such a
 change, read its first shot, or run it with its stop-early switch, before letting it click on;
 the coordinates are re-measured at the regression (§7). Thirteen scenarios click the rail header.
+
+## L-claude-897-look-for-zeds-own-view-before-building-one-001
+*found: 2026-10-22 · while: testing #897*
+
+A board asked for "history, in the Changes inspector", and a survey of Marley's crates found no
+history list, so #897 built one. Its first shot showed Zed's git panel already draws a History
+tab under Changes, in the Inspector too, with the commits the board lists. The survey read
+Marley's code and Zed's Git Graph but never opened the panel the board names. Before building a
+view a board draws inside one of Zed's panels, open that panel in a run and look at every tab it
+has.
