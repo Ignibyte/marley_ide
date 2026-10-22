@@ -567,6 +567,29 @@ impl PermissionSelection {
     }
 }
 
+/// Marley: while set, edit and run cards carry framed EDIT and RUN labels and a finished answer
+/// ends with reply chips, as the Main board draws the thread (#864).
+pub struct MarleyThreadLook;
+
+impl gpui::Global for MarleyThreadLook {}
+
+/// Marley: a card's framed label (#864).
+fn marley_card_label(text: &'static str, cx: &App) -> AnyElement {
+    div()
+        .flex_none()
+        .px_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(
+            Label::new(text)
+                .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .color(Color::Muted),
+        )
+        .into_any_element()
+}
+
 pub struct ThreadView {
     pub(crate) root_thread_id: ThreadId,
     pub session_id: acp_v2::SessionId,
@@ -7699,7 +7722,10 @@ impl ThreadView {
                 .alpha(0.5)
         };
 
-        h_flex()
+        // Marley: reply chips under the finished answer, over the faded controls (#864).
+        let marley_chips = (is_thread_bottom && cx.has_global::<MarleyThreadLook>())
+            .then(|| self.render_marley_chips(entry_ix, cx));
+        let controls = h_flex()
             .w_full()
             .py_1p5()
             .px_4()
@@ -7725,8 +7751,38 @@ impl ThreadView {
             .when_some(feedback_buttons, |this, buttons| this.child(buttons))
             .when_some(copy_response_button, |this, button| this.child(button))
             .child(scroll_to_recent_user_prompt)
-            .when_some(scroll_to_top, |this, button| this.child(button))
+            .when_some(scroll_to_top, |this, button| this.child(button));
+        v_flex()
+            .children(marley_chips)
+            .child(controls)
             .into_any_element()
+    }
+
+    /// Marley: the board's reply chips (#864); each puts its words in the message box and sends
+    /// nothing.
+    fn render_marley_chips(&self, entry_ix: usize, cx: &Context<Self>) -> impl IntoElement {
+        const CHIPS: [(&str, &str); 3] = [
+            ("Continue", "Continue."),
+            ("Explain", "Explain what you changed and why."),
+            ("Undo the Edits", "Undo the edits you made in this turn."),
+        ];
+        h_flex()
+            .px_4()
+            .pt_2()
+            .gap_1p5()
+            .children(CHIPS.iter().enumerate().map(|(index, (label, words))| {
+                Button::new(("marley-reply-chip", entry_ix * 10 + index), *label)
+                    .style(ButtonStyle::Outlined)
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.message_editor.update(cx, |editor, cx| {
+                            editor.clear(window, cx);
+                            editor.insert_text(words, window, cx);
+                        });
+                        let focus = this.message_editor.focus_handle(cx);
+                        window.focus(&focus, cx);
+                    }))
+            }))
     }
 
     fn is_thread_feedback_enabled(&self, cx: &App) -> bool {
@@ -8763,7 +8819,16 @@ impl ThreadView {
         .when_some(tool_call.sandbox_not_applied.as_ref(), |header, reason| {
             header.sandbox_warning(self.sandbox_not_applied_warning(reason, cx))
         })
-        .command_slot(command_element);
+        // Marley: the board's framed RUN label before a terminal card's command (#864).
+        .command_slot(if cx.has_global::<MarleyThreadLook>() {
+            h_flex()
+                .gap_2()
+                .child(marley_card_label("RUN", cx))
+                .child(command_element)
+                .into_any_element()
+        } else {
+            command_element.into_any_element()
+        });
 
         let terminal_view = self
             .entry_view_state
@@ -10924,6 +10989,11 @@ impl ThreadView {
                     .hover(|s| s.bg(cx.theme().colors().element_hover.opacity(0.5)))
             })
             .overflow_hidden()
+            // Marley: the board's framed EDIT label on an edit's card (#864).
+            .children(
+                (is_edit && cx.has_global::<MarleyThreadLook>())
+                    .then(|| marley_card_label("EDIT", cx)),
+            )
             .child(
                 div()
                     .id(("tool-call-icon", entry_ix))

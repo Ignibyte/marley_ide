@@ -744,6 +744,9 @@ impl ThreadTab {
                     (name, stats.lines_added, stats.lines_removed, path)
                 })
                 .collect();
+            let plan = plan_of(thread);
+            let peek = terminal_peek(thread, cx);
+            let checks = checks_of(thread, cx);
             v_flex()
                 .gap_4()
                 .p_3()
@@ -765,8 +768,11 @@ impl ThreadTab {
                                 .color(Color::Muted),
                         ),
                 )
+                .children(plan_section(plan))
                 .child(context_section(usage, cx))
                 .child(files_section(files, cx))
+                .children(peek.map(|lines| peek_section(lines, cx)))
+                .child(checks_section(checks))
         });
         v_flex()
             .debug_selector(|| "marley-thread-details".into())
@@ -780,6 +786,170 @@ impl ThreadTab {
             .children(body)
             .into_any_element()
     }
+}
+
+/// The thread's plan as the details panel lists it (#864): each entry's words and state.
+fn plan_of(thread: &acp_thread::AcpThread) -> Vec<(String, acp::PlanEntryStatus)> {
+    thread
+        .plan()
+        .map(|plan| {
+            plan.entries
+                .iter()
+                .map(|entry| (entry.source.content.clone(), entry.source.status.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// PLAN (#864, D1): how many entries are done, and each with a mark for its state.
+fn plan_section(plan: Vec<(String, acp::PlanEntryStatus)>) -> Option<AnyElement> {
+    if plan.is_empty() {
+        return None;
+    }
+    let done = plan
+        .iter()
+        .filter(|(_, status)| matches!(status, acp::PlanEntryStatus::Completed))
+        .count();
+    let total = plan.len();
+    Some(
+        v_flex()
+            .gap_1()
+            .child(
+                h_flex().gap_2().child(section_label("PLAN")).child(
+                    Label::new(format!("{done} of {total}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                ),
+            )
+            .children(plan.into_iter().map(|(words, status)| {
+                let (icon, color) = match status {
+                    acp::PlanEntryStatus::Completed => (IconName::Check, Color::Success),
+                    acp::PlanEntryStatus::InProgress => (IconName::ArrowRight, Color::Accent),
+                    _ => (IconName::Circle, Color::Muted),
+                };
+                h_flex()
+                    .gap_2()
+                    .child(Icon::new(icon).size(IconSize::XSmall).color(color))
+                    .child(div().flex_1().min_w_0().child(
+                        Label::new(words).size(LabelSize::Small).color(
+                            if matches!(status, acp::PlanEntryStatus::Completed) {
+                                Color::Muted
+                            } else {
+                                Color::Default
+                            },
+                        ),
+                    ))
+            }))
+            .into_any_element(),
+    )
+}
+
+/// The newest terminal call's command and last four lines (#864), when the thread ran one.
+fn terminal_peek(thread: &acp_thread::AcpThread, cx: &App) -> Option<(String, Vec<String>)> {
+    thread.entries().iter().rev().find_map(|entry| {
+        let acp_thread::AgentThreadEntry::ToolCall(call) = entry else {
+            return None;
+        };
+        call.content().iter().find_map(|content| {
+            let acp_thread::ToolCallContent::Terminal { terminal, .. } = content else {
+                return None;
+            };
+            let terminal = terminal.read(cx);
+            let command = terminal.command().read(cx).source().to_string();
+            let lines = terminal.inner().read(cx).last_n_non_empty_lines(4);
+            Some((command, lines))
+        })
+    })
+}
+
+/// ITS TERMINAL (#864): the newest terminal call's command and its last lines, in the buffer font.
+fn peek_section((command, lines): (String, Vec<String>), cx: &App) -> AnyElement {
+    v_flex()
+        .gap_1()
+        .child(section_label("ITS TERMINAL"))
+        .child(
+            v_flex()
+                .p_2()
+                .rounded_md()
+                .bg(cx.theme().colors().editor_background)
+                .border_1()
+                .border_color(cx.theme().colors().border_variant)
+                .child(
+                    Label::new(format!("$ {}", command.trim().trim_matches('`').trim()))
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .truncate(),
+                )
+                .children(lines.into_iter().map(|line| {
+                    Label::new(line)
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .color(Color::Muted)
+                        .truncate()
+                })),
+        )
+        .into_any_element()
+}
+
+/// The errors and warnings Zed's language servers report in the files the thread changed (#864,
+/// D3), with each file's name.
+fn checks_of(thread: &acp_thread::AcpThread, cx: &App) -> Vec<(SharedString, usize, usize)> {
+    thread
+        .action_log()
+        .read(cx)
+        .changed_buffers(cx)
+        .map(|(buffer, _)| {
+            let buffer = buffer.read(cx);
+            let name = buffer.file().map_or_else(
+                || SharedString::new_static("untitled"),
+                |file| SharedString::from(file.path().as_unix_str().to_string()),
+            );
+            let snapshot = buffer.snapshot();
+            let (mut errors, mut warnings) = (0, 0);
+            for entry in snapshot.diagnostics_in_range::<_, usize>(0..snapshot.len(), false) {
+                match entry.diagnostic.severity {
+                    lsp::DiagnosticSeverity::ERROR => errors += 1,
+                    lsp::DiagnosticSeverity::WARNING => warnings += 1,
+                    _ => {}
+                }
+            }
+            (name, errors, warnings)
+        })
+        .collect()
+}
+
+/// CHECKS (#864): each changed file's errors and warnings, or that it has none.
+fn checks_section(checks: Vec<(SharedString, usize, usize)>) -> AnyElement {
+    let empty = checks.is_empty();
+    v_flex()
+        .gap_1()
+        .child(section_label("CHECKS"))
+        .when(empty, |section| {
+            section.child(
+                Label::new("no files changed yet")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+        })
+        .children(checks.into_iter().map(|(name, errors, warnings)| {
+            let (words, color) = match (errors, warnings) {
+                (0, 0) => ("no problems".to_string(), Color::Success),
+                (0, 1) => ("1 warning".to_string(), Color::Warning),
+                (0, warnings) => (format!("{warnings} warnings"), Color::Warning),
+                (1, _) => ("1 error".to_string(), Color::Error),
+                (errors, _) => (format!("{errors} errors"), Color::Error),
+            };
+            h_flex()
+                .gap_2()
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new(name).size(LabelSize::Small).truncate()),
+                )
+                .child(Label::new(words).size(LabelSize::XSmall).color(color))
+        }))
+        .into_any_element()
 }
 
 /// The details panel's width.

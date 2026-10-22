@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The thread's plan, card labels, reply chips, terminal and checks** (#864, 2026-10-22). An
+  agent thread's details panel lists its plan with how much is done, peeks at its newest terminal
+  call's last lines, and checks the files it changed for errors. Its edit and run cards carry EDIT
+  and RUN labels, and a finished answer ends with Continue, Explain and Undo the Edits chips that
+  fill the message box.
+
 - **Cards above the bottom row for problems and panels** (#863, 2026-10-22). In the Marley layout
   the problems count opens a small card (errors, warnings, Open in the drawer) instead of the
   drawer at once, and the panel group ends with a card listing every panel, where it opens and

@@ -4320,6 +4320,13 @@ below describe what #743 retired.
   and `editor::MarleyRenameLook` makes the rename block show "Renaming: Old → New · Enter". The completion rows' kind letter and right-hand
   detail are Zed's settings, defaulted in `assets/settings/default.json`.
 
+## The thread's plan, terminal and checks (`src/thread_tab.rs`, #864)
+
+- The details panel (#825) adds PLAN (`AcpThread::plan`), ITS TERMINAL (the newest
+  `ToolCallContent::Terminal`, its command and `last_n_non_empty_lines(4)`) and CHECKS (each
+  changed buffer's error and warning diagnostics). `search_looks` sets `agent_ui::MarleyThreadLook`,
+  which gives edit and run cards their EDIT and RUN labels and the thread's bottom its reply chips.
+
 ## The panel group (`src/panel_group.rs`, #862)
 
 - `init` sets `workspace::dock::MarleyPanelButtons(marley_layout)`, so Zed's three

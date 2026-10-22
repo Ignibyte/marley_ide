@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #864 (feature, the Marley look, W2 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [864-thread-plan-labels-chips-peek-checks.spec.md](../../pipeline/completed/864-thread-plan-labels-chips-peek-checks.spec.md)
 - **Source ticket:** split from TICKET-825 while planning it (2026-10-21): the Main board's agent
   answer carries a plan checklist and reply chips, and its details panel a live peek of the
   thread's terminal and its checks, which #825 leaves out.
 - **Boards:** Main, ThreadStates, MainDay
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
