@@ -7,20 +7,22 @@
 //! outside, when Marley's window comes back to the front while it shows, and on Refresh: a task
 //! another `rusty-mcp` writes, an agent's own, is announced to no other process.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use editor::Editor;
 use gpui::{
-    Anchor, AnyElement, App, ClickEvent, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
-    Focusable, MouseDownEvent, Pixels, Point, PromptLevel, Render, ScrollHandle, SharedString,
-    Subscription, Task, WeakEntity, Window, actions, anchored, deferred, px,
+    Anchor, AnyElement, App, AsyncApp, ClickEvent, Context, DismissEvent, Entity, EventEmitter,
+    FocusHandle, Focusable, MouseDownEvent, Pixels, Point, PromptLevel, Render, ScrollHandle,
+    SharedString, Subscription, Task, WeakEntity, Window, actions, anchored, deferred, px,
 };
+use marley_rusty::decisions::{BRAIN_DUE, DecisionSummary, due_from_answer};
+use marley_rusty::memories::{LIST_MEMORIES, Memory, memories_from_answer};
 use marley_rusty::tasks::{
     LIST_TASK_GROUPS, LIST_TASKS, TaskGroup, TaskWrite, UserTask, groups_from_answer,
     id_from_answer, kept_list, kept_task, moved_one, tasks_from_answer, typed_name,
 };
 use serde_json::json;
-use ui::{Checkbox, ContextMenu, ListItem, ListItemSpacing, Tooltip, prelude::*};
+use ui::{Checkbox, ContextMenu, Indicator, ListItem, ListItemSpacing, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::notifications::NotificationId;
@@ -177,7 +179,93 @@ enum ReadDue {
 }
 
 /// What a read brought: the lists, the list it read, and that list's tasks.
-type Read = (Vec<TaskGroup>, Option<i64>, Vec<UserTask>);
+type Read = (
+    Vec<TaskGroup>,
+    Option<i64>,
+    Vec<UserTask>,
+    Counts,
+    Option<Side>,
+);
+
+/// Each list's open and done tasks, by its id (#845).
+type Counts = HashMap<i64, (usize, usize)>;
+
+/// The Rusty column beside the tasks (#845): the decisions due and the newest memories.
+#[derive(Default)]
+struct Side {
+    due: Vec<DecisionSummary>,
+    memories: Vec<Memory>,
+}
+
+/// How wide the window is before the Rusty column shows (D2).
+const SIDE_FROM: Pixels = px(1300.);
+
+/// How many memories the Rusty column lists.
+const SIDE_MEMORIES: usize = 3;
+
+/// The lists' dots, by position (D3).
+const LIST_DOTS: [Color; 6] = [
+    Color::Accent,
+    Color::Success,
+    Color::Warning,
+    Color::Info,
+    Color::Error,
+    Color::Muted,
+];
+
+/// Each list's open and done tasks, archived ones aside (D1); a list Rusty does not answer for
+/// has no count.
+async fn read_counts(
+    this: &WeakEntity<TasksView>,
+    lists: &[TaskGroup],
+    cx: &mut AsyncApp,
+) -> Counts {
+    let mut counts = HashMap::default();
+    for list in lists {
+        let arguments = json!({ "group_id": list.id, "include_archived": false });
+        let Ok(asking) = this.update(cx, |_, cx| super::call_tool(LIST_TASKS, arguments, cx))
+        else {
+            break;
+        };
+        let Some(tasks) = asking
+            .await
+            .ok()
+            .and_then(|text| tasks_from_answer(&text).ok())
+        else {
+            continue;
+        };
+        let done = tasks.iter().filter(|task| task.completed).count();
+        counts.insert(list.id, (tasks.len() - done, done));
+    }
+    counts
+}
+
+/// The Rusty column's decisions due and newest memories; none when Rusty answers neither.
+async fn read_side(this: &WeakEntity<TasksView>, cx: &mut AsyncApp) -> Option<Side> {
+    let due = this
+        .update(cx, |_, cx| {
+            super::call_tool(BRAIN_DUE, json!({ "days": 0 }), cx)
+        })
+        .ok()?;
+    let memories = this
+        .update(cx, |_, cx| super::call_tool(LIST_MEMORIES, json!({}), cx))
+        .ok()?;
+    let due = due.await.ok().and_then(|text| due_from_answer(&text).ok());
+    let memories = memories
+        .await
+        .ok()
+        .and_then(|text| memories_from_answer(&text).ok());
+    if due.is_none() && memories.is_none() {
+        return None;
+    }
+    let mut memories = memories.unwrap_or_default();
+    memories.sort_by_key(|memory| std::cmp::Reverse(memory.updated_at));
+    memories.truncate(SIDE_MEMORIES);
+    Some(Side {
+        due: due.unwrap_or_default(),
+        memories,
+    })
+}
 
 /// The Tasks tab.
 pub(crate) struct TasksView {
@@ -188,6 +276,8 @@ pub(crate) struct TasksView {
     lists: Vec<TaskGroup>,
     chosen: Option<i64>,
     tasks: Vec<UserTask>,
+    counts: Counts,
+    side: Option<Side>,
     selected: Option<usize>,
     show_archived: bool,
     add_field: Entity<Editor>,
@@ -236,6 +326,8 @@ impl TasksView {
             list_focus: cx.focus_handle(),
             lists: Vec::new(),
             chosen: None,
+            counts: HashMap::default(),
+            side: None,
             tasks: Vec::new(),
             selected: None,
             show_archived: false,
@@ -319,9 +411,11 @@ impl TasksView {
                 let lists = groups_from_answer(&groups.await?).map_err(|error| {
                     format!("{LIST_TASK_GROUPS}'s answer did not parse: {error}")
                 })?;
+                let counts = read_counts(&this, &lists, cx).await;
+                let side = read_side(&this, cx).await;
                 let chosen = kept_list(&lists, chosen);
                 let Some(list) = chosen else {
-                    return Ok((lists, None, Vec::new()));
+                    return Ok((lists, None, Vec::new(), counts, side));
                 };
                 let arguments = json!({ "group_id": list, "include_archived": include_archived });
                 let asking = this
@@ -332,7 +426,7 @@ impl TasksView {
                     .background_spawn(futures::future::lazy(move |_| tasks_from_answer(&text)))
                     .await
                     .map_err(|error| format!("{LIST_TASKS}'s answer did not parse: {error}"))?;
-                Ok((lists, chosen, tasks))
+                Ok((lists, chosen, tasks, counts, side))
             };
             let read: Result<Read, String> = read.await;
             this.update(cx, |this, cx| this.take_read(read, cx))
@@ -343,8 +437,10 @@ impl TasksView {
     fn take_read(&mut self, read: Result<Read, String>, cx: &mut Context<Self>) {
         self.reading = None;
         match read {
-            Ok((lists, read_list, tasks)) => {
+            Ok((lists, read_list, tasks, counts, side)) => {
                 self.lists = lists;
+                self.counts = counts;
+                self.side = side;
                 let chosen = kept_list(&self.lists, self.chosen);
                 if chosen == read_list {
                     let selected = self
@@ -857,14 +953,26 @@ impl TasksView {
 
     fn render_lists(&self, cx: &Context<Self>) -> impl IntoElement {
         let editable = self.editable(cx);
-        let rows = self.lists.iter().map(|list| {
+        let rows = self.lists.iter().enumerate().map(|(position, list)| {
             let id = list.id;
             let label = self
                 .render_row_editor(RowTarget::RenameList(id), cx)
                 .unwrap_or_else(|| Label::new(list.name.clone()).into_any_element());
+            // Each list's dot and open count, as the Tasks board draws them (#845).
+            let dot = LIST_DOTS
+                .get(position % LIST_DOTS.len())
+                .copied()
+                .unwrap_or(Color::Muted);
+            let open = self.counts.get(&id).map(|(open, _)| *open);
             ListItem::new(("rusty-task-list", u64::try_from(id).unwrap_or_default()))
                 .spacing(ListItemSpacing::Sparse)
                 .toggle_state(self.chosen == Some(id))
+                .start_slot(Indicator::dot().color(dot))
+                .end_slot::<Label>(open.map(|open| {
+                    Label::new(open.to_string())
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                }))
                 .child(label)
                 .on_click(cx.listener(move |this, _, _, cx| this.choose_list(id, cx)))
                 .on_secondary_mouse_down(cx.listener(
@@ -918,6 +1026,156 @@ impl TasksView {
             )
     }
 
+    /// The open tasks, then the done ones under Done (#845); each keeps its index.
+    fn task_rows(&self, cx: &Context<Self>) -> Vec<AnyElement> {
+        let mut rows: Vec<AnyElement> = self
+            .tasks
+            .iter()
+            .enumerate()
+            .filter(|(_, task)| !task.completed)
+            .map(|(at, task)| self.render_task(at, task, cx).into_any_element())
+            .collect();
+        let done: Vec<AnyElement> = self
+            .tasks
+            .iter()
+            .enumerate()
+            .filter(|(_, task)| task.completed)
+            .map(|(at, task)| self.render_task(at, task, cx).into_any_element())
+            .collect();
+        if !done.is_empty() {
+            rows.push(
+                div()
+                    .px_1()
+                    .pt_3()
+                    .pb_1()
+                    .child(
+                        Label::new("Done")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .into_any_element(),
+            );
+            rows.extend(done);
+        }
+        rows
+    }
+
+    /// "N open · M done" for the chosen list, archived tasks aside.
+    fn open_done_line(&self) -> String {
+        let (open, done) =
+            self.tasks
+                .iter()
+                .filter(|task| !task.archived)
+                .fold((0, 0), |(open, done), task| {
+                    if task.completed {
+                        (open, done + 1)
+                    } else {
+                        (open + 1, done)
+                    }
+                });
+        format!("{open} open · {done} done")
+    }
+
+    /// The Rusty column: the decisions due, each with Decisions and Open the page, and Rusty's
+    /// newest memories (#845).
+    fn render_side(&self, _window: &Window, cx: &Context<Self>) -> Option<AnyElement> {
+        let side = self.side.as_ref()?;
+        let colors = cx.theme().colors();
+        let card = |title: &'static str| {
+            v_flex()
+                .gap_1p5()
+                .p_3()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.panel_background)
+                .child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
+        };
+        let overdue = side.due.iter().filter(|due| due.overdue).count();
+        let due =
+            side.due.iter().enumerate().map(|(index, due)| {
+                let slug = due.slug.clone();
+                let workspace = self.workspace.clone();
+                let mut line = Vec::new();
+                line.extend(due.decided_line());
+                line.extend(due.follow_up_line());
+                v_flex()
+                    .gap_1()
+                    .child(Label::new(if due.title.is_empty() {
+                        due.slug.clone()
+                    } else {
+                        due.title.clone()
+                    }))
+                    .child(Label::new(line.join(" · ")).size(LabelSize::XSmall).color(
+                        if due.overdue {
+                            Color::Warning
+                        } else {
+                            Color::Muted
+                        },
+                    ))
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .child(
+                                Button::new(("rusty-side-decisions", index), "Decisions")
+                                    .label_size(LabelSize::Small)
+                                    .on_click(|_, window, cx| {
+                                        window.dispatch_action(
+                                            Box::new(super::decisions_tab::OpenDecisions),
+                                            cx,
+                                        );
+                                    }),
+                            )
+                            .child(
+                                Button::new(("rusty-side-page", index), "Open the page")
+                                    .label_size(LabelSize::Small)
+                                    .on_click(move |_, window, cx| {
+                                        if let Some(workspace) = workspace.upgrade() {
+                                            super::brain::open_page(
+                                                &workspace, &slug, false, true, window, cx,
+                                            );
+                                        }
+                                    }),
+                            ),
+                    )
+            });
+        let memories = side
+            .memories
+            .iter()
+            .map(|memory| Label::new(memory.content.clone()).size(LabelSize::Small));
+        Some(
+            v_flex()
+                .debug_selector(|| "rusty-tasks-side".into())
+                .flex_none()
+                .w(px(320.))
+                .h_full()
+                .p_3()
+                .gap_3()
+                .border_l_1()
+                .border_color(colors.border_variant)
+                .child(
+                    card("Decisions due")
+                        .when(overdue > 0, |card| {
+                            card.child(
+                                Label::new(format!("{overdue} overdue"))
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Warning),
+                            )
+                        })
+                        .when(side.due.is_empty(), |card| {
+                            card.child(
+                                Label::new("Nothing to follow up.")
+                                    .size(LabelSize::Small)
+                                    .color(Color::Muted),
+                            )
+                        })
+                        .children(due),
+                )
+                .child(card("Memory").children(memories))
+                .into_any_element(),
+        )
+    }
+
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
         let name = self
             .chosen_list()
@@ -927,10 +1185,16 @@ impl TasksView {
             .px_3()
             .py_2()
             .child(
-                div()
+                h_flex()
                     .flex_1()
                     .min_w_0()
-                    .child(Label::new(name).size(LabelSize::Large).truncate()),
+                    .gap_3()
+                    .child(Label::new(name).size(LabelSize::Large).truncate())
+                    .child(
+                        Label::new(self.open_done_line())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
             )
             .child(
                 Checkbox::new(
@@ -1117,12 +1381,10 @@ impl Render for TasksView {
         } else {
             "RustyTaskList"
         };
-        let rows: Vec<AnyElement> = self
-            .tasks
-            .iter()
-            .enumerate()
-            .map(|(at, task)| self.render_task(at, task, cx).into_any_element())
-            .collect();
+        let rows = self.task_rows(cx);
+        let side = (window.viewport_size().width >= SIDE_FROM)
+            .then(|| self.render_side(window, cx))
+            .flatten();
         let colors = cx.theme().colors();
         h_flex()
             .key_context("RustyTasks menu")
@@ -1173,6 +1435,7 @@ impl Render for TasksView {
                             .children(self.render_notice(cx)),
                     ),
             )
+            .children(side)
             .children(self.menu.as_ref().map(|(menu, position, _)| {
                 deferred(
                     anchored()

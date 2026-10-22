@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's Tasks tab as the board draws it** (#845, 2026-10-21). Each list has a coloured dot and
+  its open count; the list shows "N open · M done", its open tasks and then its done ones under
+  Done; and in a wide window a Rusty column lists the decisions due and Rusty's newest memories.
+
 - **The Marley settings page as cards** (#844, 2026-10-21). Each section of the Settings window's
   Marley page is a card; each row shows its key, a choice of two or three is a row of buttons, and
   a setting away from its default says "changed · reset". Six settings that had no row now have

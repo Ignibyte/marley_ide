@@ -4213,6 +4213,13 @@ below describe what #743 retired.
   (`ListItem` with a filled `Checkbox`, the title struck and muted when done, archived faint with
   "Archived"), and the notice line. A row drags as `DraggedTask` with the rail's `drag_preview`
   and `drop_line` (`crate::rail::order`, `pub` since #658) and drops by `marley_rail::move_to`.
+- **As the Tasks board draws it (#845).** Each read also counts every list's open and done tasks
+  (`read_counts`, one `list_tasks` per list, archived aside) and reads the Rusty column
+  (`read_side`: `brain_due {days: 0}`, the three newest of `list_memories`). A list shows a dot
+  (`LIST_DOTS` by position) and its open count; the header "N open · M done"; the open tasks come
+  first and the done ones under "Done", each keeping its index. `render_side` draws Decisions due
+  (an overdue count; each decision with Decisions, which opens the Decisions tab, and Open the
+  page) and Memory, in a window at least 1300 px wide.
   The root is `RustyTasks menu` (Zed's list keys, `menu::Confirm` and `Cancel` by where the focus
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
