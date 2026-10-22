@@ -745,9 +745,18 @@ impl FleetPanel {
             let problem = host_id.and_then(|id| source.unreachable(id));
             let snapshot =
                 host_id.and_then(|id| source.hosts.iter().find(|host| host.host.id == id));
+            let colors = cx.theme().colors();
+            // Each host a card, its resources at its header's right (#848).
             groups.push(
                 v_flex()
+                    .mx_2()
+                    .mb_2()
+                    .pb_1()
                     .gap_0p5()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(colors.border_variant)
+                    .bg(colors.editor_background)
                     .child(
                         h_flex()
                             .px_2()
@@ -773,16 +782,16 @@ impl FleetPanel {
                                             .label_size(LabelSize::XSmall),
                                     )
                                     .tooltip(Tooltip::text(reason))
+                            }))
+                            .children(snapshot.map(|snapshot| {
+                                div().flex_1().min_w_0().flex().justify_end().child(
+                                    Label::new(host_line(snapshot))
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Muted)
+                                        .truncate(),
+                                )
                             })),
                     )
-                    .children(snapshot.map(|snapshot| {
-                        div().pl(px(28.)).pr_2().child(
-                            Label::new(host_line(snapshot))
-                                .size(LabelSize::XSmall)
-                                .color(Color::Muted)
-                                .truncate(),
-                        )
-                    }))
                     .children(rows),
             );
         }
@@ -854,10 +863,21 @@ impl FleetPanel {
                     panel.open_selected(window, cx);
                 }
             }))
+            // The runtime's lettered tile, as the Fleet board draws it (#848).
             .child(
-                Icon::new(runtime_icon(&agent.runtime))
-                    .size(IconSize::Small)
-                    .color(Color::Muted),
+                div()
+                    .size_6()
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_md()
+                    .bg(cx.theme().colors().element_background)
+                    .child(
+                        Label::new(runtime_glyph(&agent.runtime))
+                            .size(LabelSize::XSmall)
+                            .color(Color::Accent),
+                    ),
             )
             .child(
                 v_flex()
@@ -1343,6 +1363,45 @@ pub(crate) const fn state_chip(state: State, quiet: bool) -> (&'static str, Colo
 }
 
 /// The icon of a runtime the fleet names: an agent's own where Marley knows it.
+/// A runtime's two letters on its tile (#848, D1).
+fn runtime_glyph(runtime: &str) -> String {
+    match runtime {
+        "claude-code" | "claude" => "CC".to_string(),
+        "codex" => "CX".to_string(),
+        "gemini" => "GE".to_string(),
+        other => other.chars().take(2).collect::<String>().to_uppercase(),
+    }
+}
+
+/// "N agents on M hosts · the providers", or none while no provider lists an agent (#848).
+fn summary(sources: &[Source]) -> Option<String> {
+    let providers: Vec<&Source> = sources.iter().filter(|source| !source.hosts_only).collect();
+    let agents: usize = providers.iter().map(|source| source.agents.len()).sum();
+    if agents == 0 {
+        return None;
+    }
+    let mut hosts: Vec<&str> = providers
+        .iter()
+        .flat_map(|source| source.agents.iter())
+        .filter_map(|agent| agent.host_id.as_deref())
+        .collect();
+    hosts.sort_unstable();
+    hosts.dedup();
+    let count = |count: usize, one: &str, many: &str| {
+        format!("{count} {}", if count == 1 { one } else { many })
+    };
+    let names: Vec<&str> = providers
+        .iter()
+        .map(|source| source.name.as_str())
+        .collect();
+    Some(format!(
+        "{} on {} · {}",
+        count(agents, "agent", "agents"),
+        count(hosts.len(), "host", "hosts"),
+        names.join(", ")
+    ))
+}
+
 pub(crate) fn runtime_icon(runtime: &str) -> IconName {
     match runtime {
         "claude-code" | "claude" => IconName::AiClaude,
@@ -1451,11 +1510,22 @@ impl Render for FleetPanel {
             .size_full()
             .bg(cx.theme().colors().panel_background)
             .child(
-                h_flex().px_2().py_1p5().child(
-                    Label::new("FLEET")
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                ),
+                h_flex()
+                    .px_2()
+                    .py_1p5()
+                    .gap_2()
+                    .child(
+                        Label::new("FLEET")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    // How many agents on how many hosts, and from where, as the Fleet board's line
+                    // (#848).
+                    .children(
+                        summary(&sources).map(|line| {
+                            Label::new(line).size(LabelSize::XSmall).color(Color::Muted)
+                        }),
+                    ),
             )
             .child(Divider::horizontal())
             .child(

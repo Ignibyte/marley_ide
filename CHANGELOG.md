@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Fleet panel as its board draws it** (#848, 2026-10-21). The panel says how many agents run on
+  how many hosts and from where; each host is a card with its resources at the right, each agent
+  a row with its runtime's lettered tile.
+
 - **System One as its board draws it** (#847, 2026-10-21). In Settings each System One use (and
   each Agent Control area) picks its mode from a row of buttons; the System One calls tab opens
   with Provider and Today cards, today's spend over the budget with a bar, and says what leaves

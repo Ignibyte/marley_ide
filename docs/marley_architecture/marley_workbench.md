@@ -4224,6 +4224,12 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The Fleet panel as cards (`src/fleet.rs`, #848)
+
+- `summary(sources)` stands beside FLEET; `render_source` draws each host group as a card, its
+  `host_line` at the header's right; `render_agent` draws the runtime as a tile of
+  `runtime_glyph`'s two letters.
+
 ## System One's calls tab as cards (`src/system_one_calls.rs`, #847)
 
 - `render_header` draws a Provider card (provider · model, the key's source, Cloudflare's when it
