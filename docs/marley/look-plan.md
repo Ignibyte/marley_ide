@@ -182,7 +182,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Rusty: Tasks (done, #845, 2026-10-21), Decisions and Follow Up (done, #874), Brain and pages (done, #875), Memory, Skills, Secrets, Capture, Rusty's Server (done, #876) | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
 | MCP Servers (done, #846, 2026-10-21; the consent and pairing questions #871), Agent Activity, the server form, what agents may do | Tools, MoreForms, AgentAccess |
 | System One (done, #847, 2026-10-21) | SystemOne |
-| Fleet panel (done, #848, 2026-10-21) and harness sessions, the session tab, scheduled runs (#878) | Fleet, MoreTabs, OpenConnect |
+| Fleet panel (done, #848, 2026-10-21), the session tab (done, #878, 2026-10-22), harness sessions in the rail, scheduled runs (#886) | Fleet, MoreTabs, OpenConnect |
 | Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |
 | Browser tab (toolbar done, #850, 2026-10-21; the rest #879) and its tools | Browser, BrowserTools |
 | Worktrees (New Agent in Worktree done, #851, 2026-10-21), plan review, turns, diff review (#881) | Worktrees, Review, DiffReview |

@@ -2,17 +2,19 @@
 
 - **Ticket:** LOCAL #878 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [878-harness-session-tab.spec.md](../../pipeline/completed/878-harness-session-tab.spec.md)
 - **Source ticket:** split from TICKET-848 while planning it (2026-10-21): #848 kept the Fleet panel.
 - **Boards:** Fleet, MoreTabs, OpenConnect
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
 Harness sessions in the rail (connected line, each session's title, line and quota), a session's
 tab with its question's answers, Send and Views, a scheduled task's runs, and the New Harness Seat
 form, as the boards draw them.
+
+(Planning kept a session's tab here and split the rest off as TICKET-886.)
 
 ## Acceptance
 

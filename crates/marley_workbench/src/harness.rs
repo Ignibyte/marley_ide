@@ -1843,35 +1843,123 @@ impl HarnessView {
     }
 
     /// The question, the line to send and the views, while the write verbs are on.
-    fn render_controls(&self, cx: &Context<Self>) -> AnyElement {
+    /// The tab's header, as the `MoreTabs` board draws it (#878): the session's title and harness,
+    /// its state in the rail's words, and with writes on the views asked for as chips.
+    fn render_header(&self, writes: bool, cx: &Context<Self>) -> AnyElement {
         let colors = cx.theme().colors();
-        let question = seats_of(&self.slot, cx)
+        let state = seats_of(&self.slot, cx)
             .get(&self.id)
-            .and_then(|seat| seat.question.clone());
-        v_flex()
+            .map(|seat| state_word(seat.state));
+        let place = self
+            .slot
+            .name()
+            .map_or_else(|| "this machine".to_string(), ToString::to_string);
+        h_flex()
             .flex_none()
-            .gap_1()
-            .p_2()
+            .flex_wrap()
+            .gap_2()
+            .px_3()
+            .py_2()
             .border_b_1()
             .border_color(colors.border_variant)
-            .when_some(question, |this, question| {
-                this.child(
-                    h_flex()
-                        .gap_2()
-                        .flex_wrap()
-                        .child(Label::new(shown_prompt(&question.prompt).to_string()))
-                        .children(question.options.into_iter().enumerate().map(
-                            |(index, option)| {
+            .child(Label::new(format!("{} · {place}", self.title)).size(LabelSize::Small))
+            .children(
+                state.map(|(word, color)| Label::new(word).size(LabelSize::XSmall).color(color)),
+            )
+            .when(writes && !self.views.is_empty(), |header| {
+                header
+                    .child(
+                        Label::new("Views:")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .children(self.views.iter().enumerate().map(|(index, (kind, line))| {
+                        let copied = line.to_string();
+                        let opened = line.clone();
+                        let shown = line.clone();
+                        h_flex()
+                            .id(("marley-harness-view-chip", index))
+                            .gap_1()
+                            .pl_2()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .tooltip(move |_, cx| ui::Tooltip::simple(shown.clone(), cx))
+                            .child(Label::new(kind.clone()).size(LabelSize::XSmall))
+                            .child(
+                                Button::new(("marley-harness-open", index), "Open")
+                                    .label_size(LabelSize::XSmall)
+                                    .on_click(cx.listener(move |view, _, window, cx| {
+                                        view.open_view(&opened, window, cx);
+                                    })),
+                            )
+                            .child(
+                                Button::new(("marley-harness-copy", index), "Copy")
+                                    .label_size(LabelSize::XSmall)
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(
+                                            copied.clone(),
+                                        ));
+                                    }),
+                            )
+                    }))
+            })
+            .into_any_element()
+    }
+
+    /// The session's question as a card, an answer button each, the first primary (#878).
+    fn render_question(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let question = seats_of(&self.slot, cx)
+            .get(&self.id)
+            .and_then(|seat| seat.question.clone())?;
+        let colors = cx.theme().colors();
+        Some(
+            v_flex()
+                .flex_none()
+                .gap_2()
+                .m_3()
+                .p_3()
+                .rounded_lg()
+                .border_1()
+                .border_color(cx.theme().status().warning_border)
+                .bg(colors.elevated_surface_background)
+                .child(Label::new(shown_prompt(&question.prompt).to_string()))
+                .child(
+                    h_flex().gap_2().flex_wrap().children(
+                        question
+                            .options
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, option)| {
+                                let role = if index == 0 {
+                                    crate::prompts::Role::Primary
+                                } else {
+                                    crate::prompts::Role::Plain
+                                };
                                 let choice = option.clone();
-                                Button::new(("marley-harness-option", index), option)
-                                    .style(ButtonStyle::Filled)
+                                crate::prompts::render_button(index, &option, role, false, cx)
+                                    .cursor_pointer()
                                     .on_click(cx.listener(move |view, _, window, cx| {
                                         view.answer(choice.clone(), window, cx);
                                     }))
-                            },
-                        )),
+                            }),
+                    ),
                 )
-            })
+                .into_any_element(),
+        )
+    }
+
+    /// The Send row at the tab's foot: the field, Send, Views, and what the last write came to
+    /// (#878).
+    fn render_send(&self, cx: &Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors();
+        v_flex()
+            .flex_none()
+            .gap_1()
+            .px_3()
+            .py_2()
+            .border_t_1()
+            .border_color(colors.border_variant)
             .child(
                 h_flex()
                     .gap_2()
@@ -1879,7 +1967,7 @@ impl HarnessView {
                         div()
                             .flex_1()
                             .px_2()
-                            .py_0p5()
+                            .py_1()
                             .rounded_md()
                             .border_1()
                             .border_color(colors.border)
@@ -1887,55 +1975,39 @@ impl HarnessView {
                             .child(self.send_editor.clone()),
                     )
                     .child(
-                        Button::new("marley-harness-send", "Send")
-                            .on_click(cx.listener(|view, _, window, cx| view.send(window, cx))),
+                        Button::new("marley-harness-views", "Views")
+                            .style(ButtonStyle::Subtle)
+                            .on_click(cx.listener(|view, _, window, cx| view.surface(window, cx))),
                     )
                     .child(
-                        Button::new("marley-harness-views", "Views")
-                            .on_click(cx.listener(|view, _, window, cx| view.surface(window, cx))),
+                        // Past the question's answers, which take the first indices.
+                        crate::prompts::render_button(
+                            100,
+                            "Send",
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|view, _, window, cx| view.send(window, cx))),
                     ),
             )
             .when_some(self.status.clone(), |this, (status, color)| {
                 this.child(Label::new(status).color(color).size(LabelSize::Small))
             })
-            .children(self.views.iter().enumerate().map(|(index, (kind, line))| {
-                let copied = line.to_string();
-                let opened = line.clone();
-                // Open and Copy come before the line, which is cut at the tab's edge: a view's
-                // command carries the root's path and a workspace id, longer than most tabs are
-                // wide.
-                h_flex()
-                    .gap_2()
-                    .child(
-                        Label::new(kind.clone())
-                            .color(Color::Muted)
-                            .size(LabelSize::Small),
-                    )
-                    .child(
-                        Button::new(("marley-harness-open", index), "Open")
-                            .label_size(LabelSize::Small)
-                            .on_click(cx.listener(move |view, _, window, cx| {
-                                view.open_view(&opened, window, cx);
-                            })),
-                    )
-                    .child(
-                        Button::new(("marley-harness-copy", index), "Copy")
-                            .label_size(LabelSize::Small)
-                            .on_click(move |_, _, cx| {
-                                cx.write_to_clipboard(ClipboardItem::new_string(copied.clone()));
-                            }),
-                    )
-                    .child(
-                        div().flex_1().min_w_0().overflow_hidden().child(
-                            Label::new(line.clone())
-                                .buffer_font(cx)
-                                .size(LabelSize::Small)
-                                .single_line()
-                                .truncate(),
-                        ),
-                    )
-            }))
             .into_any_element()
+    }
+}
+
+/// A session's state in the rail's words and colours (#878, D1).
+const fn state_word(state: State) -> (&'static str, Color) {
+    match state {
+        State::Starting => ("starting", Color::Muted),
+        State::Working => ("working", Color::Accent),
+        State::Idle => ("idle", Color::Muted),
+        State::Waiting => ("waiting", Color::Warning),
+        State::Error => ("error", Color::Error),
+        State::Done => ("done", Color::Success),
     }
 }
 
@@ -1990,24 +2062,28 @@ pub(crate) fn read_lines(value: &Value) -> anyhow::Result<Vec<SharedString>> {
 impl Render for HarnessView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().colors().editor_background;
-        let controls = if writes_on_slot(&self.slot, cx) {
-            Some(self.render_controls(cx))
+        let writes = writes_on_slot(&self.slot, cx);
+        let question = if writes {
+            self.render_question(cx)
         } else {
             None
         };
+        let send = writes.then(|| self.render_send(cx));
         v_flex()
             .id("marley-harness-view")
             .track_focus(&self.focus_handle)
             .size_full()
             .bg(background)
             .on_action(cx.listener(|view, _: &menu::Confirm, window, cx| view.send(window, cx)))
-            .children(controls)
+            .child(self.render_header(writes, cx))
+            .children(question)
             .child(
                 v_flex()
                     .id("marley-harness-lines")
                     .flex_1()
                     .overflow_y_scroll()
-                    .p_2()
+                    .px_3()
+                    .py_2()
                     .when_some(self.error.clone(), |this, error| {
                         this.child(Label::new(error).color(Color::Error))
                     })
@@ -2017,6 +2093,7 @@ impl Render for HarnessView {
                             .map(|line| Label::new(line.clone()).buffer_font(cx).single_line()),
                     ),
             )
+            .children(send)
     }
 }
 

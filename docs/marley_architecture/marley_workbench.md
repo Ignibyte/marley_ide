@@ -2155,6 +2155,14 @@ alike.
     - the answer is `starting`, then `seat start` runs, with `SeatStartFailed` as a
       notification.
 
+
+### The session tab's look (#878)
+
+- `render_header` (title, harness, `state_word`, the views as chips with writes on),
+  `render_question` (a card, an answer button each, the first primary) and `render_send` (the
+  field, Views, Send, the status) lay the tab out as the `MoreTabs` board draws it, the lines
+  between the question and Send.
+
 ## Home's own page (`src/home_page.rs`, `src/rail.rs`, #701)
 
 - `MarleyHome` (an `Item`: Home, `ListTree`) is drawn with `card`, `row` and `muted`, which live

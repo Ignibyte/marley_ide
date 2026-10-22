@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-878](open/TICKET-878-harness-sessions-and-runs.md) | feature | Harness sessions, a session's tab and scheduled runs (W5, from #848) |
+| [TICKET-886](open/TICKET-886-harness-rail-runs-and-seat-form.md) | feature | The rail's Harness section, scheduled runs and the seat form (W5, from #878) |
 | [TICKET-879](open/TICKET-879-browser-tools-and-panels.md) | feature | The Browser's panels and tools (W5, from #850) |
 | [TICKET-881](open/TICKET-881-plan-review-turns-and-diff-review.md) | feature | Plan review, turns and the diff review (W5, from #851) |
 | [TICKET-882](open/TICKET-882-launch-remote-and-block-tools.md) | feature | The Launch menu, remote terminals and the block tools (W5, from #852) |

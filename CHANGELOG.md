@@ -51,6 +51,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **A harness session's tab** (#878, 2026-10-22). The tab's header names the session, its harness
+  and its state, with its views as chips; its question is a card with a button per answer, the
+  first primary; Send sits at the foot.
+
 - **Open Recent shows each project's mark** (#854, 2026-10-22). Each row leads with the
   project's logo or letter, as the rail draws it, and ends with where it is: this window, ssh, or
   how many days since it was opened.
