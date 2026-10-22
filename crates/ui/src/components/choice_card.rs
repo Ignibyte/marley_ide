@@ -203,7 +203,10 @@ impl RenderOnce for ChoiceCard {
             .px_2()
             .py_1()
             .hover(move |this| this.bg(hover_background))
-            .focus_visible(move |this| this.border_color(focused_border_color))
+            // Marley: the one focus ring (#895).
+            .focus_visible(move |this| {
+                crate::focus_ring(this.border_color(focused_border_color), cx)
+            })
             .when_some(self.on_click, |this, on_click| {
                 this.tab_index(0).cursor_pointer().on_click(on_click)
             })

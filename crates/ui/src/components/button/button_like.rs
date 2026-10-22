@@ -833,12 +833,16 @@ impl RenderOnce for ButtonLike {
                 this.cursor(self.cursor_style)
                     .hover(focus_color)
                     .map(|this| {
+                        // Marley: the one focus ring on both (#895).
                         if is_outlined {
                             this.focus_visible(|s| {
-                                s.border_color(cx.theme().colors().border_focused)
+                                crate::focus_ring(
+                                    s.border_color(cx.theme().colors().border_focused),
+                                    cx,
+                                )
                             })
                         } else {
-                            this.focus_visible(focus_color)
+                            this.focus_visible(|s| crate::focus_ring(focus_color(s), cx))
                         }
                     })
                     .active(|active| active.bg(active_background))

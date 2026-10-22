@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 
-use gpui::{App, BoxShadow, Hsla, hsla, px};
+use gpui::{App, BoxShadow, Hsla, Styled, hsla, px};
 use theme::{ActiveTheme, Appearance};
 
 /// Today, elevation is primarily used to add shadows to elements, and set the correct background for elements like buttons.
@@ -114,4 +114,13 @@ impl ElevationIndex {
             ElevationIndex::ModalSurface => cx.theme().colors().editor_background,
         }
     }
+}
+
+/// Marley: the one focus ring (#895), 2 px of the focus color just outside the element's shape: a
+/// shadow spread with no blur, so it follows the element's corners and takes no layout room. Use it
+/// in `focus_visible`, which shows it on keyboard focus only.
+pub fn focus_ring<S: Styled>(style: S, cx: &App) -> S {
+    style.shadow(vec![
+        BoxShadow::new(px(0.), px(0.), cx.theme().colors().border_focused).spread_radius(px(2.)),
+    ])
 }

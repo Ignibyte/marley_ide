@@ -3117,6 +3117,8 @@ impl SettingsWindow {
             .bg(cx.theme().colors().editor_background)
             .border_1()
             .border_color(cx.theme().colors().border)
+            // Marley: the one focus ring, as a text field shows it on any focus (#895).
+            .focus(|style| ui::focus_ring(style, cx))
             .child(Icon::new(IconName::MagnifyingGlass).color(Color::Muted))
             .child(self.search_bar.clone())
             .when(has_query, |this| {

@@ -11498,28 +11498,30 @@ impl Render for Rail {
             .on_action(cx.listener(Self::toggle_thread_history))
             .size_full()
             .bg(cx.theme().colors().panel_background)
-            .map(|rail| {
-                if self.strip.shrunk {
-                    rail.child(self.render_strip(window, cx))
-                } else {
-                    rail.child(self.render_header(window, cx))
-                }
-            })
-            .map(|rail| {
-                if self.strip.shrunk {
-                    rail
-                } else if self.sessions.shown() {
-                    rail.child(self.render_sessions(cx))
-                } else if self.threads.shown {
-                    rail.child(self.render_threads_search(cx))
-                        .children(self.render_inbox(cx))
-                        .child(self.render_thread_list(cx))
-                } else {
-                    rail.child(self.render_filter(cx))
-                        .children(self.render_inbox(cx))
-                        .children(crate::forge_watch::render_rail_section(cx))
-                        .child(self.render_rows(self.render_blocks(None, cx), cx))
-                }
+            // The rows fade while a fold runs, and the strip shows once they have gone (#895).
+            .map(|rail| match self.strip.rows_opacity() {
+                None => rail.child(self.render_strip(window, cx)),
+                Some(opacity) => rail.child(
+                    v_flex()
+                        .size_full()
+                        .min_h_0()
+                        .when(opacity < 1., |rows| rows.opacity(opacity))
+                        .child(self.render_header(window, cx))
+                        .map(|rows| {
+                            if self.sessions.shown() {
+                                rows.child(self.render_sessions(cx))
+                            } else if self.threads.shown {
+                                rows.child(self.render_threads_search(cx))
+                                    .children(self.render_inbox(cx))
+                                    .child(self.render_thread_list(cx))
+                            } else {
+                                rows.child(self.render_filter(cx))
+                                    .children(self.render_inbox(cx))
+                                    .children(crate::forge_watch::render_rail_section(cx))
+                                    .child(self.render_rows(self.render_blocks(None, cx), cx))
+                            }
+                        }),
+                ),
             })
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {
                 deferred(

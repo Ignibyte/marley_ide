@@ -504,7 +504,8 @@ impl RenderOnce for Switch {
                     this.tab_index(tab_index)
                         .focus_visible(|mut style| {
                             style.border_color = Some(cx.theme().colors().border_focused);
-                            style
+                            // Marley: the one focus ring (#895).
+                            crate::focus_ring(style, cx)
                         })
                         .when_some(self.on_click.clone(), |this, on_click| {
                             this.on_click(move |_, window, cx| {

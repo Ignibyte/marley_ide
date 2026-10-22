@@ -198,7 +198,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
   rename, inline assist.
 - **Empty and error states** (States; done, #857 and #894, 2026-10-22): no project, no threads, no filter match, Rusty dropped,
   Chromium missing, an agent CLI missing, forge offline, the harness stopped.
-- **Motion and focus** (States; the needs-you pulse done, #858, 2026-10-22; the shrink and the focus ring #895): the rail's shrink, the needs-you pulse (two pulses, then still),
+- **Motion and focus** (States; the needs-you pulse done, #858, 2026-10-22; the labels' fade and one focus ring done, #895): the rail's shrink, the needs-you pulse (two pulses, then still),
   one focus ring everywhere, reduced motion honored.
 
 ## Across every wave

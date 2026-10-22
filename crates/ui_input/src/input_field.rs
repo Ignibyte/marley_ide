@@ -195,7 +195,8 @@ impl Render for InputField {
                     .border_color(style.border_color)
                     .when(
                         editor.focus_handle(cx).contains_focused(window, cx),
-                        |this| this.border_color(theme_color.border_focused),
+                        // Marley: the one focus ring (#895).
+                        |this| ui::focus_ring(this.border_color(theme_color.border_focused), cx),
                     )
                     .when(has_error, |this| this.border_color(error_border))
                     .when_some(self.start_icon, |this, icon| {

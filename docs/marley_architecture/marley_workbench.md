@@ -398,6 +398,12 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   with 150 ms of grace. The search popover holds `render_filter` and the filtered rows.
   `focus_filter` opens it while shrunk; Escape, Enter, a click outside or focus leaving the rail
   close it.
+- **The labels fade (#895).** `Strip::rows_opacity` decides what `Rail::render` draws: `None`
+  the strip; a number the header and rows in a wrapper at that opacity. Folding, the rows stay
+  for the fold's first 60 ms (`LABEL_FADE`), fading out, and the strip shows after; opening, they
+  fade in over the 180 ms. Under `reduce_motion` no fold runs, so neither fades.
+  `MARLEY_MOTION_SCALE`, read by debug builds only (`motion_scale`), stretches both so a visual
+  check's shots land inside them.
 
 ## Ports (`src/ports.rs`, #521)
 

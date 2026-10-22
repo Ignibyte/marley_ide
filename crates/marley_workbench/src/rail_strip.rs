@@ -24,6 +24,8 @@ use crate::{MarleySettings, RailStrip};
 pub(super) const STRIP_WIDTH: Pixels = px(60.);
 /// How long the rail takes to fold or open, from the design's States board.
 const EASE: Duration = Duration::from_millis(180);
+/// How long the rows take to fade out at a fold's start, before the strip takes their place.
+const LABEL_FADE: Duration = Duration::from_millis(60);
 /// How long a flyout waits after the pointer leaves its tile, so the pointer can cross the gap
 /// into it.
 const FLYOUT_GRACE: Duration = Duration::from_millis(150);
@@ -88,14 +90,49 @@ impl Strip {
         let Some(started) = self.motion else {
             return to;
         };
-        let progress = (started.elapsed().as_secs_f32() / EASE.as_secs_f32()).min(1.);
+        let progress = (started.elapsed().as_secs_f32() / ease().as_secs_f32()).min(1.);
         let eased = 1. - (1. - progress).powi(3);
         from + (to - from) * eased
     }
 
     fn moving(&self) -> bool {
-        self.motion.is_some_and(|started| started.elapsed() < EASE)
+        self.motion
+            .is_some_and(|started| started.elapsed() < ease())
     }
+
+    /// The rows' opacity while they show (#895): folding, they fade out over the fold's first
+    /// 60 ms and the strip takes their place after, which `None` says; opening, they fade in as
+    /// the width eases. Under reduced motion no fold runs, so they show whole or not at all.
+    pub(super) fn rows_opacity(&self) -> Option<f32> {
+        let elapsed = self.motion.map(|started| started.elapsed());
+        if self.shrunk {
+            let elapsed = elapsed?;
+            let fade = LABEL_FADE * motion_scale();
+            (elapsed < fade).then(|| 1. - elapsed.as_secs_f32() / fade.as_secs_f32())
+        } else {
+            Some(elapsed.map_or(1., |elapsed| {
+                (elapsed.as_secs_f32() / ease().as_secs_f32()).min(1.)
+            }))
+        }
+    }
+}
+
+/// The fold's length, stretched by [`motion_scale`].
+fn ease() -> Duration {
+    EASE * motion_scale()
+}
+
+/// How many times slower the fold runs: `MARLEY_MOTION_SCALE` in a debug build, so a visual
+/// check's shots can land inside it (#895); 1 otherwise.
+fn motion_scale() -> u32 {
+    if !cfg!(debug_assertions) {
+        return 1;
+    }
+    std::env::var("MARLEY_MOTION_SCALE")
+        .ok()
+        .and_then(|scale| scale.parse::<u32>().ok())
+        .filter(|scale| *scale > 0)
+        .unwrap_or(1)
 }
 
 /// The Sessions tile (#832): `tx` with the count of sessions; a click opens the rail on Sessions.

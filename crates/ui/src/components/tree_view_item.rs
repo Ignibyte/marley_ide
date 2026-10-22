@@ -181,7 +181,8 @@ impl RenderOnce for TreeViewItem {
                     .rounded_sm()
                     .border_1()
                     .border_color(transparent_border)
-                    .focus_visible(|s| s.border_color(focused_border))
+                    // Marley: the one focus ring (#895).
+                    .focus_visible(|s| crate::focus_ring(s.border_color(focused_border), cx))
                     .when(self.selected, |this| {
                         this.border_color(selected_border).bg(selected_bg)
                     })

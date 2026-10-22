@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #895 (feature, the Marley look, W6)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [895-rail-shrink-motion-and-focus-ring.spec.md](../../pipeline/completed/895-rail-shrink-motion-and-focus-ring.spec.md)
 - **Source ticket:** from TICKET-858 (2026-10-22): #858 made the needs-you pulse.
 - **Boards:** States
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

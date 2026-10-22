@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **One focus ring, and the rail's labels fade as it folds** (#895, 2026-10-22). A control
+  reached with the keyboard shows 2 px of the focus color just outside its shape: buttons,
+  switches, tree rows, choice cards, text fields and the Settings window's search field, added
+  once in Zed's shared components. A mouse click shows none. Folding the rail, its rows fade out
+  before the strip takes their place, and they fade back in as it opens.
+
 - **Inline assist offers the agent** (#900, 2026-10-22). While an agent runs in a terminal of the
   window, inline assist's prompt in a file carries a line: "Or send lines 20–22 to Claude Code in
   …". A click on it types the reference to those lines at the agent's prompt, as `marley: send
