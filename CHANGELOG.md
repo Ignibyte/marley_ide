@@ -51,6 +51,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Ctrl Tab switcher** (#883, 2026-10-22). Each row leads with a tile naming the tab's kind
+  (">_", a file's extension, "www") and shows a file's path under its title, and the switcher says
+  how its keys work.
+
 - **A launch config's approval** (#882, 2026-10-22). Running a launch config not approved yet asks
   with a card: a row per item, its kind, what it runs shown whole and as written, and where it
   opens, with Cancel and Run.

@@ -10894,6 +10894,7 @@ dependencies = [
  "sidebar",
  "smallvec",
  "smol",
+ "tab_switcher",
  "tabular_data_preview",
  "task",
  "tempfile",

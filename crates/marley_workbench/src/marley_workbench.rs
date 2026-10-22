@@ -135,6 +135,7 @@ pub mod sticky_header;
 pub mod system_one;
 pub mod system_one_calls;
 pub mod system_pages;
+pub mod tab_tiles;
 pub mod terminal_drive;
 pub mod terminal_ids;
 pub mod terminal_show;
@@ -1209,6 +1210,7 @@ pub fn init(cx: &mut App) {
     agent_panel_width::init(cx);
     component_library::init(cx);
     system_pages::init(cx);
+    tab_tiles::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);
     block_tables::init(cx);

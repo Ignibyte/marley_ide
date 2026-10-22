@@ -8,8 +8,8 @@ use editor::items::{
 use fuzzy_nucleo::StringMatchCandidate;
 use gpui::{
     Action, AnyElement, App, Context, DismissEvent, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, Modifiers, ModifiersChangedEvent, MouseButton, MouseUpEvent, ParentElement, Point,
-    Render, Styled, Task, TaskExt, WeakEntity, Window, actions, rems,
+    Focusable, Global, Modifiers, ModifiersChangedEvent, MouseButton, MouseUpEvent, ParentElement,
+    Point, Render, Styled, Task, TaskExt, WeakEntity, Window, actions, rems,
 };
 use picker::{Picker, PickerDelegate};
 use project::Project;
@@ -731,6 +731,20 @@ impl TabSwitcherDelegate {
     }
 }
 
+// Marley: what Marley draws for a row of the switcher: a tile in the icon's place, naming the tab's
+// kind, and a line under its title saying where it is (#883).
+pub struct MarleySwitcherRow {
+    pub tile: AnyElement,
+    pub line: Option<SharedString>,
+}
+
+// Marley: the look Marley sets for the switcher's rows, with the hint as its footer (#883). Without
+// it, the rows are Zed's.
+#[derive(Clone, Copy)]
+pub struct MarleySwitcherLook(pub fn(&dyn ItemHandle, &mut Window, &mut App) -> MarleySwitcherRow);
+
+impl Global for MarleySwitcherLook {}
+
 impl PickerDelegate for TabSwitcherDelegate {
     type ListItem = ListItem;
 
@@ -841,6 +855,28 @@ impl PickerDelegate for TabSwitcherDelegate {
             .log_err();
     }
 
+    // Marley: the board's hint under the rows (#883).
+    fn render_footer(
+        &self,
+        _window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) -> Option<AnyElement> {
+        cx.try_global::<MarleySwitcherLook>()?;
+        Some(
+            h_flex()
+                .px_3()
+                .py_1p5()
+                .border_t_1()
+                .border_color(cx.theme().colors().border_variant)
+                .child(
+                    Label::new("Hold Ctrl, press Tab to move · let go to open")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .into_any_element(),
+        )
+    }
+
     fn render_match(
         &self,
         ix: usize,
@@ -861,6 +897,16 @@ impl PickerDelegate for TabSwitcherDelegate {
         let label = tab_match.item.tab_content(params, window, cx);
 
         let icon = tab_match.icon(&self.project, selected, window, cx);
+        // Marley: the row's tile and line when Marley's look is set (#883).
+        let marley = cx
+            .try_global::<MarleySwitcherLook>()
+            .copied()
+            .map(|look| (look.0)(tab_match.item.as_ref(), window, cx));
+        let (marley_tile, marley_line) = match marley {
+            Some(row) => (Some(row.tile), row.line),
+            None => (None, None),
+        };
+        let has_marley_tile = marley_tile.is_some();
 
         let indicator = render_item_indicator(tab_match.item.boxed_clone(), cx);
         let indicator_color = if let Some(ref indicator) = indicator {
@@ -909,9 +955,24 @@ impl PickerDelegate for TabSwitcherDelegate {
                         .w_full()
                         .min_w_0()
                         .overflow_hidden()
-                        .child(label),
+                        .child(label)
+                        // Marley: where the tab is, under its title (#883).
+                        .when_some(marley_line, |row, line| {
+                            row.flex_col().items_start().child(
+                                Label::new(line)
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted)
+                                    .truncate(),
+                            )
+                        }),
                 )
-                .start_slot::<DecoratedIcon>(icon)
+                // Marley: Marley's tile in the icon's place (#883).
+                .when(!has_marley_tile, |item| {
+                    item.start_slot::<DecoratedIcon>(icon)
+                })
+                .when_some(marley_tile, |item, tile| {
+                    item.start_slot::<AnyElement>(tile)
+                })
                 .map(|el| {
                     if self.selected_index == ix {
                         el.end_slot::<AnyElement>(close_button)

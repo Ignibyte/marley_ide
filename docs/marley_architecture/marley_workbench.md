@@ -4270,6 +4270,13 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The Ctrl Tab switcher's rows (`src/tab_tiles.rs`, #883)
+
+- `init` sets `tab_switcher::MarleySwitcherLook` to `switcher_row`: a tile from the tab's kind
+  (a terminal, a Browser tab, a file's extension, else the title's letter) and a line (a file's
+  path in its project, else the tab's tooltip). The switcher shows the board's hint while the look
+  is set.
+
 ## The System tab (`src/system_pages.rs`, #855)
 
 - `marley: open system pages` opens `SystemPages`: a page list and the chosen page drawn as the
