@@ -4249,6 +4249,13 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The System tab (`src/system_pages.rs`, #855)
+
+- `marley: open system pages` opens `SystemPages`: a page list and the chosen page drawn as the
+  `SystemPages` board's card (title, covers, lead, rows, buttons). This build reads
+  `release_channel` and `paths`; Where data lives counts each folder with `folder_size` on the
+  background executor when the tab opens and on Count again.
+
 ## The Component Library's navigation (`src/component_library.rs`, #849)
 
 - A `find` field heads `render_navigation`, a 220 px column of each group's component names;

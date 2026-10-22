@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A System tab** (#855, 2026-10-22). `marley: open system pages` opens pages about Marley
+  itself: This build (channel, version, commit, data folder, platform, Copy build info) and Where
+  data lives (Marley's folders with their sizes, Open the folder).
+
 - **Forge around Marley** (#843, 2026-10-21). With a Forge provider set, the rail shows a FORGE
   section with Forge's online agents and their state, Home a FORGE card with the sprint's progress,
   what is working, what needs you, what failed QA and Forge's bulletins, and the bottom row

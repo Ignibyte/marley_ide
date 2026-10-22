@@ -16,7 +16,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-882](open/TICKET-882-launch-remote-and-block-tools.md) | feature | The Launch menu, remote terminals and the block tools (W5, from #852) |
 | [TICKET-883](open/TICKET-883-switcher-ports-containers-collab.md) | feature | The Ctrl Tab switcher, port rows, Containers and Collab (W5, from #853) |
 | [TICKET-884](open/TICKET-884-search-branches-history-extensions-guide.md) | feature | Project search, branches, history, extensions and the Guide (W5, from #854) |
-| [TICKET-855](open/TICKET-855-system-pages.md) | feature | New pages: this build, data folders, troubleshooting (W5) |
+| [TICKET-885](open/TICKET-885-more-system-pages.md) | feature | The other system pages (W5, from #855) |
 | [TICKET-856](open/TICKET-856-editor-pop-ups.md) | feature | The editor's pop-ups in the theme (W6) |
 | [TICKET-857](open/TICKET-857-empty-and-error-states.md) | feature | Empty and error states (W6) |
 | [TICKET-858](open/TICKET-858-motion-and-focus.md) | feature | Motion, attention and focus (W6) |

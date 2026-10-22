@@ -189,7 +189,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Workflows (Save and Run done, #852, 2026-10-21), launch configs, remote terminals (#882) | Workflows, OpenConnect |
 | Splits (focused pane done, #853, 2026-10-22), switcher, ports, containers, collab (#883) | Splits |
 | Project search, recent (done, #854, 2026-10-22), branches, history, extensions, the guide (#884) | SearchMore |
-| New pages: this build, data folders, troubleshooting | SystemPages |
+| New pages: this build, data folders (done, #855, 2026-10-22), troubleshooting and the rest (#885) | SystemPages |
 
 ## Wave 6: polish
 
