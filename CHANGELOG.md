@@ -47,6 +47,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **MCP Servers as a card per agent** (#846, 2026-10-21). Claude Code, Codex and Zed each get a card
+  with what Marley knows of them and their servers, Add Server inside each.
+
 - **Rusty's Memory and Skills chips** (#876, 2026-10-21). A memory's importance leads its line as
   a chip in its colour, and each skill and script shows its status, active in green and pending in
   yellow.

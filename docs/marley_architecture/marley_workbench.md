@@ -4224,6 +4224,11 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## MCP Servers as cards (`src/mcp_servers.rs`, #846)
+
+- The page draws a `card` per agent: Claude Code's (`render_agent`, then its servers through
+  `render_read` keyed `claude`, the plugins line), Codex's (keyed `codex`) and Zed's rows.
+
 ## Rusty's Memory and Skills chips (`src/rusty/memory_tab.rs`, `skills_tab.rs`, #876)
 
 - A memory row leads with its importance as a `Chip` (High accent, Normal default, Low muted),

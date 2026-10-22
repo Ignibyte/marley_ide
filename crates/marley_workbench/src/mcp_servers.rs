@@ -230,22 +230,10 @@ impl McpServers {
         });
     }
 
-    fn render_agents(cx: &App) -> AnyElement {
-        v_flex()
-            .w_full()
-            .gap_2()
-            .child(heading("AGENT CLIS"))
-            .children(
-                [AgentKind::Claude, AgentKind::Codex]
-                    .into_iter()
-                    .map(|kind| render_agent(kind, cx)),
-            )
-            .into_any_element()
-    }
-
     /// One CLI's section: its heading with Add Server for `places`, then its rows or why there are
     /// none.
     fn render_read(
+        key: &'static str,
         heading_text: &'static str,
         read: Option<&Read>,
         none: &str,
@@ -281,7 +269,7 @@ impl McpServers {
             .child(
                 h_flex().gap_2().child(heading(heading_text)).child(
                     Button::new(
-                        SharedString::from(format!("marley-mcp-add-{heading_text}")),
+                        SharedString::from(format!("marley-mcp-add-{key}")),
                         "Add Server",
                     )
                     .start_icon(Icon::new(IconName::Plus).size(IconSize::XSmall))
@@ -408,28 +396,38 @@ impl Render for McpServers {
                             }),
                     ),
             )
-            .child(Self::render_agents(cx))
-            .child(Self::render_read(
-                "CLAUDE CODE",
-                claude,
-                "No MCP servers for the open projects",
-                self.claude_places(),
-                cx,
-            ))
-            .child(muted(
-                "Claude Code's plugins add servers of their own, which claude mcp list shows.",
-            ))
-            .child(Self::render_read(
-                "CODEX",
-                codex,
-                "No MCP servers",
-                vec![Place::Codex],
-                cx,
-            ))
+            // A card per agent, what Marley knows of it over its servers, as the Tools board
+            // draws them (#846).
             .child(
-                v_flex()
-                    .w_full()
-                    .gap_1()
+                card(cx)
+                    .child(render_agent(AgentKind::Claude, cx))
+                    .child(Self::render_read(
+                        "claude",
+                        "SERVERS",
+                        claude,
+                        "No MCP servers for the open projects",
+                        self.claude_places(),
+                        cx,
+                    ))
+                    .child(muted(
+                        "Claude Code's plugins add servers of their own, which claude mcp list \
+                         shows.",
+                    )),
+            )
+            .child(
+                card(cx)
+                    .child(render_agent(AgentKind::Codex, cx))
+                    .child(Self::render_read(
+                        "codex",
+                        "SERVERS",
+                        codex,
+                        "No MCP servers",
+                        vec![Place::Codex],
+                        cx,
+                    )),
+            )
+            .child(
+                card(cx)
                     .child(heading("ZED"))
                     .when(zed.is_empty(), |section| {
                         section.child(muted("No context servers."))
@@ -474,6 +472,19 @@ fn heading(text: &'static str) -> impl IntoElement {
 }
 
 /// One agent CLI: the program and version found, and each part of Marley that rests on it.
+/// One agent's card (#846, D1).
+fn card(cx: &App) -> Div {
+    let colors = cx.theme().colors();
+    v_flex()
+        .w_full()
+        .gap_2()
+        .p_3()
+        .rounded_lg()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+}
+
 fn render_agent(kind: AgentKind, cx: &App) -> AnyElement {
     let program = crate::agent_versions::program(kind, cx)
         .map(|path| path.display().to_string())
