@@ -4314,7 +4314,10 @@ below describe what #743 retired.
   the card then says Installed in green for any installed extension). Without the globals the
   views are Zed's.
 - Since #856 it also sets `editor::code_context_menus::MarleyCodeActionsLook`: the code actions
-  menu leads with "Code actions" and its key. The completion rows' kind letter and right-hand
+  menu leads with "Code actions" and its key. Since #899 the look's `footer` is `code_actions_footer`, "Ask
+  an agent to fix this…", which closes the menu and runs `marley::AskAgentToFix`
+  (`send_selection::ask_to_fix`: the caret's line and its worst diagnostic, typed with no Enter);
+  and `editor::MarleyRenameLook` makes the rename block show "Renaming: Old → New · Enter". The completion rows' kind letter and right-hand
   detail are Zed's settings, defaulted in `assets/settings/default.json`.
 
 ## The diff review's header (`src/diff_header.rs`, #893)

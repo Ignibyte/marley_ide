@@ -1624,6 +1624,12 @@ pub struct RenameTarget {
 }
 
 #[doc(hidden)]
+/// Marley: while set, an inline rename shows "Renaming: Old → New · Enter" at its line's end, as
+/// the EditorPopups board draws it (#899).
+pub struct MarleyRenameLook;
+
+impl Global for MarleyRenameLook {}
+
 pub struct RenameState {
     pub range: Range<Anchor>,
     pub old_name: Arc<str>,
@@ -8300,6 +8306,7 @@ impl Editor {
                             height: Some(1),
                             render: Arc::new({
                                 let rename_editor = rename_editor.clone();
+                                let marley_old_name = old_name.clone();
                                 move |cx: &mut BlockContext| {
                                     let mut text_style = cx.editor_style.text.clone();
                                     if let Some(highlight_style) = old_highlight_id
@@ -8307,7 +8314,30 @@ impl Editor {
                                     {
                                         text_style = text_style.highlight(highlight_style);
                                     }
+                                    // Marley: the rename the Enter makes, at the line's end (#899).
+                                    let marley_note =
+                                        cx.app.has_global::<MarleyRenameLook>().then(|| {
+                                            let new_name = rename_editor.read(cx.app).text(cx.app);
+                                            format!(
+                                                "Renaming: {marley_old_name} → {new_name} · Enter"
+                                            )
+                                        });
                                     div()
+                                        .relative()
+                                        .children(marley_note.map(|note| {
+                                            div()
+                                                .absolute()
+                                                .right_4()
+                                                .top_0()
+                                                .h_full()
+                                                .flex()
+                                                .items_center()
+                                                .child(
+                                                    Label::new(note)
+                                                        .size(LabelSize::Small)
+                                                        .color(Color::Accent),
+                                                )
+                                        }))
                                         .block_mouse_except_scroll()
                                         .pl(cx.anchor_x)
                                         .child(EditorElement::new(

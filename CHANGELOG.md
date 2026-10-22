@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Ask an agent to fix this, and the rename note** (#899, 2026-10-22). The code actions menu
+  ends with "Ask an agent to fix this…", which types "Fix this:", the line and the error there at
+  the prompt of the agent in a terminal of the window (`marley: ask agent to fix`). An inline
+  rename shows "Renaming: Old → New · Enter" at the line's end.
+
 - **Try it links in the Marley Guide** (#897, 2026-10-22). A Try it link beside a command in the
   guide runs it in the guide's window: the Sessions page, the System tab, Changes with its History
   tab, the Component Library, the Threads page, the rail's strip. Only the guide's own page can

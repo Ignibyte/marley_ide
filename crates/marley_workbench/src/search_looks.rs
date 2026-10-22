@@ -1,5 +1,5 @@
 //! The `SearchMore` board's looks for three of Zed's views (#891), and the `EditorPopups` board's
-//! code actions heading (#856).
+//! code actions heading (#856), its Ask an agent to fix this and the rename note (#899).
 //!
 //! Project search counts its matches and the files that hold them; the branch picker gives each
 //! branch a dot and a note; each extension's card leads with a tile and says Installed in green.
@@ -16,7 +16,10 @@ pub fn init(cx: &mut App) {
     cx.set_global(MarleySearchLook);
     cx.set_global(MarleyBranchLook(branch_mark));
     cx.set_global(MarleyExtensionLook(extension_tile));
-    cx.set_global(editor::code_context_menus::MarleyCodeActionsLook);
+    cx.set_global(editor::code_context_menus::MarleyCodeActionsLook {
+        footer: code_actions_footer,
+    });
+    cx.set_global(editor::MarleyRenameLook);
 }
 
 /// A branch's dot and note (#891, D2): the coat's orange and "current" for the head, the lilac and
@@ -85,5 +88,27 @@ fn extension_tile(name: &str, cx: &App) -> AnyElement {
                 .size(LabelSize::Small)
                 .color(Color::Accent),
         )
+        .into_any_element()
+}
+
+/// The code actions menu's last row (#899): Ask an agent to fix this…, which closes the menu and
+/// runs `marley::AskAgentToFix` from the editor.
+fn code_actions_footer(cx: &App) -> AnyElement {
+    let hover = cx.theme().colors().element_hover;
+    h_flex()
+        .id("marley-ask-agent-to-fix")
+        // The menu's list takes the mouse from the editor under it; this row is outside the list.
+        .occlude()
+        .mx_1()
+        .px_1p5()
+        .py_0p5()
+        .rounded_sm()
+        .cursor_pointer()
+        .hover(move |row| row.bg(hover))
+        .child(Label::new("Ask an agent to fix this…").color(Color::Accent))
+        .on_click(|_, window, cx| {
+            window.dispatch_action(Box::new(editor::actions::Cancel), cx);
+            window.dispatch_action(Box::new(crate::AskAgentToFix), cx);
+        })
         .into_any_element()
 }

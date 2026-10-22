@@ -4447,3 +4447,12 @@ the rail itself, took the focus away, so the button's second click focused the t
 never put it away. #868's scenario clicked the button twice with nothing between and missed it.
 Fixed: while the tree shows, the button closes the left dock with `Workspace::toggle_dock`. A
 toggle button reads the dock's state, not the focus.
+
+## F-claude-899-a-popover-row-outside-its-list-let-the-click-through-001
+*found: 2026-10-22 · while: testing #899 · severity: medium*
+
+#899 added a row after the code actions menu's list, inside the same `Popover`. The first click
+on it moved the editor's caret and closed the menu, and the row's own click never ran: the
+menu's `uniform_list` calls `occlude()`, so the editor under it gets no mouse, but the popover
+around it does not, and the new row sat outside the list. Fixed: the row occludes. A row added
+to one of Zed's pop-ups outside its list occludes, or the editor under it takes the click.

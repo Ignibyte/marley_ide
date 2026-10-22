@@ -31,9 +31,9 @@ use workspace::notifications::NotificationId;
 use workspace::{ModalView, Toast, Workspace};
 use zed_actions::agent::AddSelectionToThread;
 
-use crate::SendSelectionToAgent;
 use crate::agent_bar::agent_in;
 use crate::agent_events::AgentEvents;
+use crate::{AskAgentToFix, SendSelectionToAgent};
 
 /// How many terminals the focus order remembers.
 const FOCUS_ORDER: usize = 64;
@@ -126,6 +126,11 @@ pub fn init(cx: &mut App) {
                 show_toast(workspace, message, cx);
             }
         });
+        workspace.register_action(|workspace, _: &AskAgentToFix, window, cx| {
+            if let Err(message) = ask_to_fix(workspace, window, cx) {
+                show_toast(workspace, message, cx);
+            }
+        });
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(capture_add_selection))
         });
@@ -196,6 +201,102 @@ fn send_selection(
             Ok(())
         }
     }
+}
+
+/// Asks an agent to fix the line under the caret of the active editor (#899): "Fix this:", the
+/// line's reference and the error or warning there, typed with no Enter, to the one agent or
+/// through the picker.
+fn ask_to_fix(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
+    let editor = workspace
+        .active_item(cx)
+        .and_then(|item| item.act_as::<Editor>(cx))
+        .ok_or("Ask an agent to fix this works in a file's editor.")?;
+    let (path, line, problem) = line_and_problem(&editor, cx)
+        .ok_or("Ask an agent to fix this works in a file's editor: this one shows no file.")?;
+    let mut targets = agent_targets(workspace, cx);
+    let window_handle = window.window_handle();
+    let request = move |target: &Target| {
+        let place = reference(
+            target.kind,
+            &path,
+            target.cwd.as_deref(),
+            Some((line, line)),
+        );
+        let place = place.trim_end();
+        problem.as_ref().map_or_else(
+            || format!("Fix this: {place} "),
+            |problem| format!("Fix this: {place} ({problem}) "),
+        )
+    };
+    match targets.len() {
+        0 => Err("No agent runs in a terminal of this window."),
+        1 => {
+            let target = targets.remove(0);
+            let text = request(&target);
+            send_text(target, text, false, window_handle, cx);
+            Ok(())
+        }
+        _ => {
+            let rows = targets
+                .into_iter()
+                .map(|target| Row {
+                    label: target.label(),
+                    pick: Pick::Agent(target),
+                })
+                .collect();
+            let on_pick: OnPick = Box::new(move |pick, window, cx| {
+                if let Pick::Agent(target) = pick {
+                    let text = request(&target);
+                    send_text(target, text, false, window, cx);
+                }
+            });
+            workspace.toggle_modal(window, cx, |window, cx| {
+                TargetPicker::new(
+                    rows,
+                    "Ask which agent to fix it…",
+                    on_pick,
+                    window_handle,
+                    window,
+                    cx,
+                )
+            });
+            Ok(())
+        }
+    }
+}
+
+/// The file and line, from 1, under `editor`'s caret, and the first line of the worst error or
+/// warning on that line; `None` when the editor shows no file on this machine.
+fn line_and_problem(
+    editor: &Entity<Editor>,
+    cx: &mut App,
+) -> Option<(PathBuf, u32, Option<String>)> {
+    let (head, snapshot) = editor.update(cx, |editor, cx| {
+        let display = editor.display_snapshot(cx);
+        let head = editor.selections.newest::<Point>(&display).head();
+        (head, editor.buffer().read(cx).snapshot(cx))
+    });
+    let (buffer, point) = snapshot.point_to_buffer_point(head)?;
+    let path = buffer.file()?.as_local()?.abs_path(cx);
+    let row = point.row;
+    let line = Point::new(row, 0)..Point::new(row, buffer.line_len(row));
+    let problem = buffer
+        .diagnostics_in_range::<_, Point>(line, false)
+        .min_by_key(|entry| entry.diagnostic.severity)
+        .and_then(|entry| {
+            entry
+                .diagnostic
+                .message
+                .as_str()
+                .lines()
+                .next()
+                .map(str::to_string)
+        });
+    Some((path, row + 1, problem))
 }
 
 /// The newest selection of `editor` as a file and its lines, or `None` when its buffer is no

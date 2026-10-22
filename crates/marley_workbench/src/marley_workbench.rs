@@ -421,6 +421,10 @@ actions!(
         /// terminal of this window; with several, a picker asks which.
         #[derive(Eq)]
         SendSelectionToAgent,
+        /// Types "Fix this:", the line under the caret and the error or warning there at the prompt of
+        /// the agent running in a terminal of this window; with several, a picker asks which.
+        #[derive(Eq)]
+        AskAgentToFix,
         /// Asks the System One layer whether the last command of the terminal you used last
         /// failed, and shows what came back.
         #[derive(Eq)]

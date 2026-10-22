@@ -1963,8 +1963,12 @@ impl CodeActionsItem {
 }
 
 /// Marley: while set, the code actions menu leads with "Code actions" and the key that toggles
-/// it, as the EditorPopups board draws the menu (#856).
-pub struct MarleyCodeActionsLook;
+/// it, as the EditorPopups board draws the menu (#856), and ends with the footer this gives
+/// (#899).
+#[derive(Clone, Copy)]
+pub struct MarleyCodeActionsLook {
+    pub footer: fn(&App) -> AnyElement,
+}
 
 impl gpui::Global for MarleyCodeActionsLook {}
 
@@ -2127,7 +2131,8 @@ impl CodeActionsMenu {
         .with_sizing_behavior(ListSizingBehavior::Infer);
 
         // Marley: the board's heading over the actions, with the key that opens them (#856).
-        let heading = cx.has_global::<MarleyCodeActionsLook>().then(|| {
+        let marley_look = cx.try_global::<MarleyCodeActionsLook>().copied();
+        let heading = marley_look.map(|_| {
             h_flex()
                 .px_2()
                 .pb_1()
@@ -2140,9 +2145,11 @@ impl CodeActionsMenu {
                 )
                 .child(KeyBinding::for_action(&ToggleCodeActions::default(), cx))
         });
+        let footer = marley_look.map(|look| (look.footer)(cx));
         Popover::new()
             .children(heading)
             .child(list)
+            .children(footer)
             .into_any_element()
     }
 
