@@ -937,6 +937,11 @@ impl Dock {
         self.panel_entries.len()
     }
 
+    // Marley: the dock's panels, in its order, for Marley's panel group in the status bar (#862).
+    pub fn panel_handles(&self) -> impl Iterator<Item = &Arc<dyn PanelHandle>> {
+        self.panel_entries.iter().map(|entry| &entry.panel)
+    }
+
     pub fn has_agent_panel(&self, cx: &App) -> bool {
         self.panel_entries
             .iter()
@@ -1402,6 +1407,13 @@ impl Render for Dock {
     }
 }
 
+/// Marley: asked by each `PanelButtons`; while its function answers yes, the buttons step aside
+/// for Marley's own group of every dock's panels (#862).
+#[derive(Clone, Copy)]
+pub struct MarleyPanelButtons(pub fn(&App) -> bool);
+
+impl gpui::Global for MarleyPanelButtons {}
+
 impl PanelButtons {
     pub fn new(dock: Entity<Dock>, cx: &mut Context<Self>) -> Self {
         cx.observe(&dock, |_, _, cx| cx.notify()).detach();
@@ -1415,6 +1427,13 @@ impl PanelButtons {
 
 impl Render for PanelButtons {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Marley: Marley's group draws every dock's panels instead (#862).
+        if cx
+            .try_global::<MarleyPanelButtons>()
+            .is_some_and(|marley| (marley.0)(cx))
+        {
+            return h_flex();
+        }
         let dock = self.dock.read(cx);
         let active_index = dock.active_panel_index;
         let is_open = dock.is_open;

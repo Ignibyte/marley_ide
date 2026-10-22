@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #862 (feature, the Marley look, W1.4 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [862-panel-buttons-as-a-labeled-group.spec.md](../../pipeline/completed/862-panel-buttons-as-a-labeled-group.spec.md)
 - **Source ticket:** split from TICKET-833 while planning it (2026-10-21), from the design
   canvas's BottomRow board.
 - **Boards:** BottomRow
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

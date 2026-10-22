@@ -388,6 +388,11 @@ pub(crate) fn pane_of(
 }
 
 impl PanelTab {
+    /// The panel the tab draws (#862: the panel group's dot).
+    pub(crate) fn panel_id(&self) -> EntityId {
+        self.panel.panel_id()
+    }
+
     /// The tab for `panel`, named and drawn as its status-bar button. A click and a restart build
     /// the same tab (#773's D5).
     fn new(

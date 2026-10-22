@@ -14,7 +14,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-900](open/TICKET-900-inline-assist-offers-the-agent.md) | feature | Inline assist offers to send the selection to an agent (W6, from #899; needs an LLM stand-in) |
 | [TICKET-895](open/TICKET-895-rail-shrink-motion-and-focus-ring.md) | feature | The rail's shrink in motion, and one focus ring (W6, from #858) |
 | [TICKET-860](open/TICKET-860-a-remote-projects-logo-over-ssh.md) | feature | A remote project's logo, read once over SSH (W1.2 follow-up) |
-| [TICKET-862](open/TICKET-862-the-panel-buttons-become-a-labeled-group.md) | feature | The panel buttons become one labeled group (W1.4 follow-up) |
 | [TICKET-863](open/TICKET-863-cards-above-the-bottom-row-and-the-debugging-row.md) | feature | Cards above the bottom row, and the row while debugging (W1.4 follow-up) |
 | [TICKET-864](open/TICKET-864-the-thread-plan-chips-terminal-peek-and-checks.md) | feature | The thread's plan, reply chips, terminal peek and checks (W2 follow-up) |
 | [TICKET-865](open/TICKET-865-an-agent-panel-beside-a-terminal.md) | feature | An agent panel beside a terminal, and a running block's progress line (W2 follow-up) |

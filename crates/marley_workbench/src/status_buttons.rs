@@ -39,7 +39,11 @@ pub(crate) fn init(cx: &mut App) {
         let debug = cx.new(|cx| DebugButton::new(docks, cx));
         let focus = cx.new(|cx| crate::focus_row::FocusRow::new(handle_for_focus, cx));
         let forge = cx.new(crate::forge_watch::ForgeItem::new);
+        let panels = cx.new(|cx| crate::panel_group::PanelGroup::new(workspace, cx));
         workspace.status_bar().update(cx, |status_bar, cx| {
+            // Every dock's panels, named, after Home (#862): the right items draw from the end, so
+            // the group goes in first.
+            status_bar.add_right_item(panels, window, cx);
             status_bar.add_right_item(home, window, cx);
             // Debug at the left end, after the left dock's buttons, which `Workspace::new` adds
             // before any other status item.

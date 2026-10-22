@@ -98,6 +98,7 @@ pub mod mcp_servers;
 pub mod notifications;
 pub mod omarchy_theme;
 pub mod pane_splits;
+pub mod panel_group;
 pub mod panel_tabs;
 pub mod pickers;
 pub mod plan_review;
@@ -1222,6 +1223,7 @@ pub fn init(cx: &mut App) {
     tab_tiles::init(cx);
     sessions_page::init(cx);
     search_looks::init(cx);
+    panel_group::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);
     block_tables::init(cx);

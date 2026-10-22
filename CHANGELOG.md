@@ -96,6 +96,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The panel buttons as one labeled group** (#862, 2026-10-22). In the Marley layout the bottom
+  row's right end shows Home and every panel by name (Files, Changes, Outline, Fleet, Collab,
+  Agent, …), the one showing filled and a dot on a panel open as a tab, in place of Zed's three
+  groups of unlabeled icons.
+
 - **The editor's pop-ups as the board draws them** (#856, 2026-10-22). Completions show each
   item's kind as a coloured letter and its detail at the right (Zed's own settings, now Marley's
   defaults), and code actions open under a "Code actions" heading with their key.

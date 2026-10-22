@@ -4320,6 +4320,13 @@ below describe what #743 retired.
   and `editor::MarleyRenameLook` makes the rename block show "Renaming: Old → New · Enter". The completion rows' kind letter and right-hand
   detail are Zed's settings, defaulted in `assets/settings/default.json`.
 
+## The panel group (`src/panel_group.rs`, #862)
+
+- `init` sets `workspace::dock::MarleyPanelButtons(marley_layout)`, so Zed's three
+  `PanelButtons` draw nothing in the Marley layout. `PanelGroup`, a status item before Home,
+  lists `Dock::panel_handles` of the three docks but Debug, in `BOARD`'s order under the board's
+  names (from 1200 px wide), the showing one filled and a dot on a panel a `PanelTab` draws.
+
 ## A project's mark on banners and the switcher (#859)
 
 - `project_icons::logo_file_for(path)` gives the file the mark of the project holding `path` came
