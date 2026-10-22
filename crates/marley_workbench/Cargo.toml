@@ -21,6 +21,7 @@ askpass.workspace = true
 async-tungstenite.workspace = true
 base64.workspace = true
 chrono.workspace = true
+collab_ui.workspace = true
 collections.workspace = true
 command_palette.workspace = true
 command_palette_hooks.workspace = true

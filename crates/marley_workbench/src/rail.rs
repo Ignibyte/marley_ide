@@ -7299,10 +7299,11 @@ impl Rail {
 }
 
 impl Rail {
-    /// A port row's hover buttons: Open, Copy URL and Stop (a container's, a quiet restarted
-    /// service's, or the process's). They lie over the row's end rather than keep room beside it
-    /// (#618), on the row's own shade made opaque over the rail's background, so they cover the
-    /// text under them and leave the text the row's width while hidden.
+    /// A port row's end (#890): Open, or Copy for a container's port as the Splits board has it,
+    /// and on hover the others: Open or Copy URL, and Stop (a container's, a quiet restarted
+    /// service's, or the process's). The hover buttons lie over the text at the end's left rather
+    /// than keep room beside it (#618), on the row's own shade made opaque over the rail's
+    /// background, so they cover the text under them and leave it the row's width while hidden.
     fn port_row_buttons(
         row: &PortRow,
         workspace: &WeakEntity<Workspace>,
@@ -7368,37 +7369,79 @@ impl Rail {
                     rail.stop_port(port, pid, window, cx);
                 }
             }));
-        h_flex()
+        let shown = Self::port_row_shown(row, workspace, closed, key, cx);
+        let hover = h_flex()
             .absolute()
             .top_0()
             .bottom_0()
-            .right_0()
+            .right_full()
             .pl_1()
-            .pr_1p5()
             .gap_0p5()
-            .rounded_r_md()
             .bg(shade)
             .visible_on_hover(ROW_GROUP)
-            .child(
-                div()
-                    .debug_selector(move || format!("marley-rail-port-open-{port}"))
-                    .child(open),
-            )
-            .child(
-                div()
-                    .debug_selector(move || format!("marley-rail-port-copy-{port}"))
-                    .child(copy),
-            )
+            .when(is_container, |hover| {
+                hover.child(
+                    div()
+                        .debug_selector(move || format!("marley-rail-port-open-{port}"))
+                        .child(open),
+                )
+            })
+            .when(!is_container, |hover| {
+                hover.child(
+                    div()
+                        .debug_selector(move || format!("marley-rail-port-copy-{port}"))
+                        .child(copy),
+                )
+            })
             .child(
                 div()
                     .debug_selector(move || format!("marley-rail-port-stop-{port}"))
                     .child(stop),
+            );
+        h_flex()
+            .flex_none()
+            .h_full()
+            .relative()
+            .pl_0p5()
+            .child(hover)
+            .child(
+                div()
+                    .debug_selector(move || format!("marley-rail-port-shown-{port}"))
+                    .child(shown),
             )
     }
 
-    /// A port's row (#521): the port and its process, the URL under them, and on hover Open,
-    /// Copy and Stop; its tooltip gives the whole URL and names the process. One click marks the
-    /// row, and a double-click or Enter opens it as Open does (#604).
+    /// A port row's button that always shows (#890): Copy for a container's port, else Open.
+    fn port_row_shown(
+        row: &PortRow,
+        workspace: &WeakEntity<Workspace>,
+        closed: Option<&ProjectGroupKey>,
+        key: u64,
+        cx: &Context<Self>,
+    ) -> Button {
+        let url = row.url.clone();
+        let button = |label: &'static str| {
+            Button::new(("marley-rail-port-shown", key), label)
+                .style(ButtonStyle::Outlined)
+                .label_size(LabelSize::XSmall)
+        };
+        if row.container.is_some() {
+            return button("Copy").on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
+            });
+        }
+        let (workspace, closed) = (workspace.clone(), closed.cloned());
+        button("Open").on_click(cx.listener(move |rail, _, window, cx| {
+            cx.stop_propagation();
+            rail.open_port(&workspace, closed.as_ref(), url.clone(), window, cx)
+                .log_err();
+        }))
+    }
+
+    /// A port's row (#521): since #890 the port on its tile, the URL over what serves it, and Open
+    /// or Copy, with the rest on hover; its tooltip gives the whole URL and names the process. One
+    /// click marks the row, and a double-click or Enter opens it as Open does (#604).
     fn render_port_row(
         row: PortRow,
         workspace: WeakEntity<Workspace>,
@@ -7419,41 +7462,35 @@ impl Rail {
             "{}\n{}\nDouble-click, or Enter, to open in a Browser tab.",
             row.url, row.tooltip
         );
+        // The port on its tile, the URL as a link over what serves it (#890).
+        let tile = Label::new(format!(":{port}"))
+            .size(LabelSize::XSmall)
+            .buffer_font(cx)
+            .color(Color::Custom(cx.theme().colors().terminal_ansi_cyan))
+            .into_any_element();
         let item = row_card(
             ("marley-rail-port", key),
             format!("marley-rail-port-icon-{port}"),
             row.selected,
-            Icon::new(IconName::Server)
-                .size(IconSize::Small)
-                .color(Color::Muted)
-                .into_any_element(),
-            row_label(row.title, row.highlight, Color::Default),
-            // A service's unit, with its state (#615), or a port's container (#614), gets a line
-            // of its own: beside the URL it would squeeze the URL out. A URL too long for the rail
-            // loses its middle and a unit's name its start, so the host and port and the name's
-            // end stay (#618).
-            std::iter::once(RowLine {
-                cut: Cut::Middle,
-                ..RowLine::muted(url_label(&row.url))
-            })
-            .chain(row.service.clone().map(|service| RowLine {
-                text: service.unit,
-                color: if row.state.as_deref() == Some("failed") {
-                    Color::Error
-                } else {
-                    Color::Muted
-                },
-                state: row.state.clone(),
-                cut: Cut::Start,
-            }))
-            .chain(
-                row.container
-                    .map(|container| RowLine::muted(container_line(&container))),
-            )
-            .collect(),
+            RowIcon::new(tile, RowKind::Port, None),
+            row_label(row.title, row.highlight, Color::Accent),
+            // A service's unit, with its state (#615), gets a line of its own: beside what serves
+            // the port it would squeeze it out. A unit's name too long for the rail loses its
+            // start, so its end stays (#618).
+            std::iter::once(RowLine::muted(row.what))
+                .chain(row.service.clone().map(|service| RowLine {
+                    text: service.unit,
+                    color: if row.state.as_deref() == Some("failed") {
+                        Color::Error
+                    } else {
+                        Color::Muted
+                    },
+                    state: row.state.clone(),
+                    cut: Cut::Start,
+                }))
+                .collect(),
             cx,
         )
-        .relative()
         .child(end)
         // One click marks the row and two open it (#604): a click on a server's row to look at it
         // should not start a browser.
@@ -7656,9 +7693,11 @@ fn port_snapshots(key: &ProjectGroupKey, filter: &str, cx: &App) -> Vec<PortSnap
 /// One listener as a row's snapshot, `state` its service's word (#615).
 fn port_snapshot(found: ProjectListener, filter: &str, state: Option<String>) -> PortSnapshot {
     let listener = found.listener;
-    let port = listener.address.port();
-    let title = format!(":{port} {}", listener.name);
-    let matched = filter_match(filter, &title);
+    let url = marley_browser::ports::url(listener.address);
+    // The URL is the title (#890); the filter still finds a row by its process's name.
+    let title = url_label(&url);
+    let matched = filter_match(filter, &title)
+        .or_else(|| filter_match(filter, &listener.name).map(|_| Vec::new()));
     let service_line = listener
         .service
         .as_ref()
@@ -7688,14 +7727,18 @@ fn port_snapshot(found: ProjectListener, filter: &str, state: Option<String>) ->
             listener.pid
         ),
     };
+    let what = container
+        .as_ref()
+        .map_or_else(|| listener.command.clone(), container_line);
     let service = listener.service.map(|service| PortService {
         unit: service.unit,
         user: service.user,
     });
     PortSnapshot {
-        port,
+        port: listener.address.port(),
         pid: listener.pid,
-        url: marley_browser::ports::url(listener.address),
+        url,
+        what,
         tooltip,
         service,
         container,
@@ -10976,6 +11019,8 @@ enum RowKind {
     Shell,
     Browser,
     Tmux,
+    /// A port's row (#890), whose tile holds the port and so takes the port's width.
+    Port,
 }
 
 impl RowKind {
@@ -10987,6 +11032,8 @@ impl RowKind {
             Self::Shell => raised(cx),
             Self::Browser => cx.theme().colors().text_accent.opacity(0.15),
             Self::Tmux => status.hint_background,
+            // The Splits board's teal, the theme's cyan.
+            Self::Port => cx.theme().colors().terminal_ansi_cyan.opacity(0.15),
         }
     }
 }
@@ -11021,16 +11068,14 @@ enum Cut {
     End,
     /// For a name whose end tells it apart, as a unit's.
     Start,
-    /// For a URL, whose host and port are at its two ends.
-    Middle,
 }
 
-/// A port row's URL as its line shows it (#618): a local server's without `http://`, since its
-/// host and port are what tell it apart. Open and Copy keep the whole URL.
+/// A port row's URL as its title shows it (#618, #890): a local server's without `http://` and the
+/// root's `/`, since its host and port are what tell it apart. Open and Copy keep the whole URL.
 fn url_label(url: &str) -> String {
     match url.strip_prefix("http://") {
         Some(rest) if rest.starts_with("127.0.0.1:") || rest.starts_with("localhost:") => {
-            rest.to_string()
+            rest.strip_suffix('/').unwrap_or(rest).to_string()
         }
         _ => url.to_string(),
     }
@@ -11110,6 +11155,8 @@ fn row_card(
     // A row that knows its kind sits on that kind's tint, its state a dot at the corner (#827).
     let slot = match look {
         Some((kind, state)) => slot
+            // Wide enough for ":65535", one width for every port so their URLs line up.
+            .when(kind == RowKind::Port, |slot| slot.w(rems(2.75)))
             .relative()
             .rounded_md()
             .bg(kind.tint(cx))
@@ -11158,7 +11205,6 @@ fn row_card(
                                 match line.cut {
                                     Cut::End => label.truncate(),
                                     Cut::Start => label.truncate_start(),
-                                    Cut::Middle => label.truncate_middle(),
                                 }
                             }))
                             .when_some(line.state, |row, state| {

@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #890 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [890-port-rows-containers-collab.spec.md](../../pipeline/completed/890-port-rows-containers-collab.spec.md)
 - **Source ticket:** split from TICKET-883 while planning it (2026-10-22): #883 kept the Ctrl Tab
   switcher.
 - **Boards:** Splits
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

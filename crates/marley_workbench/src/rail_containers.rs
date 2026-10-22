@@ -2,27 +2,23 @@
 //!
 //! It sits in the right dock, opened from its button in the status bar. Until #673 these ports
 //! were the rail's Containers list (#614, #669, #670); a container whose Compose folder is in a
-//! project still shows under that project in the rail. A child module of the rail, so its rows
-//! are drawn with the rail's own row helpers.
+//! project still shows under that project in the rail. Since #890 a row is a container with its
+//! ports, as the Splits board draws it. A child module of the rail, whose Stop words it shares.
 
 use gpui::{
     Action, App, ClickEvent, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, Pixels,
     Render, Subscription, WeakEntity, Window, px,
 };
-use marley_rail::PortSnapshot;
+use marley_rail::PortContainer;
 use settings::{Settings as _, SettingsStore};
 use ui::{
-    ContextMenu, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tab, Tooltip, prelude::*,
-    right_click_menu,
+    Button, ContextMenu, IconName, Label, LabelSize, Tab, Tooltip, prelude::*, right_click_menu,
 };
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 
-use super::{
-    Cut, ROW_GROUP, RowLine, container_line, container_refused_toast, port_snapshot, row_card,
-    row_label, stop_words, url_label,
-};
+use super::{container_refused_toast, stop_words};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener};
 use crate::{MarleySettings, RailContainers, ToggleContainers, browser};
 
@@ -149,127 +145,184 @@ impl ContainersPanel {
         .detach();
     }
 
-    /// A port's row, drawn as the rail drew it: the port and its process, the URL, the container;
-    /// Open, Copy URL and Stop on hover and in its menu; a double-click opens it.
-    fn render_row(listener: ProjectListener, cx: &Context<Self>) -> impl IntoElement {
-        let snapshot = port_snapshot(listener, "", None);
-        let port = snapshot.port;
-        let key = (u64::from(port) << 32) | u64::from(snapshot.pid);
-        let tooltip = format!(
-            "{}\n{}\nDouble-click to open in a Browser tab.",
-            snapshot.url, snapshot.tooltip
-        );
-        let lines: Vec<RowLine> = std::iter::once(RowLine {
-            cut: Cut::Middle,
-            ..RowLine::muted(url_label(&snapshot.url))
-        })
-        .chain(
-            snapshot
-                .container
-                .as_ref()
-                .map(|container| RowLine::muted(container_line(container))),
-        )
-        .collect();
-        let url = snapshot.url.clone();
-        let buttons = Self::render_buttons(&snapshot, key, cx);
-        let item = row_card(
-            ("marley-containers-port", key),
-            format!("marley-containers-port-icon-{port}"),
-            false,
-            Icon::new(IconName::Server)
-                .size(IconSize::Small)
-                .color(Color::Muted)
-                .into_any_element(),
-            row_label(snapshot.title.clone(), Vec::new(), Color::Default),
-            lines,
-            cx,
-        )
-        .relative()
-        .child(buttons)
-        .on_click(cx.listener(move |panel, event: &ClickEvent, window, cx| {
-            if event.click_count() >= 2 {
-                panel.open(url.clone(), window, cx);
-            }
-        }));
-        let panel = cx.entity().downgrade();
-        let menu_url = snapshot.url;
-        right_click_menu(("marley-containers-port-menu", key))
-            // The row's tooltip is built only while its menu is closed, as the rail's rows do.
-            .trigger(move |menu_open, _, _| {
-                div()
-                    .debug_selector(move || format!("marley-containers-port-{port}"))
-                    .px_1()
-                    .child(item.when(!menu_open, |item| item.tooltip(Tooltip::text(tooltip))))
-            })
-            .menu(move |window, cx| {
-                let (open_panel, open_url) = (panel.clone(), menu_url.clone());
-                let stop_panel = panel.clone();
-                let copy_url = menu_url.clone();
-                ContextMenu::build(window, cx, move |menu, _, _| {
-                    menu.entry("Open in a Browser Tab", None, move |window, cx| {
-                        open_panel
-                            .update(cx, |panel, cx| panel.open(open_url.clone(), window, cx))
-                            .log_err();
-                    })
-                    .entry("Copy URL", None, move |_, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
-                    })
-                    .separator()
-                    .entry("Stop the Container", None, move |window, cx| {
-                        stop_panel
-                            .update(cx, |panel, cx| panel.stop(port, window, cx))
-                            .log_err();
-                    })
-                })
-            })
-    }
-
-    /// A row's Open, Copy URL and Stop, shown while the pointer is over it.
-    fn render_buttons(snapshot: &PortSnapshot, key: u64, cx: &Context<Self>) -> Div {
-        let port = snapshot.port;
+    /// A container's row (#890): a dot, its name over its ports, each a link that opens it in a
+    /// Browser tab, and Stop; its menu opens or copies each port and stops it. A double-click
+    /// opens its first port.
+    fn render_container(index: usize, container: Boxed, cx: &Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let shade = colors.panel_background.blend(colors.ghost_element_hover);
-        let button = |id: &'static str, icon: IconName| {
-            IconButton::new((id, key), icon)
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Muted)
-        };
-        let open_url = snapshot.url.clone();
-        let open = button("marley-containers-port-open", IconName::ToolWeb)
-            .tooltip(Tooltip::text("Open in a Browser Tab"))
-            .on_click(cx.listener(move |panel, _, window, cx| {
-                // The row under the button would take the click too.
-                cx.stop_propagation();
-                panel.open(open_url.clone(), window, cx);
-            }));
-        let copy_url = snapshot.url.clone();
-        let copy = button("marley-containers-port-copy", IconName::Copy)
-            .tooltip(Tooltip::text("Copy URL"))
-            .on_click(move |_, _, cx| {
-                cx.stop_propagation();
-                cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
+        let Boxed { name, ports } = container;
+        let first = ports.first().cloned();
+        let links = ports.iter().map(|(port, url)| {
+            let url = url.clone();
+            let tooltip = format!("Open {url} in a Browser tab");
+            div()
+                .id(("marley-containers-port-link", u32::from(*port)))
+                .debug_selector({
+                    let port = *port;
+                    move || format!("marley-containers-port-{port}")
+                })
+                .cursor_pointer()
+                .child(
+                    Label::new(format!(":{port}"))
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .color(Color::Accent),
+                )
+                .tooltip(Tooltip::text(tooltip))
+                .on_click(cx.listener(move |panel, _, window, cx| {
+                    // The row under the link would take the click too.
+                    cx.stop_propagation();
+                    panel.open(url.clone(), window, cx);
+                }))
+        });
+        let stop_port = first.as_ref().map(|(port, _)| *port);
+        let (stop_title, stop_meta) = first
+            .as_ref()
+            .and_then(|(port, _)| ports::container_at(*port, cx))
+            .map_or(("Stop the Container", String::new()), |found| {
+                stop_words(0, None, Some(&rail_container(&found)))
             });
-        let (stop_title, stop_meta) = stop_words(snapshot.pid, None, snapshot.container.as_ref());
-        let stop = button("marley-containers-port-stop", IconName::Stop)
+        let stop = Button::new(("marley-containers-stop", index), "Stop")
+            .label_size(LabelSize::Small)
+            .color(Color::Error)
             .tooltip(move |_, cx| Tooltip::with_meta(stop_title, None, stop_meta.clone(), cx))
             .on_click(cx.listener(move |panel, _, window, cx| {
                 cx.stop_propagation();
-                panel.stop(port, window, cx);
+                if let Some(port) = stop_port {
+                    panel.stop(port, window, cx);
+                }
             }));
-        h_flex()
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .right_0()
-            .pl_1()
-            .pr_1p5()
-            .gap_0p5()
-            .rounded_r_md()
-            .bg(shade)
-            .visible_on_hover(ROW_GROUP)
-            .child(open)
-            .child(copy)
+        let open_first = first;
+        let item = h_flex()
+            .id(("marley-containers-box", index))
+            .mx_2()
+            .px_2()
+            .py_1p5()
+            .gap_2p5()
+            .rounded_md()
+            .bg(colors.element_background)
+            .child(
+                div()
+                    .flex_none()
+                    .size_2()
+                    .rounded_full()
+                    .bg(cx.theme().status().success),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(Label::new(name).size(LabelSize::Small).truncate())
+                    .child(h_flex().gap_1p5().flex_wrap().children(links)),
+            )
             .child(stop)
+            .on_click(cx.listener(move |panel, event: &ClickEvent, window, cx| {
+                if event.click_count() >= 2
+                    && let Some((_, url)) = open_first.clone()
+                {
+                    panel.open(url, window, cx);
+                }
+            }));
+        let panel = cx.entity().downgrade();
+        right_click_menu(("marley-containers-box-menu", index))
+            .trigger(move |_, _, _| div().child(item))
+            .menu(move |window, cx| container_menu(&panel, &ports, stop_port, window, cx))
+    }
+}
+
+/// A container row's menu: Open and Copy for each of its ports, then Stop the Container.
+fn container_menu(
+    panel: &WeakEntity<ContainersPanel>,
+    ports: &[(u16, String)],
+    stop_port: Option<u16>,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Entity<ContextMenu> {
+    let (panel, ports) = (panel.clone(), ports.to_vec());
+    ContextMenu::build(window, cx, move |menu, _, _| {
+        let menu = ports.iter().fold(menu, |menu, (port, url)| {
+            let (open_panel, open_url, copy_url) = (panel.clone(), url.clone(), url.clone());
+            menu.entry(
+                format!("Open :{port} in a Browser Tab"),
+                None,
+                move |window, cx| {
+                    open_panel
+                        .update(cx, |panel, cx| panel.open(open_url.clone(), window, cx))
+                        .log_err();
+                },
+            )
+            .entry(format!("Copy :{port}'s URL"), None, move |_, cx| {
+                cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
+            })
+        });
+        let stop_panel = panel.clone();
+        menu.separator()
+            .entry("Stop the Container", None, move |window, cx| {
+                if let Some(port) = stop_port {
+                    stop_panel
+                        .update(cx, |panel, cx| panel.stop(port, window, cx))
+                        .log_err();
+                }
+            })
+    })
+}
+
+/// One container's ports, as the panel lists it (#890).
+struct Boxed {
+    name: String,
+    /// Each port, with the URL that reaches it, in order.
+    ports: Vec<(u16, String)>,
+}
+
+/// `found`'s listeners a row per container: by its engine and name, else by the address its
+/// proxies send to, else a port alone.
+fn by_container(found: Vec<ProjectListener>) -> Vec<Boxed> {
+    let mut boxes: Vec<(String, Boxed)> = Vec::new();
+    for listener in found {
+        let port = listener.listener.address.port();
+        let url = marley_browser::ports::url(listener.listener.address);
+        let (key, name) = match &listener.container {
+            Some(container) => {
+                let engine = container.engine.command();
+                match (&container.name, &container.target) {
+                    (Some(name), _) => (format!("{engine} {name}"), name.clone()),
+                    (None, Some(target)) => {
+                        let host = target
+                            .rsplit_once(':')
+                            .map_or(target.as_str(), |(host, _)| host);
+                        (format!("{engine} → {host}"), format!("→ {host}"))
+                    }
+                    (None, None) => (format!(":{port}"), format!("a {engine} container")),
+                }
+            }
+            None => (format!(":{port}"), listener.listener.name.clone()),
+        };
+        match boxes.iter_mut().find(|(existing, _)| *existing == key) {
+            Some((_, existing)) => existing.ports.push((port, url)),
+            None => boxes.push((
+                key,
+                Boxed {
+                    name,
+                    ports: vec![(port, url)],
+                },
+            )),
+        }
+    }
+    boxes
+        .into_iter()
+        .map(|(_, mut boxed)| {
+            boxed.ports.sort_unstable();
+            boxed
+        })
+        .collect()
+}
+
+/// The rail's shape of a container, for Stop's words.
+fn rail_container(container: &ports::ContainerRef) -> PortContainer {
+    PortContainer {
+        engine: container.engine.command().to_string(),
+        name: container.name.clone(),
+        target: container.target.clone(),
     }
 }
 
@@ -279,7 +332,7 @@ impl Render for ContainersPanel {
             self.close_while_hidden(window, cx);
             return div().into_any_element();
         }
-        let found = Ports::containers(cx);
+        let found = by_container(Ports::containers(cx));
         let count = found.len();
         let colors = cx.theme().colors();
         v_flex()
@@ -313,8 +366,8 @@ impl Render for ContainersPanel {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .py_1()
-                    .gap_0p5()
+                    .py_2()
+                    .gap_1p5()
                     .map(|list| {
                         if found.is_empty() {
                             list.child(
@@ -327,11 +380,9 @@ impl Render for ContainersPanel {
                                 ),
                             )
                         } else {
-                            list.children(
-                                found
-                                    .into_iter()
-                                    .map(|listener| Self::render_row(listener, cx)),
-                            )
+                            list.children(found.into_iter().enumerate().map(
+                                |(index, container)| Self::render_container(index, container, cx),
+                            ))
                         }
                     }),
             )

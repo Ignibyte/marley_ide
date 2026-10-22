@@ -1,10 +1,14 @@
-//! The `SearchMore` board's looks for three of Zed's views (#891), and the `EditorPopups` board's
-//! code actions heading (#856), its Ask an agent to fix this and the rename note (#899).
+//! The boards' looks for Zed's own views, each a global the view asks for.
+//!
+//! The `SearchMore` board's for three views (#891), the `EditorPopups` board's code actions
+//! heading (#856), its Ask an agent to fix this and the rename note (#899), and the Splits board's
+//! Collab card (#890).
 //!
 //! Project search counts its matches and the files that hold them; the branch picker gives each
 //! branch a dot and a note; each extension's card leads with a tile and says Installed in green.
 //! Each is a global the Zed view asks for; without it the view is Zed's.
 
+use collab_ui::collab_panel::MarleyCollabLook;
 use extensions_ui::MarleyExtensionLook;
 use git_ui::branch_picker::{MarleyBranchLook, MarleyBranchMark, MarleyBranchRow};
 use gpui::{AnyElement, App, SharedString};
@@ -20,6 +24,7 @@ pub fn init(cx: &mut App) {
         footer: code_actions_footer,
     });
     cx.set_global(editor::MarleyRenameLook);
+    cx.set_global(MarleyCollabLook);
     cx.set_global(agent_ui::MarleyThreadLook {
         extra_chip: crate::beside::apply_chip,
     });

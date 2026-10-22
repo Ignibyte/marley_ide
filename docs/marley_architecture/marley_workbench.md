@@ -452,16 +452,27 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   not name with a command that finds it by port. `Ports::containers` is listed by the Containers
   panel (#673; the rail's CONTAINERS section of #614 and its fold of #670 are gone, and a saved
   blob's `marley_containers_open` is left unread): `rail_containers.rs`, the rail's child module
-  `rail::containers`, so it draws its rows with the rail's `row_card`, `port_snapshot`,
-  `container_line`, `url_label` and `stop_words`. `ContainersPanel` is a right-dock `Panel` added to
+  `rail::containers`, which shares the rail's `stop_words` and `container_refused_toast`.
+  `ContainersPanel` is a right-dock `Panel` added to
   every workspace (`ToggleContainers`, `IconName::Box`, priority 22, closed at start); its `icon`
   and `enabled` follow `shown` (the Marley layout and `MarleySettings::rail_containers`, #669), and
-  a render while hidden closes its dock once, deferred, as the Knowledge panel does. Its rows open
-  in a Browser tab of the panel's workspace on a double-click or Open, and Copy URL and Stop (the
-  rail's `stop_container` and `container_refused_toast`) are on hover and in the right-click menu.
+  a render while hidden closes its dock once, deferred, as the Knowledge panel does. Since #890
+  `by_container` groups the listeners a row per container (engine and name, else the address its
+  proxies send to, else one port), and `render_container` draws the Splits board's row: a dot,
+  the name over its ports as links that open in a Browser tab of the panel's workspace, and Stop,
+  which stops the container through its first port (`ContainersPanel::stop`). A double-click opens
+  the first port; `container_menu` opens or copies each port and stops the container.
   `set_active` holds a `ports::watch` while the panel is open, released on close or release, so
   the scan also runs with the rail closed; a project's containers still show under it in the
   rail.
+
+- **The port row's look (#890).** `port_snapshot` titles a row with its URL (`url_label`, which
+  drops a local root's `/`) and keeps the process's name for the filter; `PortSnapshot::what` is
+  the line under it, the command line or `container_line`. `render_port_row` draws the port on a
+  `RowKind::Port` tile (the theme's cyan, one width for every port so the URLs line up) and the
+  title in the accent color. `port_row_shown` is the button that always shows, Copy for a
+  container's port and Open for the rest; `port_row_buttons` puts the other two (Open or Copy URL,
+  and Stop) on hover at its left.
 
 - **Restart, state and logs (#615).** Each scan asks `unit_states` for every service row's unit
   (one `systemctl show -p ActiveState,SubState` per manager, blocks matched by the order asked,

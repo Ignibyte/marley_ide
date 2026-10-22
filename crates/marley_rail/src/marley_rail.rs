@@ -341,10 +341,13 @@ pub struct PortSnapshot {
     pub port: u16,
     /// The process that listens: with the port, the row's identity across rebuilds.
     pub pid: u32,
-    /// The row's title: the port and the process's name.
+    /// The row's title: the URL as the rail shows it (#890).
     pub title: String,
     /// The URL that reaches it.
     pub url: String,
+    /// What serves it, the row's line under the URL (#890): the process's command line, or the
+    /// container that publishes it.
+    pub what: String,
     /// The process's command line, working directory and pid, for the row's tooltip.
     pub tooltip: String,
     /// The systemd service the process runs in, when it runs in one (#603).
@@ -840,8 +843,10 @@ pub struct PortRow {
     pub pid: u32,
     /// The title.
     pub title: String,
-    /// The URL, the second line.
+    /// The URL.
     pub url: String,
+    /// What serves it (see [`PortSnapshot::what`]).
+    pub what: String,
     /// The tooltip.
     pub tooltip: String,
     /// The service its process runs in (see [`PortSnapshot::service`]).
@@ -1856,6 +1861,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 pid: port.pid,
                 title: port.title.clone(),
                 url: port.url.clone(),
+                what: port.what.clone(),
                 tooltip: port.tooltip.clone(),
                 service: port.service.clone(),
                 container: port.container.clone(),

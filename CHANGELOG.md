@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Port rows, containers and Collab as the Splits board draws them** (#890, 2026-10-22). A port
+  row under a project shows its port on a teal tile and its URL over what serves it, and ends
+  with Open, or Copy for a container's port. The Containers panel lists a row per container with
+  its ports as links and Stop. Signed out, the Collab panel is a card saying what a Zed account
+  is for, with Sign In with GitHub.
+
 - **Home's prompt picks its project** (#867, 2026-10-22). A chip beside the agent chips names
   where the agent starts. Its menu offers Home's own project, the projects open in the window and
   the recent ones. Starting with a recent project opens it first, then runs the agent in its group

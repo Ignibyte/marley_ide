@@ -14,10 +14,10 @@ use editor::{Editor, EditorElement, EditorStyle};
 use fuzzy::{StringMatch, StringMatchCandidate, match_strings};
 use gpui::{
     AnyElement, App, AsyncWindowContext, Bounds, ClickEvent, ClipboardItem, DismissEvent, Div,
-    Empty, Entity, EventEmitter, FocusHandle, Focusable, FontStyle, KeyContext, MouseButton,
-    MouseDownEvent, Pixels, Point, PromptLevel, ScrollStrategy, SharedString, Subscription, Task,
-    TextStyle, UniformListScrollHandle, WeakEntity, Window, actions, anchored, canvas, deferred,
-    div, fill, point, prelude::*, px, size, uniform_list,
+    Empty, Entity, EventEmitter, FocusHandle, Focusable, FontStyle, FontWeight, Global, KeyContext,
+    MouseButton, MouseDownEvent, Pixels, Point, PromptLevel, ScrollStrategy, SharedString,
+    Subscription, Task, TextStyle, UniformListScrollHandle, WeakEntity, Window, actions, anchored,
+    canvas, deferred, div, fill, point, prelude::*, px, size, uniform_list,
 };
 
 use menu::{Cancel, Confirm, SecondaryConfirm, SelectNext, SelectPrevious};
@@ -257,6 +257,12 @@ impl ChannelEditingState {
         }
     }
 }
+
+/// Marley: while set, the signed-out panel is the Splits board's card: a title, a line on what
+/// the account is for, and the sign-in button (#890).
+pub struct MarleyCollabLook;
+
+impl Global for MarleyCollabLook {}
 
 pub struct CollabPanel {
     fs: Arc<dyn Fs>,
@@ -2730,6 +2736,48 @@ impl CollabPanel {
             )
         };
 
+        let button = Button::new(button_id, button_label)
+            .label_size(LabelSize::Small)
+            .start_icon(Icon::new(button_icon).color(Color::Muted))
+            .style(ButtonStyle::Outlined)
+            .disabled(is_busy)
+            .on_click(cx.listener(|this, _, window, cx| {
+                let client = this.client.clone();
+                let workspace = this.workspace.clone();
+                cx.spawn_in(window, async move |_, mut cx| {
+                    client
+                        .connect(true, &mut cx)
+                        .await
+                        .into_response()
+                        .notify_workspace_async_err(workspace, &mut cx);
+                })
+                .detach()
+            }));
+
+        // Marley: the Splits board's card (#890).
+        if cx.has_global::<MarleyCollabLook>() {
+            let colors = cx.theme().colors();
+            return v_flex().p_3().size_full().child(
+                v_flex()
+                    .p_4()
+                    .gap_2p5()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.editor_background)
+                    .child(Label::new("Work with others in Zed").weight(FontWeight::SEMIBOLD))
+                    .child(
+                        Label::new(
+                            "Channels, calls and shared projects need a Zed account. \
+                             Marley never signs in on its own.",
+                        )
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                    )
+                    .child(h_flex().child(button)),
+            );
+        }
+
         v_flex()
             .p_4()
             .gap_1()
@@ -2738,25 +2786,7 @@ impl CollabPanel {
             .justify_center()
             .items_center()
             .child(Label::new(collab_blurb).color(Color::Muted))
-            .child(
-                Button::new(button_id, button_label)
-                    .label_size(LabelSize::Small)
-                    .start_icon(Icon::new(button_icon).color(Color::Muted))
-                    .style(ButtonStyle::Outlined)
-                    .disabled(is_busy)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        let client = this.client.clone();
-                        let workspace = this.workspace.clone();
-                        cx.spawn_in(window, async move |_, mut cx| {
-                            client
-                                .connect(true, &mut cx)
-                                .await
-                                .into_response()
-                                .notify_workspace_async_err(workspace, &mut cx);
-                        })
-                        .detach()
-                    })),
-            )
+            .child(button)
     }
 
     fn render_list_entry(

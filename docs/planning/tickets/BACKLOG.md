@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-890](open/TICKET-890-port-rows-containers-collab.md) | feature | Port rows, the Containers panel and Collab (W5, from #883) |
 | [TICKET-900](open/TICKET-900-inline-assist-offers-the-agent.md) | feature | Inline assist offers to send the selection to an agent (W6, from #899; needs an LLM stand-in) |
 | [TICKET-895](open/TICKET-895-rail-shrink-motion-and-focus-ring.md) | feature | The rail's shrink in motion, and one focus ring (W6, from #858) |
 | [TICKET-860](open/TICKET-860-a-remote-projects-logo-over-ssh.md) | feature | A remote project's logo, read once over SSH (W1.2 follow-up) |
