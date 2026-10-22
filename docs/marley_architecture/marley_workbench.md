@@ -3008,7 +3008,9 @@ screen opens Home after `rusty_unavailable`.
   the left dock open on it, and #773's restore refuses a saved Files tab (its name is outside the
   list).
 - `rail.rs::render_files_button`, first of the rail header's buttons, lit while the left dock is
-  open on the project panel, dispatches `project_panel::ToggleFocus` built by name.
+  open on the project panel, dispatches `project_panel::ToggleFocus` built by name. Since #898,
+  while lit it closes the left dock with `Workspace::toggle_dock` instead: `ToggleFocus` closes
+  only a focused panel, and the rail's own click takes the focus.
 
 ## The bottom drawer (`src/drawer.rs`, Zed's `dock.rs` and `diagnostics.rs`, #838)
 

@@ -1960,6 +1960,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The rail's Files button closes the tree on a second click** (#898, 2026-10-22). It ran Zed's
+  toggle-focus, which closes only a focused panel; a click anywhere else first meant the second
+  click focused the tree again. While the tree shows, the button now closes it.
+
 - **Distrusted certificate authorities** (2026-10-20). `rustls-webpki` 0.103.16, `webpki-roots`
   1.0.10 and `webpki-root-certs` 1.0.10 drop the emSign intermediates RustSec flagged that day
   (RUSTSEC-2026-0381, 0382, 0383). `webpki-roots` 0.26.11, which sqlx 0.8 pins, holds no roots of

@@ -70,6 +70,7 @@ use uuid::Uuid;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, Pane, ProjectGroup, RemovalIntent, SaveIntent,
     Sidebar, SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
+    dock::DockPosition,
     item::{Item as _, ItemBufferKind, ItemEvent, WeakItemHandle},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
@@ -11470,7 +11471,8 @@ mod tests;
 
 /// The rail header's Files button: the project panel pops out of the left dock beside the rail, and
 /// a second click puts it away (#868). Its action is built by name: `marley_workbench` takes no
-/// `project_panel` dependency for one action (AD-claude-773).
+/// `project_panel` dependency for one action (AD-claude-773). `ToggleFocus` closes only a focused
+/// panel, and a click on the rail takes the focus, so a shown tree closes its dock instead (#898).
 fn render_files_button(multi_workspace: &WeakEntity<MultiWorkspace>, cx: &App) -> IconButton {
     let shown = multi_workspace
         .upgrade()
@@ -11485,12 +11487,25 @@ fn render_files_button(multi_workspace: &WeakEntity<MultiWorkspace>, cx: &App) -
         .icon_size(IconSize::Small)
         .toggle_state(shown)
         .tooltip(Tooltip::text("Files"))
-        .on_click(|_, window, cx| {
-            if let Some(action) = cx
-                .build_action("project_panel::ToggleFocus", None)
-                .log_err()
-            {
-                window.dispatch_action(action, cx);
+        .on_click({
+            let multi_workspace = multi_workspace.clone();
+            move |_, window, cx| {
+                if shown && let Some(multi) = multi_workspace.upgrade() {
+                    multi
+                        .read(cx)
+                        .workspace()
+                        .clone()
+                        .update(cx, |workspace, cx| {
+                            workspace.toggle_dock(DockPosition::Left, window, cx);
+                        });
+                    return;
+                }
+                if let Some(action) = cx
+                    .build_action("project_panel::ToggleFocus", None)
+                    .log_err()
+                {
+                    window.dispatch_action(action, cx);
+                }
             }
         })
 }

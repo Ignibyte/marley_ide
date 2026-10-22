@@ -4437,3 +4437,13 @@ workspace's update, so the first run's Marley panicked ("cannot read workspace::
 it is already being updated") as the project diff opened. Fixed: the item keeps the workspace's
 project, taken when the toolbar is built, and reads that. A toolbar item never reads or updates
 its workspace in `set_active_pane_item`.
+
+## F-claude-898-toggle-focus-only-closes-a-focused-panel-001
+*found: 2026-10-22 · by: Chad · severity: medium*
+
+#868's rail Files button dispatched Zed's `project_panel::ToggleFocus`. That action closes the
+panel only while the panel has the focus; otherwise it focuses it. A click in the editor, or on
+the rail itself, took the focus away, so the button's second click focused the tree again and
+never put it away. #868's scenario clicked the button twice with nothing between and missed it.
+Fixed: while the tree shows, the button closes the left dock with `Workspace::toggle_dock`. A
+toggle button reads the dock's state, not the focus.
