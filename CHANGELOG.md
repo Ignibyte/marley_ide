@@ -61,6 +61,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Empty and error states** (#857, 2026-10-22). Where there is nothing yet or something broke,
+  Marley shows one card with what happened and one thing to do: no recent projects (Open a
+  Folder), no conversations or none matching (New Agent, Clear the search), a rail filter matching
+  nothing (Clear the filter), Chromium not starting (Open the guide), Forge with no provider or
+  unread (Open Settings, Retry), and the harness not running (Open Settings).
+
 - **The block filter's field row** (#889, 2026-10-22). The count of matching lines sits beside the
   field, and Aa, .* and Invert sit in one framed group.
 

@@ -515,7 +515,20 @@ impl MarleyHome {
             return muted("Reading your recent projects…");
         };
         if recent.is_empty() {
-            return muted("No project opened yet.");
+            // The States board's card (#857).
+            return crate::states::EmptyState::new(
+                "..",
+                "No recent projects",
+                "Open a folder, clone one, or start an agent in your home folder.",
+            )
+            .action(
+                "Open a Folder",
+                crate::prompts::Role::Primary,
+                |window, cx| {
+                    window.dispatch_action(Box::new(workspace::Open::DEFAULT), cx);
+                },
+            )
+            .render(0, cx);
         }
         v_flex()
             .children(recent.iter().enumerate().map(|(index, recent)| {

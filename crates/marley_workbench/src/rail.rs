@@ -5183,6 +5183,7 @@ impl Rail {
             },
         );
         let fold_slot = slot.clone();
+        let stopped_line = says.clone();
         let selector = key.clone();
         v_flex()
             .debug_selector(move || selector)
@@ -5226,6 +5227,27 @@ impl Rail {
                         }
                     }),
             )
+            // A harness that does not run says why, with where to change it (#857).
+            .when(says_color == Color::Error, |section| {
+                section.child(
+                    div().px_1().py_1().child(
+                        crate::states::EmptyState::new(
+                            "rh",
+                            "The harness is not running",
+                            stopped_line,
+                        )
+                        .broken()
+                        .action(
+                            "Open Settings",
+                            crate::prompts::Role::Plain,
+                            |window, cx| {
+                                window.dispatch_action(Box::new(crate::OpenSettings), cx);
+                            },
+                        )
+                        .render(1, cx),
+                    ),
+                )
+            })
             .children(rows)
             .into_any_element()
     }
@@ -5447,10 +5469,48 @@ impl Rail {
                 .project()
                 .clone()
         });
+        // The States board's cards (#857): none yet, with New Agent, or none matching, with Clear
+        // the search.
         let empty = if query.trim().is_empty() {
-            "No conversations yet."
+            let rail = cx.entity().downgrade();
+            let workspace = self
+                .multi_workspace
+                .upgrade()
+                .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade());
+            crate::states::EmptyState::new(
+                "Th",
+                "No conversations yet",
+                "Start an agent and its thread shows here.",
+            )
+            .action(
+                "New Agent",
+                crate::prompts::Role::Primary,
+                move |window, cx| {
+                    if let Some(workspace) = workspace.clone() {
+                        rail.update(cx, |rail, cx| {
+                            rail.new_agent_picker(&workspace, None, window, cx)
+                        })
+                        .flatten()
+                        .log_err();
+                    }
+                },
+            )
         } else {
-            "No conversation matches."
+            let search = self.threads.search.downgrade();
+            crate::states::EmptyState::new(
+                "?",
+                format!("Nothing matches \u{201c}{}\u{201d}", query.trim()),
+                "The search looks at each conversation's title and its words.",
+            )
+            .action(
+                "Clear the search",
+                crate::prompts::Role::Plain,
+                move |window, cx| {
+                    search
+                        .update(cx, |search, cx| search.set_text("", window, cx))
+                        .log_err();
+                },
+            )
         };
         v_flex()
             .id("marley-rail-threads")
@@ -5460,12 +5520,7 @@ impl Rail {
             .py_1p5()
             .gap_0p5()
             .when(rows.is_empty(), |list| {
-                list.child(
-                    div()
-                        .px_2()
-                        .py_1()
-                        .child(Label::new(empty).size(LabelSize::Small).color(Color::Muted)),
-                )
+                list.child(div().px_1().py_2().child(empty.render(0, cx)))
             })
             .children(rows.into_iter().enumerate().map(|(index, row)| {
                 let icon = project
@@ -5532,15 +5587,30 @@ impl Rail {
             .py_1p5()
             .gap_0p5()
             .when(rows.is_empty() && self.snapshot.rail.filtering, |list| {
+                // The States board's card (#857).
+                let query = self.filter_editor.read(cx).text(cx);
+                let filter = self.filter_editor.downgrade();
                 list.child(
                     div()
                         .debug_selector(|| "marley-rail-no-matches".into())
-                        .px_2()
-                        .py_1()
+                        .px_1()
+                        .py_2()
                         .child(
-                            Label::new("No matches")
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
+                            crate::states::EmptyState::new(
+                                "?",
+                                format!("Nothing matches \u{201c}{}\u{201d}", query.trim()),
+                                "The filter looks at rows, folders and branches.",
+                            )
+                            .action(
+                                "Clear the filter",
+                                crate::prompts::Role::Plain,
+                                move |window, cx| {
+                                    filter
+                                        .update(cx, |filter, cx| filter.set_text("", window, cx))
+                                        .log_err();
+                                },
+                            )
+                            .render(0, cx),
                         ),
                 )
             })

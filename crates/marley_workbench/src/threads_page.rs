@@ -589,6 +589,39 @@ impl ThreadsPage {
             .into_any_element()
     }
 
+    /// The States board's cards for an empty list (#857): no conversations yet, with New Agent,
+    /// or none matching the search, with Clear the search.
+    fn render_empty(&self, cx: &Context<Self>) -> AnyElement {
+        let query = self.search.read(cx).text(cx);
+        let state = if query.trim().is_empty() {
+            crate::states::EmptyState::new(
+                "Th",
+                "No conversations yet",
+                "Start an agent and its thread shows here.",
+            )
+            .action("New Agent", crate::prompts::Role::Primary, |window, cx| {
+                window.dispatch_action(Box::new(agent_ui::NewThread), cx);
+            })
+        } else {
+            let search = self.search.downgrade();
+            crate::states::EmptyState::new(
+                "?",
+                format!("Nothing matches \u{201c}{}\u{201d}", query.trim()),
+                "The search looks at each conversation's title and its words.",
+            )
+            .action(
+                "Clear the search",
+                crate::prompts::Role::Plain,
+                move |window, cx| {
+                    search
+                        .update(cx, |search, cx| search.set_text("", window, cx))
+                        .log_err();
+                },
+            )
+        };
+        div().py_4().child(state.render(0, cx)).into_any_element()
+    }
+
     fn render_section(
         &self,
         heading: &'static str,
@@ -810,7 +843,7 @@ impl ThreadsPage {
             .h_full()
             .overflow_y_scroll()
             .gap_3()
-            .when(empty, |list| list.child(muted("No conversation matches.")))
+            .when(empty, |list| list.child(self.render_empty(cx)))
             .children(
                 days.into_iter()
                     .map(|(day, rows)| self.render_section(day, rows, project, cx)),

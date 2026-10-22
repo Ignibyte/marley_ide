@@ -4289,6 +4289,12 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## Empty and error states (`src/states.rs`, #857)
+
+- `EmptyState` is the States board's card: a glyph tile, a title, a line and one action as #870's
+  button, the error's tint on a broken one. Home, the rail (Threads, the filter, the Harness
+  section), the Threads page, the Browser tab's failed start and Forge's board use it.
+
 ## The Ctrl Tab switcher's rows (`src/tab_tiles.rs`, #883)
 
 - `init` sets `tab_switcher::MarleySwitcherLook` to `switcher_row`: a tile from the tab's kind

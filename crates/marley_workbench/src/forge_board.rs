@@ -742,22 +742,47 @@ impl ForgeBoard {
             )
     }
 
-    fn render_standing(&self) -> Option<AnyElement> {
-        let message = match &self.standing {
+    /// The board's standing while it has no tickets to show; with no provider or a failed read,
+    /// the States board's card and its one action (#857).
+    fn render_standing(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let state = match &self.standing {
             Standing::Ready => return None,
-            Standing::Loading => "Reading Forge…".to_string(),
-            Standing::NoProvider => {
-                "No Forge provider is set. Add { \"kind\": \"forge\", \"url\": … } \
-                                     to marley.fleet.providers, and its token with marley: set \
-                                     forge token."
-                    .to_string()
+            Standing::Loading => {
+                return Some(
+                    div()
+                        .p_4()
+                        .child(Label::new("Reading Forge…").color(Color::Muted))
+                        .into_any_element(),
+                );
             }
-            Standing::Failed(reason) => format!("Forge could not be read: {reason}"),
+            Standing::NoProvider => crate::states::EmptyState::new(
+                "F",
+                "No Forge provider",
+                "Add { \"kind\": \"forge\", \"url\": … } to marley.fleet.providers, and its \
+                 token with marley: set forge token.",
+            )
+            .action(
+                "Open Settings",
+                crate::prompts::Role::Plain,
+                |window, cx| {
+                    window.dispatch_action(Box::new(crate::OpenSettings), cx);
+                },
+            ),
+            Standing::Failed(reason) => {
+                let board = cx.entity().downgrade();
+                crate::states::EmptyState::new("F", "Forge is offline", reason.clone())
+                    .broken()
+                    .action("Retry", crate::prompts::Role::Plain, move |_, cx| {
+                        board.update(cx, Self::refresh).log_err();
+                    })
+            }
         };
         Some(
             div()
-                .p_4()
-                .child(Label::new(message).color(Color::Muted))
+                .p_6()
+                .flex()
+                .justify_center()
+                .child(state.render(0, cx))
                 .into_any_element(),
         )
     }
@@ -777,7 +802,7 @@ impl Render for ForgeBoard {
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .child(self.render_header(cx))
-            .children(self.render_standing())
+            .children(self.render_standing(cx))
             .when(self.standing == Standing::Ready, |board| {
                 board.child(
                     h_flex()

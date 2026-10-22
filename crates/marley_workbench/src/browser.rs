@@ -8056,6 +8056,7 @@ impl Render for BrowserView {
             self.drew(frame, window);
         }
         self.refresh_comparison(window, cx);
+        let failed = matches!(state, HubState::Failed(_));
         let message = self.message(state, attached);
         let placement = frame
             .as_deref()
@@ -8120,7 +8121,7 @@ impl Render for BrowserView {
                             })
                             .children(annotations)
                             .when_some(message, |this, (headline, hint)| {
-                                this.child(Self::render_message(headline, hint))
+                                this.child(Self::render_message(headline, hint, failed, cx))
                             })
                             .children(comparison)
                             .children(dialog),
@@ -8144,7 +8145,35 @@ impl Render for BrowserView {
 
 impl BrowserView {
     /// What the tab says over the page while it shows none: why, and what to do.
-    fn render_message(headline: SharedString, hint: Option<SharedString>) -> impl IntoElement {
+    fn render_message(
+        headline: SharedString,
+        hint: Option<SharedString>,
+        failed: bool,
+        cx: &App,
+    ) -> AnyElement {
+        // A browser that did not start says why on the States board's card, with the guide
+        // (#857).
+        if failed {
+            return v_flex()
+                .absolute()
+                .inset_0()
+                .items_center()
+                .justify_center()
+                .px_8()
+                .child(
+                    crate::states::EmptyState::new("www", "Chromium did not start", headline)
+                        .broken()
+                        .action(
+                            "Open the guide",
+                            crate::prompts::Role::Plain,
+                            |window, cx| {
+                                window.dispatch_action(Box::new(crate::OpenGuide), cx);
+                            },
+                        )
+                        .render(0, cx),
+                )
+                .into_any_element();
+        }
         v_flex()
             .absolute()
             .inset_0()
@@ -8161,6 +8190,7 @@ impl BrowserView {
             .when_some(hint, |this, hint| {
                 this.child(Label::new(hint).size(LabelSize::Small).color(Color::Muted))
             })
+            .into_any_element()
     }
 }
 

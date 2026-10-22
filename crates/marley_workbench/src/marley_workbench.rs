@@ -130,6 +130,7 @@ pub mod shortcut_note;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod stall;
+pub mod states;
 pub mod status_buttons;
 pub mod sticky_header;
 pub mod system_one;
