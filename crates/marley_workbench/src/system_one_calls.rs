@@ -189,60 +189,104 @@ impl SystemOneCallsView {
         .detach();
     }
 
+    /// The Provider and Today cards, as the `SystemOne` board draws them (#847); one line while
+    /// System One is off.
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
-        let (lines, breaker_open) = cx.try_global::<SystemOne>().map_or_else(
-            || (vec![SharedString::new_static("System One is off.")], false),
-            |layer| {
-                let settings = layer.settings();
-                let mut lines = Vec::new();
-                if settings.enabled {
-                    let calls = match self.rows.len() {
-                        1 => "1 call".to_string(),
-                        count => format!("{count} calls"),
-                    };
-                    lines.push(SharedString::from(format!(
-                        "{calls} today · {} spent of the {}¢ budget",
-                        system_one::cents(layer.spent_today()),
-                        settings.daily_budget_cents
-                    )));
-                } else {
-                    lines.push(SharedString::new_static(
-                        "System One is off: turn it on in the Marley settings.",
-                    ));
-                }
-                lines.push(SharedString::from(format!(
-                    "Provider: {} · {}",
-                    system_one::provider_name(settings.provider),
-                    settings.model
-                )));
-                lines.push(SharedString::from(format!(
-                    "Key: {}",
-                    layer.key_source(Slot::Direct)
-                )));
-                if settings.enabled && settings.uses_provider(SystemOneProvider::Cloudflare) {
-                    lines.push(SharedString::from(format!(
-                        "Cloudflare: account {} · token {}",
-                        settings.cloudflare_account.as_deref().unwrap_or("not set"),
-                        layer.key_source(Slot::Cloudflare)
-                    )));
-                }
-                (lines, layer.breaker_open())
-            },
-        );
-        v_flex()
-            .gap_1()
-            .children(
-                lines
-                    .into_iter()
-                    .map(|line| Label::new(line).size(LabelSize::Small)),
+        let Some(layer) = cx.try_global::<SystemOne>() else {
+            return v_flex()
+                .child(
+                    Label::new("System One is off.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .into_any_element();
+        };
+        let settings = layer.settings();
+        let provider = stat_card("Provider", cx)
+            .child(Label::new(format!(
+                "{} · {}",
+                system_one::provider_name(settings.provider),
+                settings.model
+            )))
+            .child(
+                Label::new(format!("Key: {}", layer.key_source(Slot::Direct)))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
             )
-            .when(breaker_open, |this| {
-                this.child(
+            .when(
+                settings.enabled && settings.uses_provider(SystemOneProvider::Cloudflare),
+                |card| {
+                    card.child(
+                        Label::new(format!(
+                            "Cloudflare: account {} · token {}",
+                            settings.cloudflare_account.as_deref().unwrap_or("not set"),
+                            layer.key_source(Slot::Cloudflare)
+                        ))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                    )
+                },
+            );
+        let today = self.render_today(layer, cx);
+        v_flex()
+            .gap_2()
+            .when(!settings.enabled, |header| {
+                header.child(
+                    Label::new("System One is off: turn it on in the Marley settings.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .child(h_flex().gap_3().items_start().child(provider).child(today))
+            .when(layer.breaker_open(), |header| {
+                header.child(
                     Label::new("The breaker is open: calls wait two minutes after five failures.")
                         .size(LabelSize::Small)
                         .color(Color::Error),
                 )
             })
+            .into_any_element()
+    }
+
+    /// The Today card: the spend of the daily budget, a bar of the share, the calls count.
+    fn render_today(&self, layer: &SystemOne, cx: &Context<Self>) -> Div {
+        let settings = layer.settings();
+        let colors = cx.theme().colors();
+        let spent = layer.spent_today();
+        // `spent_today` counts billionths of a cent.
+        let budget = settings.daily_budget_cents.saturating_mul(1_000_000_000);
+        // The share of the budget spent, in thousandths, for the bar.
+        let thousandths = spent
+            .saturating_mul(1000)
+            .checked_div(budget)
+            .unwrap_or(0)
+            .min(1000);
+        let share = f32::from(u16::try_from(thousandths).unwrap_or(1000)) / 1000.;
+        let calls = match self.rows.len() {
+            1 => "1 call".to_string(),
+            count => format!("{count} calls"),
+        };
+        stat_card("Today", cx)
+            .child(Label::new(format!(
+                "{} of {}¢",
+                system_one::cents(spent),
+                settings.daily_budget_cents
+            )))
+            .child(
+                div()
+                    .h_1()
+                    .w_full()
+                    .rounded_full()
+                    .bg(colors.element_background)
+                    .child(
+                        div()
+                            .h_1()
+                            .w(relative(share))
+                            .rounded_full()
+                            .bg(colors.text_accent),
+                    ),
+            )
+            .child(Label::new(calls).size(LabelSize::Small).color(Color::Muted))
     }
 
     fn render_buttons(cx: &Context<Self>) -> impl IntoElement {
@@ -461,7 +505,36 @@ impl Render for SystemOneCallsView {
                 )
             })
             .children(rows)
+            .child(
+                div().max_w(px(720.)).child(
+                    Label::new(
+                        "What leaves the machine: only from the folders you list; folders marked \
+                     facts-only send the numbers Marley computes and none of your text. The key \
+                     is read from MARLEY_SYSTEM_ONE_KEY or the keyring, never from settings.",
+                    )
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+                ),
+            )
     }
+}
+
+/// A card of the calls tab's header (#847): a muted title over its lines.
+fn stat_card(title: &'static str, cx: &App) -> Div {
+    let colors = cx.theme().colors();
+    v_flex()
+        .gap_1()
+        .p_3()
+        .min_w(px(240.))
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(
+            Label::new(title)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
 }
 
 impl Focusable for SystemOneCallsView {

@@ -47,6 +47,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **System One as its board draws it** (#847, 2026-10-21). In Settings each System One use (and
+  each Agent Control area) picks its mode from a row of buttons; the System One calls tab opens
+  with Provider and Today cards, today's spend over the budget with a bar, and says what leaves
+  the machine.
+
 - **MCP Servers as a card per agent** (#846, 2026-10-21). Claude Code, Codex and Zed each get a card
   with what Marley knows of them and their servers, Add Server inside each.
 

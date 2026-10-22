@@ -4224,6 +4224,13 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## System One's calls tab as cards (`src/system_one_calls.rs`, #847)
+
+- `render_header` draws a Provider card (provider · model, the key's source, Cloudflare's when it
+  applies) and a Today card (the spend of the daily budget, a bar of the share in thousandths, the
+  calls count); a muted note closes the tab on what leaves the machine. Settings' Marley rows take
+  buttons for enums of up to four variants (the uses' Off / Shadow / Suggest / Act).
+
 ## MCP Servers as cards (`src/mcp_servers.rs`, #846)
 
 - The page draws a `card` per agent: Claude Code's (`render_agent`, then its servers through

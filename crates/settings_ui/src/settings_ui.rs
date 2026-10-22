@@ -5280,9 +5280,9 @@ where
         .map(|current_value| (*current_value.value, current_value.disabled))
         .unwrap_or((variants()[0], false));
 
-    // Marley: a Marley row's choice of two or three is a row of buttons, as its board draws it
-    // (#844).
-    if marley_row(field.json_path) && (2..=3).contains(&variants().len()) {
+    // Marley: a Marley row's choice of two to four is a row of buttons, as its board draws it
+    // (#844, four since #847).
+    if marley_row(field.json_path) && (2..=4).contains(&variants().len()) {
         let colors = cx.theme().colors();
         return h_flex()
             .p_0p5()
