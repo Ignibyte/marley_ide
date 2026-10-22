@@ -435,11 +435,8 @@ impl BrainMemoryView {
             ));
         }
         if !super::is_connected(cx) {
-            let reason = super::unavailable(cx).unwrap_or_default();
-            return Some(line(
-                format!("Marley is not connected to Rusty: {reason}"),
-                Color::Muted,
-            ));
+            // The States board's card with Try Now (#894).
+            return Some(super::render_dropped(0, cx));
         }
         if let Some(failure) = &self.failure {
             return Some(

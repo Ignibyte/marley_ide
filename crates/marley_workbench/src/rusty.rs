@@ -212,6 +212,8 @@ pub(crate) struct Rusty {
     agent_server: Option<RustyServer>,
     /// The loop that connects, checks and connects again; dropped with the source.
     keeper: Option<Task<()>>,
+    /// Ends the keeper's wait before its next try at once, while it waits (#894).
+    wake: Option<futures::channel::oneshot::Sender<()>>,
 }
 
 impl Global for Rusty {}
@@ -431,10 +433,41 @@ async fn keep(source: Source, cx: &AsyncApp) {
             .unwrap_or(u64::MAX)
             .min(BACKOFF_MAX_S);
         failures = failures.saturating_add(1);
-        cx.background_executor()
-            .timer(Duration::from_secs(wait))
-            .await;
+        // Try Now ends the wait at once (#894).
+        let (wake, woken) = futures::channel::oneshot::channel();
+        cx.update(|cx| update(cx, |rusty| rusty.wake = Some(wake)));
+        let timer = cx.background_executor().timer(Duration::from_secs(wait));
+        select(timer, woken).await;
+        cx.update(|cx| update(cx, |rusty| rusty.wake = None));
     }
+}
+
+/// Tries to connect to Rusty at once, while Marley waits before its next try (#894).
+pub(crate) fn try_now(cx: &mut App) {
+    let mut wake = None;
+    if cx.has_global::<Rusty>() {
+        update(cx, |rusty| wake = rusty.wake.take());
+    }
+    if let Some(wake) = wake {
+        // The keeper may have woken by itself meanwhile; then there is nothing to cut short.
+        wake.send(()).ok();
+    }
+}
+
+/// Rusty's screens while it is on and not connected (#894): #857's card with why, and Try Now.
+pub(crate) fn render_dropped(id: usize, cx: &App) -> AnyElement {
+    // `unavailable` leads with the card's own title; the card keeps the reason.
+    let reason: SharedString = unavailable(cx).map_or_else(
+        || SharedString::new_static("It does not answer."),
+        |text| {
+            text.strip_prefix("Rusty is not connected: ")
+                .map_or_else(|| text.clone(), |reason| reason.to_string().into())
+        },
+    );
+    crate::states::EmptyState::new("R", "Rusty is not connected", reason)
+        .broken()
+        .action("Try Now", crate::prompts::Role::Plain, |_, cx| try_now(cx))
+        .render(id, cx)
 }
 
 /// The server `source` names, and how it is reached, for the page; not yet started.

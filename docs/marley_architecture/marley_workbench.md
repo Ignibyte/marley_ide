@@ -4300,6 +4300,8 @@ below describe what #743 retired.
 - `EmptyState` is the States board's card: a glyph tile, a title, a line and one action as #870's
   button, the error's tint on a broken one. Home, the rail (Threads, the filter, the Harness
   section), the Threads page, the Browser tab's failed start and Forge's board use it.
+- Since #894 Rusty's screens use `rusty::render_dropped` while Rusty is on and not connected; its
+  Try Now (`rusty::try_now`) fires the keeper's wake, which ends the wait before the next try.
 
 ## The Ctrl Tab switcher's rows (`src/tab_tiles.rs`, #883)
 

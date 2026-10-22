@@ -475,14 +475,16 @@ fn not_connected(cx: &App) -> Option<SharedString> {
 impl Render for RustyCards {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(reason) = not_connected(cx) {
-            return card(
-                "RUSTY",
-                "marley-rusty-home-not-connected",
-                muted(reason),
-                cx,
-            )
-            .w_full()
-            .into_any_element();
+            // Still connecting reads as a line; a connection that does not hold, as the States
+            // board's card with Try Now (#894).
+            let body = if matches!(cx.global::<super::Rusty>().state, super::State::Starting) {
+                muted(reason)
+            } else {
+                super::render_dropped(0, cx)
+            };
+            return card("RUSTY", "marley-rusty-home-not-connected", body, cx)
+                .w_full()
+                .into_any_element();
         }
         v_flex()
             .w_full()

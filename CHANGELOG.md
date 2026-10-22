@@ -65,6 +65,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty dropped, with Try Now** (#894, 2026-10-22). When Rusty is on but not connected, Home's
+  Rusty card and the Memory and Secrets tabs say why, with Try Now, which tries again at once
+  instead of waiting out Marley's backoff.
+
 - **The needs-you pulse** (#858, 2026-10-22). When a rail row starts needing you, its dot pulses
   twice and then rests; with reduced motion on it stays still.
 

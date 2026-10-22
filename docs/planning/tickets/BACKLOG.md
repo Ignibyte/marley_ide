@@ -15,7 +15,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-890](open/TICKET-890-port-rows-containers-collab.md) | feature | Port rows, the Containers panel and Collab (W5, from #883) |
 | [TICKET-891](open/TICKET-891-search-branches-history-extensions.md) | feature | Project search, branches, history, extensions and the guide's Try it (W5, from #884) |
 | [TICKET-856](open/TICKET-856-editor-pop-ups.md) | feature | The editor's pop-ups in the theme (W6) |
-| [TICKET-894](open/TICKET-894-rusty-dropped-and-a-missing-cli.md) | feature | Rusty dropped and a missing agent CLI (W6, from #857) |
 | [TICKET-895](open/TICKET-895-rail-shrink-motion-and-focus-ring.md) | feature | The rail's shrink in motion, and one focus ring (W6, from #858) |
 | [TICKET-859](open/TICKET-859-a-project-mark-in-notifications-and-the-switcher.md) | feature | A project's mark in its notifications and the switcher (W1.2 follow-up) |
 | [TICKET-860](open/TICKET-860-a-remote-projects-logo-over-ssh.md) | feature | A remote project's logo, read once over SSH (W1.2 follow-up) |

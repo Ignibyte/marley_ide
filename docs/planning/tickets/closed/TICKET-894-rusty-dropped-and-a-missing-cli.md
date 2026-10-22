@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #894 (feature, the Marley look, W6)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [894-rusty-try-now.spec.md](../../pipeline/completed/894-rusty-try-now.spec.md)
 - **Source ticket:** from TICKET-857 (2026-10-22): #857 drew six states as the board's card; these
   two need new behaviour first.
 - **Boards:** States
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
