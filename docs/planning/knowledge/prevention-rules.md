@@ -3254,3 +3254,12 @@ Content for the middle of Zed's title bar is not a flex child among the title ba
 the left group grows to the free width. Place it absolutely at the row's `left: relative(0.5)`
 with a fixed width and a negative left margin of half that width, never as a full-width
 absolute overlay, which would take the groups' clicks.
+
+## PR-claude-880-a-run-names-its-own-copy-of-every-user-store-001
+*severity: high · prevents: F-claude-877-a-scenario-resumed-a-real-session-001, F-claude-880-a-scenario-opened-a-live-tmux-session-001*
+
+When Marley gains a reader of something the user owns outside its profile (an agent's
+transcripts, a tmux server, a CLI's home, a socket), `script/e2e.sh` points it at the run's own
+copy in the same change, with an export beside #877's and #880's. A setting a scenario has to
+remember is not enough: the old scenarios never set it, and a stale click in one of them then
+acts on the user's live sessions.

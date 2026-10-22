@@ -4415,3 +4415,15 @@ Claude Code sessions, which the run's Marley resumed as `claude --resume …` in
 stopped at Claude Code's first-run question and the run's end stopped it. Cause: the harness gave
 each run its own `CODEX_HOME` (#725) but not `CLAUDE_CONFIG_DIR`, so the run's Threads view listed
 the user's Claude Code transcripts. Fix: #877 exports `CLAUDE_CONFIG_DIR=$E2E_WORK/claude-config`.
+
+## F-claude-880-a-scenario-opened-a-live-tmux-session-001
+*found: 2026-10-21 · while: probing #851 · severity: high*
+
+`510-worktree-agents.sh`, older than the `marley.tmux_hosts` setting, ran with Marley's default
+tmux discovery: the run's rail listed "this machine · aic", a live agent session on the box's own
+tmux server, and the scenario's menu keys opened it in the run. Its next typed line landed in the
+project panel, so nothing reached the agent (its prompt stayed empty and no other transcript holds
+the line), but a stale click could as easily have typed into it. Cause: the harness isolated
+Claude Code's (#877) and Codex's (#725) stores but not tmux's socket. Fix: #880 exports
+`TMUX_TMPDIR=$E2E_PROFILE/tmux`, unsets `TMUX` and `TMUX_PANE`, and stops the run's server at
+cleanup.

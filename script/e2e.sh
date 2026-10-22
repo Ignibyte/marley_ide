@@ -717,6 +717,12 @@ export CODEX_HOME=$E2E_WORK/codex-home
 # transcripts under `CLAUDE_CONFIG_DIR`, and a click that lands on one of the user's opens a
 # `claude --resume` of their real conversation in the run.
 export CLAUDE_CONFIG_DIR=$E2E_WORK/claude-config
+# Nor does it reach the user's tmux (#880): Marley lists the sessions of the tmux server its
+# environment names, and a run that opened one of the user's would type into a live agent. A run's
+# server sits in the profile, whose path is short enough for tmux's socket.
+export TMUX_TMPDIR=$E2E_PROFILE/tmux
+mkdir -p "$TMUX_TMPDIR"
+unset TMUX TMUX_PANE
 # Nor at the user's Omarchy (#759): a run's is empty, and its refresh a program that is not there.
 export MARLEY_OMARCHY_HOME=$E2E_WORK/omarchy-home
 export MARLEY_OMARCHY_REFRESH=$E2E_WORK/no-omarchy-refresh
@@ -771,6 +777,8 @@ cleanup() {
     hyprctl reload >/dev/null
   fi
   stop_browser_units
+  # A tmux server the run started outlives the folder its socket is in.
+  tmux kill-server 2>/dev/null || true
   # Marley writes its log into the profile, which goes next.
   if [[ -f $E2E_PROFILE/logs/Marley.log ]]; then
     cp "$E2E_PROFILE/logs/Marley.log" "$shots/$name.marley.log"
