@@ -13,6 +13,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Browser drawer's Recordings, and Send to the agent** (#892, 2026-10-22). The drawer lists
+  the recordings Record saved, each with when, how long and Send; its Console has Send to the
+  agent. Send types a line into the terminal you used last naming what the agent should read.
+
 - **The Browser's console drawer** (#887, 2026-10-22). The Browser toolbar's Console button,
   which counts the page's errors, opens a drawer under the page: Console (time, level, message,
   where) and Network (method, status, URL, time). A held click and the page's own dialogs answer

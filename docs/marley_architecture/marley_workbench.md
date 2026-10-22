@@ -5603,6 +5603,9 @@ One agent of the fleet in full, in the center, read-only and not serialized.
 - The toolbar's Console button counts the page's errors and opens `render_drawer` under the page:
   Console from `BrowserHub::console_entries`, Network from `network_entries`, newest last. The
   drawer is the tab's own and stays open across reloads.
+- Since #892 a Recordings tab (`recorder::list_in`, read when chosen) and Send: `send_line`, the
+  pick's terminal half, types `console_line` or `recording_line` into the terminal used last,
+  refusing as a pick does (`sendable`).
 
 ## The Browser's picks panel (`src/browser.rs`, #879)
 

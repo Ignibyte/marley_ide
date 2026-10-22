@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #892 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [892-drawer-recordings-send.spec.md](../../pipeline/completed/892-drawer-recordings-send.spec.md)
 - **Source ticket:** from TICKET-887 (2026-10-22): #887 made the drawer's Console and Network and
   the tools' buttons; these are new behaviour.
 - **Boards:** Browser, BrowserTools
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

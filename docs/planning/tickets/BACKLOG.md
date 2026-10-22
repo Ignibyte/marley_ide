@@ -10,7 +10,7 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-892](open/TICKET-892-browser-recordings-send-and-downloads.md) | feature | The Browser drawer's Recordings and Send, a pick's options, downloads (W5, from #887) |
+| [TICKET-896](open/TICKET-896-browser-downloads-and-pick-options.md) | feature | The Browser's download bar, and a pick's options (W5, from #892) |
 | [TICKET-893](open/TICKET-893-diff-review-header-and-turns.md) | feature | The diff review's header and a terminal's turns (W5, from #888) |
 | [TICKET-890](open/TICKET-890-port-rows-containers-collab.md) | feature | Port rows, the Containers panel and Collab (W5, from #883) |
 | [TICKET-891](open/TICKET-891-search-branches-history-extensions.md) | feature | Project search, branches, history, extensions and the guide's Try it (W5, from #884) |

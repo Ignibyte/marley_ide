@@ -5095,6 +5095,11 @@ pub struct BrowserView {
     scripts_tray: Option<ScriptsTray>,
     /// The drawer under the page, and which of its tabs shows (#887); none while it is closed.
     drawer: Option<Drawer>,
+    /// The saved recordings as the drawer last read them (#892); none before a read.
+    recordings: Option<Vec<RecordingRow>>,
+    reading_recordings: Option<Task<()>>,
+    /// Why the drawer's last Send went nowhere (#892).
+    drawer_error: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -5288,6 +5293,9 @@ impl BrowserView {
             checking: HashSet::new(),
             scripts_tray: None,
             drawer: None,
+            recordings: None,
+            reading_recordings: None,
+            drawer_error: None,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -6043,27 +6051,8 @@ impl BrowserView {
         else {
             return;
         };
-        let terminal = cx
-            .try_global::<LastTerminal>()
-            .and_then(|last| Some((last.view.upgrade()?, last.window)));
-        let Some((terminal, terminal_window)) = terminal else {
-            self.tray_error = Some(SharedString::new_static(
-                "No terminal to send to: click in one, then Send.",
-            ));
-            cx.notify();
-            return;
-        };
-        // A paste into an agent that waits on a permission or a question would answer it, so the
-        // pick and its caption wait too (#508).
-        if let Some(agent) = crate::agent_events::waiting_agent(terminal.entity_id(), cx) {
-            self.tray_error = Some(SharedString::new_static(match agent {
-                marley_agent::AgentKind::Codex => {
-                    "Codex in that terminal waits for your answer: answer it there, then Send."
-                }
-                _ => {
-                    "Claude Code in that terminal waits for your answer: answer it there, then Send."
-                }
-            }));
+        if let Err(why) = Self::sendable(cx) {
+            self.tray_error = Some(why);
             cx.notify();
             return;
         }
@@ -6076,6 +6065,39 @@ impl BrowserView {
         self.tray_error = None;
         self.hub
             .update(cx, |hub, cx| hub.pick_sent(id, caption, cx));
+        Self::send_line(line, window, cx);
+    }
+
+    /// The terminal used last, when a line can be typed into it now: a paste into an agent that
+    /// waits on a permission or a question would answer it, so the line waits too (#508).
+    fn sendable(cx: &App) -> Result<(Entity<TerminalView>, AnyWindowHandle), SharedString> {
+        let terminal = cx
+            .try_global::<LastTerminal>()
+            .and_then(|last| Some((last.view.upgrade()?, last.window)));
+        let Some((terminal, terminal_window)) = terminal else {
+            return Err(SharedString::new_static(
+                "No terminal to send to: click in one, then Send.",
+            ));
+        };
+        if let Some(agent) = crate::agent_events::waiting_agent(terminal.entity_id(), cx) {
+            return Err(SharedString::new_static(match agent {
+                marley_agent::AgentKind::Codex => {
+                    "Codex in that terminal waits for your answer: answer it there, then Send."
+                }
+                _ => {
+                    "Claude Code in that terminal waits for your answer: answer it there, then Send."
+                }
+            }));
+        }
+        Ok((terminal, terminal_window))
+    }
+
+    /// Types `line` into the terminal used last and shows it (#496, #892); the caller checked it
+    /// with `sendable`.
+    fn send_line(line: String, window: &Window, cx: &mut Context<Self>) {
+        let Ok((terminal, terminal_window)) = Self::sendable(cx) else {
+            return;
+        };
         let browser_window = window.window_handle();
         // The terminal's pane may hold this tab, which activating the terminal updates: so after
         // this update.
@@ -6954,20 +6976,27 @@ impl BrowserView {
                 .toggle_state(drawer == which)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.drawer = Some(which);
+                    this.drawer_error = None;
+                    if which == Drawer::Recordings {
+                        this.read_recordings(cx);
+                    }
                     cx.notify();
                 }))
         };
-        let rows: Vec<AnyElement> = match drawer {
-            Drawer::Console => console.iter().map(|entry| console_row(entry, cx)).collect(),
-            Drawer::Network => network.iter().map(|entry| network_row(entry, cx)).collect(),
-        };
-        let empty = rows.is_empty().then(|| {
-            Label::new(match drawer {
-                Drawer::Console => "The page has logged nothing.",
-                Drawer::Network => "The page has fetched nothing.",
-            })
-            .size(LabelSize::Small)
-            .color(Color::Muted)
+        let (rows, empty) = self.drawer_rows(drawer, &console, &network, cx);
+        let send = (drawer == Drawer::Console && !console.is_empty()).then(|| {
+            let line = console_line(target, &console, hub.url(target).as_deref());
+            crate::prompts::render_button(
+                0,
+                "Send to the agent",
+                crate::prompts::Role::Plain,
+                false,
+                cx,
+            )
+            .cursor_pointer()
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.send_from_drawer(line.clone(), window, cx);
+            }))
         });
         Some(
             v_flex()
@@ -6994,7 +7023,21 @@ impl BrowserView {
                             format!("Network {}", network.len()),
                             Drawer::Network,
                         ))
+                        .child(tab(
+                            "browser-drawer-recordings",
+                            self.recordings.as_ref().map_or_else(
+                                || "Recordings".to_string(),
+                                |recordings| format!("Recordings {}", recordings.len()),
+                            ),
+                            Drawer::Recordings,
+                        ))
                         .child(div().flex_1())
+                        .children(
+                            self.drawer_error.clone().map(|why| {
+                                Label::new(why).size(LabelSize::Small).color(Color::Error)
+                            }),
+                        )
+                        .children(send)
                         .child(
                             IconButton::new("browser-drawer-close", IconName::Close)
                                 .icon_size(IconSize::Small)
@@ -7018,6 +7061,126 @@ impl BrowserView {
                 )
                 .into_any_element(),
         )
+    }
+
+    /// The drawer's rows for its tab `drawer`, and the line it shows when there are none (#892).
+    fn drawer_rows(
+        &self,
+        drawer: Drawer,
+        console: &[ConsoleEntry],
+        network: &[NetworkEntry],
+        cx: &Context<Self>,
+    ) -> (Vec<AnyElement>, Option<Label>) {
+        let rows: Vec<AnyElement> = match drawer {
+            Drawer::Console => console.iter().map(|entry| console_row(entry, cx)).collect(),
+            Drawer::Network => network.iter().map(|entry| network_row(entry, cx)).collect(),
+            Drawer::Recordings => self
+                .recordings
+                .iter()
+                .flatten()
+                .enumerate()
+                .map(|(index, recording)| Self::recording_row(index, recording, cx))
+                .collect(),
+        };
+        let empty = rows.is_empty().then(|| {
+            Label::new(match drawer {
+                Drawer::Console => "The page has logged nothing.",
+                Drawer::Network => "The page has fetched nothing.",
+                Drawer::Recordings if self.recordings.is_none() => "Reading the recordings…",
+                Drawer::Recordings => "No recordings yet: Record saves this page's last minute.",
+            })
+            .size(LabelSize::Small)
+            .color(Color::Muted)
+        });
+        (rows, empty)
+    }
+
+    /// Types `line` into the terminal used last, or says on the drawer why it cannot (#892).
+    fn send_from_drawer(&mut self, line: String, window: &Window, cx: &mut Context<Self>) {
+        match Self::sendable(cx) {
+            Ok(_) => {
+                self.drawer_error = None;
+                Self::send_line(line, window, cx);
+            }
+            Err(why) => self.drawer_error = Some(why),
+        }
+        cx.notify();
+    }
+
+    /// Reads the saved recordings off the main thread (#892, D2).
+    fn read_recordings(&mut self, cx: &Context<Self>) {
+        let dir = recordings_dir();
+        self.reading_recordings = Some(cx.spawn(async move |this, cx| {
+            let listed = cx
+                .background_spawn(futures::future::lazy(move |_| recorder::list_in(&dir)))
+                .await;
+            this.update(cx, |this, cx| {
+                match listed {
+                    Ok(values) => {
+                        this.recordings =
+                            Some(values.iter().rev().filter_map(RecordingRow::of).collect());
+                    }
+                    Err(error) => {
+                        this.recordings = Some(Vec::new());
+                        this.drawer_error = Some(error.to_string().into());
+                    }
+                }
+                cx.notify();
+            })
+            .log_err();
+        }));
+    }
+
+    /// A recording as the drawer lists it: its title and address, when, how long, and Send.
+    fn recording_row(index: usize, recording: &RecordingRow, cx: &Context<Self>) -> AnyElement {
+        let line = recording_line(recording);
+        h_flex()
+            .w_full()
+            .gap_3()
+            .py_0p5()
+            .child(
+                div().flex_none().w(px(140.)).child(
+                    Label::new(recording.when.clone())
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                ),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        Label::new(recording.title.clone())
+                            .size(LabelSize::Small)
+                            .truncate(),
+                    )
+                    .child(
+                        Label::new(recording.url.clone())
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted)
+                            .buffer_font(cx)
+                            .truncate(),
+                    ),
+            )
+            .child(
+                Label::new(format!("{:.0} s", recording.seconds))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(
+                crate::prompts::render_button(
+                    10 + index,
+                    "Send",
+                    crate::prompts::Role::Quiet,
+                    false,
+                    cx,
+                )
+                .cursor_pointer()
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.send_from_drawer(line.clone(), window, cx);
+                })),
+            )
+            .into_any_element()
     }
 
     /// The toolbar's Playwright scripts button (#523), lit while the tray is open.
@@ -7903,11 +8066,82 @@ impl BrowserView {
     }
 }
 
-/// The drawer's tabs (#887).
+/// The drawer's tabs (#887, #892).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Drawer {
     Console,
     Network,
+    Recordings,
+}
+
+/// A saved recording as the drawer lists it (#892).
+struct RecordingRow {
+    id: String,
+    title: SharedString,
+    url: SharedString,
+    when: SharedString,
+    seconds: f64,
+}
+
+impl RecordingRow {
+    /// The row of one entry of `recorder::list_in`; none for one without an id.
+    fn of(value: &Value) -> Option<Self> {
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let id = text("id");
+        if id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            title: text("title").into(),
+            url: text("url").into(),
+            // Saved in seconds since the epoch; shown in local time.
+            when: value
+                .get("recorded_at")
+                .and_then(Value::as_u64)
+                .and_then(|seconds| i64::try_from(seconds).ok())
+                .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
+                .map(|at| {
+                    at.with_timezone(&chrono::Local)
+                        .format("%b %-d, %H:%M:%S")
+                        .to_string()
+                })
+                .unwrap_or_default()
+                .into(),
+            seconds: value
+                .get("seconds")
+                .and_then(Value::as_f64)
+                .unwrap_or_default(),
+            id,
+        })
+    }
+}
+
+/// The line the drawer's Send types for the page's console (#892): what it holds, and the tool
+/// that reads it.
+fn console_line(target: &str, console: &[ConsoleEntry], url: Option<&str>) -> String {
+    let errors = console
+        .iter()
+        .filter(|entry| is_error(&entry.level))
+        .count();
+    let total = console.len();
+    let page = url.map_or_else(String::new, |url| format!(" on {url}"));
+    format!(
+        "[browser console: {errors} errors in {total} messages{page}; browser_console tab {target}]"
+    )
+}
+
+/// The line the drawer's Send types for a recording (#892).
+fn recording_line(recording: &RecordingRow) -> String {
+    format!(
+        "[browser recording {}: {} at {}; browser_recording id {}]",
+        recording.id, recording.title, recording.url, recording.id
+    )
 }
 
 /// Whether a console entry's level is an error or an exception (#887, D1).
