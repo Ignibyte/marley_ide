@@ -7,9 +7,10 @@ use git::repository::{Branch, delete_branch_flag};
 use git::{GitHostingProviderRegistry, parse_git_remote_url};
 use gpui::http_client::Url;
 use gpui::{
-    Action, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Global,
-    InteractiveElement, IntoElement, Modifiers, ModifiersChangedEvent, ParentElement, PromptLevel,
-    Render, SharedString, Styled, Subscription, Task, TaskExt, WeakEntity, Window, actions, rems,
+    Action, AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
+    Global, InteractiveElement, IntoElement, Modifiers, ModifiersChangedEvent, ParentElement,
+    PromptLevel, Render, SharedString, Styled, Subscription, Task, TaskExt, WeakEntity, Window,
+    actions, rems,
 };
 use picker::{Picker, PickerDelegate, PickerEditorPosition};
 use project::git_store::{Repository, RepositoryEvent};
@@ -655,6 +656,29 @@ fn branch_filter_menu(
         menu
     })
 }
+
+/// Marley: what a branch row tells Marley's look (#891).
+pub struct MarleyBranchRow {
+    pub is_head: bool,
+    pub is_remote: bool,
+    pub ahead: u32,
+    pub behind: u32,
+    /// Whether a linked worktree has the branch checked out.
+    pub in_worktree: bool,
+}
+
+/// Marley: a branch row's dot, in the icon's place, and its note after the name (#891).
+pub struct MarleyBranchMark {
+    pub dot: AnyElement,
+    pub note: Option<SharedString>,
+}
+
+/// Marley: while set, each branch row asks it for its dot and note, as the SearchMore board draws
+/// the picker; without it the rows are Zed's (#891).
+#[derive(Clone, Copy)]
+pub struct MarleyBranchLook(pub fn(&MarleyBranchRow, &App) -> MarleyBranchMark);
+
+impl Global for MarleyBranchLook {}
 
 pub struct BranchListDelegate {
     workspace: WeakEntity<Workspace>,
@@ -1723,6 +1747,38 @@ impl PickerDelegate for BranchListDelegate {
             }
         };
 
+        // Marley: the board's dot and note for a branch (#891).
+        let (marley_dot, marley_note) = entry
+            .as_branch()
+            .zip(cx.try_global::<MarleyBranchLook>().copied())
+            .map_or((None, None), |(branch, look)| {
+                let in_worktree = self.repo.as_ref().is_some_and(|repo| {
+                    repo.read(cx)
+                        .linked_worktrees
+                        .iter()
+                        .any(|worktree| worktree.ref_name.as_ref() == Some(&branch.ref_name))
+                });
+                let status = branch.tracking_status();
+                let row = MarleyBranchRow {
+                    is_head: branch.is_head,
+                    is_remote: branch.is_remote(),
+                    ahead: status.map_or(0, |status| status.ahead),
+                    behind: status.map_or(0, |status| status.behind),
+                    in_worktree,
+                };
+                let mark = (look.0)(&row, cx);
+                (Some(mark.dot), mark.note)
+            });
+        let entry_title = match marley_note {
+            Some(note) => h_flex()
+                .min_w_0()
+                .gap_2()
+                .child(entry_title)
+                .child(Label::new(note).size(LabelSize::XSmall).color(Color::Muted))
+                .into_any_element(),
+            None => entry_title,
+        };
+
         let focus_handle = self.focus_handle.clone();
         let picker = cx.entity();
         let is_new_items = matches!(
@@ -1802,15 +1858,16 @@ impl PickerDelegate for BranchListDelegate {
                     .min_w_0()
                     .gap_2p5()
                     .flex_grow_1()
-                    .child(
+                    .child(marley_dot.unwrap_or_else(|| {
                         Icon::new(entry_icon)
                             .color(if is_checked_branch {
                                 Color::Accent
                             } else {
                                 Color::Muted
                             })
-                            .size(IconSize::Small),
-                    )
+                            .size(IconSize::Small)
+                            .into_any_element()
+                    }))
                     .child(
                         v_flex()
                             .id("info_container")

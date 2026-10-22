@@ -12,6 +12,13 @@ type ContextMenuBuilder = Box<
 >;
 type ExtensionCardActions = [Option<Button>; 3];
 
+/// Marley: while set, each card leads its name with the tile this gives for it, and says Installed
+/// in the success colour, as the SearchMore board draws the extensions (#891).
+#[derive(Clone, Copy)]
+pub struct MarleyExtensionLook(pub fn(&str, &App) -> AnyElement);
+
+impl gpui::Global for MarleyExtensionLook {}
+
 /// Local state of a published extension, derived from the `ExtensionStore`.
 #[derive(Clone)]
 enum PublishedExtensionState {
@@ -70,6 +77,18 @@ impl ExtensionCardSource {
             } if installed_version != latest_version => Some(installed_version.clone()),
             _ => None,
         }
+    }
+
+    /// Marley: whether the extension is installed at any version (#891).
+    fn is_installed(&self) -> bool {
+        matches!(
+            self,
+            Self::Installed
+                | Self::Remote {
+                    state: PublishedExtensionState::Store(ExtensionStatus::Installed(_)),
+                    ..
+                }
+        )
     }
 
     fn download_count(&self) -> Option<u64> {
@@ -617,6 +636,14 @@ impl RenderOnce for ExtensionCard {
         let context_menu_button_id = SharedString::from(format!("more-{id}"));
         let context_menu_extension_id = id;
         let context_menu_authors = authors.clone();
+        let marley_look = cx.try_global::<MarleyExtensionLook>().copied();
+        let marley_tile = marley_look.map(|look| (look.0)(&name, cx));
+        let marley_installed = (marley_look.is_some() && source.is_installed()).then(|| {
+            installed_version.as_ref().map_or_else(
+                || "Installed".to_string(),
+                |installed_version| format!("Installed v{installed_version}"),
+            )
+        });
 
         div().w_full().child(
             v_flex()
@@ -640,6 +667,7 @@ impl RenderOnce for ExtensionCard {
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .gap_2()
+                                .children(marley_tile)
                                 .child(Headline::new(name).size(HeadlineSize::Small))
                                 .child(
                                     Headline::new(if is_dev {
@@ -650,10 +678,19 @@ impl RenderOnce for ExtensionCard {
                                     .size(HeadlineSize::XSmall)
                                     .color(Color::Muted),
                                 )
-                                .children(installed_version.map(|installed_version| {
-                                    Headline::new(format!("(v{installed_version} installed)"))
-                                        .size(HeadlineSize::XSmall)
+                                // Marley: Installed in the eyes' green, in place of Zed's note
+                                // of an older installed version (#891).
+                                .children(marley_installed.map(|installed| {
+                                    Label::new(installed)
+                                        .size(LabelSize::Small)
+                                        .color(Color::Success)
                                 }))
+                                .children(installed_version.filter(|_| marley_look.is_none()).map(
+                                    |installed_version| {
+                                        Headline::new(format!("(v{installed_version} installed)"))
+                                            .size(HeadlineSize::XSmall)
+                                    },
+                                ))
                                 .when(!provided_features.is_empty(), |parent| {
                                     parent.child(
                                         h_flex()

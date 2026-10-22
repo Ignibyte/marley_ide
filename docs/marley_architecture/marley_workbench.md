@@ -4297,6 +4297,15 @@ below describe what #743 retired.
   time a row starts needing the user it pulses once over; gpui's animation shows the last frame
   under reduced motion.
 
+## Search, branches and extensions (`src/search_looks.rs`, #891)
+
+- `init` sets three Zed globals: `search::project_search::MarleySearchLook` (the count reads "I
+  of N matches in F files"), `git_ui::branch_picker::MarleyBranchLook(branch_mark)` (a dot in
+  the icon's place and a note after the name: current, worktree, remote, N behind or ahead) and
+  `extensions_ui::MarleyExtensionLook(extension_tile)` (a tile of the name's first two letters;
+  the card then says Installed in green for any installed extension). Without the globals the
+  views are Zed's.
+
 ## The diff review's header (`src/diff_header.rs`, #893)
 
 - `add_toolbar_items`, which Zed's `initialize_pane` calls, adds `DiffHeader` to each pane's

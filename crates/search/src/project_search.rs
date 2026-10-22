@@ -251,6 +251,12 @@ fn contains_uppercase(str: &str) -> bool {
 
 const SEARCH_ON_TYPE_DEBOUNCE: Duration = Duration::from_millis(250);
 
+/// Marley: while set, the toolbar's count says how many matches in how many files, as the
+/// SearchMore board draws it (#891).
+pub struct MarleySearchLook;
+
+impl Global for MarleySearchLook {}
+
 pub struct ProjectSearch {
     pub(crate) project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
@@ -3039,6 +3045,23 @@ impl Render for ProjectSearchBar {
                 }
             })
             .unwrap_or_else(|| "0/0".to_string());
+        // Marley: the board's count, with the files that hold the matches (#891).
+        let match_text =
+            if cx.has_global::<MarleySearchLook>() && !project_search.match_ranges.is_empty() {
+                let matches = project_search.match_ranges.len();
+                let more = if limit_reached { "+" } else { "" };
+                let files = project_search.excerpts.read(cx).all_buffers().len();
+                let files_word = if files == 1 { "file" } else { "files" };
+                match search.active_match_index {
+                    Some(index) => format!(
+                        "{} of {matches}{more} matches in {files} {files_word}",
+                        index + 1
+                    ),
+                    None => format!("{matches}{more} matches in {files} {files_word}"),
+                }
+            } else {
+                match_text
+            };
 
         let query_focus = search.query_editor.focus_handle(cx);
 

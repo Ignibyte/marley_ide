@@ -82,6 +82,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Search's count, the branch picker and the extensions, as the board draws them** (#891,
+  2026-10-22). Project search says "3 of 14 matches in 6 files". Each branch in the branch picker
+  has a dot and a note: current, behind, worktree or remote. Each extension's card leads with a
+  tile of its name's first letters and says Installed in green.
+
 - **Rusty dropped, with Try Now** (#894, 2026-10-22). When Rusty is on but not connected, Home's
   Rusty card and the Memory and Secrets tabs say why, with Try Now, which tries again at once
   instead of waiting out Marley's backoff.

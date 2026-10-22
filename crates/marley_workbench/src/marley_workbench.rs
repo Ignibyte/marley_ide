@@ -121,6 +121,7 @@ pub mod rusty;
 pub mod safe_write;
 pub mod schedule_runs;
 pub mod scrollback;
+pub mod search_looks;
 pub mod send_block;
 pub mod send_selection;
 pub mod sessions_page;
@@ -1216,6 +1217,7 @@ pub fn init(cx: &mut App) {
     system_pages::init(cx);
     tab_tiles::init(cx);
     sessions_page::init(cx);
+    search_looks::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);
     block_tables::init(cx);

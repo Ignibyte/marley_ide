@@ -1,4 +1,7 @@
 mod components;
+
+// Marley: the card's look, which Marley sets (#891).
+pub use components::MarleyExtensionLook;
 mod extension_suggestions;
 mod extension_version_selector;
 
