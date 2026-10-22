@@ -4466,3 +4466,12 @@ threads, and one of those views was the one rendering, so the first Ask Marley p
 ("cannot read ThreadView while it is already being updated"). Fixed: the hook is handed the
 asking view's id, and the link compares ids, never reading the view. A Marley function a Zed view
 calls during its render never reads that view; it takes what it needs as arguments.
+
+## F-claude-867-opening-a-project-from-a-page-read-the-page-001
+*found: 2026-10-22 · while: testing #867 · severity: high*
+
+#867's Start called `Workspace::open_workspace_for_paths` from inside Home's page's update.
+That call asks every item in the workspace whether it is dirty, Home's page among them, so the
+first Start with a recent project panicked ("cannot read MarleyHome while it is already being
+updated"). Fixed: Start spawns and opens the project from the task, after the update has ended.
+A page that opens or closes projects does it from a spawned task, never inside its own update.

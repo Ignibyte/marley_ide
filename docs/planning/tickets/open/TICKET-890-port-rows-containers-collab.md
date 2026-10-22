@@ -23,3 +23,8 @@ Each part looks as the board shows and keeps its behavior; shot in Marley Night 
 
 - The rail's round 28 px tile cannot hold a five-digit port; the port row needs a tile of its own
   width, or keeps its icon.
+
+## Chad's answer (2026-10-23)
+
+- The Containers panel groups its rows by container, as the Splits board draws it, even though
+  that changes what a click on a row does.

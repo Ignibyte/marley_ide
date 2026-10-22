@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home's prompt picks its project** (#867, 2026-10-22). A chip beside the agent chips names
+  where the agent starts. Its menu offers Home's own project, the projects open in the window and
+  the recent ones. Starting with a recent project opens it first, then runs the agent in its group
+  with the task.
+
 - **Ask Marley beside a terminal, and Apply** (#865, 2026-10-22). A failed block offers Ask
   Marley, which opens Marley's agent in the pane at the terminal's right with the block in its
   message box. When the answer proposes a command in a code block, Apply runs it in that terminal.

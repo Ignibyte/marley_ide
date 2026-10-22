@@ -2226,6 +2226,13 @@ alike.
   Start, then START's actions and New Agent…/Threads as subtle links. `start_prompt` runs
   `agents::start_cli_with_prompt` (or `start_cli` for an empty box) in Home's workspace and clears
   the box. CONFIGURE's buttons are subtle with accent labels.
+- **The project chip** (#867): `MarleyHome.target` (`None` is Home's own project).
+  `render_project_chip` is a `PopoverMenu` whose `ContextMenu` lists Home, then
+  `project_choices`: the multi-workspace's other workspaces ("Open in this window") and the
+  recent projects that are neither open nor Home's own. With a target, `start_prompt` spawns,
+  calls `open_workspace_for_paths(OpenMode::Activate, …)` and runs `start_in` in the workspace it
+  gives back. The open waits for the spawn because it asks every item whether it is dirty, Home's
+  page among them.
 
 ## Home and Rusty from the start (`src/rail.rs`, `src/groups.rs`, #700)
 

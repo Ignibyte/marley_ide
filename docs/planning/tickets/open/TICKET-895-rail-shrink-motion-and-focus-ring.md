@@ -28,3 +28,10 @@ Each looks as the board shows; shot in Marley Night and Marley Day.
   the Settings window's focused search field shows almost none. One ring on every focused control
   is a change across Zed's inputs (an outline outside the shape, which gpui draws as a border
   inside it today): a question for Chad before it is planned.
+
+## Chad's answer (2026-10-23)
+
+- One focus ring across the whole app, Zed's controls included, added once in the shared
+  building blocks (the `ui` components) rather than screen by screen; shown on keyboard focus
+  only, not after a mouse click; any part that draws its focus its own way and would need a
+  rewrite is left as it is and listed. The labels fade as the rail folds.

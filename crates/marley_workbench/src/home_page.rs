@@ -15,9 +15,10 @@ use gpui::{
     Render, SharedString, Stateful, Subscription, Task, WeakEntity, Window,
 };
 use marley_agent::AgentKind;
+use project::Project;
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
-use ui::{ButtonStyle, prelude::*};
+use ui::{ButtonStyle, ContextMenu, PopoverMenu, prelude::*};
 use util::ResultExt as _;
 use util::paths::PathExt as _;
 use workspace::item::{Item, ItemEvent};
@@ -158,6 +159,9 @@ struct Recent {
     paths: Vec<PathBuf>,
 }
 
+/// A project the prompt's chip offers, by its name and folders (#867).
+type ProjectChoice = (SharedString, Vec<PathBuf>);
+
 /// Home's page.
 pub(crate) struct MarleyHome {
     workspace: WeakEntity<Workspace>,
@@ -172,6 +176,8 @@ pub(crate) struct MarleyHome {
     prompt: Option<Entity<editor::Editor>>,
     /// The agent the prompt starts; the first installed CLI until one is picked.
     picked: Option<AgentKind>,
+    /// The project the prompt starts in, by its name and folders; none for Home's own (#867, D1).
+    target: Option<ProjectChoice>,
     /// The rail the page lists the agents at work from, held weakly and observed, so a rail a
     /// layout swap replaced goes (#713).
     rail: Option<(WeakEntity<Rail>, Subscription)>,
@@ -244,6 +250,7 @@ impl MarleyHome {
             recent: None,
             prompt: None,
             picked: None,
+            target: None,
             rail: None,
             _activity: [
                 cx.observe_global_in::<AgentActivity>(window, |_, _, cx| cx.notify()),
@@ -377,12 +384,6 @@ impl MarleyHome {
     fn render_prompt(&self, cx: &Context<Self>) -> AnyElement {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
         let picked = self.picked.or_else(|| kinds.first().copied());
-        let folder = self.workspace.upgrade().map(|workspace| {
-            terminal_view::default_working_directory(workspace.read(cx), cx).map_or_else(
-                || "your home folder".to_string(),
-                |folder| folder.compact().to_string_lossy().into_owned(),
-            )
-        });
         let colors = cx.theme().colors();
         let field = div()
             .key_context("MarleyHomePrompt")
@@ -420,11 +421,7 @@ impl MarleyHome {
                     .gap_2()
                     .flex_wrap()
                     .children(chips)
-                    .children(folder.map(|folder| {
-                        Label::new(format!("in {folder}"))
-                            .size(LabelSize::Small)
-                            .color(Color::Muted)
-                    }))
+                    .child(self.render_project_chip(cx))
                     .child(div().flex_1())
                     .child(start),
             )
@@ -436,6 +433,120 @@ impl MarleyHome {
                     .child(self.render_agent_links()),
             )
             .into_any_element()
+    }
+
+    /// The project chip (#867): where the prompt's agent starts, and a menu of Home, the window's
+    /// open projects and the recent ones.
+    fn render_project_chip(&self, cx: &Context<Self>) -> impl IntoElement {
+        let name = self.target.as_ref().map_or_else(
+            || {
+                self.workspace.upgrade().map_or_else(
+                    || "Home".to_string(),
+                    |workspace| {
+                        terminal_view::default_working_directory(workspace.read(cx), cx)
+                            .map_or_else(
+                                || "Home".to_string(),
+                                |folder| format!("Home · {}", folder.compact().to_string_lossy()),
+                            )
+                    },
+                )
+            },
+            |(name, _)| name.to_string(),
+        );
+        let home = cx.entity().downgrade();
+        let projects = self.project_choices(cx);
+        PopoverMenu::new("marley-home-project")
+            .trigger(
+                Button::new("marley-home-project-chip", format!("in {name}"))
+                    .start_icon(Icon::new(IconName::Folder).size(IconSize::Small))
+                    .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall))
+                    .style(ButtonStyle::Subtle)
+                    .label_size(LabelSize::Small),
+            )
+            .menu(move |window, cx| {
+                let home = home.clone();
+                let projects = projects.clone();
+                Some(ContextMenu::build(window, cx, move |menu, _, _| {
+                    let home_entry = home.clone();
+                    let menu = menu.entry("Home", None, move |_, cx| {
+                        home_entry
+                            .update(cx, |page, cx| {
+                                page.target = None;
+                                cx.notify();
+                            })
+                            .log_err();
+                    });
+                    projects.into_iter().fold(menu, |menu, (section, entries)| {
+                        let menu = if entries.is_empty() {
+                            menu
+                        } else {
+                            menu.header(section)
+                        };
+                        entries.into_iter().fold(menu, |menu, (name, paths)| {
+                            let home = home.clone();
+                            let label = name.clone();
+                            menu.entry(label, None, move |_, cx| {
+                                let picked = (name.clone(), paths.clone());
+                                home.update(cx, |page, cx| {
+                                    page.target = Some(picked);
+                                    cx.notify();
+                                })
+                                .log_err();
+                            })
+                        })
+                    })
+                }))
+            })
+    }
+
+    /// The projects the chip offers (#867): the window's open ones but Home's own, then the recent
+    /// ones not open, each by its name and folders.
+    fn project_choices(&self, cx: &App) -> Vec<(&'static str, Vec<ProjectChoice>)> {
+        let mut open: Vec<ProjectChoice> = Vec::new();
+        // Home's own project is the menu's Home entry, so Recent leaves it out too.
+        let mut own_paths: Vec<PathBuf> = Vec::new();
+        if let Some(workspace) = self.workspace.upgrade() {
+            let own = workspace.entity_id();
+            own_paths = worktree_paths(workspace.read(cx).project().read(cx), cx);
+            let others = workspace
+                .read(cx)
+                .multi_workspace()
+                .and_then(WeakEntity::upgrade)
+                .map(|multi| {
+                    multi
+                        .read(cx)
+                        .workspaces()
+                        .filter(|other| other.entity_id() != own)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            for other in others {
+                let paths = worktree_paths(other.read(cx).project().read(cx), cx);
+                let Some(first) = paths.first() else {
+                    continue;
+                };
+                let name = first
+                    .file_name()
+                    .map_or_else(|| first.to_string_lossy(), |name| name.to_string_lossy());
+                open.push((SharedString::from(name.into_owned()), paths));
+            }
+        }
+        let recent = self
+            .recent
+            .iter()
+            .flatten()
+            .filter(|recent| {
+                recent.paths != own_paths && !open.iter().any(|(_, paths)| *paths == recent.paths)
+            })
+            .map(|recent| {
+                (
+                    SharedString::from(recent.name.clone()),
+                    recent.paths.clone(),
+                )
+            })
+            .collect();
+        vec![("Open in this window", open), ("Recent", recent)]
     }
 
     /// New Agent…, the picker that asks which agent and where (#735), and Threads (#745), as links.
@@ -492,19 +603,25 @@ impl MarleyHome {
         let Some(workspace) = self.workspace.upgrade() else {
             return;
         };
-        workspace.update(cx, |workspace, cx| {
-            if task.is_empty() {
-                agents::start_cli(workspace, kind, window, cx);
-                return;
+        match self.target.clone() {
+            None => workspace.update(cx, |workspace, cx| {
+                start_in(workspace, kind, &task, window, cx);
+            }),
+            // The picked project, opened or brought forward first (#867). The open runs once
+            // this update ends: it asks every item, this page too, whether it is dirty.
+            Some((_, paths)) => {
+                cx.spawn_in(window, async move |_, cx| {
+                    let opening = workspace.update_in(cx, |workspace, window, cx| {
+                        workspace.open_workspace_for_paths(OpenMode::Activate, paths, window, cx)
+                    })?;
+                    let opened = opening.await?;
+                    opened.update_in(cx, |workspace, window, cx| {
+                        start_in(workspace, kind, &task, window, cx);
+                    })
+                })
+                .detach_and_log_err(cx);
             }
-            let started = agents::start_cli_with_prompt(workspace, kind, &task, None, window, cx);
-            cx.spawn(async move |_, _| {
-                if started.await.is_none() {
-                    log::warn!("home: {} did not start for the prompt", kind.display_name());
-                }
-            })
-            .detach();
-        });
+        }
         if let Some(prompt) = &self.prompt {
             prompt.update(cx, |editor, cx| editor.set_text("", window, cx));
         }
@@ -863,4 +980,32 @@ impl Item for MarleyHome {
         let fs = Arc::clone(&self.fs);
         Task::ready(Some(cx.new(|cx| Self::new(workspace, fs, window, cx))))
     }
+}
+
+fn worktree_paths(project: &Project, cx: &App) -> Vec<PathBuf> {
+    project
+        .visible_worktrees(cx)
+        .map(|worktree| worktree.read(cx).abs_path().to_path_buf())
+        .collect()
+}
+
+/// Starts `kind` in `workspace`, with `task` as its first prompt when there is one.
+fn start_in(
+    workspace: &Workspace,
+    kind: AgentKind,
+    task: &str,
+    window: &Window,
+    cx: &Context<Workspace>,
+) {
+    if task.is_empty() {
+        agents::start_cli(workspace, kind, window, cx);
+        return;
+    }
+    let started = agents::start_cli_with_prompt(workspace, kind, task, None, window, cx);
+    cx.spawn(async move |_, _| {
+        if started.await.is_none() {
+            log::warn!("home: {} did not start for the prompt", kind.display_name());
+        }
+    })
+    .detach();
 }

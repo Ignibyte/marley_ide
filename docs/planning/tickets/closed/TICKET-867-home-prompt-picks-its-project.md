@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #867 (feature, the Marley look, W2.2 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [867-home-prompt-picks-its-project.spec.md](../../pipeline/completed/867-home-prompt-picks-its-project.spec.md)
 - **Source ticket:** split from TICKET-835 while planning it (2026-10-21): the Home board's prompt
   box carries a project chip to start the agent in, which #835 leaves at Home's own project.
 - **Boards:** Home
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
