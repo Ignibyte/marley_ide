@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #889 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [889-block-filter-look.spec.md](../../pipeline/completed/889-block-filter-look.spec.md)
 - **Source ticket:** split from TICKET-882 while planning it (2026-10-22): #882 kept the launch
   approval.
 - **Boards:** Workflows, OpenConnect
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

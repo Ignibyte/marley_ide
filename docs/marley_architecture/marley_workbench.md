@@ -1219,6 +1219,12 @@ alike.
   its container stops every key that types no text, as the rich input's does; Escape
   (`MarleyBlockFilter > Editor`) and `FilterBlock` close it and give the terminal the focus.
 
+
+### The field row's look (#889)
+
+- The count sits beside the query field and the case, regex and invert toggles in one framed
+  group; the header keeps the command and Close.
+
 ## Bookmarks and find within a block (`src/bookmarks.rs`, #559)
 
 - The marks are data in `terminal_view::MarleyBlockMarks`, keyed by the terminal's entity id:

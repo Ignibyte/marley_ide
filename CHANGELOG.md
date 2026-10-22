@@ -61,6 +61,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The block filter's field row** (#889, 2026-10-22). The count of matching lines sits beside the
+  field, and Aa, .* and Invert sit in one framed group.
+
 - **The guided review's look** (#888, 2026-10-22). The Guide tab says whose guide it is, shows how
   many sections are reviewed with a bar, and draws each section as a card with Reviewed at its
   right.

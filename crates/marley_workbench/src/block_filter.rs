@@ -366,7 +366,7 @@ impl Focusable for FilterPanel {
 }
 
 impl FilterPanel {
-    /// The panel's first row: the block's command, the count, and Close.
+    /// The panel's first row: the block's command, and Close.
     fn header(&self, cx: &Context<Self>) -> impl IntoElement {
         h_flex()
             .gap_2()
@@ -377,11 +377,6 @@ impl FilterPanel {
             )
             .child(div().flex_1())
             .child(
-                Label::new(format!("{} of {} lines", self.picked, self.total))
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
-            .child(
                 IconButton::new("marley-filter-close", IconName::Close)
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Close the Filter"))
@@ -389,7 +384,7 @@ impl FilterPanel {
             )
     }
 
-    /// The query field, the case, regex and invert toggles, and the context field.
+    /// The query field, the count, the case, regex and invert toggles, and the context field.
     fn controls(&self, cx: &Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let field = |editor: Entity<Editor>| {
@@ -411,39 +406,54 @@ impl FilterPanel {
         h_flex()
             .gap_1()
             .child(field(self.query.clone()).flex_1())
+            // The count beside the field, and the toggles in one framed group, as the Workflows
+            // board draws them (#889).
             .child(
-                toggle(
-                    "marley-filter-case",
-                    IconName::CaseSensitive,
-                    self.toggles.case_sensitive,
-                    "Match Case",
-                )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.toggle(
-                        |this| this.toggles.case_sensitive = !this.toggles.case_sensitive,
-                        cx,
-                    );
-                })),
+                Label::new(format!("{} of {} lines", self.picked, self.total))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
             )
             .child(
-                toggle(
-                    "marley-filter-regex",
-                    IconName::Regex,
-                    self.toggles.regex,
-                    "Regular Expression",
-                )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.toggle(|this| this.toggles.regex = !this.toggles.regex, cx);
-                })),
-            )
-            .child(
-                Button::new("marley-filter-invert", "Invert")
-                    .label_size(LabelSize::Small)
-                    .toggle_state(self.toggles.invert)
-                    .tooltip(Tooltip::text("Keep the Lines That Do Not Match"))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.toggle(|this| this.toggles.invert = !this.toggles.invert, cx);
-                    })),
+                h_flex()
+                    .gap_0p5()
+                    .p_0p5()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .child(
+                        toggle(
+                            "marley-filter-case",
+                            IconName::CaseSensitive,
+                            self.toggles.case_sensitive,
+                            "Match Case",
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.toggle(
+                                |this| this.toggles.case_sensitive = !this.toggles.case_sensitive,
+                                cx,
+                            );
+                        })),
+                    )
+                    .child(
+                        toggle(
+                            "marley-filter-regex",
+                            IconName::Regex,
+                            self.toggles.regex,
+                            "Regular Expression",
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.toggle(|this| this.toggles.regex = !this.toggles.regex, cx);
+                        })),
+                    )
+                    .child(
+                        Button::new("marley-filter-invert", "Invert")
+                            .label_size(LabelSize::Small)
+                            .toggle_state(self.toggles.invert)
+                            .tooltip(Tooltip::text("Keep the Lines That Do Not Match"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.toggle(|this| this.toggles.invert = !this.toggles.invert, cx);
+                            })),
+                    ),
             )
             .child(
                 Label::new("Context")
