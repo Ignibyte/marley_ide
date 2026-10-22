@@ -2,7 +2,8 @@
 //!
 //! The `SearchMore` board's for three views (#891), the `EditorPopups` board's code actions
 //! heading (#856), its Ask an agent to fix this, the rename note (#899) and inline assist's offer to
-//! send the selection to an agent (#900), and the Splits board's Collab card (#890).
+//! send the selection to an agent (#900), the Splits board's Collab card (#890), and the `BottomRow`
+//! board's Ask an Agent for a language server (#901).
 //!
 //! Project search counts its matches and the files that hold them; the branch picker gives each
 //! branch a dot and a note; each extension's card leads with a tile and says Installed in green.
@@ -25,6 +26,9 @@ pub fn init(cx: &mut App) {
     });
     cx.set_global(editor::MarleyRenameLook);
     cx.set_global(MarleyCollabLook);
+    cx.set_global(language_tools::lsp_button::MarleyServerAsk(
+        crate::send_selection::ask_about_server,
+    ));
     cx.set_global(agent_ui::MarleyInlineAssistLook {
         line: crate::send_selection::inline_assist_line,
     });

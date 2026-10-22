@@ -10854,6 +10854,7 @@ dependencies = [
  "image",
  "language",
  "language_model",
+ "language_tools",
  "log",
  "lsp",
  "markdown",

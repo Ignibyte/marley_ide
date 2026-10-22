@@ -615,6 +615,59 @@ pub(crate) fn send_text(
     });
 }
 
+/// The language servers menu's Ask an Agent (#901): types the server's name and the first line of
+/// its message at the window's terminal agent, or opens the picker for several; a toast says why
+/// nothing was typed.
+pub(crate) fn ask_about_server(
+    workspace: &WeakEntity<Workspace>,
+    server: &str,
+    message: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let line = message
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or_default()
+        .trim_end_matches('.');
+    let text = format!("The language server {server} reports: {line}. Why, and how do I fix it? ");
+    let window_handle = window.window_handle();
+    workspace
+        .update(cx, |workspace, cx| {
+            let mut targets = agent_targets(workspace, cx);
+            match targets.len() {
+                0 => show_toast(workspace, "No agent runs in a terminal of this window.", cx),
+                1 => send_text(targets.remove(0), text, false, window_handle, cx),
+                _ => {
+                    let rows = targets
+                        .into_iter()
+                        .map(|target| Row {
+                            label: target.label(),
+                            pick: Pick::Agent(target),
+                        })
+                        .collect();
+                    let on_pick: OnPick = Box::new(move |pick, window, cx| {
+                        if let Pick::Agent(target) = pick {
+                            send_text(target, text.clone(), false, window, cx);
+                        }
+                    });
+                    workspace.toggle_modal(window, cx, |window, cx| {
+                        TargetPicker::new(
+                            rows,
+                            "Ask which agent about the server…",
+                            on_pick,
+                            window_handle,
+                            window,
+                            cx,
+                        )
+                    });
+                }
+            }
+        })
+        .log_err();
+}
+
 pub(crate) fn show_toast(
     workspace: &mut Workspace,
     message: impl Into<String>,

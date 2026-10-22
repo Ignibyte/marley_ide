@@ -58,6 +58,7 @@ pub mod command_watch;
 pub mod commands;
 pub mod component_library;
 pub mod component_tools;
+pub mod debug_row;
 pub mod delegation;
 pub mod diff_header;
 pub mod docs_tools;

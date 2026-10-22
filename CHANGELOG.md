@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom row while debugging, and Ask an Agent about a server** (#901, 2026-10-22). While a
+  debug session is paused, the bottom row says where ("Paused at hello.c:4") and carries
+  Continue, Step over, Step in, Step out and Stop, the frame, the breakpoint count and the line
+  and column. A language server with a message offers Ask an Agent in its submenu, which types
+  the server's name and message at the window's terminal agent.
+
 - **A remote project's logo** (#860, 2026-10-22). A project over SSH with `logo.png` (or another
   of the names a local project's mark is found by) shows it as its mark. Marley reads the file
   once through the project and keeps a copy in its data folder, so the mark stays when the host

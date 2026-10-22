@@ -2907,6 +2907,24 @@ screen opens Home after `rusty_unavailable`.
   then, else the panel's. `hide_setting` answers the panel's `hide_button_setting`, so the status
   bar draws Zed's Hide Button.
 
+## The bottom row while debugging, and Ask an Agent about a server (`src/debug_row.rs`, `src/send_selection.rs`, #901)
+
+- `DebugRow` is a status item `status_buttons::init` puts right after the Debug button. It keeps
+  the project and follows its `DapStore` and `BreakpointStore` (observe) and each session's
+  `SessionEvent` and `SessionStateEvent`; `refresh` reads the first session with a stopped thread
+  through `Session::threads` and `stack_frames` (which may ask the adapter, so never in
+  `render`) into `Paused`: the top frame's file and line, its function and column, and the
+  breakpoint count from `all_source_breakpoints`. While paused it draws "Paused at file:line" on
+  the warning tint, the five controls, the frame, the count and `line:column`; nothing otherwise.
+  The controls dispatch `debugger::Continue`, `StepOver`, `StepInto`, `StepOut` and `Stop` by
+  name (`cx.build_action`), which `debugger_ui` answers on the workspace while a thread is
+  stopped.
+- `language_tools::lsp_button::MarleyServerAsk` is `send_selection::ask_about_server`, set in
+  `search_looks::init`: a server's submenu offers Ask an Agent while the server has a message
+  (a failed binary's, or the health rust-analyzer reports). It types "The language server NAME
+  reports: LINE. Why, and how do I fix it?" at the window's one terminal agent, the first
+  non-empty line of the message, or opens #899's target picker for several.
+
 ## What has the focus, at the left (`src/focus_row.rs`, #833)
 
 - `FocusRow`, inserted after `DebugButton` by `status_buttons::init`, takes the active pane item

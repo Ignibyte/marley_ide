@@ -13,7 +13,10 @@ use language::language_settings::{EditPredictionProvider, all_language_settings}
 use client::proto;
 use collections::HashSet;
 use editor::{Editor, EditorEvent};
-use gpui::{Action as _, Anchor, App, Entity, Subscription, Task, TaskExt, WeakEntity, actions};
+use gpui::{
+    Action as _, Anchor, App, Entity, Global, Subscription, Task, TaskExt, WeakEntity, Window,
+    actions,
+};
 use language::{BinaryStatus, BufferId, ServerHealth};
 use lsp::{LanguageServerId, LanguageServerName, LanguageServerSelector};
 use path::PathStyle;
@@ -30,6 +33,13 @@ use util::{ResultExt, paths::PathExt, rel_path::RelPath};
 use workspace::{StatusItemView, ToggleWorktreeSecurity, Workspace};
 
 use crate::lsp_log_view;
+
+/// Marley: a server's submenu offers Ask an Agent while the server has a message, which hands the
+/// workspace, the server's name and the message to this function (#901).
+#[derive(Clone, Copy)]
+pub struct MarleyServerAsk(pub fn(&WeakEntity<Workspace>, &str, &str, &mut Window, &mut App));
+
+impl Global for MarleyServerAsk {}
 
 actions!(
     lsp_tool,
@@ -412,7 +422,7 @@ impl LanguageServerState {
                     let can_stop = submenu_server_info.can_stop();
                     let process_memory_cache = process_memory_cache.clone();
 
-                    move |menu, _window, _cx| {
+                    move |menu, _window, cx| {
                         let mut submenu = menu;
 
                         if let Some(ref message) = message {
@@ -472,6 +482,19 @@ impl LanguageServerState {
                                     anyhow::Ok(())
                                 })
                                 .detach();
+                            });
+                        }
+
+                        // Marley: hand the server's message to an agent (#901).
+                        if let Some((ask, message)) = cx
+                            .try_global::<MarleyServerAsk>()
+                            .copied()
+                            .zip(message.clone())
+                        {
+                            let workspace = workspace.clone();
+                            let server_name = submenu_server_name.clone();
+                            submenu = submenu.entry("Ask an Agent", None, move |window, cx| {
+                                (ask.0)(&workspace, &server_name.0, &message, window, cx);
                             });
                         }
 

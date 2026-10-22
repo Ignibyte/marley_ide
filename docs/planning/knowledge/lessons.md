@@ -6451,3 +6451,12 @@ make the remote project's window hold a local project too (close the local windo
 project from Home's Recent Projects there) and restart with the last session (`launch_marley_with`
 and no arguments): the remote group comes back as a closed row. `marley home` opens Home in the
 running Marley without a click.
+
+## L-claude-901-a-failed-language-server-in-a-run-001
+*learned: 2026-10-22 · while: testing #901*
+
+A language server binary that exits at start shows only "Failed to run" in the status bar: it is
+not listed in the language servers menu, so nothing about a listed server can be checked with it.
+For a listed server that reports a failure, point `lsp.rust-analyzer.binary.path` at a small
+language server that answers `initialize` and sends `experimental/serverStatus` with
+`health: "error"` and a message (#901's scenario holds one in Python).

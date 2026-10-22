@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #901 (feature, the Marley look, W1.4 follow-up)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [901-the-debugging-row-and-ask-an-agent-about-a-server.spec.md](../../pipeline/completed/901-the-debugging-row-and-ask-an-agent-about-a-server.spec.md)
 - **Source ticket:** split from TICKET-863 while planning it (2026-10-22): both are new behaviour;
   the debugging row needs a debug adapter in the scenario's run.
 - **Boards:** BottomRow
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

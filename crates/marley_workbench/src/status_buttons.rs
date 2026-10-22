@@ -37,6 +37,7 @@ pub(crate) fn init(cx: &mut App) {
         let home = cx.new(|_| HomeButton { workspace: handle });
         let docks = workspace.all_docks().map(Entity::clone);
         let debug = cx.new(|cx| DebugButton::new(docks, cx));
+        let debug_row = cx.new(|cx| crate::debug_row::DebugRow::new(workspace, cx));
         let focus = cx.new(|cx| crate::focus_row::FocusRow::new(handle_for_focus, cx));
         let forge = cx.new(crate::forge_watch::ForgeItem::new);
         let panels = cx.new(|cx| crate::panel_group::PanelGroup::new(workspace, cx));
@@ -55,6 +56,11 @@ pub(crate) fn init(cx: &mut App) {
             match status_bar.position_of_item::<DebugButton>() {
                 Some(position) => status_bar.insert_item_after(position, focus, window, cx),
                 None => status_bar.add_left_item(focus, window, cx),
+            }
+            // A paused debug session, right after Debug, before what has the focus (#901).
+            match status_bar.position_of_item::<DebugButton>() {
+                Some(position) => status_bar.insert_item_after(position, debug_row, window, cx),
+                None => status_bar.add_left_item(debug_row, window, cx),
             }
             // Forge's agents and its newest QA failure, after what has the focus (#843).
             match status_bar.position_of_item::<crate::focus_row::FocusRow>() {
