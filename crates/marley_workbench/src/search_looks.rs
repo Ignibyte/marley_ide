@@ -1,4 +1,5 @@
-//! The `SearchMore` board's looks for three of Zed's views (#891).
+//! The `SearchMore` board's looks for three of Zed's views (#891), and the `EditorPopups` board's
+//! code actions heading (#856).
 //!
 //! Project search counts its matches and the files that hold them; the branch picker gives each
 //! branch a dot and a note; each extension's card leads with a tile and says Installed in green.
@@ -15,6 +16,7 @@ pub fn init(cx: &mut App) {
     cx.set_global(MarleySearchLook);
     cx.set_global(MarleyBranchLook(branch_mark));
     cx.set_global(MarleyExtensionLook(extension_tile));
+    cx.set_global(editor::code_context_menus::MarleyCodeActionsLook);
 }
 
 /// A branch's dot and note (#891, D2): the coat's orange and "current" for the head, the lilac and

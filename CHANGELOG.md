@@ -87,6 +87,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The editor's pop-ups as the board draws them** (#856, 2026-10-22). Completions show each
+  item's kind as a coloured letter and its detail at the right (Zed's own settings, now Marley's
+  defaults), and code actions open under a "Code actions" heading with their key.
+
 - **Search's count, the branch picker and the extensions, as the board draws them** (#891,
   2026-10-22). Project search says "3 of 14 matches in 6 files". Each branch in the branch picker
   has a dot and a note: current, behind, worktree or remote. Each extension's card leads with a

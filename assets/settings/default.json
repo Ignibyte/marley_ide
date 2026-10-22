@@ -404,15 +404,16 @@
   //    "never" (default)
   "completion_menu_scrollbar": "never",
   // Whether to align detail text in code completions context menus left or right.
-  "completion_detail_alignment": "left",
+  // Marley: right, as the EditorPopups board draws completions (#856).
+  "completion_detail_alignment": "right",
   // How to display the LSP item kind (function, method, variable, etc.)
   // of each entry in the completions menu.
   //
   // 1. Do not display item kinds:
-  //   "off" (default)
+  //   "off"
   // 2. Display a single-letter badge, colorized based on the active syntax theme:
-  //   "symbol"
-  "completion_menu_item_kind": "off",
+  //   "symbol" (Marley's default: the EditorPopups board's kind badge, #856)
+  "completion_menu_item_kind": "symbol",
   // How to display diffs in the editor.
   //
   // Default: split

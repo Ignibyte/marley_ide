@@ -29,8 +29,8 @@ use std::{
 };
 use task::ResolvedTask;
 use ui::{
-    Divider, ListItem, ListSubHeader, Popover, ScrollAxes, Scrollbars, Tooltip, WithScrollbar,
-    prelude::*,
+    Divider, KeyBinding, ListItem, ListSubHeader, Popover, ScrollAxes, Scrollbars, Tooltip,
+    WithScrollbar, prelude::*,
 };
 use util::ResultExt;
 
@@ -38,7 +38,7 @@ use crate::hover_popover::{hover_markdown_style, open_markdown_url};
 use crate::{
     CodeActionProvider, CompletionId, CompletionProvider, DisplayRow, Editor, EditorStyle,
     ResolvedTasks,
-    actions::{ConfirmCodeAction, ConfirmCompletion},
+    actions::{ConfirmCodeAction, ConfirmCompletion, ToggleCodeActions},
     split_words, styled_runs_for_code_label,
 };
 use crate::{CodeActionSource, EditorSettings};
@@ -1962,6 +1962,12 @@ impl CodeActionsItem {
     }
 }
 
+/// Marley: while set, the code actions menu leads with "Code actions" and the key that toggles
+/// it, as the EditorPopups board draws the menu (#856).
+pub struct MarleyCodeActionsLook;
+
+impl gpui::Global for MarleyCodeActionsLook {}
+
 pub struct CodeActionsMenu {
     pub actions: CodeActionContents,
     pub buffer: Entity<Buffer>,
@@ -2120,7 +2126,24 @@ impl CodeActionsMenu {
         )
         .with_sizing_behavior(ListSizingBehavior::Infer);
 
-        Popover::new().child(list).into_any_element()
+        // Marley: the board's heading over the actions, with the key that opens them (#856).
+        let heading = cx.has_global::<MarleyCodeActionsLook>().then(|| {
+            h_flex()
+                .px_2()
+                .pb_1()
+                .gap_2()
+                .justify_between()
+                .child(
+                    Label::new("Code actions")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(KeyBinding::for_action(&ToggleCodeActions::default(), cx))
+        });
+        Popover::new()
+            .children(heading)
+            .child(list)
+            .into_any_element()
     }
 
     fn render_aside(
