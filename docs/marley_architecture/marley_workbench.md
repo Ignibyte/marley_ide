@@ -1317,6 +1317,14 @@ alike.
   command, the arguments and the label with `workflow::substitute`, and Escape drops the answer's
   sender, so the spawn resolves to none and nothing runs.
 
+
+### The dialogs' look (#852)
+
+- `template_parts` and `render_template` draw a command with its `{{name}}` parameters as accent
+  chips, or filled from the values given. The editor's `render_found` shows the command that way
+  over the count; the run prompt's preview fills it from its fields as they change. Both end with
+  `prompts::render_button` buttons.
+
 ## Sending a block to an agent (`src/send_block.rs`, #555)
 
 - `text_for`: the block's output through `mcp::agent_redactor` first; inline when that is at most

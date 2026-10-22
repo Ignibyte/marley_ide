@@ -26,8 +26,8 @@ use task::SpawnInTerminal;
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use ui::{
-    Button, ButtonStyle, Checkbox, Headline, HeadlineSize, IconButton, IconName, Label, LabelSize,
-    ToggleState, Tooltip, prelude::*,
+    Checkbox, Headline, HeadlineSize, IconButton, IconName, Label, LabelSize, ToggleState, Tooltip,
+    prelude::*,
 };
 use util::ResultExt as _;
 use workspace::{ModalView, Workspace};
@@ -359,6 +359,29 @@ impl WorkflowEditor {
             .child(boxed(self.command.clone()))
     }
 
+    /// The command as it will be saved, each parameter a chip, and how many parts became
+    /// parameters (#852).
+    fn render_found(&self, cx: &Context<Self>) -> impl IntoElement {
+        let command = self.command.read(cx).text(cx);
+        let count = self.rows.len();
+        let line = match count {
+            0 => "No part is a parameter. Write {{name}} in the command to make one.".to_string(),
+            1 => "One part became a parameter.".to_string(),
+            count => format!("{count} parts became parameters."),
+        };
+        v_flex()
+            .gap_1()
+            .child(
+                div()
+                    .px_2()
+                    .py_1p5()
+                    .rounded_md()
+                    .bg(cx.theme().colors().surface_background)
+                    .child(render_template(&command, &BTreeMap::new(), cx)),
+            )
+            .child(Label::new(line).size(LabelSize::XSmall).color(Color::Muted))
+    }
+
     fn parameters(&self, cx: &Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let boxed = |editor: Entity<Editor>| {
@@ -419,8 +442,9 @@ impl Render for WorkflowEditor {
             .elevation_3(cx)
             .p_3()
             .gap_2()
-            .child(Headline::new("Save as Workflow").size(HeadlineSize::Small))
+            .child(Headline::new("Save as workflow").size(HeadlineSize::Small))
             .child(self.header(cx))
+            .child(self.render_found(cx))
             .child(self.parameters(cx))
             .child(
                 Checkbox::new("marley-workflow-global", ToggleState::from(self.global))
@@ -431,26 +455,46 @@ impl Render for WorkflowEditor {
                         cx.notify();
                     })),
             )
-            .child(Label::new(place).size(LabelSize::Small).color(Color::Muted))
             .children(
                 self.error
                     .clone()
                     .map(|error| Label::new(error).size(LabelSize::Small).color(Color::Error)),
             )
+            // Where it saves, Cancel and Save, as the Workflows board ends the card (#852).
             .child(
                 h_flex()
-                    .justify_end()
-                    .gap_1()
+                    .gap_2()
                     .child(
-                        Button::new("marley-workflow-cancel", "Cancel")
-                            .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
+                        div().flex_1().min_w_0().child(
+                            Label::new(format!("Saved to {place}"))
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted)
+                                .truncate(),
+                        ),
                     )
                     .child(
-                        Button::new("marley-workflow-save", "Save")
-                            .style(ButtonStyle::Filled)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.save(&SaveWorkflow, window, cx);
-                            })),
+                        crate::prompts::render_button(
+                            0,
+                            "Cancel",
+                            crate::prompts::Role::Quiet,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            1,
+                            "Save · Enter",
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.save(&SaveWorkflow, window, cx);
+                        })),
                     ),
             )
     }
@@ -527,10 +571,17 @@ pub(crate) async fn fill(
     };
     let (sender, receiver) = oneshot::channel();
     let title = task.label.clone();
+    let template = task
+        .command
+        .iter()
+        .chain(&task.args)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
     workspace
         .update_in(cx, |workspace, window, cx| {
             workspace.toggle_modal(window, cx, |window, cx| {
-                ParameterPrompt::new(title, &names, &defaults, sender, window, cx)
+                ParameterPrompt::new(title, template, &names, &defaults, sender, window, cx)
             });
         })
         .ok()?;
@@ -595,13 +646,17 @@ fn file_defaults(files: &[PathBuf], label: &str) -> BTreeMap<String, String> {
 /// The prompt for a workflow's parameters as it runs.
 struct ParameterPrompt {
     title: String,
+    /// The command and its arguments as the task holds them, for the preview (#852).
+    template: String,
     fields: Vec<(String, Entity<Editor>)>,
+    _field_edits: Vec<Subscription>,
     answer: Option<oneshot::Sender<BTreeMap<String, String>>>,
 }
 
 impl ParameterPrompt {
     fn new(
         title: String,
+        template: String,
         names: &[String],
         defaults: &BTreeMap<String, String>,
         answer: oneshot::Sender<BTreeMap<String, String>>,
@@ -614,10 +669,22 @@ impl ParameterPrompt {
                 let value = defaults.get(name).cloned().unwrap_or_default();
                 (name.clone(), field(&value, window, cx))
             })
+            .collect::<Vec<_>>();
+        let field_edits = fields
+            .iter()
+            .map(|(_, editor)| {
+                cx.subscribe(editor, |_, _, event: &EditorEvent, cx| {
+                    if matches!(event, EditorEvent::BufferEdited) {
+                        cx.notify();
+                    }
+                })
+            })
             .collect();
         Self {
             title,
+            template,
             fields,
+            _field_edits: field_edits,
             answer: Some(answer),
         }
     }
@@ -650,6 +717,11 @@ impl Focusable for ParameterPrompt {
 impl Render for ParameterPrompt {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
+        let values: BTreeMap<String, String> = self
+            .fields
+            .iter()
+            .map(|(name, editor)| (name.clone(), editor.read(cx).text(cx)))
+            .collect();
         v_flex()
             .key_context("MarleyWorkflowPrompt")
             .on_action(cx.listener(Self::run))
@@ -679,10 +751,97 @@ impl Render for ParameterPrompt {
                             .child(editor.clone()),
                     )
             }))
+            // The command as it will run, filled in as the values are typed (#852).
             .child(
-                Label::new("Enter runs it; Escape runs nothing.")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                div()
+                    .px_2()
+                    .py_1p5()
+                    .rounded_md()
+                    .bg(colors.surface_background)
+                    .child(render_template(&self.template, &values, cx)),
+            )
+            .child(
+                h_flex()
+                    .justify_between()
+                    .gap_2()
+                    .child(
+                        Label::new("Enter runs it · Esc runs nothing")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            0,
+                            "Run",
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.run(&RunWorkflow, window, cx);
+                        })),
+                    ),
             )
     }
+}
+
+/// `text` split into its plain parts and its `{{name}}` parameters, in order (#852).
+fn template_parts(text: &str) -> Vec<(&str, bool)> {
+    let mut parts = Vec::new();
+    let mut rest = text;
+    while let Some(start) = rest.find("{{") {
+        let Some(length) = rest[start + 2..].find("}}") else {
+            break;
+        };
+        let name = &rest[start + 2..start + 2 + length];
+        if !is_name(name) {
+            parts.push((&rest[..start + 2], false));
+            rest = &rest[start + 2..];
+            continue;
+        }
+        if start > 0 {
+            parts.push((&rest[..start], false));
+        }
+        parts.push((name, true));
+        rest = &rest[start + 4 + length..];
+    }
+    if !rest.is_empty() {
+        parts.push((rest, false));
+    }
+    parts
+}
+
+/// A command in the buffer font, each parameter filled from `values` when it has one there and
+/// otherwise drawn as an accent chip naming it (#852).
+fn render_template(text: &str, values: &BTreeMap<String, String>, cx: &App) -> impl IntoElement {
+    let accent = cx.theme().colors().text_accent;
+    h_flex()
+        .flex_wrap()
+        .children(template_parts(text).into_iter().map(|(part, parameter)| {
+            match values
+                .get(part)
+                .filter(|value| parameter && !value.is_empty())
+            {
+                Some(value) => Label::new(value.clone())
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .into_any_element(),
+                None if parameter => div()
+                    .px_1()
+                    .rounded_sm()
+                    .bg(accent.opacity(0.16))
+                    .child(
+                        Label::new(part.to_string())
+                            .size(LabelSize::Small)
+                            .buffer_font(cx)
+                            .color(Color::Accent),
+                    )
+                    .into_any_element(),
+                None => Label::new(part.to_string())
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .into_any_element(),
+            }
+        }))
 }

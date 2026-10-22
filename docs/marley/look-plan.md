@@ -186,7 +186,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |
 | Browser tab (toolbar done, #850, 2026-10-21; the rest #879) and its tools | Browser, BrowserTools |
 | Worktrees (New Agent in Worktree done, #851, 2026-10-21), plan review, turns, diff review (#881) | Worktrees, Review, DiffReview |
-| Workflows, launch configs, remote terminals | Workflows, OpenConnect |
+| Workflows (Save and Run done, #852, 2026-10-21), launch configs, remote terminals (#882) | Workflows, OpenConnect |
 | Splits, switcher, ports, containers, collab | Splits |
 | Project search, recent, branches, history, extensions, the guide | SearchMore |
 | New pages: this build, data folders, troubleshooting | SystemPages |

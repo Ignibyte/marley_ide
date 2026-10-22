@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Save as Workflow and Run** (#852, 2026-10-21). Saving a block shows its command with each
+  parameter as a chip and says how many parts became parameters; running a workflow shows the
+  command filled in as the values are typed. Both end with a primary button.
+
 - **New Agent in Worktree** (#851, 2026-10-21). The prompt names the agent with a badge, shows
   each branch it makes as a chip, lists what the worktree gets (the files `.worktreeinclude`
   copies, the agent's permissions in the project, the setup) and ends with a Start button that says
