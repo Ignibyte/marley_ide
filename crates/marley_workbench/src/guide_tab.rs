@@ -242,18 +242,42 @@ impl Render for GuideTab {
             .p_4()
             .gap_3()
             .bg(colors.editor_background)
+            // The board's guide header (#888): whose guide it is, its title, and how far the
+            // review has come.
+            .child(
+                Label::new("Guide · from the agent")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Accent),
+            )
             .child(Headline::new(self.title.clone()).size(HeadlineSize::Medium))
             .child(
-                Label::new(format!("{reviewed} of {} reviewed", self.sections.len()))
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                h_flex()
+                    .gap_3()
+                    .child(
+                        Label::new(format!("{reviewed} of {} reviewed", self.sections.len()))
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(progress_bar(reviewed, self.sections.len(), cx)),
             )
             .when_some(self.summary.clone(), |guide, summary| {
                 guide.child(MarkdownElement::new(summary, style.clone()))
             })
             .children(self.sections.iter().enumerate().map(|(index, section)| {
+                // The section's number and title, then Reviewed at its right (#888).
                 let header = h_flex()
                     .gap_2()
+                    .child(
+                        div().flex_1().min_w_0().child(
+                            Label::new(format!("{}. {}", index + 1, section.title))
+                                .size(LabelSize::Large)
+                                .color(if section.reviewed {
+                                    Color::Muted
+                                } else {
+                                    Color::Default
+                                }),
+                        ),
+                    )
                     .child(
                         Checkbox::new(
                             ("marley-guide-reviewed", index),
@@ -266,15 +290,6 @@ impl Render for GuideTab {
                                 guide.set_reviewed(index, state.selected(), cx);
                             },
                         )),
-                    )
-                    .child(
-                        Label::new(format!("{}. {}", index + 1, section.title))
-                            .size(LabelSize::Large)
-                            .color(if section.reviewed {
-                                Color::Muted
-                            } else {
-                                Color::Default
-                            }),
                     );
                 let chips =
                     h_flex()
@@ -300,9 +315,10 @@ impl Render for GuideTab {
                 v_flex()
                     .gap_2()
                     .p_3()
-                    .rounded_md()
+                    .rounded_lg()
                     .border_1()
                     .border_color(colors.border)
+                    .bg(colors.elevated_surface_background)
                     .child(header)
                     .when(!section.reviewed, |body| {
                         body.child(MarkdownElement::new(section.summary.clone(), style.clone()))
@@ -310,6 +326,27 @@ impl Render for GuideTab {
                     })
             }))
     }
+}
+
+/// A 4 px bar whose fill is the share of `total` sections `reviewed` (#888).
+fn progress_bar(reviewed: usize, total: usize, cx: &App) -> impl IntoElement {
+    let share = match (u16::try_from(reviewed), u16::try_from(total)) {
+        (Ok(reviewed), Ok(total)) if total > 0 => f32::from(reviewed) / f32::from(total),
+        _ => 0.,
+    };
+    let colors = cx.theme().colors();
+    div()
+        .w(px(160.))
+        .h(px(4.))
+        .rounded_full()
+        .bg(colors.element_background)
+        .child(
+            div()
+                .h_full()
+                .w(relative(share))
+                .rounded_full()
+                .bg(colors.text_accent),
+        )
 }
 
 impl Item for GuideTab {

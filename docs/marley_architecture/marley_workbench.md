@@ -3520,6 +3520,12 @@ below describe what #743 retired.
   for the file (`in_project_diff`), else `open_abs_path` and `go_to_singleton_buffer_point`. Ticks
   live with the tab.
 
+
+### Its look (#888)
+
+- An accent eyebrow over the title, the count beside `progress_bar`, and each section an elevated
+  card with Reviewed at its right.
+
 ## Viewed marks in the project diff (`src/viewed_marks.rs`, Zed's `editor`, #731)
 
 - `review_notes::init` calls `viewed_marks::init`, which follows `observe_new::<ProjectDiff>`:

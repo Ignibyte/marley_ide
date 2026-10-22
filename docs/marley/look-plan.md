@@ -185,7 +185,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Fleet panel (done, #848, 2026-10-21), the session tab (done, #878), harness sessions in the rail, scheduled runs and the seat form (done, #886), 2026-10-22 | Fleet, MoreTabs, OpenConnect |
 | Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |
 | Browser tab (toolbar done, #850, 2026-10-21; picks panel #879 and console drawer #887 done, 2026-10-22; recordings, Send and downloads #892) and its tools | Browser, BrowserTools |
-| Worktrees (New Agent in Worktree done, #851, 2026-10-21), plan review (cards done, #881, 2026-10-22), turns, diff review (#888) | Worktrees, Review, DiffReview |
+| Worktrees (New Agent in Worktree done, #851, 2026-10-21), plan review (cards done, #881), the guide (done, #888), 2026-10-22; turns, diff review header (#893) | Worktrees, Review, DiffReview |
 | Workflows (Save and Run done, #852, 2026-10-21), launch configs (approval done, #882, 2026-10-22), remote terminals (#889) | Workflows, OpenConnect |
 | Splits (focused pane done, #853; switcher done, #883; 2026-10-22), ports, containers, collab (#890) | Splits |
 | Project search, recent (done, #854), the guide's look (done, #884), 2026-10-22; branches, history, extensions (#891) | SearchMore |

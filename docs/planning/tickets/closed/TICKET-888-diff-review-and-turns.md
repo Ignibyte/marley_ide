@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #888 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [888-guide-tab.spec.md](../../pipeline/completed/888-guide-tab.spec.md)
 - **Source ticket:** split from TICKET-881 while planning it (2026-10-22): #881 kept plan review's
   cards and buttons.
 - **Boards:** Review, DiffReview
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

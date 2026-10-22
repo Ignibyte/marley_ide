@@ -61,6 +61,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The guided review's look** (#888, 2026-10-22). The Guide tab says whose guide it is, shows how
+  many sections are reviewed with a bar, and draws each section as a card with Reviewed at its
+  right.
+
 - **The harness's rail header, a task's runs and the seat form** (#886, 2026-10-22). The rail's
   Harness header leads with a dot, green while the harness answers; a scheduled task's history is
   a card with each run's outcome as a chip; New Harness Seat picks its agent in a framed toggle and
