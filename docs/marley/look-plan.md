@@ -183,7 +183,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | MCP Servers (done, #846, 2026-10-21; the consent and pairing questions #871), Agent Activity, the server form, what agents may do | Tools, MoreForms, AgentAccess |
 | System One (done, #847, 2026-10-21) | SystemOne |
 | Fleet panel (done, #848, 2026-10-21) and harness sessions, the session tab, scheduled runs (#878) | Fleet, MoreTabs, OpenConnect |
-| Component Library and Component tabs | Components, MoreTabs |
+| Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |
 | Browser tab and its tools | Browser, BrowserTools |
 | Worktrees, plan review, turns, diff review | Worktrees, Review, DiffReview |
 | Workflows, launch configs, remote terminals | Workflows, OpenConnect |

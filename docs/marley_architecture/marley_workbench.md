@@ -4224,6 +4224,12 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The Component Library's navigation (`src/component_library.rs`, #849)
+
+- A `find` field heads `render_navigation`, a 220 px column of each group's component names;
+  `matches` (name or description) filters the names and the main's cards; a name's click sets the
+  field to it.
+
 ## The Fleet panel as cards (`src/fleet.rs`, #848)
 
 - `summary(sources)` stands beside FLEET; `render_source` draws each host group as a card, its

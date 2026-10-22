@@ -114,8 +114,11 @@ struct Shown {
 pub(crate) struct ComponentLibrary {
     shown: Vec<Shown>,
     scratch: Entity<Editor>,
+    /// The navigation column's find field (#849).
+    find: Entity<Editor>,
     tried: Option<Result<Tree, ParseError>>,
     focus_handle: FocusHandle,
+    _find_edits: Subscription,
     _scratch_edits: Subscription,
     _templates_changed: Subscription,
 }
@@ -143,6 +146,16 @@ impl ComponentLibrary {
             );
             editor
         });
+        let find = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Find a component", window, cx);
+            editor
+        });
+        let find_edits = cx.subscribe(&find, |_, _, event, cx| {
+            if matches!(event, EditorEvent::BufferEdited) {
+                cx.notify();
+            }
+        });
         let scratch_edits = cx.subscribe(&scratch, |library, _, event, cx| {
             if matches!(event, EditorEvent::BufferEdited) {
                 library.try_scratch(cx);
@@ -155,11 +168,81 @@ impl ComponentLibrary {
         Self {
             shown,
             scratch,
+            find,
             tried: None,
             focus_handle: cx.focus_handle(),
+            _find_edits: find_edits,
             _scratch_edits: scratch_edits,
             _templates_changed: templates_changed,
         }
+    }
+
+    /// What the find field holds, lower-cased.
+    fn query(&self, cx: &App) -> String {
+        self.find.read(cx).text(cx).trim().to_lowercase()
+    }
+
+    /// The navigation column, as the Components board draws it (#849): the find field over each
+    /// group's component names; a name clicked narrows the page to it.
+    fn render_navigation(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let query = self.query(cx);
+        let groups = Group::ALL.into_iter().filter_map(|group| {
+            let names: Vec<&'static str> = self
+                .shown
+                .iter()
+                .filter(|shown| shown.entry.group == group && matches(&shown.entry, &query))
+                .map(|shown| shown.entry.name)
+                .collect();
+            (!names.is_empty()).then(|| {
+                v_flex()
+                    .gap_0p5()
+                    .child(
+                        div().px_2().pt_2().child(
+                            Label::new(group.title())
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                    )
+                    .children(names.into_iter().map(|name| {
+                        h_flex()
+                            .id(SharedString::from(format!("marley-library-nav-{name}")))
+                            .px_2()
+                            .py_0p5()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|style| style.bg(colors.ghost_element_hover))
+                            .on_click(cx.listener(move |library, _, window, cx| {
+                                library
+                                    .find
+                                    .update(cx, |find, cx| find.set_text(name, window, cx));
+                            }))
+                            .child(Label::new(name).size(LabelSize::Small).buffer_font(cx))
+                    }))
+            })
+        });
+        v_flex()
+            .debug_selector(|| "marley-library-navigation".into())
+            .id("marley-library-navigation")
+            .flex_none()
+            .w(px(220.))
+            .h_full()
+            .p_2()
+            .gap_1()
+            .overflow_y_scroll()
+            .border_r_1()
+            .border_color(colors.border_variant)
+            .bg(colors.panel_background)
+            .child(
+                div()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .child(self.find.clone()),
+            )
+            .children(groups)
     }
 
     fn try_scratch(&mut self, cx: &mut Context<Self>) {
@@ -185,15 +268,15 @@ impl Render for ComponentLibrary {
             Some(Ok(tree)) => Some(marley_components::render(tree, "marley-library-tried", cx)),
             Some(Err(error)) => Some(marley_components::render_error(error)),
         };
-        v_flex()
+        let query = self.query(cx);
+        let main = v_flex()
             .id("marley-component-library")
-            .key_context("MarleyComponentLibrary")
-            .track_focus(&self.focus_handle)
-            .size_full()
+            .flex_1()
+            .min_w_0()
+            .h_full()
             .overflow_y_scroll()
             .p_4()
             .gap_4()
-            .bg(colors.editor_background)
             .child(Headline::new("Component Library").size(HeadlineSize::Large))
             .child(
                 Label::new(
@@ -226,19 +309,36 @@ impl Render for ComponentLibrary {
                     )
                     .children(tried),
             )
-            .children(Group::ALL.into_iter().map(|group| {
-                v_flex()
-                    .gap_3()
-                    .child(Headline::new(group.title()).size(HeadlineSize::Medium))
-                    .children(
-                        self.shown
-                            .iter()
-                            .filter(|shown| shown.entry.group == group)
-                            .map(|shown| entry_card(shown, cx)),
-                    )
+            .children(Group::ALL.into_iter().filter_map(|group| {
+                let cards: Vec<_> = self
+                    .shown
+                    .iter()
+                    .filter(|shown| shown.entry.group == group && matches(&shown.entry, &query))
+                    .map(|shown| entry_card(shown, cx))
+                    .collect();
+                (!cards.is_empty()).then(|| {
+                    v_flex()
+                        .gap_3()
+                        .child(Headline::new(group.title()).size(HeadlineSize::Medium))
+                        .children(cards)
+                })
             }))
-            .child(templates_group(cx))
+            .child(templates_group(cx));
+        h_flex()
+            .key_context("MarleyComponentLibrary")
+            .track_focus(&self.focus_handle)
+            .size_full()
+            .bg(colors.editor_background)
+            .child(self.render_navigation(cx))
+            .child(main)
     }
+}
+
+/// Whether `entry` matches the find field's `query` (D1): its name or description holds it.
+fn matches(entry: &Entry, query: &str) -> bool {
+    query.is_empty()
+        || entry.name.contains(query)
+        || entry.description.to_lowercase().contains(query)
 }
 
 /// The Templates group: each template drawn from its example with its file, each refused file

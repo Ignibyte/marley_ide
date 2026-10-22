@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Component Library's navigation** (#849, 2026-10-21). A column at the library's left lists
+  every component under its group with a find field; typing narrows the list and the cards, and a
+  name clicked shows that component alone.
+
 - **The Fleet panel as its board draws it** (#848, 2026-10-21). The panel says how many agents run on
   how many hosts and from where; each host is a card with its resources at the right, each agent
   a row with its runtime's lettered tile.
