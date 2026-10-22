@@ -50,7 +50,7 @@ const MOVED: [&str; 6] = [
 ];
 
 /// Whether the panel named `name` opens as a tab in the Marley layout.
-fn is_moved(name: &str) -> bool {
+pub(crate) fn is_moved(name: &str) -> bool {
     MOVED.contains(&name)
 }
 

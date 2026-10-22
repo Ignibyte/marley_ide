@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #863 (feature, the Marley look, W1.4 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [863-problems-and-panels-cards.spec.md](../../pipeline/completed/863-problems-and-panels-cards.spec.md)
 - **Source ticket:** split from TICKET-833 while planning it (2026-10-21), from the design
   canvas's BottomRow board.
 - **Boards:** BottomRow
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
@@ -16,3 +16,9 @@ Each item of the bottom row opens a small card above it, never a dialog: languag
 ## Acceptance
 
 Each card opens from its item and acts; while a debug session is paused the row shows its place and controls; shot in Marley Night and Marley Day.
+
+## Notes
+
+- Planning (2026-10-22) split the debugging row and the language servers card's Ask an agent into
+  TICKET-901. A probe found the language servers and edit predictions cards already open above
+  the row as Zed draws them, in the theme.

@@ -12,8 +12,8 @@ use gpui::{
     App, Context, Entity, EntityId, Focusable as _, Render, Subscription, WeakEntity, Window, px,
 };
 use settings::SettingsStore;
-use ui::{ButtonLike, Indicator, Tooltip, prelude::*};
-use workspace::dock::{Dock, MarleyPanelButtons};
+use ui::{ButtonLike, ContextMenu, Indicator, PopoverMenu, Tooltip, prelude::*};
+use workspace::dock::{Dock, DockPosition, MarleyPanelButtons};
 use workspace::{HideStatusItem, ItemHandle, StatusItemView, Workspace};
 
 use crate::panel_tabs::PanelTab;
@@ -24,6 +24,68 @@ const NAMED_FROM: f32 = 1200.;
 /// Makes Zed's panel buttons step aside in the Marley layout; [`crate::init`] calls it once.
 pub(crate) fn init(cx: &mut App) {
     cx.set_global(MarleyPanelButtons(crate::marley_layout));
+    // The problems count's card above the row (#863).
+    cx.set_global(diagnostics::items::MarleyProblemsCard(crate::marley_layout));
+}
+
+/// Where the panel `persistent_name` opens in the Marley layout (#863, D2).
+fn where_it_opens(persistent_name: &str, position: DockPosition) -> &'static str {
+    if crate::panel_tabs::is_moved(persistent_name) {
+        "tab"
+    } else if persistent_name == "Project Panel" {
+        "beside the rail"
+    } else {
+        match position {
+            DockPosition::Left => "left dock",
+            DockPosition::Right => "right dock",
+            DockPosition::Bottom => "bottom drawer",
+        }
+    }
+}
+
+/// The Panels card (#863): each panel, where it opens and its key, in the group's order; a row
+/// runs the panel's toggle.
+fn panels_card(
+    workspace: &WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ContextMenu> {
+    let mut panels: Vec<(usize, String, Box<dyn gpui::Action>)> = workspace
+        .upgrade()
+        .map(|workspace| {
+            workspace
+                .read(cx)
+                .all_docks()
+                .into_iter()
+                .flat_map(|dock| {
+                    dock.read(cx)
+                        .panel_handles()
+                        .filter(|panel| panel.persistent_name() != "DebugPanel")
+                        .filter_map(|panel| {
+                            let tooltip = panel.icon_tooltip(window, cx)?;
+                            let (place, name) = board_place(panel.persistent_name())
+                                .unwrap_or((BOARD.len(), tooltip));
+                            let place_words =
+                                where_it_opens(panel.persistent_name(), panel.position(window, cx));
+                            Some((
+                                place,
+                                format!("{name} · {place_words}"),
+                                panel.toggle_action(window, cx),
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    panels.sort_by_key(|(place, _, _)| *place);
+    ContextMenu::build(window, cx, move |menu, _, _| {
+        panels
+            .into_iter()
+            .fold(menu.header("Panels"), |menu, (_, label, action)| {
+                menu.action(label, action)
+            })
+    })
 }
 
 /// The panels the board names, by their persistent names, in the board's order (#862, D1).
@@ -167,9 +229,20 @@ impl Render for PanelGroup {
             ));
         }
         buttons.sort_by_key(|(place, _)| *place);
+        let card_workspace = self.workspace.clone();
         h_flex()
             .gap_0p5()
             .children(buttons.into_iter().map(|(_, button)| button))
+            .child(
+                PopoverMenu::new("marley-panels-card")
+                    .trigger_with_tooltip(
+                        IconButton::new("marley-panels-card-button", IconName::ChevronUp)
+                            .icon_size(IconSize::XSmall),
+                        Tooltip::text("Where each panel opens, and its key"),
+                    )
+                    .anchor(gpui::Anchor::BottomRight)
+                    .menu(move |window, cx| Some(panels_card(&card_workspace, window, cx))),
+            )
     }
 }
 

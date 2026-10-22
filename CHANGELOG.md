@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Cards above the bottom row for problems and panels** (#863, 2026-10-22). In the Marley layout
+  the problems count opens a small card (errors, warnings, Open in the drawer) instead of the
+  drawer at once, and the panel group ends with a card listing every panel, where it opens and
+  its key.
+
 - **A project's logo on its notifications and in the switcher** (#859, 2026-10-22). A desktop
   notification from a project's terminal carries the project's logo, and the rail's switcher
   shows each row's project mark beside its name.

@@ -4326,6 +4326,9 @@ below describe what #743 retired.
   `PanelButtons` draw nothing in the Marley layout. `PanelGroup`, a status item before Home,
   lists `Dock::panel_handles` of the three docks but Debug, in `BOARD`'s order under the board's
   names (from 1200 px wide), the showing one filled and a dot on a panel a `PanelTab` draws.
+- Since #863 the group ends with the Panels card (`panels_card`: each panel, `where_it_opens`, its
+  toggle's key), and `init` sets `diagnostics::items::MarleyProblemsCard(marley_layout)`, so the
+  problems count opens a card before the drawer.
 
 ## A project's mark on banners and the switcher (#859)
 

@@ -2,17 +2,63 @@ use std::time::Duration;
 
 use editor::{Editor, MultiBufferOffset};
 use gpui::{
-    App, Context, Entity, EventEmitter, IntoElement, ParentElement, Render, Styled, Subscription,
-    Task, WeakEntity, Window,
+    Anchor, App, Context, Entity, EventEmitter, IntoElement, ParentElement, Render, Styled,
+    Subscription, Task, WeakEntity, Window,
 };
 use language::Diagnostic;
 use project::project_settings::{GoToDiagnosticSeverityFilter, ProjectSettings};
 use settings::Settings;
-use ui::{Button, ButtonLike, Color, Icon, IconName, Label, Tooltip, h_flex, prelude::*};
+use ui::{
+    Button, ButtonLike, Color, ContextMenu, Icon, IconName, Label, PopoverMenu, Tooltip, h_flex,
+    prelude::*,
+};
 use util::ResultExt;
 use workspace::{HideStatusItem, StatusItemView, ToolbarItemEvent, Workspace, item::ItemHandle};
 
 use crate::{Deploy, IncludeWarnings, ProjectDiagnosticsEditor};
+
+/// Marley: while its function answers yes, the count opens a card with the project's errors and
+/// warnings and Open in the drawer, as the BottomRow board draws it (#863).
+#[derive(Clone, Copy)]
+pub struct MarleyProblemsCard(pub fn(&App) -> bool);
+
+impl gpui::Global for MarleyProblemsCard {}
+
+/// Marley: the problems card (#863).
+fn problems_card(
+    summary: project::DiagnosticSummary,
+    workspace: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ContextMenu> {
+    ContextMenu::build(window, cx, move |menu, _, _| {
+        menu.header("Problems")
+            .label(format!("Errors {}", summary.error_count))
+            .label(format!("Warnings {}", summary.warning_count))
+            .separator()
+            .entry(
+                "Open in the drawer",
+                Some(Box::new(Deploy)),
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        if summary.error_count == 0 && summary.warning_count > 0 {
+                            cx.update_default_global(|show_warnings: &mut IncludeWarnings, _| {
+                                show_warnings.0 = true;
+                            });
+                        }
+                        workspace.update(cx, |workspace, cx| {
+                            ProjectDiagnosticsEditor::deploy(
+                                workspace,
+                                &Default::default(),
+                                window,
+                                cx,
+                            )
+                        });
+                    }
+                },
+            )
+    })
+}
 
 /// The status bar item that displays diagnostic counts.
 pub struct DiagnosticIndicator {
@@ -111,33 +157,43 @@ impl Render for DiagnosticIndicator {
             }
         };
 
+        let button = ButtonLike::new("diagnostic-indicator")
+            .child(diagnostic_indicator)
+            .tab_index(0isize)
+            .aria_label(diagnostics_label)
+            .tooltip(move |_window, cx| Tooltip::for_action("Project Diagnostics", &Deploy, cx));
+        // Marley: the count opens a small card above it, the drawer one click on (#863).
+        if cx
+            .try_global::<MarleyProblemsCard>()
+            .is_some_and(|marley| (marley.0)(cx))
+        {
+            let summary = self.summary;
+            let workspace = self.workspace.clone();
+            return indicator
+                .child(
+                    PopoverMenu::new("marley-problems-card")
+                        .trigger(button)
+                        .anchor(Anchor::BottomLeft)
+                        .menu(move |window, cx| {
+                            Some(problems_card(summary, workspace.clone(), window, cx))
+                        }),
+                )
+                .children(status);
+        }
+
         indicator
-            .child(
-                ButtonLike::new("diagnostic-indicator")
-                    .child(diagnostic_indicator)
-                    .tab_index(0isize)
-                    .aria_label(diagnostics_label)
-                    .tooltip(move |_window, cx| {
-                        Tooltip::for_action("Project Diagnostics", &Deploy, cx)
+            .child(button.on_click(cx.listener(|this, _, window, cx| {
+                if let Some(workspace) = this.workspace.upgrade() {
+                    if this.summary.error_count == 0 && this.summary.warning_count > 0 {
+                        cx.update_default_global(|show_warnings: &mut IncludeWarnings, _| {
+                            show_warnings.0 = true
+                        });
+                    }
+                    workspace.update(cx, |workspace, cx| {
+                        ProjectDiagnosticsEditor::deploy(workspace, &Default::default(), window, cx)
                     })
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if let Some(workspace) = this.workspace.upgrade() {
-                            if this.summary.error_count == 0 && this.summary.warning_count > 0 {
-                                cx.update_default_global(
-                                    |show_warnings: &mut IncludeWarnings, _| show_warnings.0 = true,
-                                );
-                            }
-                            workspace.update(cx, |workspace, cx| {
-                                ProjectDiagnosticsEditor::deploy(
-                                    workspace,
-                                    &Default::default(),
-                                    window,
-                                    cx,
-                                )
-                            })
-                        }
-                    })),
-            )
+                }
+            })))
             .children(status)
     }
 }

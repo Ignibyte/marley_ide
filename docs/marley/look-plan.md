@@ -89,7 +89,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 - A Sessions tile in the shrunk strip, and the count in the bottom row (W1.4).
 - Code: `tmux_sessions.rs` (#808, #821) already reads every session; this is a new view of it.
 
-**W1.4 The bottom row says what has the focus.** *Done (#833, 2026-10-21; the panel group done, #862, 2026-10-22; the cards and the debugging row #863).* *L.* Board: BottomRow.
+**W1.4 The bottom row says what has the focus.** *Done (#833, 2026-10-21; the panel group done, #862, and the problems and panels cards, #863, 2026-10-22; the debugging row #901).* *L.* Board: BottomRow.
 - New `StatusItemView` items in `marley_workbench` for five focuses: a file, a terminal, an agent
   thread, debugging, and an agent that needs you (with Allow and Open in the row).
 - The panel buttons become one labeled group, a dot on any panel already open as a tab.
