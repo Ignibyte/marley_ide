@@ -4391,6 +4391,9 @@ below describe what #743 retired.
   (a terminal, a Browser tab, a file's extension, else the title's letter) and a line (a file's
   path in its project, else the tab's tooltip). The switcher shows the board's hint while the look
   is set.
+- Since #866 `init` also sets `workspace::pane::MarleyTabLook(tab_mark)`, a tab's tile and its
+  state's dot in the Marley layout, and `MarleySplitPictures(split_picture)`, each split's picture
+  in the split menu.
 
 ## The System tab (`src/system_pages.rs`, #855)
 

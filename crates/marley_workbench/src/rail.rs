@@ -6146,14 +6146,19 @@ impl Rail {
         let reopen_rail = rail.clone();
         let reopen_workspace = workspace.clone();
         let tmux_folder = Self::tmux_folder(workspace, cx);
-        let menu = menu.entry("New Terminal", None, move |window, cx| {
-            terminal_rail
-                .update(cx, |rail, cx| {
-                    rail.new_terminal(&terminal_workspace, window, cx)
-                })
-                .flatten()
-                .log_err();
-        });
+        // Each entry names the action its key runs, so the menu shows the key (#866).
+        let menu = menu.entry(
+            "New Terminal",
+            Some(Box::new(workspace::NewTerminal::default())),
+            move |window, cx| {
+                terminal_rail
+                    .update(cx, |rail, cx| {
+                        rail.new_terminal(&terminal_workspace, window, cx)
+                    })
+                    .flatten()
+                    .log_err();
+            },
+        );
         // With tmux installed, a shell in a session of its own, which outlives Marley (#819).
         let menu = match tmux_folder.clone().map(TmuxFolder::into_path) {
             Some(folder) => {
@@ -6180,14 +6185,18 @@ impl Rail {
         // The one way to start an agent, a thread or a CLI (#744); its Where
         // starts on this project's root.
         let menu = menu
-            .entry("New Agent…", None, move |window, cx| {
-                picker_rail
-                    .update(cx, |rail, cx| {
-                        rail.new_agent_picker(&picker_workspace, None, window, cx)
-                    })
-                    .flatten()
-                    .log_err();
-            })
+            .entry(
+                "New Agent…",
+                Some(Box::new(crate::NewAgent::default())),
+                move |window, cx| {
+                    picker_rail
+                        .update(cx, |rail, cx| {
+                            rail.new_agent_picker(&picker_workspace, None, window, cx)
+                        })
+                        .flatten()
+                        .log_err();
+                },
+            )
             .entry("Reopen Thread…", None, move |window, cx| {
                 reopen_rail
                     .update(cx, |rail, cx| {

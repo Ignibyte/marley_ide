@@ -21,9 +21,9 @@ use git::{CopyFilePermalink, OpenFilePermalink};
 use gpui::{
     Action, Anchor, AnyElement, App, AsyncWindowContext, ClickEvent, ClipboardItem, Context, Div,
     DragMoveEvent, Entity, EntityId, EventEmitter, ExternalPaths, FocusHandle, FocusOutEvent,
-    Focusable, KeyContext, MouseButton, NavigationDirection, Pixels, Point, PromptLevel, Render,
-    ScrollHandle, Subscription, Task, TaskExt, WeakEntity, WeakFocusHandle, Window, actions,
-    anchored, deferred, prelude::*,
+    Focusable, Hsla, KeyContext, MouseButton, NavigationDirection, Pixels, Point, PromptLevel,
+    Render, ScrollHandle, Subscription, Task, TaskExt, WeakEntity, WeakFocusHandle, Window,
+    actions, anchored, deferred, prelude::*,
 };
 use itertools::Itertools;
 use language::{Capability, DiagnosticSeverity};
@@ -47,8 +47,8 @@ use std::{
 use theme_settings::ThemeSettings;
 use ui::{
     ContextMenu, ContextMenuEntry, ContextMenuItem, DecoratedIcon, IconButtonShape, IconDecoration,
-    IconDecorationKind, Indicator, PopoverMenu, PopoverMenuHandle, Tab, TabBar, TabPosition,
-    Tooltip, prelude::*, right_click_menu,
+    IconDecorationKind, Indicator, KeyBinding, PopoverMenu, PopoverMenuHandle, Tab, TabBar,
+    TabPosition, Tooltip, prelude::*, right_click_menu,
 };
 use util::{
     ResultExt, debug_panic, markdown::MarkdownInlineCode, maybe, paths::PathStyle,
@@ -2880,6 +2880,15 @@ impl Pane {
         );
 
         let icon = self.tab_icon_element(item, is_active, window, cx);
+        // Marley: a tab's kind as a tile in the icon's place, and its state as a dot (#866).
+        let (icon, marley_dot) = match cx
+            .try_global::<MarleyTabLook>()
+            .copied()
+            .and_then(|look| (look.0)(item, window, cx))
+        {
+            Some(MarleyTabMark { tile, dot }) => (Some(tile), dot),
+            None => (icon, None),
+        };
 
         let settings = ItemSettings::get_global(cx);
         let close_side = &settings.close_position;
@@ -3078,6 +3087,9 @@ impl Pane {
                         None
                     })
                     .child(label)
+                    .children(
+                        marley_dot.map(|dot| div().flex_none().size_1p5().rounded_full().bg(dot)),
+                    )
                     .map(|this| match tab_tooltip_content {
                         Some(TabTooltipContent::Text(text)) => {
                             if capability.editable() {
@@ -4332,6 +4344,76 @@ impl Pane {
     }
 }
 
+// Marley: a tab's tile in place of its icon and a dot for its state, which a Marley crate gives
+// for an item; none leaves the tab as Zed draws it (#866).
+pub struct MarleyTabMark {
+    pub tile: AnyElement,
+    pub dot: Option<Hsla>,
+}
+
+#[derive(Clone, Copy)]
+pub struct MarleyTabLook(pub fn(&dyn ItemHandle, &mut Window, &mut App) -> Option<MarleyTabMark>);
+
+impl gpui::Global for MarleyTabLook {}
+
+// Marley: the picture of a split, by the side the new pane takes, which a Marley crate draws
+// (#866).
+#[derive(Clone, Copy)]
+pub struct MarleySplitPictures(pub fn(SplitDirection, &App) -> AnyElement);
+
+impl gpui::Global for MarleySplitPictures {}
+
+/// Marley: the split menu's rows with their pictures, each running its split in the pane (#866).
+fn marley_split_rows(
+    menu: ContextMenu,
+    pictures: MarleySplitPictures,
+    can_split_move: bool,
+    pane_focus: &FocusHandle,
+) -> ContextMenu {
+    let mode = if can_split_move {
+        SplitMode::MovePane
+    } else {
+        SplitMode::default()
+    };
+    let rows: [(SplitDirection, &'static str, Box<dyn Action>); 4] = [
+        (
+            SplitDirection::Right,
+            "Right",
+            SplitRight { mode }.boxed_clone(),
+        ),
+        (
+            SplitDirection::Left,
+            "Left",
+            SplitLeft { mode }.boxed_clone(),
+        ),
+        (SplitDirection::Up, "Up", SplitUp { mode }.boxed_clone()),
+        (
+            SplitDirection::Down,
+            "Down",
+            SplitDown { mode }.boxed_clone(),
+        ),
+    ];
+    rows.into_iter()
+        .fold(menu, |menu, (direction, label, action)| {
+            let (shown, run) = (action.boxed_clone(), action);
+            let focus = pane_focus.clone();
+            let binding_focus = pane_focus.clone();
+            menu.custom_entry(
+                move |_, cx| {
+                    h_flex()
+                        .w_full()
+                        .gap_2()
+                        .child((pictures.0)(direction, cx))
+                        .child(Label::new(label))
+                        .child(div().flex_1())
+                        .child(KeyBinding::for_action_in(&*shown, &binding_focus, cx))
+                        .into_any_element()
+                },
+                move |window, cx| focus.dispatch_action(&*run, window, cx),
+            )
+        })
+}
+
 // Marley: the + menu's entries a Marley crate adds for a pane's workspace (#699).
 /// Takes a pane's + menu and its workspace, and returns the menu with any entries added.
 #[derive(Clone)]
@@ -4448,8 +4530,13 @@ fn default_render_tab_bar_buttons(
                 .with_handle(pane.split_item_context_menu_handle.clone())
                 .menu(move |window, cx| {
                     let pane_focus = pane_focus.clone();
-                    ContextMenu::build(window, cx, |menu, _, _| {
+                    ContextMenu::build(window, cx, |menu, _, cx| {
                         let mode = SplitMode::MovePane;
+                        // Marley: each split drawn as a small picture of the panes (#866).
+                        if let Some(pictures) = cx.try_global::<MarleySplitPictures>().copied() {
+                            return marley_split_rows(menu, pictures, can_split_move, &pane_focus)
+                                .context(pane_focus);
+                        }
                         let menu = if can_split_move {
                             menu.action("Split Right", SplitRight { mode }.boxed_clone())
                                 .action("Split Left", SplitLeft { mode }.boxed_clone())

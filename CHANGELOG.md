@@ -112,6 +112,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Tabs with their kind and state, and the menus drawn** (#866, 2026-10-22). In the Marley layout
+  each center tab leads with a tile for its kind and a dot for its state (a command running or
+  failed, a terminal needing you); a project's + menu shows each entry's key; the split menu draws
+  each split as a small picture.
+
 - **The panel buttons as one labeled group** (#862, 2026-10-22). In the Marley layout the bottom
   row's right end shows Home and every panel by name (Files, Changes, Outline, Fleet, Collab,
   Agent, …), the one showing filled and a dot on a panel open as a tab, in place of Zed's three

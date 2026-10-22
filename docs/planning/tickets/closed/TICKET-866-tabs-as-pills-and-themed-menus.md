@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #866 (feature, the Marley look, W2.1 follow-up)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [866-tab-pills-and-themed-menus.spec.md](../../pipeline/completed/866-tab-pills-and-themed-menus.spec.md)
 - **Source ticket:** split from TICKET-834 while planning it (2026-10-21): the Chrome board's tabs
   and menus, which #834 leaves out.
 - **Boards:** Chrome
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
