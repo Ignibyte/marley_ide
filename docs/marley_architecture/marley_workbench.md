@@ -4224,6 +4224,13 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The Brain screens as the boards draw them (`src/rusty/brain.rs`, `page.rs`, `knowledge_panel.rs`, #875)
+
+- The Brain view heads its tree with a "Vault" `ListSubHeader` while no search shows; the page's
+  outline column opens with "On this page"; the Knowledge panel's page view is three `card`s:
+  Following (title, slug, tags), Backlinks (count, rows) and Links out (count, rows), a missing link
+  reading "not written yet" beside Create.
+
 ## The Decisions tab (`src/rusty/decisions_tab.rs`, #659)
 
 - **Opening.** `rusty::OpenDecisions`, registered on every workspace by `decisions_tab::init`,

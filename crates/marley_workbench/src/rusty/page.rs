@@ -1652,6 +1652,14 @@ impl PageView {
             .py_2()
             .border_l_1()
             .border_color(cx.theme().colors().border_variant)
+            // As the BrainPage board heads it (#875).
+            .child(
+                div().flex_none().px_2().pb_1().child(
+                    Label::new("On this page")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                ),
+            )
             .children(outline.iter().enumerate().map(|(at, heading)| {
                 let line = heading.line;
                 let label = outline_label(&heading.text);

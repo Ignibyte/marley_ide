@@ -47,6 +47,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's Brain, pages and Knowledge as the boards draw them** (#875, 2026-10-21). The Brain tab
+  heads its tree Vault, a page heads its outline "On this page", and the Knowledge panel shows the
+  page it follows, its backlinks and its links out as cards, an unwritten page marked "not written
+  yet".
+
 - **Rusty's Decisions as the board draws them** (#874, 2026-10-21). The decisions due sit in a card
   of their own, edged in amber while one is overdue; each decision shows its dates under its title
   and its status in its colour; the Follow Up form's Record is the main button beside a quiet

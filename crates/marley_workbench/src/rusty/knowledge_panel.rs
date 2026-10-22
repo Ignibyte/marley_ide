@@ -724,8 +724,10 @@ impl KnowledgePanel {
             .into_any_element()
     }
 
+    /// The page the panel follows, its backlinks and its links out, a card each as the Knowledge
+    /// board draws them (#875).
     fn render_page(knowledge: &PageKnowledge, cx: &Context<Self>) -> AnyElement {
-        v_flex()
+        let following = v_flex()
             .w_full()
             .gap_1()
             .child(
@@ -754,36 +756,51 @@ impl KnowledgePanel {
                             .child(Chip::new(format!("#{tag} {count}")))
                     }),
                 ))
-            })
-            .child(section("Backlinks", knowledge.backlinks.len()))
-            .children(knowledge.backlinks.iter().enumerate().map(|(at, link)| {
-                let slug = link.slug.clone();
-                let ranges = link.mention.clone().into_iter().collect();
-                ListItem::new(("rusty-knowledge-backlink", at))
-                    .inset(true)
-                    .spacing(ListItemSpacing::Sparse)
-                    .child(
-                        v_flex()
-                            .min_w_0()
-                            .child(Label::new(link.title.clone()).truncate())
-                            .child(
-                                HighlightedLabel::from_ranges(link.context.clone(), ranges)
-                                    .size(LabelSize::Small)
-                                    .color(Color::Muted),
-                            ),
-                    )
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.open(&slug, window, cx);
-                    }))
-                    .into_any_element()
-            }))
-            .child(section("Links", knowledge.outgoing.len()))
-            .children(
-                knowledge
-                    .outgoing
-                    .iter()
-                    .enumerate()
-                    .map(|(at, link)| outgoing_row(at, link, cx)),
+            });
+        let backlinks = knowledge.backlinks.iter().enumerate().map(|(at, link)| {
+            let slug = link.slug.clone();
+            let ranges = link.mention.clone().into_iter().collect();
+            ListItem::new(("rusty-knowledge-backlink", at))
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .child(
+                    v_flex()
+                        .min_w_0()
+                        .child(Label::new(link.title.clone()).truncate())
+                        .child(
+                            HighlightedLabel::from_ranges(link.context.clone(), ranges)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        ),
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.open(&slug, window, cx);
+                }))
+                .into_any_element()
+        });
+        let links = knowledge
+            .outgoing
+            .iter()
+            .enumerate()
+            .map(|(at, link)| outgoing_row(at, link, cx));
+        v_flex()
+            .w_full()
+            .gap_2()
+            .p_1()
+            .child(
+                card(None, cx)
+                    .child(ListSubHeader::new("Following").inset(true))
+                    .child(following),
+            )
+            .child(
+                card(Some("rusty-knowledge-backlinks"), cx)
+                    .child(section("Backlinks", knowledge.backlinks.len()))
+                    .children(backlinks),
+            )
+            .child(
+                card(Some("rusty-knowledge-links"), cx)
+                    .child(section("Links out", knowledge.outgoing.len()))
+                    .children(links),
             )
             .into_any_element()
     }
@@ -1074,7 +1091,17 @@ fn outgoing_row(at: usize, link: &Outgoing, cx: &Context<KnowledgePanel>) -> Any
                         .size(IconSize::Small)
                         .color(Color::Muted),
                 )
-                .child(Label::new(target.clone()).color(Color::Muted).truncate())
+                .child(
+                    h_flex()
+                        .min_w_0()
+                        .gap_1p5()
+                        .child(Label::new(target.clone()).color(Color::Muted).truncate())
+                        .child(
+                            Label::new("not written yet")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
                 .end_slot(
                     Button::new(("rusty-knowledge-create", at), "Create")
                         .label_size(LabelSize::Small)
@@ -1251,6 +1278,21 @@ fn open_tasks(answers: Vec<Result<String, String>>) -> Result<Vec<UserTask>, Str
 }
 
 /// A section's header with its count, as the `ui` crate's own example draws one.
+/// A card of the page view (#875, D1): a bordered block, its heading a `section`.
+fn card(selector: Option<&'static str>, cx: &App) -> Div {
+    let colors = cx.theme().colors();
+    v_flex()
+        .when_some(selector, |card, selector| {
+            card.debug_selector(move || selector.into())
+        })
+        .w_full()
+        .pb_1()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border_variant)
+        .bg(colors.panel_background)
+}
+
 fn section(label: impl Into<SharedString>, count: usize) -> impl IntoElement {
     ListSubHeader::new(label).inset(true).end_slot(
         Label::new(count.to_string())

@@ -1528,6 +1528,15 @@ impl Render for BrainView {
             .w_full()
             .child(self.render_search(cx))
             .children(self.render_favourites(cx))
+            // The tree under a Vault heading, as the BrainPage board draws it (#875); a search's
+            // hits have none. `ListSubHeader` grows in a column (F-659).
+            .when(self.found.is_none(), |view| {
+                view.child(
+                    div()
+                        .flex_none()
+                        .child(ListSubHeader::new("Vault").inset(true)),
+                )
+            })
             .child(self.render_body(cx))
             .children(self.menu.as_ref().map(|(menu, position, _)| {
                 deferred(
