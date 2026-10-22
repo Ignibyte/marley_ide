@@ -1773,7 +1773,7 @@ mod threads {
         let new_browser_tab = cx
             .debug_bounds("MENU_ITEM-New Browser Tab")
             .expect("the project's menu is open");
-        let trigger = gpui::point(
+        let trigger = point(
             new_browser_tab.center().x,
             new_browser_tab.bottom() + px(12.),
         );

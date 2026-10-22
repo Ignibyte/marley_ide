@@ -25,10 +25,10 @@ use editor::{Editor, EditorEvent};
 use fs::Fs;
 use git_ui::branch_diff::BranchDiff;
 use gpui::{
-    Anchor, AnyElement, AnyView, App, ClickEvent, ClipboardItem, Context, DismissEvent, Div,
-    ElementId, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Hsla, Image, MouseButton,
-    MouseDownEvent, Pixels, Point, PromptLevel, Render, Stateful, Subscription, Task, WeakEntity,
-    Window, anchored, deferred, img, px,
+    Anchor, Animation, AnimationExt as _, AnyElement, AnyView, App, BoxShadow, ClickEvent,
+    ClipboardItem, Context, DismissEvent, Div, ElementId, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, Hsla, Image, MouseButton, MouseDownEvent, Pixels, Point, PromptLevel,
+    Render, Stateful, Subscription, Task, WeakEntity, Window, anchored, deferred, img, point, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -11038,6 +11038,28 @@ impl From<String> for CardLine {
     }
 }
 
+/// A needs-you dot that pulses twice as the row starts needing the user, then rests (#858): over
+/// 1.2 s it grows from 10 to 12 px with a ring of its own colour, and at the end it is as it was.
+/// gpui shows the last frame at once under reduced motion.
+fn pulse(dot: Div, id: ElementId, color: Hsla) -> AnyElement {
+    dot.with_animation(
+        id,
+        Animation::new(Duration::from_millis(1200)),
+        move |dot, delta| {
+            let bump = (delta * std::f32::consts::TAU).sin().abs();
+            dot.size(px(2.0_f32.mul_add(bump, 10.)))
+                .shadow(vec![BoxShadow {
+                    color: color.opacity(0.45 * bump),
+                    offset: point(px(0.), px(0.)),
+                    blur_radius: px(4. * bump),
+                    spread_radius: px(3. * bump),
+                    inset: false,
+                }])
+        },
+    )
+    .into_any_element()
+}
+
 /// A terminal's or a thread's row, laid out as Warp's tab list lays out a tab: a round icon, then
 /// the title over the `lines` under it, at one height with a second line or without. An agent row
 /// whose events give it a third line (#519) is taller, and a harness session's row with its
@@ -11056,6 +11078,7 @@ fn row_card(
         element: icon,
         look,
     } = icon.into();
+    let pulse_id = ElementId::Name(format!("{icon_selector}-pulse").into());
     let slot = h_flex()
         .debug_selector(move || icon_selector)
         .flex_none()
@@ -11069,7 +11092,7 @@ fn row_card(
             .bg(kind.tint(cx))
             .child(icon)
             .children(state.map(|state| {
-                div()
+                let dot = div()
                     .absolute()
                     .bottom(px(-2.))
                     .right(px(-2.))
@@ -11077,7 +11100,12 @@ fn row_card(
                     .rounded_full()
                     .border_2()
                     .border_color(cx.theme().colors().panel_background)
-                    .bg(state.dot(cx))
+                    .bg(state.dot(cx));
+                if state == RowState::NeedsYou {
+                    pulse(dot, pulse_id.clone(), state.dot(cx))
+                } else {
+                    dot.into_any_element()
+                }
             })),
         None => slot.rounded_full().bg(raised(cx)).child(icon),
     };

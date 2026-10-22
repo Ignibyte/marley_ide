@@ -4289,6 +4289,12 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## The needs-you pulse (`src/rail.rs`, #858)
+
+- `row_card` draws a needs-you dot through `pulse`: two pulses in 1.2 s, keyed by the row, so each
+  time a row starts needing the user it pulses once over; gpui's animation shows the last frame
+  under reduced motion.
+
 ## Empty and error states (`src/states.rs`, #857)
 
 - `EmptyState` is the States board's card: a glyph tile, a title, a line and one action as #870's

@@ -61,6 +61,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The needs-you pulse** (#858, 2026-10-22). When a rail row starts needing you, its dot pulses
+  twice and then rests; with reduced motion on it stays still.
+
 - **Empty and error states** (#857, 2026-10-22). Where there is nothing yet or something broke,
   Marley shows one card with what happened and one thing to do: no recent projects (Open a
   Folder), no conversations or none matching (New Agent, Clear the search), a rail filter matching
