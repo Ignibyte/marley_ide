@@ -254,8 +254,15 @@ impl BrainDecisionsView {
             ListItem::new(id)
                 .spacing(ListItemSpacing::Sparse)
                 .tooltip(Tooltip::text(tooltip))
-                .child(div().flex_1().min_w_0().child(Label::new(title).truncate()))
-                .end_slot(self.render_end_slot(summary, section, index, cx))
+                // Its title over its dates, as the MoreTabs board draws a decision (#874).
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new(title).truncate())
+                        .child(self.render_dates(summary, cx)),
+                )
+                .end_slot(Self::render_end_slot(summary, section, index, cx))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     super::page::open_later(
                         this.workspace.clone(),
@@ -283,20 +290,43 @@ impl BrainDecisionsView {
         )
     }
 
-    /// A row's end: the status chip, its days as Rusty serves them, the successor of a replaced
-    /// decision, and Follow Up on a Due row.
+    /// A row's end: the status chip and, on a Due row, Follow Up; its dates sit under its title
+    /// (#874).
     fn render_end_slot(
-        &self,
         summary: &DecisionSummary,
         section: Section,
         index: usize,
         cx: &Context<Self>,
     ) -> impl IntoElement {
         let status = summary.status();
-        let muted = |line: String| Label::new(line).size(LabelSize::Small).color(Color::Muted);
+        let follow_up_button = (section == Section::Due
+            && status != DecisionStatus::Superseded
+            && super::is_connected(cx))
+        .then(|| {
+            Button::new(
+                SharedString::from(format!("rusty-decision-follow-up-{}", summary.slug)),
+                "Follow Up",
+            )
+            .style(ButtonStyle::Outlined)
+            .label_size(LabelSize::Small)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_follow_up(section, index, window, cx);
+            }))
+        });
+        h_flex()
+            .gap_3()
+            .child(Chip::new(status.word().to_string()).label_color(status_color(&status)))
+            .children(follow_up_button)
+    }
+
+    /// A decision's dates under its title: decided, followed up, the follow-up day (in the warning
+    /// colour once overdue), and a replaced decision's successor.
+    fn render_dates(&self, summary: &DecisionSummary, cx: &Context<Self>) -> impl IntoElement {
+        let status = summary.status();
+        let muted = |line: String| Label::new(line).size(LabelSize::XSmall).color(Color::Muted);
         let follow_up = summary.follow_up_line().map(|line| {
             Label::new(line)
-                .size(LabelSize::Small)
+                .size(LabelSize::XSmall)
                 .color(if summary.overdue {
                     Color::Warning
                 } else {
@@ -307,33 +337,12 @@ impl BrainDecisionsView {
             .successor()
             .filter(|_| status == DecisionStatus::Superseded)
             .map(|successor| self.render_successor(&summary.slug, successor, cx));
-        let follow_up_button = (section == Section::Due
-            && status != DecisionStatus::Superseded
-            && super::is_connected(cx))
-        .then(|| {
-            Button::new(
-                SharedString::from(format!("rusty-decision-follow-up-{}", summary.slug)),
-                "Follow Up",
-            )
-            .label_size(LabelSize::Small)
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_follow_up(section, index, window, cx);
-            }))
-        });
         h_flex()
-            .gap_3()
-            .child(Chip::new(status.word().to_string()).label_color(
-                if status == DecisionStatus::Superseded {
-                    Color::Muted
-                } else {
-                    Color::Default
-                },
-            ))
+            .gap_2()
             .children(summary.decided_line().map(muted))
             .children(summary.followed_up_line().map(muted))
             .children(follow_up)
             .children(successor)
-            .children(follow_up_button)
     }
 
     /// "replaced by" and the successor's title, which opens its page and not the row's.
@@ -535,6 +544,58 @@ fn line(text: impl Into<SharedString>, color: Color) -> AnyElement {
         .into_any_element()
 }
 
+impl BrainDecisionsView {
+    /// The list's entries, the decisions due in a card of their own (#874): its border in the
+    /// warning colour while one is overdue.
+    fn render_entries(&self, listed: &Due, cx: &Context<Self>) -> Vec<AnyElement> {
+        let mut rows = Vec::new();
+        let mut due: Vec<AnyElement> = Vec::new();
+        for entry in entries(listed) {
+            match entry {
+                Entry::DueHeader => due.push(header("Due")),
+                Entry::AllHeader { count } => rows.push(header(count_line(count))),
+                Entry::Row {
+                    section: Section::Due,
+                    index,
+                } => due.extend(self.render_row(Section::Due, index, cx)),
+                Entry::Row { section, index } => rows.extend(self.render_row(section, index, cx)),
+            }
+        }
+        if !due.is_empty() {
+            let colors = cx.theme().colors();
+            let overdue = listed.due.iter().any(|summary| summary.overdue);
+            rows.insert(
+                0,
+                v_flex()
+                    .debug_selector(|| "rusty-decisions-due".into())
+                    .mb_2()
+                    .p_1()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(if overdue {
+                        cx.theme().status().warning_border
+                    } else {
+                        colors.border
+                    })
+                    .bg(colors.panel_background)
+                    .children(due)
+                    .into_any_element(),
+            );
+        }
+        rows
+    }
+}
+
+/// A status chip's colour, as the `MoreTabs` board draws it (#874, D1).
+const fn status_color(status: &DecisionStatus) -> Color {
+    match status {
+        DecisionStatus::Decided | DecisionStatus::Kept => Color::Success,
+        DecisionStatus::Revised => Color::Warning,
+        DecisionStatus::Superseded => Color::Muted,
+        DecisionStatus::Other(_) => Color::Default,
+    }
+}
+
 impl Focusable for BrainDecisionsView {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -552,14 +613,7 @@ impl Render for BrainDecisionsView {
         let state = self.render_state(cx);
         let rows: Vec<AnyElement> = match (&self.listed, super::is_on(cx)) {
             (Some(listed), true) if !(listed.all.is_empty() && listed.due.is_empty()) => {
-                entries(listed)
-                    .into_iter()
-                    .filter_map(|entry| match entry {
-                        Entry::DueHeader => Some(header("Due")),
-                        Entry::AllHeader { count } => Some(header(count_line(count))),
-                        Entry::Row { section, index } => self.render_row(section, index, cx),
-                    })
-                    .collect()
+                self.render_entries(listed, cx)
             }
             _ => Vec::new(),
         };

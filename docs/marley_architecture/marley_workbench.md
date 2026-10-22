@@ -4250,6 +4250,13 @@ below describe what #743 retired.
   connected. A right-click deploys a `ContextMenu` by hand, as the Tasks tab's: Follow Up… (not on
   a superseded row, not while disconnected) and Open Page.
 
+- **As the MoreTabs board draws it (#874).** `render_entries` puts the Due header and rows in a
+  bordered card (the warning border while one is overdue); a row is its title over `render_dates`
+  (decided, followed up, the follow-up day, the successor), its end the chip coloured by
+  `status_color` (decided and kept success, revised warning, superseded muted) and Follow Up,
+  outlined. The Follow Up form's Cancel and Record are `prompts::render_button`'s quiet and
+  primary.
+
 ## The follow-up form (`src/rusty/follow_up.rs`, #660)
 
 - **Opening.** The tab's `open_follow_up` hands `follow_up::open` the summary and every other

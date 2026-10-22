@@ -47,6 +47,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's Decisions as the board draws them** (#874, 2026-10-21). The decisions due sit in a card
+  of their own, edged in amber while one is overdue; each decision shows its dates under its title
+  and its status in its colour; the Follow Up form's Record is the main button beside a quiet
+  Cancel.
+
 - **Rusty's Tasks tab as the board draws it** (#845, 2026-10-21). Each list has a coloured dot and
   its open count; the list shows "N open · M done", its open tasks and then its done ones under
   Done; and in a wide window a Rusty column lists the decisions due and Rusty's newest memories.

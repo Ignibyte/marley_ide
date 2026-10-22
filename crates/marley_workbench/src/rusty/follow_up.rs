@@ -22,6 +22,7 @@ use workspace::{ModalView, Workspace};
 
 use super::decisions_tab::BrainDecisionsView;
 use super::project::{Choice, LinkDelegate, OnClose, OnPick};
+use crate::prompts::{Role, render_button};
 
 /// A decision the successor can be: its slug and its title.
 pub(super) struct Candidate {
@@ -295,14 +296,30 @@ impl FollowUpModal {
                     .size(LabelSize::Small)
                     .color(Color::Muted),
             )
+            // Cancel quiet and Record primary, as the MoreTabs board draws them (#874).
             .child(
-                Button::new(
-                    "rusty-follow-up-record",
-                    if recording { "Recording…" } else { "Record" },
-                )
-                .style(ButtonStyle::Filled)
-                .disabled(missing.is_some() || recording)
-                .on_click(cx.listener(|this, _, window, cx| this.record(window, cx))),
+                h_flex()
+                    .gap_1p5()
+                    .child(
+                        render_button(0, "Cancel", Role::Quiet, false, cx)
+                            .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
+                    )
+                    .child({
+                        let record = render_button(
+                            1,
+                            if recording { "Recording…" } else { "Record" },
+                            Role::Primary,
+                            false,
+                            cx,
+                        );
+                        if missing.is_some() || recording {
+                            record.opacity(0.5)
+                        } else {
+                            record.on_click(
+                                cx.listener(|this, _, window, cx| this.record(window, cx)),
+                            )
+                        }
+                    }),
             )
     }
 }
