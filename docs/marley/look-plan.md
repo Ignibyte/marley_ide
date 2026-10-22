@@ -184,7 +184,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | System One (done, #847, 2026-10-21) | SystemOne |
 | Fleet panel (done, #848, 2026-10-21) and harness sessions, the session tab, scheduled runs (#878) | Fleet, MoreTabs, OpenConnect |
 | Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |
-| Browser tab and its tools | Browser, BrowserTools |
+| Browser tab (toolbar done, #850, 2026-10-21; the rest #879) and its tools | Browser, BrowserTools |
 | Worktrees, plan review, turns, diff review | Worktrees, Review, DiffReview |
 | Workflows, launch configs, remote terminals | Workflows, OpenConnect |
 | Splits, switcher, ports, containers, collab | Splits |

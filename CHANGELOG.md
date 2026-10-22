@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Browser toolbar** (#850, 2026-10-21). The address box names the project before the address
+  and says where the page runs after it ("port 4180 · this machine"), and Pick, Annotate and
+  Record are labelled buttons in one group.
+
 - **The Component Library's navigation** (#849, 2026-10-21). A column at the library's left lists
   every component under its group with a find field; typing narrows the list and the cards, and a
   name clicked shows that component alone.

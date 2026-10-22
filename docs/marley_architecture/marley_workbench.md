@@ -5496,6 +5496,12 @@ One agent of the fleet in full, in the center, read-only and not serialized.
   their own tabs). Each part checks the handshake's capability as the snapshot does.
 - **Item.** The tab's title is the agent's name, its icon `IconName::Server`; `type Event = ()`.
 
+## The Browser toolbar's look (`src/browser.rs`, #850)
+
+- The address box leads with the project's name (`hub.project_of(target)`) and ends with
+  `place_of(address)`: "port N · this machine" for 127.0.0.1 and localhost, the host otherwise.
+- Pick, Annotate and Record are labelled `Button`s in one bordered group.
+
 ## An agent's HTML page (`src/browser_pages.rs`, #802)
 
 - `browser_tools::run` routes `browser_show_page` before the browser settles, as it does

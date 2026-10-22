@@ -2,18 +2,20 @@
 
 - **Ticket:** LOCAL #850 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [850-browser-toolbar.spec.md](../../pipeline/completed/850-browser-toolbar.spec.md)
 - **Source ticket:** Chad, 2026-10-20: "lets file all the tickets now and lets start on this", on
   [the Marley look plan](../../../marley/look-plan.md), item W5. The design canvas is
   https://claude.ai/artifact/FHSqmm3AyGP4Dy7QuzBiFn; its source is kept in the private design record,
   `docs/design/marley-canvas-2026-10-20`.
 - **Boards:** Browser, BrowserTools
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
 The toolbar with Pick, Annotate and Record, the picks panel, the console drawer, held clicks, dialogs, Playwright scripts, recordings, take over and clearing a project's data.
+
+(Planning kept the toolbar here and split the rest off as TICKET-879.)
 
 ## Acceptance
 

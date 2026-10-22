@@ -6758,25 +6758,9 @@ impl BrowserView {
                     })),
             )
             .child(reload_or_stop)
-            .child(
-                div()
-                    .key_context("MarleyAddressBar")
-                    .on_action(cx.listener(Self::go_to_address))
-                    .on_action(cx.listener(Self::restore_address))
-                    .flex_1()
-                    .min_w_0()
-                    .px_2()
-                    .py_1()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.editor_background)
-                    .child(self.address_bar.clone()),
-            )
+            .child(self.render_address(target, cx))
             .child(Self::render_scripts_button(self.scripts_tray.is_some(), cx))
-            .child(Self::render_pick_button(showing, picking, cx))
-            .child(Self::render_annotate_button(showing, annotating, cx))
-            .child(Self::render_record_button(showing, cx))
+            .child(Self::render_page_tools(showing, picking, annotating, cx))
             // An outside client that acted in the page within the minute, and the way to stop it
             // (#524).
             .when_some(hub.driven_by(target, cx), |this, client| {
@@ -6802,6 +6786,59 @@ impl BrowserView {
                         .bg(colors.text_accent),
                 )
             })
+    }
+
+    /// The address box: the project's name before the address and where the page runs after it,
+    /// as the Browser board draws them (#850).
+    fn render_address(&self, target: &str, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let hub = self.hub.read(cx);
+        div()
+            .key_context("MarleyAddressBar")
+            .on_action(cx.listener(Self::go_to_address))
+            .on_action(cx.listener(Self::restore_address))
+            .flex_1()
+            .min_w_0()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .children(hub.project_of(target).map(|project| {
+                        Label::new(project.name.clone())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                    }))
+                    .child(div().flex_1().min_w_0().child(self.address_bar.clone()))
+                    .children(place_of(&self.address_bar.read(cx).text(cx)).map(|place| {
+                        Label::new(place)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted)
+                    })),
+            )
+    }
+
+    /// Pick, Annotate and Record labelled, in one group (#850).
+    fn render_page_tools(
+        showing: bool,
+        picking: bool,
+        annotating: bool,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_0p5()
+            .p_0p5()
+            .rounded_md()
+            .border_1()
+            .border_color(cx.theme().colors().border)
+            .child(Self::render_pick_button(showing, picking, cx))
+            .child(Self::render_annotate_button(showing, annotating, cx))
+            .child(Self::render_record_button(showing, cx))
     }
 
     /// The Agent chip: who acts in the page and what it does (#492).
@@ -6861,11 +6898,12 @@ impl BrowserView {
     }
 
     /// The toolbar's pick button, lit while the page is in pick mode.
-    fn render_pick_button(showing: bool, picking: bool, cx: &Context<Self>) -> IconButton {
-        IconButton::new("browser-pick", IconName::Crosshair)
+    fn render_pick_button(showing: bool, picking: bool, cx: &Context<Self>) -> Button {
+        Button::new("browser-pick", "Pick")
+            .start_icon(Icon::new(IconName::Crosshair).size(IconSize::Small))
+            .label_size(LabelSize::Small)
             .disabled(!showing)
             .toggle_state(picking)
-            .selected_icon_color(Color::Accent)
             .tooltip(Tooltip::for_action_title(
                 if picking {
                     "Stop Picking"
@@ -6880,11 +6918,12 @@ impl BrowserView {
     }
 
     /// The toolbar's annotate button, lit while a drag in the page draws a box (#498).
-    fn render_annotate_button(showing: bool, annotating: bool, cx: &Context<Self>) -> IconButton {
-        IconButton::new("browser-annotate", IconName::Pencil)
+    fn render_annotate_button(showing: bool, annotating: bool, cx: &Context<Self>) -> Button {
+        Button::new("browser-annotate", "Annotate")
+            .start_icon(Icon::new(IconName::Pencil).size(IconSize::Small))
+            .label_size(LabelSize::Small)
             .disabled(!showing)
             .toggle_state(annotating)
-            .selected_icon_color(Color::Accent)
             .tooltip(Tooltip::for_action_title(
                 if annotating {
                     "Stop Annotating"
@@ -6900,10 +6939,14 @@ impl BrowserView {
 
     /// The toolbar's record button, a red dot: the recorder keeps the page's last minute while the
     /// tab draws it, and the button saves it (#499).
-    fn render_record_button(showing: bool, cx: &Context<Self>) -> IconButton {
-        IconButton::new("browser-record", IconName::Circle)
-            .icon_size(IconSize::Small)
-            .icon_color(Color::Error)
+    fn render_record_button(showing: bool, cx: &Context<Self>) -> Button {
+        Button::new("browser-record", "Record")
+            .start_icon(
+                Icon::new(IconName::Circle)
+                    .size(IconSize::XSmall)
+                    .color(Color::Error),
+            )
+            .label_size(LabelSize::Small)
             .disabled(!showing)
             .tooltip(Tooltip::for_action_title(
                 "Save the Last Minute of This Page",
@@ -7658,6 +7701,21 @@ impl BrowserView {
                 None,
             )),
         }
+    }
+}
+
+/// Where the page at `address` runs (#850, D1): "port N · this machine" for this machine, the host
+/// otherwise, none for an address with no host.
+fn place_of(address: &str) -> Option<String> {
+    let url = url::Url::parse(address.trim()).ok()?;
+    let host = url.host_str()?;
+    if matches!(host, "127.0.0.1" | "localhost" | "[::1]") {
+        Some(url.port().map_or_else(
+            || "this machine".to_string(),
+            |port| format!("port {port} · this machine"),
+        ))
+    } else {
+        Some(host.to_string())
     }
 }
 
