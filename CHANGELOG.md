@@ -51,6 +51,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **The Marley Guide in Marley's colours** (#884, 2026-10-22). The guide takes Marley Night's
+  colours in the dark scheme and Marley Day's in the light, and draws each article as a card.
+
 - **The Ctrl Tab switcher** (#883, 2026-10-22). Each row leads with a tile naming the tab's kind
   (">_", a file's extension, "www") and shows a file's path under its title, and the switcher says
   how its keys work.

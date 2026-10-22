@@ -4788,6 +4788,12 @@ below describe what #743 retired.
   the page's own contents links add one; only when no tab of the workspace shows it does
   `browser::open_url_tab` open one.
 
+
+### Its colours (#884)
+
+- The page's stylesheet carries Marley Day's colours for the light scheme and Marley Night's for
+  the dark, by the browser's scheme; each article is a card.
+
 ## The last session's terminal size (`src/terminal_size.rs`, #486)
 
 - `init` reads the `TerminalBounds` kept in the key-value store (scope `marley-terminal-size`,
