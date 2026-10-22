@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Browser's download bar, and what goes with a pick** (#896, 2026-10-22). A file the page
+  saves shows in a bar under it with its folder, Open and Show, in place of the toast. The picks
+  panel ends with what goes with the picks (a screenshot, the source line, the console error),
+  whom they go to (the terminal you used last, or a new Claude Code) and one Send for them all.
+
 - **The Sessions page** (#861, 2026-10-22). `marley: open sessions page`, or Open as a Page under
   the rail's Sessions view, opens every tmux session as a table: how many run on how many hosts and
   how many are attached, a row per session with its host, windows, folder, state, Attach and

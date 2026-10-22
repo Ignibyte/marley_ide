@@ -5623,6 +5623,20 @@ One agent of the fleet in full, in the center, read-only and not serialized.
 - The picks sit at the page's right: `render_tray` is a 320 px aside, shown while the tab has a
   pick or a pick error; `render_pick_row` draws each as a card, `render_pick_body` its Note field
   or what was sent. The page takes the rest of the width.
+- Since #896 the panel ends with `render_pick_options` while a pick is unsent: `GoesWith` (the
+  screenshot, the source line, the console error; the tab's own), To (`PickTo`: the terminal used
+  last, named by `last_terminal_label`, or a new agent) and Send N picks. `send_picks` types each `pick_line` (which names what it leaves
+  out) and, when ticked, `console_line`, or starts Claude Code with them
+  (`start_cli_with_prompt`, deferred). `Pick.with` records what the send let go;
+  `browser_tools::pick_for_agents` leaves out the crop, the component's source and the listeners'
+  original places accordingly.
+
+## The Browser's download bar (`src/browser.rs`, #896)
+
+- `download_bar` draws the tab's page's newest `Download` under the page: downloading, saved to
+  its folder (with `~`), finished or canceled; Open and Show once it has a path; the close keeps
+  that download's id in `download_closed`, and a newer one shows. `BrowserHub::downloaded` shows
+  #767's toast only when no Browser tab holds the page.
 
 ## The Browser toolbar's look (`src/browser.rs`, #850)
 

@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #896 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [896-browser-downloads-and-pick-options.spec.md](../../pipeline/completed/896-browser-downloads-and-pick-options.spec.md)
 - **Source ticket:** from TICKET-892 (2026-10-22): #892 made the drawer's Recordings and Send.
 - **Boards:** Browser, BrowserTools
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

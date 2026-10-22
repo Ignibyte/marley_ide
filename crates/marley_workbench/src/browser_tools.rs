@@ -1045,6 +1045,18 @@ fn pick_for_agents(pick: &Pick, redactor: Option<&Redactor>) -> Pick {
     }
     pick.bundle = within_budgets(before);
     pick.summary = pick.bundle.summary();
+    // What the user's send left out stays out (#896).
+    if !pick.with.screenshot {
+        pick.crop = None;
+    }
+    if !pick.with.source {
+        if let Some(component) = pick.bundle.component.as_mut() {
+            component.source = None;
+        }
+        for listener in &mut pick.bundle.listeners {
+            listener.original = None;
+        }
+    }
     pick
 }
 

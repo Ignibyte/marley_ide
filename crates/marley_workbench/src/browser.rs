@@ -77,9 +77,12 @@ use serde_json::Value;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::prelude::*;
-use ui::{AlertModal, Chip, ContextMenu, IconPosition, TintColor, Tooltip};
+use ui::{
+    AlertModal, Checkbox, Chip, ContextMenu, IconPosition, Indicator, TintColor, ToggleState,
+    Tooltip,
+};
 use util::ResultExt as _;
-use util::paths::PathStyle;
+use util::paths::{PathExt as _, PathStyle};
 use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
@@ -284,6 +287,9 @@ pub struct Pick {
     pub crop: Option<String>,
     /// Its latest check (#505), once one ran.
     pub check: Option<PickCheck>,
+    /// What goes to agents with it: a send can leave its screenshot and its source out (#896).
+    #[serde(skip)]
+    pub with: GoesWith,
 }
 
 /// A pick's check (#505): whether its element was found again, by what, and what changed since
@@ -2070,6 +2076,7 @@ impl BrowserHub {
                     bundle,
                     crop,
                     check: None,
+                    with: GoesWith::default(),
                 });
                 cx.emit(BrowserEvent::PickStaged {
                     target: target.to_string(),
@@ -2185,10 +2192,11 @@ impl BrowserHub {
     }
 
     /// Marks the pick `id` sent to the agent, with its caption.
-    fn pick_sent(&mut self, id: usize, caption: String, cx: &mut Context<Self>) {
+    fn pick_sent(&mut self, id: usize, caption: String, with: GoesWith, cx: &mut Context<Self>) {
         if let Some(pick) = self.picks.iter_mut().find(|pick| pick.id == id) {
             pick.sent = true;
             pick.caption = caption;
+            pick.with = with;
             cx.notify();
         }
     }
@@ -3288,13 +3296,21 @@ impl BrowserHub {
     }
 
     fn downloaded(&mut self, guid: &str, path: PathBuf, cx: &mut Context<Self>) {
-        if let Some(download) = self
-            .pages
-            .iter_mut()
-            .flat_map(|page| page.downloads.iter_mut())
-            .find(|download| download.guid == guid)
-        {
-            download.path = Some(path.clone());
+        let mut page_target = None;
+        for page in &mut self.pages {
+            if let Some(download) = page
+                .downloads
+                .iter_mut()
+                .find(|download| download.guid == guid)
+            {
+                download.path = Some(path.clone());
+                page_target = Some(page.target().to_string());
+            }
+        }
+        cx.notify();
+        // A page with a Browser tab says it in the tab's download bar (#896, D5).
+        if page_target.is_some_and(|target| view_of(&target, cx).is_some()) {
+            return;
         }
         let name = path
             .file_name()
@@ -3319,7 +3335,6 @@ impl BrowserHub {
                 })
             },
         );
-        cx.notify();
     }
 
     /// Whether an agent has acted in `target` (#767): Take Over has something to take.
@@ -5100,7 +5115,38 @@ pub struct BrowserView {
     reading_recordings: Option<Task<()>>,
     /// Why the drawer's last Send went nowhere (#892).
     drawer_error: Option<SharedString>,
+    /// The download whose bar the user closed (#896), by its id.
+    download_closed: Option<String>,
+    /// What goes with the picks this tab sends (#896).
+    goes_with: GoesWith,
+    /// Whom the picks go to (#896).
+    pick_to: PickTo,
     _subscriptions: Vec<Subscription>,
+}
+
+/// What goes with the picks a tab sends, as the Browser board's options (#896, D2).
+#[derive(Clone, Copy, Debug)]
+pub struct GoesWith {
+    pub(crate) screenshot: bool,
+    pub(crate) source: bool,
+    console: bool,
+}
+
+/// Whom a tab's picks go to (#896).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PickTo {
+    LastTerminal,
+    NewAgent,
+}
+
+impl Default for GoesWith {
+    fn default() -> Self {
+        Self {
+            screenshot: true,
+            source: true,
+            console: false,
+        }
+    }
 }
 
 /// A Browser tab's Playwright scripts tray (#523), while it is open.
@@ -5187,6 +5233,37 @@ impl BrowserView {
         self.target.as_deref()
     }
 
+    /// The tab's subscriptions: the hub's changes and events, and the address bar's and the
+    /// page's focus.
+    fn subscribe(
+        hub: &Entity<BrowserHub>,
+        address_bar: &Entity<Editor>,
+        focus_handle: &FocusHandle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<Subscription> {
+        vec![
+            cx.observe(hub, |_, _, cx| cx.notify()),
+            cx.subscribe_in(hub, window, |this, _, event, window, cx| {
+                this.hub_event(event, window, cx);
+            }),
+            // The address bar shows the page's URL again once the focus leaves it.
+            cx.on_focus_out(
+                &address_bar.focus_handle(cx),
+                window,
+                |this, _, window, cx| this.show_address(window, cx),
+            ),
+            // While the page waits on a dialog, the page's focus goes to the dialog.
+            cx.on_focus(focus_handle, window, |this, window, cx| {
+                if this.dialog(cx).is_some() {
+                    this.focus_dialog(window, cx);
+                }
+            }),
+            // The agent tools act on the page whose tab the user focused last.
+            cx.on_focus_in(focus_handle, window, |this, _, cx| this.mark_focused(cx)),
+        ]
+    }
+
     fn new(
         hub: Entity<BrowserHub>,
         project: SharedString,
@@ -5203,26 +5280,7 @@ impl BrowserView {
         });
         let prompt_field = cx.new(|cx| Editor::single_line(window, cx));
         let focus_handle = cx.focus_handle();
-        let subscriptions = vec![
-            cx.observe(&hub, |_, _, cx| cx.notify()),
-            cx.subscribe_in(&hub, window, |this, _, event, window, cx| {
-                this.hub_event(event, window, cx);
-            }),
-            // The address bar shows the page's URL again once the focus leaves it.
-            cx.on_focus_out(
-                &address_bar.focus_handle(cx),
-                window,
-                |this, _, window, cx| this.show_address(window, cx),
-            ),
-            // While the page waits on a dialog, the page's focus goes to the dialog.
-            cx.on_focus(&focus_handle, window, |this, window, cx| {
-                if this.dialog(cx).is_some() {
-                    this.focus_dialog(window, cx);
-                }
-            }),
-            // The agent tools act on the page whose tab the user focused last.
-            cx.on_focus_in(&focus_handle, window, |this, _, cx| this.mark_focused(cx)),
-        ];
+        let subscriptions = Self::subscribe(&hub, &address_bar, &focus_handle, window, cx);
         let this = cx.weak_entity();
         cx.default_global::<BrowserViews>().0.push(this);
         // A tab opened while the browser starts takes a page the start finds, and opens a blank
@@ -5296,6 +5354,9 @@ impl BrowserView {
             recordings: None,
             reading_recordings: None,
             drawer_error: None,
+            download_closed: None,
+            goes_with: GoesWith::default(),
+            pick_to: PickTo::LastTerminal,
             _subscriptions: subscriptions,
         };
         view.show_address(window, cx);
@@ -5714,6 +5775,82 @@ impl BrowserView {
         )
     }
 
+    /// The page's newest download under the page (#896, D1): its name and where it went, Open and
+    /// Show once it is in its folder, and a close; a newer download shows again.
+    fn download_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let target = self.target.as_deref()?;
+        let download = self.hub.read(cx).downloads(target).last()?.clone();
+        if self.download_closed.as_deref() == Some(download.guid.as_str()) {
+            return None;
+        }
+        let colors = cx.theme().colors();
+        let (words, color) = match (download.state, &download.path) {
+            ("completed", Some(path)) => {
+                let folder = path.parent().map_or_else(
+                    || path.compact().display().to_string(),
+                    |folder| folder.compact().display().to_string(),
+                );
+                (
+                    format!("{} saved to {folder}", download.name),
+                    Color::Default,
+                )
+            }
+            ("completed", None) => (format!("{} finished", download.name), Color::Default),
+            ("canceled", _) => (format!("{} was canceled", download.name), Color::Muted),
+            _ => (format!("{} is downloading…", download.name), Color::Muted),
+        };
+        let open = download.path.clone().map(|path| {
+            crate::prompts::render_button(0, "Open", crate::prompts::Role::Quiet, false, cx)
+                .cursor_pointer()
+                .tooltip(Tooltip::text("Open it with its app"))
+                .on_click(move |_, _, cx| cx.open_with_system(&path))
+        });
+        let show = download.path.clone().map(|path| {
+            crate::prompts::render_button(1, "Show", crate::prompts::Role::Plain, false, cx)
+                .cursor_pointer()
+                .tooltip(Tooltip::text("Show it in its folder"))
+                .on_click(move |_, _, cx| cx.reveal_path(&path))
+        });
+        let guid = download.guid;
+        Some(
+            h_flex()
+                .id("marley-browser-download")
+                .w_full()
+                .flex_none()
+                .h_9()
+                .px_3()
+                .gap_2()
+                .border_t_1()
+                .border_color(colors.border)
+                .bg(colors.surface_background)
+                .child(
+                    Icon::new(IconName::Download)
+                        .size(IconSize::Small)
+                        .color(Color::Accent),
+                )
+                .child(
+                    div().flex_1().min_w_0().child(
+                        Label::new(words)
+                            .size(LabelSize::Small)
+                            .color(color)
+                            .truncate(),
+                    ),
+                )
+                .children(open)
+                .children(show)
+                .child(
+                    IconButton::new("marley-browser-download-close", IconName::Close)
+                        .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Close"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.download_closed = Some(guid.clone());
+                            cx.notify();
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+
     /// The bar of who controls the page once an agent has acted there (#767), as the terminal's
     /// (#525): Take Over, or "You have control" and Hand Back.
     fn control_bar(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -6040,32 +6177,90 @@ impl BrowserView {
             .clone()
     }
 
-    /// Types the pick `id`'s reference and its caption into the terminal the user used last, and
-    /// takes the user there.
+    /// Sends the pick `id` alone, as its Note's Enter does (#896, D4).
     fn send_pick(&mut self, id: usize, window: &Window, cx: &mut Context<Self>) {
-        let Some((summary, url)) = self
-            .hub
-            .read(cx)
-            .pick(id)
-            .map(|pick| (pick.summary.clone(), pick.url.clone()))
-        else {
-            return;
+        self.send_picks(&[id], window, cx);
+    }
+
+    /// Types the picks `ids`, each with its caption, and what goes with them into the terminal
+    /// the user used last and takes the user there, or starts a new agent with them (#496, #896).
+    fn send_picks(&mut self, ids: &[usize], window: &Window, cx: &mut Context<Self>) {
+        let picks: Vec<(usize, String, String)> = {
+            let hub = self.hub.read(cx);
+            ids.iter()
+                .filter_map(|id| hub.pick(*id))
+                .map(|pick| (pick.id, pick.summary.clone(), pick.url.clone()))
+                .collect()
         };
-        if let Err(why) = Self::sendable(cx) {
+        if picks.is_empty() {
+            return;
+        }
+        if self.pick_to == PickTo::LastTerminal
+            && let Err(why) = Self::sendable(cx)
+        {
             self.tray_error = Some(why);
             cx.notify();
             return;
         }
-        let caption = self
-            .captions
-            .remove(&id)
-            .map(|field| field.read(cx).text(cx).trim().to_string())
-            .unwrap_or_default();
-        let line = pick_line(id, &summary, &url, &caption);
+        let with = self.goes_with;
+        let mut lines = Vec::new();
+        for (id, summary, url) in picks {
+            let caption = self
+                .captions
+                .remove(&id)
+                .map(|field| field.read(cx).text(cx).trim().to_string())
+                .unwrap_or_default();
+            lines.push(pick_line(id, &summary, &url, &caption, with));
+            self.hub
+                .update(cx, |hub, cx| hub.pick_sent(id, caption, with, cx));
+        }
+        if with.console
+            && let Some(target) = self.target.as_deref()
+        {
+            let hub = self.hub.read(cx);
+            let console = hub.console_entries(target);
+            lines.push(console_line(target, &console, hub.url(target).as_deref()));
+        }
+        let line = lines.join(" ");
         self.tray_error = None;
-        self.hub
-            .update(cx, |hub, cx| hub.pick_sent(id, caption, cx));
-        Self::send_line(line, window, cx);
+        if self.pick_to == PickTo::NewAgent {
+            self.start_agent(&line, window, cx);
+        } else {
+            Self::send_line(line, window, cx);
+        }
+    }
+
+    /// Starts Claude Code in the tab's workspace with `line` as its first prompt, as Send Block's
+    /// new agent starts (#896, D3).
+    fn start_agent(&mut self, line: &str, window: &Window, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            self.tray_error = Some(SharedString::new_static(
+                "This tab's window is gone: open the Browser again, then Send.",
+            ));
+            cx.notify();
+            return;
+        };
+        let line = line.to_string();
+        // The new terminal's pane may hold this tab, which opening the terminal updates: so after
+        // this update.
+        window.defer(cx, move |window, cx| {
+            let started = workspace.update(cx, |workspace, cx| {
+                crate::agents::start_cli_with_prompt(
+                    workspace,
+                    marley_agent::AgentKind::Claude,
+                    &line,
+                    None,
+                    window,
+                    cx,
+                )
+            });
+            cx.spawn(async move |_| {
+                if started.await.is_none() {
+                    log::warn!("browser: Claude Code did not start for the picks");
+                }
+            })
+            .detach();
+        });
     }
 
     /// The terminal used last, when a line can be typed into it now: a paste into an agent that
@@ -6961,6 +7156,13 @@ impl BrowserView {
             }))
     }
 
+    /// What sits under the page: the download bar (#896), then the drawer (#887).
+    fn render_under_page(&self, cx: &Context<Self>) -> impl Iterator<Item = AnyElement> + use<> {
+        self.download_bar(cx)
+            .into_iter()
+            .chain(self.render_drawer(cx))
+    }
+
     /// The drawer under the page (#887): Console and Network, what the page logged and fetched,
     /// newest last (D3).
     fn render_drawer(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -7765,6 +7967,12 @@ impl BrowserView {
         let (border_variant, background) = (colors.border_variant, colors.panel_background);
         let error = error.map(|error| Self::render_pick_error(error, cx));
         let count = picks.len();
+        let unsent: Vec<usize> = picks
+            .iter()
+            .filter(|row| row.sent.is_none())
+            .map(|row| row.id)
+            .collect();
+        let options = (!unsent.is_empty()).then(|| self.render_pick_options(unsent, cx));
         let rows: Vec<_> = picks
             .into_iter()
             .map(|row| self.render_pick_row(row, window, cx))
@@ -7796,8 +8004,160 @@ impl BrowserView {
                 )
                 .children(error)
                 .children(rows)
+                .children(options)
                 .into_any_element(),
         )
+    }
+
+    /// The picks panel's foot, as the Browser board draws it (#896): what goes with the picks,
+    /// whom they go to, and Send for every pick not sent yet.
+    fn render_pick_options(&self, unsent: Vec<usize>, cx: &Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors();
+        let with = self.goes_with;
+        let tick =
+            |id: &'static str, label: &'static str, on: bool, set: fn(&mut GoesWith, bool)| {
+                Checkbox::new(id, ToggleState::from(on))
+                    .label(label)
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(move |this, state: &ToggleState, _, cx| {
+                        set(&mut this.goes_with, *state == ToggleState::Selected);
+                        cx.notify();
+                    }))
+            };
+        let send_label = match unsent.len() {
+            1 => "Send 1 pick".to_string(),
+            count => format!("Send {count} picks"),
+        };
+        v_flex()
+            .gap_2()
+            .child(
+                v_flex()
+                    .gap_1p5()
+                    .p_2()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.elevated_surface_background)
+                    .child(
+                        Label::new("Goes with it")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(tick(
+                        "browser-pick-with-screenshot",
+                        "A screenshot of the pick",
+                        with.screenshot,
+                        |with, on| with.screenshot = on,
+                    ))
+                    .child(tick(
+                        "browser-pick-with-source",
+                        "Its source line",
+                        with.source,
+                        |with, on| with.source = on,
+                    ))
+                    .child(tick(
+                        "browser-pick-with-console",
+                        "The console error",
+                        with.console,
+                        |with, on| with.console = on,
+                    )),
+            )
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(Label::new("To").size(LabelSize::XSmall).color(Color::Muted))
+                    .child(self.render_to_choice(
+                        "browser-pick-to-terminal",
+                        Self::last_terminal_label(self.workspace.upgrade(), cx),
+                        PickTo::LastTerminal,
+                        cx,
+                    ))
+                    .child(self.render_to_choice(
+                        "browser-pick-to-new-agent",
+                        SharedString::new_static("A new agent"),
+                        PickTo::NewAgent,
+                        cx,
+                    )),
+            )
+            .child(
+                crate::prompts::render_button(
+                    10_000,
+                    &send_label,
+                    crate::prompts::Role::Primary,
+                    false,
+                    cx,
+                )
+                .w_full()
+                .justify_center()
+                .cursor_pointer()
+                .tooltip(Tooltip::text(if self.pick_to == PickTo::NewAgent {
+                    "Start Claude Code with them"
+                } else {
+                    "Type them into the terminal you used last"
+                }))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.send_picks(&unsent, window, cx);
+                })),
+            )
+            .into_any_element()
+    }
+
+    /// One of To's choices: a dot, filled while chosen, and its words.
+    fn render_to_choice(
+        &self,
+        id: &'static str,
+        label: SharedString,
+        to: PickTo,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors();
+        let chosen = self.pick_to == to;
+        h_flex()
+            .id(id)
+            .gap_2()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .border_1()
+            .border_color(if chosen {
+                colors.border_focused
+            } else {
+                colors.border
+            })
+            .when(chosen, |choice| choice.bg(colors.element_selected))
+            .cursor_pointer()
+            .child(Indicator::dot().color(if chosen { Color::Accent } else { Color::Muted }))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .child(Label::new(label).size(LabelSize::Small).truncate()),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.pick_to = to;
+                cx.notify();
+            }))
+    }
+
+    /// The terminal used last as To names it: the agent in it and its project, when one runs
+    /// there.
+    fn last_terminal_label(workspace: Option<Entity<Workspace>>, cx: &App) -> SharedString {
+        let Some(view) = cx
+            .try_global::<LastTerminal>()
+            .and_then(|last| last.view.upgrade())
+        else {
+            return SharedString::new_static("The terminal you used last (none yet)");
+        };
+        workspace
+            .and_then(|workspace| {
+                crate::send_selection::agent_targets(workspace.read(cx), cx)
+                    .into_iter()
+                    .find(|target| target.view == view)
+            })
+            .map_or_else(
+                || SharedString::new_static("The terminal you used last"),
+                |target| SharedString::from(target.label()),
+            )
     }
 
     fn render_pick_error(error: SharedString, cx: &Context<Self>) -> impl IntoElement + use<> {
@@ -7868,14 +8228,6 @@ impl BrowserView {
                     .on_click(cx.listener(move |this, _, _, cx| this.discard_pick(id, cx))),
             );
         let body = Self::render_pick_body(id, sent, field, cx);
-        let send = (!sent_already).then(|| {
-            crate::prompts::render_button(id, "Send", crate::prompts::Role::Primary, false, cx)
-                .cursor_pointer()
-                .tooltip(Tooltip::text("Type it into the terminal you used last"))
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    this.send_pick(id, window, cx);
-                }))
-        });
         v_flex()
             .gap_1p5()
             .p_2()
@@ -7888,13 +8240,7 @@ impl BrowserView {
                 card.child(Self::render_listener_place(id, place, cx))
             })
             .child(body)
-            .child(
-                h_flex()
-                    .gap_2()
-                    .justify_between()
-                    .child(Self::render_check(id, verdict, checking, cx))
-                    .children(send),
-            )
+            .child(Self::render_check(id, verdict, checking, cx))
     }
 
     /// A pick card's middle (#879): what was sent, or the Note field whose Enter sends it.
@@ -8362,7 +8708,7 @@ impl Render for BrowserView {
                     )
                     .children(picks),
             )
-            .children(self.render_drawer(cx))
+            .children(self.render_under_page(cx))
             // Over everything, as Chromium's own popup would be.
             .children(self.select_menu.as_ref().map(|select| {
                 deferred(
@@ -9608,11 +9954,17 @@ fn file_name(url: &str) -> &str {
         .unwrap_or(path)
 }
 
-/// The line Send types into the terminal: the pick's reference, which `browser_pick` reads, then
-/// the user's caption.
-fn pick_line(id: usize, summary: &str, url: &str, caption: &str) -> String {
+/// The line Send types into the terminal: the pick's reference, which `browser_pick` reads, with
+/// what it leaves out (#896), then the user's caption.
+fn pick_line(id: usize, summary: &str, url: &str, caption: &str, with: GoesWith) -> String {
+    let left_out = match (with.screenshot, with.source) {
+        (true, true) => "",
+        (false, true) => ", without its screenshot",
+        (true, false) => ", without its source",
+        (false, false) => ", without its screenshot or source",
+    };
     let reference = format!(
-        "[browser pick {id}: {summary} on {}; browser_pick id {id}]",
+        "[browser pick {id}: {summary} on {}; browser_pick id {id}{left_out}]",
         short_address(url)
     );
     if caption.is_empty() {
