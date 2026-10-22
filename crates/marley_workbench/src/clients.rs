@@ -273,6 +273,27 @@ pub(crate) fn is_allowed(name: &str, cx: &App) -> bool {
         .is_some_and(|registry| registry.clients.iter().any(|client| client.name == name))
 }
 
+/// The address Marley's MCP server listens on, while it runs (#885).
+pub(crate) fn server_url(cx: &App) -> Option<String> {
+    cx.try_global::<ClientsState>()
+        .map(|state| state.url.clone())
+}
+
+/// The names of the programs paired with Marley's MCP server, as the main thread knows them;
+/// none before the list is read (#885).
+pub(crate) fn paired_clients(cx: &App) -> Vec<String> {
+    cx.try_global::<ClientsState>()
+        .and_then(|state| state.registry.as_ref()?.as_ref().ok())
+        .map(|registry| {
+            registry
+                .clients
+                .iter()
+                .map(|client| client.name.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The registry as the main thread keeps it, for Allow, Cut Off and the list.
 fn current_registry(cx: &App) -> anyhow::Result<Registry> {
     cx.try_global::<ClientsState>()

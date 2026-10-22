@@ -978,6 +978,14 @@ impl BrowserHub {
         self.started(generation).is_some()
     }
 
+    /// Each project's browser, oldest first, with its state (#885).
+    pub(crate) fn projects(&self) -> Vec<(BrowserProject, HubState)> {
+        self.browsers
+            .iter()
+            .map(|browser| (browser.project.clone(), browser.state.clone()))
+            .collect()
+    }
+
     /// The project whose browser has the page `target`, attached or being attached (#507).
     #[must_use]
     pub fn project_of(&self, target: &str) -> Option<&BrowserProject> {

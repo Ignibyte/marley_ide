@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The System tab's other pages** (#885, 2026-10-22). Install and update, Troubleshooting (shell
+  integration, Rusty, Claude Code, Codex, the plugin, the other agent CLIs and git, each with what
+  was found), Shell integration, Marley's MCP endpoint, Marley's Chromium, Fleet providers and For
+  developers.
+
 - **A System tab** (#855, 2026-10-22). `marley: open system pages` opens pages about Marley
   itself: This build (channel, version, commit, data folder, platform, Copy build info) and Where
   data lives (Marley's folders with their sizes, Open the folder).

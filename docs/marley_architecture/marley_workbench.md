@@ -4283,6 +4283,11 @@ below describe what #743 retired.
   `SystemPages` board's card (title, covers, lead, rows, buttons). This build reads
   `release_channel` and `paths`; Where data lives counts each folder with `folder_size` on the
   background executor when the tab opens and on Count again.
+- Since #885 seven more pages: Install and update, Troubleshooting (`Checks` of git and the agent
+  CLIs read off the main thread, the rest from Rusty, `agent_versions` and the plugin global),
+  Shell integration, the MCP endpoint (`clients::server_url`, `paired_clients`), Chromium
+  (`BrowserHub::projects`), Fleet providers (the settings and the `Fleet` global) and For
+  developers. A row is a `Row` with its `Mark`.
 
 ## The Component Library's navigation (`src/component_library.rs`, #849)
 

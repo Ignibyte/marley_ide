@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #885 (feature, the Marley look, W5)
 - **Owner:** 0e8e9f94-0ce3-4a15-aeeb-252b0ba66067
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [885-more-system-pages.spec.md](../../pipeline/completed/885-more-system-pages.spec.md)
 - **Source ticket:** split from TICKET-855 while planning it (2026-10-22): #855 made the System
   tab with This build and Where data lives.
 - **Boards:** SystemPages, OpenConnect
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
