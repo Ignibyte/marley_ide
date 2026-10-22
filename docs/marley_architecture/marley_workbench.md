@@ -1505,6 +1505,13 @@ alike.
   `start_in_terminal(workspace, directory, input)`, which opens a center terminal and types the
   input after the shell's handshake; `launch_mode` and `launch_input` give an agent's line.
 
+
+### The approval card (#882)
+
+- `run` asks through `LaunchApproval`, a modal answered over a oneshot: a row per item from
+  `approval_rows` (glyph, title, what it runs as a plain wrapped text run, folder and split),
+  Cancel and Run, Enter and Escape. A card closed any other way cancels.
+
 ## Review notes to the agent (`src/review_notes.rs`, #522, #729)
 
 - `init` registers Zed's `editor::actions::SendReviewToAgent` on every workspace; the diffs'

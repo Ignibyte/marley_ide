@@ -704,8 +704,8 @@ impl Render for WorktreePrompt {
     }
 }
 
-/// The agent's two letters in the card's badge (#851).
-const fn badge_of(kind: AgentKind) -> &'static str {
+/// The agent's two letters in the card's badge (#851), and in a launch approval's rows (#882).
+pub(crate) const fn badge_of(kind: AgentKind) -> &'static str {
     match kind {
         AgentKind::Claude => "CC",
         AgentKind::Codex => "CX",

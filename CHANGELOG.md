@@ -51,6 +51,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **A launch config's approval** (#882, 2026-10-22). Running a launch config not approved yet asks
+  with a card: a row per item, its kind, what it runs shown whole and as written, and where it
+  opens, with Cancel and Run.
+
 - **Plan review's question cards** (#881, 2026-10-22). The recommended choice carries a
   Recommended chip, Accept recommended and Skip sit at each card's foot, and Approve, Send Answers,
   Send Feedback and Send Notes are drawn as the prompts' buttons.

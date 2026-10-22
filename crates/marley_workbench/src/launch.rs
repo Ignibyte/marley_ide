@@ -13,18 +13,20 @@ use std::time::Duration;
 use collections::{HashMap, IndexMap};
 use db::kvp::KeyValueStore;
 use fs::Fs;
-use gpui::{App, AsyncWindowContext, Context, Entity, Global, PromptLevel};
-use gpui::{FocusHandle, WeakEntity, Window};
+use futures::channel::oneshot;
+use gpui::{App, AsyncWindowContext, Context, Entity, Global};
+use gpui::{DismissEvent, EventEmitter, FocusHandle, Focusable, WeakEntity, Window};
 use marley_agent::AgentKind;
 use marley_browser::address::LocalUrl;
 use project::Project;
 use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use terminal_view::TerminalView;
+use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::item::ItemHandle;
 use workspace::notifications::DetachAndPromptErr as _;
-use workspace::{Pane, SplitDirection, Workspace};
+use workspace::{ModalView, Pane, SplitDirection, Workspace};
 
 use crate::{agents, browser};
 
@@ -332,6 +334,7 @@ pub(crate) fn run(
         return;
     };
     let text = text(&config);
+    let rows = approval_rows(&config);
     let hash = format!("{:x}", Sha256::digest(text.as_bytes()));
     let key = format!("{}\n{name}", root.display());
     let store = KeyValueStore::global(cx);
@@ -345,16 +348,14 @@ pub(crate) fn run(
                 } else {
                     format!("Run {name}?")
                 };
-                let answer = cx.update(|window, cx| {
-                    window.prompt(
-                        PromptLevel::Warning,
-                        &question,
-                        Some(&verbatim(&text)),
-                        &["Run", "Cancel"],
-                        cx,
-                    )
+                let (sender, receiver) = oneshot::channel();
+                let lead = format!("{name} runs these, once you say so.");
+                workspace.update_in(cx, |workspace, window, cx| {
+                    workspace.toggle_modal(window, cx, |_, cx| {
+                        LaunchApproval::new(question, lead, rows, sender, cx)
+                    });
                 })?;
-                if !matches!(answer.await, Ok(0)) {
+                if !matches!(receiver.await, Ok(true)) {
                     return Ok(());
                 }
                 store.scoped(APPROVALS).write(key, hash).await?;
@@ -362,6 +363,202 @@ pub(crate) fn run(
             open_items(&workspace, &root, config.items, cx).await
         })
         .detach_and_prompt_err(&failure, window, cx, |_, _, _| None);
+}
+
+/// One item of a config as its approval lists it (#882): its kind's glyph, its title, what it
+/// runs as written, and where it opens.
+struct ApprovalRow {
+    glyph: &'static str,
+    title: Option<String>,
+    what: String,
+    place: String,
+}
+
+/// The rows of `config`'s approval, in its items' order.
+fn approval_rows(config: &Config) -> Vec<ApprovalRow> {
+    config
+        .items
+        .iter()
+        .map(|item| {
+            let (glyph, what) = match &item.kind {
+                ItemKind::Terminal(command) if command.is_empty() => (">_", "a shell".to_string()),
+                ItemKind::Terminal(command) => (">_", command.clone()),
+                ItemKind::Agent(kind) => (
+                    crate::worktree_agents::badge_of(*kind),
+                    kind.display_name().to_string(),
+                ),
+                ItemKind::Browser(url) => ("www", url.clone()),
+            };
+            let folder = item.cwd.as_ref().map_or_else(
+                || "the project's folder".to_string(),
+                |cwd| format!("in {cwd}"),
+            );
+            let split = match item.split {
+                Some(SplitDirection::Right) => " · split right",
+                Some(SplitDirection::Down) => " · split down",
+                _ => "",
+            };
+            ApprovalRow {
+                glyph,
+                title: item.title.clone(),
+                what,
+                place: format!("{folder}{split}"),
+            }
+        })
+        .collect()
+}
+
+/// The approval a launch config asks for before it first runs, and again once its file changes, as
+/// the Workflows board draws it (#882). Each command shows whole, wrapped and as written (#592);
+/// Enter runs and Escape cancels.
+struct LaunchApproval {
+    question: SharedString,
+    lead: SharedString,
+    rows: Vec<ApprovalRow>,
+    answer: Option<oneshot::Sender<bool>>,
+    focus_handle: FocusHandle,
+}
+
+impl LaunchApproval {
+    fn new(
+        question: String,
+        lead: String,
+        rows: Vec<ApprovalRow>,
+        answer: oneshot::Sender<bool>,
+        cx: &Context<Self>,
+    ) -> Self {
+        Self {
+            question: question.into(),
+            lead: lead.into(),
+            rows,
+            answer: Some(answer),
+            focus_handle: cx.focus_handle(),
+        }
+    }
+
+    /// Answers the waiting run once, and closes. A card closed any other way drops the sender,
+    /// which the run reads as Cancel.
+    fn answer(&mut self, run: bool, cx: &mut Context<Self>) {
+        if let Some(answer) = self.answer.take() {
+            answer.send(run).ok();
+        }
+        cx.emit(DismissEvent);
+    }
+
+    fn render_row(row: &ApprovalRow, cx: &App) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        h_flex()
+            .items_start()
+            .gap_3()
+            .px_2()
+            .py_1p5()
+            .rounded_md()
+            .bg(colors.surface_background)
+            .child(
+                div()
+                    .flex_none()
+                    .w(px(32.))
+                    .py_0p5()
+                    .rounded_sm()
+                    .bg(colors.element_background)
+                    .flex()
+                    .justify_center()
+                    .child(
+                        Label::new(row.glyph)
+                            .size(LabelSize::XSmall)
+                            .buffer_font(cx)
+                            .color(Color::Muted),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_0p5()
+                    .children(
+                        row.title
+                            .clone()
+                            .map(|title| Label::new(title).size(LabelSize::Small)),
+                    )
+                    // Whole and as written: nothing cuts or reads it as Markdown (#592).
+                    .child(
+                        div()
+                            .text_size(rems(0.8125))
+                            .font_buffer(cx)
+                            .text_color(colors.text)
+                            .child(row.what.clone()),
+                    ),
+            )
+            .child(
+                div().flex_none().max_w(rems(14.)).child(
+                    Label::new(row.place.clone())
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                ),
+            )
+    }
+}
+
+impl ModalView for LaunchApproval {}
+
+impl EventEmitter<DismissEvent> for LaunchApproval {}
+
+impl Focusable for LaunchApproval {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+impl Render for LaunchApproval {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        v_flex()
+            .key_context("MarleyLaunchApproval")
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(|this, _: &menu::Confirm, _, cx| this.answer(true, cx)))
+            .on_action(cx.listener(|this, _: &menu::Cancel, _, cx| this.answer(false, cx)))
+            .w(rems(40.))
+            .elevation_3(cx)
+            .p_4()
+            .gap_3()
+            .child(Headline::new(self.question.clone()).size(HeadlineSize::Small))
+            .child(
+                Label::new(self.lead.clone())
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                v_flex()
+                    .gap_1()
+                    .children(self.rows.iter().map(|row| Self::render_row(row, cx))),
+            )
+            .child(
+                h_flex()
+                    .justify_end()
+                    .gap_2()
+                    .child(
+                        crate::prompts::render_button(
+                            0,
+                            "Cancel",
+                            crate::prompts::Role::Quiet,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|this, _, _, cx| this.answer(false, cx))),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            1,
+                            "Run · Enter",
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|this, _, _, cx| this.answer(true, cx))),
+                    ),
+            )
+    }
 }
 
 /// Opens `items` in order in `workspace`, each once the one before exists: each in the active
