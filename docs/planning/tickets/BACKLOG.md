@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-876](open/TICKET-876-rusty-memory-skills-secrets-capture-server.md) | feature | Rusty's Memory, Skills, Secrets, Capture, Import and Server as the boards draw them (W5, from #845) |
 | [TICKET-846](open/TICKET-846-mcp-servers-and-agent-access.md) | feature | MCP Servers, Agent Activity and what agents may do (W5) |
 | [TICKET-847](open/TICKET-847-system-one.md) | feature | System One restyled (W5) |
 | [TICKET-848](open/TICKET-848-fleet-and-harness.md) | feature | Fleet, harness sessions and scheduled runs (W5) |

@@ -391,15 +391,19 @@ impl BrainMemoryView {
     }
 
     fn render_row(index: usize, memory: &Memory, cx: &Context<Self>) -> AnyElement {
-        let meta = [
-            memory.importance.clone(),
-            memory.source.clone(),
-            day(memory.updated_at),
-        ]
-        .into_iter()
-        .filter(|text| !text.is_empty())
-        .collect::<Vec<_>>()
-        .join(" · ");
+        // The importance leads as a chip in its colour, as the RustyTabs board draws it (#876).
+        let importance = memory.importance().map(|importance| {
+            Chip::new(importance.label()).label_color(match importance {
+                Importance::High => Color::Accent,
+                Importance::Normal => Color::Default,
+                Importance::Low => Color::Muted,
+            })
+        });
+        let meta = [memory.source.clone(), day(memory.updated_at)]
+            .into_iter()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ");
         let row = memory.clone();
         ListItem::new(("rusty-memory", index))
             .spacing(ListItemSpacing::Sparse)
@@ -412,6 +416,7 @@ impl BrainMemoryView {
                     .child(
                         h_flex()
                             .gap_2()
+                            .children(importance)
                             .when(!memory.category.is_empty(), |line| {
                                 line.child(Chip::new(memory.category.clone()))
                             })

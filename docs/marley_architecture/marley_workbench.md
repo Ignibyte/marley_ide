@@ -4224,6 +4224,12 @@ below describe what #743 retired.
   is); the list is `RustyTaskList`, with `not_editing` while no row editor is open, for the
   keymap's Space, F2, Delete, Backspace, Shift-Delete, Alt-Up and Alt-Down.
 
+## Rusty's Memory and Skills chips (`src/rusty/memory_tab.rs`, `skills_tab.rs`, #876)
+
+- A memory row leads with its importance as a `Chip` (High accent, Normal default, Low muted),
+  then its category; a skill or script row carries `status_chip(pending)` (pending warning, active
+  success).
+
 ## The Brain screens as the boards draw them (`src/rusty/brain.rs`, `page.rs`, `knowledge_panel.rs`, #875)
 
 - The Brain view heads its tree with a "Vault" `ListSubHeader` while no search shows; the page's

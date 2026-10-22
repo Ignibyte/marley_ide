@@ -670,7 +670,9 @@ impl BrainSkillsView {
                         h_flex()
                             .gap_1()
                             .child(Label::new(skill.name.clone()).truncate())
-                            .when(skill.is_pending(), |name| name.child(Chip::new("pending")))
+                            // Active green, pending yellow, as the RustyTabs board draws them
+                            // (#876).
+                            .child(status_chip(skill.is_pending()))
                             .when(skill.is_auto(), |name| {
                                 name.child(
                                     Label::new("auto")
@@ -707,7 +709,7 @@ impl BrainSkillsView {
                             .color(Color::Muted)
                             .truncate(),
                     )
-                    .when(script.is_pending(), |name| name.child(Chip::new("pending"))),
+                    .child(status_chip(script.is_pending())),
             )
             .on_click(cx.listener(move |this, _, window, cx| this.show_script(&row, window, cx)))
             .into_any_element()
@@ -911,6 +913,15 @@ impl Focusable for BrainSkillsView {
 }
 
 impl EventEmitter<ItemEvent> for BrainSkillsView {}
+
+/// A skill's or script's status chip: pending in the warning colour, active in the success one.
+fn status_chip(pending: bool) -> Chip {
+    if pending {
+        Chip::new("pending").label_color(Color::Warning)
+    } else {
+        Chip::new("active").label_color(Color::Success)
+    }
+}
 
 impl Render for BrainSkillsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

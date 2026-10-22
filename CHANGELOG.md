@@ -47,6 +47,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **Rusty's Memory and Skills chips** (#876, 2026-10-21). A memory's importance leads its line as
+  a chip in its colour, and each skill and script shows its status, active in green and pending in
+  yellow.
+
 - **Rusty's Brain, pages and Knowledge as the boards draw them** (#875, 2026-10-21). The Brain tab
   heads its tree Vault, a page heads its outline "On this page", and the Knowledge panel shows the
   page it follows, its backlinks and its links out as cards, an unwritten page marked "not written

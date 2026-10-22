@@ -179,7 +179,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Screen | Boards |
 |---|---|
 | Settings window and every setting's control (done, #844, 2026-10-21; lists and maps stay in settings.json) | Settings, SettingsAll, Keymap |
-| Rusty: Tasks (done, #845, 2026-10-21), Decisions and Follow Up (done, #874), Brain and pages (done, #875), Memory, Skills, Secrets, Capture, Rusty's Server (#876) | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
+| Rusty: Tasks (done, #845, 2026-10-21), Decisions and Follow Up (done, #874), Brain and pages (done, #875), Memory, Skills, Secrets, Capture, Rusty's Server (done, #876) | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
 | MCP Servers, Agent Activity, the server form, what agents may do | Tools, MoreForms, AgentAccess |
 | System One | SystemOne |
 | Fleet panel and harness sessions, the session tab, scheduled runs | Fleet, MoreTabs, OpenConnect |
