@@ -24,7 +24,7 @@ use futures::FutureExt as _;
 use git_ui_core::{worktree_names, worktree_service};
 use gpui::{
     App, AppContext as _, AsyncWindowContext, Context, DismissEvent, Entity, EventEmitter,
-    FocusHandle, Focusable, Global, Render, Task, WeakEntity, Window,
+    FocusHandle, Focusable, FontWeight, Global, Render, Task, WeakEntity, Window,
 };
 use marley_agent::AgentKind;
 use project::TaskSourceKind;
@@ -293,9 +293,11 @@ pub(crate) fn open_prompt_seeded(
             }
         };
         let hooks = global_create_worktree_tasks(workspace, cx);
+        let bypass = crate::agents::launch_mode(workspace, kind, cx).bypass;
         let handle = cx.entity().downgrade();
         workspace.toggle_modal(window, cx, |window, cx| {
-            let prompt = WorktreePrompt::new(handle, kind, others, plan, hooks, window, cx);
+            let mut prompt = WorktreePrompt::new(handle, kind, others, plan, hooks, window, cx);
+            prompt.bypass = bypass;
             if let Some(seed) = seed {
                 prompt
                     .editor
@@ -396,7 +398,14 @@ pub(crate) struct WorktreePrompt {
     plan: Plan,
     /// The setup command offered, once read.
     setup: Option<SetupOffer>,
+    /// Whether global `create_worktree` tasks set the worktree up.
+    hooks: bool,
+    /// Whether the chosen agent starts without its permission prompts in this project (#851).
+    bypass: bool,
+    /// The lines of the main checkout's `.worktreeinclude`, once read; empty when it has none.
+    included: Option<Vec<String>>,
     _reading: Task<()>,
+    _reading_included: Task<()>,
 }
 
 impl WorktreePrompt {
@@ -411,7 +420,7 @@ impl WorktreePrompt {
     ) -> Self {
         let placeholder = format!("A first prompt for {}, or none", kind.display_name());
         let editor = cx.new(|cx| {
-            let mut editor = Editor::auto_height(1, 8, window, cx);
+            let mut editor = Editor::auto_height(3, 8, window, cx);
             editor.set_soft_wrap_mode(settings::SoftWrap::EditorWidth, cx);
             editor.set_placeholder_text(&placeholder, window, cx);
             editor
@@ -433,6 +442,23 @@ impl WorktreePrompt {
                     .log_err();
             })
         };
+        let reading_included = {
+            let (file, fs) = (
+                plan.main.join(worktree_include::INCLUDE_FILE),
+                <dyn Fs>::global(cx),
+            );
+            cx.spawn(async move |prompt, cx| {
+                let lines = cx
+                    .background_spawn(async move { include_lines(&file, fs.as_ref()).await })
+                    .await;
+                prompt
+                    .update(cx, |prompt, cx| {
+                        prompt.included = Some(lines);
+                        cx.notify();
+                    })
+                    .log_err();
+            })
+        };
         Self {
             editor,
             workspace,
@@ -440,8 +466,128 @@ impl WorktreePrompt {
             others: others.into_iter().map(|other| (other, false)).collect(),
             plan,
             setup: None,
+            hooks,
+            bypass: false,
+            included: None,
             _reading: reading,
+            _reading_included: reading_included,
         }
+    }
+
+    /// The agent's badge and the card's title, as the Worktrees board draws them (#851).
+    fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
+        h_flex()
+            .gap_2()
+            .child(
+                div()
+                    .flex_none()
+                    .px_1p5()
+                    .py_0p5()
+                    .rounded_md()
+                    .bg(cx.theme().colors().text_accent.opacity(0.16))
+                    .child(
+                        Label::new(badge_of(self.kind))
+                            .size(LabelSize::XSmall)
+                            .weight(FontWeight::BOLD)
+                            .color(Color::Accent),
+                    ),
+            )
+            .child(
+                Headline::new(format!("{} in a new worktree", self.kind.display_name()))
+                    .size(HeadlineSize::Small),
+            )
+    }
+
+    /// The other installed agents' boxes; each ticked one starts too (#770).
+    fn render_also_start(&self, cx: &Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_wrap()
+            .gap_3()
+            .child(
+                Label::new("Also start:")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .children(
+                self.others
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (kind, ticked))| {
+                        Checkbox::new(
+                            SharedString::from(format!("marley-worktree-also-{}", kind.program())),
+                            ToggleState::from(*ticked),
+                        )
+                        .label(kind.display_name())
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(
+                            move |prompt, state: &ToggleState, _, cx| {
+                                if let Some((_, ticked)) = prompt.others.get_mut(index) {
+                                    *ticked = state.selected();
+                                    cx.notify();
+                                }
+                            },
+                        ))
+                    }),
+            )
+    }
+
+    /// The facts the worktree gets, as the Worktrees board lists them under the prompt (#851).
+    fn render_facts(&self, cx: &Context<Self>) -> impl IntoElement {
+        let included: SharedString = match &self.included {
+            None => SharedString::new_static("Reading…"),
+            Some(lines) if lines.is_empty() => {
+                format!("Nothing: no {}", worktree_include::INCLUDE_FILE).into()
+            }
+            Some(lines) => lines.join(", ").into(),
+        };
+        let mode = if self.bypass {
+            "The project's: bypass"
+        } else {
+            "The project's: asks first"
+        };
+        let setup = if self.hooks {
+            Some(render_fact(
+                "Setup",
+                Label::new("create_worktree task in .zed/tasks.json")
+                    .size(LabelSize::Small)
+                    .into_any_element(),
+            ))
+        } else {
+            self.setup.as_ref().map(|setup| {
+                render_fact(
+                    "Setup",
+                    Checkbox::new("marley-worktree-setup", ToggleState::from(setup.checked))
+                        .label(format!("{} ({} found)", setup.command, setup.lockfile))
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(|prompt, state: &ToggleState, _, cx| {
+                            if let Some(setup) = &mut prompt.setup {
+                                setup.checked = state.selected();
+                                cx.notify();
+                            }
+                        }))
+                        .into_any_element(),
+                )
+            })
+        };
+        let colors = cx.theme().colors();
+        h_flex()
+            .flex_wrap()
+            .gap_x_6()
+            .gap_y_2()
+            .p_2()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border_variant)
+            .bg(colors.surface_background)
+            .child(render_fact(
+                format!("Copied from {}", worktree_include::INCLUDE_FILE),
+                Label::new(included).size(LabelSize::Small),
+            ))
+            .child(render_fact(
+                "Permissions",
+                Label::new(mode).size(LabelSize::Small),
+            ))
+            .children(setup)
     }
 
     /// The agents Enter starts: the one chosen, then the ones ticked, in the submenu's order.
@@ -486,89 +632,133 @@ impl Focusable for WorktreePrompt {
 impl Render for WorktreePrompt {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
+        let kinds = self.kinds();
+        let start = if kinds.len() == 1 {
+            "Start the agent · Enter".to_string()
+        } else {
+            format!("Start {} agents · Enter", kinds.len())
+        };
         v_flex()
             .key_context("MarleyWorktreePrompt")
             .on_action(cx.listener(Self::confirm))
             .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(DismissEvent)))
-            .w(rems(34.))
+            .w(rems(36.))
             .elevation_3(cx)
-            .p_3()
-            .gap_2()
+            .p_4()
+            .gap_3()
+            .child(self.render_header(cx))
             .child(
-                Headline::new(format!("{} in a New Worktree", self.kind.display_name()))
-                    .size(HeadlineSize::Small),
+                v_flex()
+                    .gap_1()
+                    .child(
+                        Label::new("First prompt")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        div()
+                            .px_2()
+                            .py_1p5()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .bg(colors.editor_background)
+                            .child(self.editor.clone()),
+                    ),
             )
             .child(
-                div()
-                    .px_2()
-                    .py_1()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.editor_background)
-                    .child(self.editor.clone()),
+                h_flex().flex_wrap().gap_2().children(
+                    self.plan
+                        .branches(&kinds)
+                        .into_iter()
+                        .map(|branch| render_branch_chip(branch, &self.plan.base, cx)),
+                ),
             )
             .when(!self.others.is_empty(), |prompt| {
-                prompt.child(
-                    h_flex()
-                        .flex_wrap()
-                        .gap_3()
-                        .child(
-                            Label::new("Also start:")
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        )
-                        .children(
-                            self.others
-                                .iter()
-                                .enumerate()
-                                .map(|(index, (kind, ticked))| {
-                                    Checkbox::new(
-                                        SharedString::from(format!(
-                                            "marley-worktree-also-{}",
-                                            kind.program()
-                                        )),
-                                        ToggleState::from(*ticked),
-                                    )
-                                    .label(kind.display_name())
-                                    .label_size(LabelSize::Small)
-                                    .on_click(cx.listener(
-                                        move |prompt, state: &ToggleState, _, cx| {
-                                            if let Some((_, ticked)) = prompt.others.get_mut(index)
-                                            {
-                                                *ticked = state.selected();
-                                                cx.notify();
-                                            }
-                                        },
-                                    ))
-                                }),
-                        ),
-                )
+                prompt.child(self.render_also_start(cx))
             })
+            .child(self.render_facts(cx))
             .child(
-                Label::new(format!(
-                    "{} from {}",
-                    self.plan.branches(&self.kinds()).join(", "),
-                    self.plan.base
-                ))
-                .size(LabelSize::Small)
-                .color(Color::Muted),
+                h_flex()
+                    .justify_between()
+                    .gap_2()
+                    .child(
+                        Label::new("Shift Enter new line · Esc closes")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            0,
+                            &start,
+                            crate::prompts::Role::Primary,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(|prompt, _, window, cx| {
+                            prompt.confirm(&StartWorktreeAgent, window, cx);
+                        })),
+                    ),
             )
-            .children(self.setup.as_ref().map(|setup| {
-                Checkbox::new("marley-worktree-setup", ToggleState::from(setup.checked))
-                    .label(format!(
-                        "Setup: {} ({} found)",
-                        setup.command, setup.lockfile
-                    ))
-                    .label_size(LabelSize::Small)
-                    .on_click(cx.listener(|prompt, state: &ToggleState, _, cx| {
-                        if let Some(setup) = &mut prompt.setup {
-                            setup.checked = state.selected();
-                            cx.notify();
-                        }
-                    }))
-            }))
     }
+}
+
+/// The agent's two letters in the card's badge (#851).
+const fn badge_of(kind: AgentKind) -> &'static str {
+    match kind {
+        AgentKind::Claude => "CC",
+        AgentKind::Codex => "CX",
+        AgentKind::Gemini => "GC",
+        AgentKind::OpenCode => "OC",
+    }
+}
+
+/// A branch the prompt makes, in the buffer font, "from" its base (#851).
+fn render_branch_chip(branch: String, base: &str, cx: &App) -> impl IntoElement {
+    h_flex()
+        .gap_1()
+        .px_2()
+        .py_0p5()
+        .rounded_md()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(Label::new(branch).size(LabelSize::Small).buffer_font(cx))
+        .child(
+            Label::new("from")
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+        .child(Label::new(base.to_string()).size(LabelSize::Small))
+}
+
+/// One of the facts under the prompt: a muted heading over its value (#851).
+fn render_fact(heading: impl Into<SharedString>, value: impl IntoElement) -> impl IntoElement {
+    v_flex()
+        .min_w(rems(12.))
+        .gap_0p5()
+        .child(
+            Label::new(heading)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+        .child(value)
+}
+
+/// The patterns a `.worktreeinclude` at `file` names; none when there is no such file or it
+/// cannot be read, since the create step reads it again and says why there (#585).
+async fn include_lines(file: &Path, fs: &dyn Fs) -> Vec<String> {
+    fs.load(file).await.map_or_else(
+        |_| Vec::new(),
+        |contents| {
+            contents
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .map(str::to_string)
+                .collect()
+        },
+    )
 }
 
 /// Makes a worktree for each of `kinds`, one after another, and starts each agent in its own with

@@ -841,6 +841,16 @@ alike.
   minutes); a non-zero exit, an error or the deadline asks Remove Anyway or Cancel, and Cancel ends
   Remove with the worktree and its terminals as they were.
 
+## New Agent in Worktree's card (`src/worktree_agents.rs`, #851)
+
+- `WorktreePrompt` draws the Worktrees board's card: `render_header` (the `badge_of` letters, the
+  title), the First prompt editor, `render_branch_chip` per branch, `render_also_start`,
+  `render_facts` and a footer whose primary `prompts::render_button` confirms as Enter does.
+- The facts are what is known before the worktree exists: `include_lines` reads the main
+  checkout's `.worktreeinclude` when the prompt opens; `bypass` comes from `agents::launch_mode`
+  before the modal opens; the setup is the `create_worktree` task or the offered command. A port
+  slot is given only when the worktree is made, so the card names none.
+
 ## A worktree agent's environment (`src/worktree_include.rs`, `src/worktree_agents.rs`, #585)
 
 - `worktree_include::copy_included(main, worktree, fs)` reads `.worktreeinclude` through `Fs`,

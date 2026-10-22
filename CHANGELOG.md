@@ -47,6 +47,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **New Agent in Worktree** (#851, 2026-10-21). The prompt names the agent with a badge, shows
+  each branch it makes as a chip, lists what the worktree gets (the files `.worktreeinclude`
+  copies, the agent's permissions in the project, the setup) and ends with a Start button that says
+  how many agents start.
+
 - **The Browser toolbar** (#850, 2026-10-21). The address box names the project before the address
   and says where the page runs after it ("port 4180 · this machine"), and Pick, Annotate and
   Record are labelled buttons in one group.
