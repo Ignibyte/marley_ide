@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Home as the design draws it** (#903, 2026-10-23). Home opens on "What are we working on?" over
+  a two-line prompt, with the project chip first, the agent CLIs as pills and a round Start; the
+  start actions as pills under it; then its cards in a grid that wraps, each with its link
+  (Threads, Open Tasks, Open Folder…, Open), Rusty's screens as tiles, and the settings links at
+  the foot.
+
 - **The bottom row while debugging, and Ask an Agent about a server** (#901, 2026-10-22). While a
   debug session is paused, the bottom row says where ("Paused at hello.c:4") and carries
   Continue, Step over, Step in, Step out and Stop, the frame, the breakpoint count and the line

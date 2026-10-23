@@ -12,15 +12,14 @@ use std::sync::Arc;
 use fs::Fs;
 use gpui::{
     App, AppContext as _, Context, Div, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
-    Render, SharedString, Stateful, Subscription, Task, WeakEntity, Window,
+    FontWeight, Render, SharedString, Stateful, Subscription, Task, WeakEntity, Window,
 };
 use marley_agent::AgentKind;
 use project::Project;
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
-use ui::{ButtonStyle, ContextMenu, PopoverMenu, prelude::*};
+use ui::{ButtonStyle, ContextMenu, PopoverMenu, Tooltip, prelude::*};
 use util::ResultExt as _;
-use util::paths::PathExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, SerializedWorkspaceLocation, Workspace,
@@ -184,8 +183,9 @@ pub(crate) struct MarleyHome {
     /// The agent activity and the kill switch, for the AGENT ACTIVITY card (#703), and the project
     /// marks the recent projects show (#831).
     _activity: [Subscription; 4],
-    /// Rusty's cards, held while `marley.rusty.enabled` is on (#782).
-    rusty: Option<Entity<RustyCards>>,
+    /// Rusty's cards, held while `marley.rusty.enabled` is on (#782), and observed, since Home
+    /// draws them in its own grid (#903).
+    rusty: Option<(Entity<RustyCards>, Subscription)>,
     /// Rusty's switch, which makes and drops the cards.
     _rusty_switch: Subscription,
 }
@@ -283,7 +283,9 @@ impl MarleyHome {
         }
         self.rusty = on.then(|| {
             let (workspace, focus_handle) = (self.workspace.clone(), self.focus_handle.clone());
-            cx.new(|cx| RustyCards::new(workspace, focus_handle, window, cx))
+            let cards = cx.new(|cx| RustyCards::new(workspace, focus_handle, window, cx));
+            let observed = cx.observe(&cards, |_, _, cx| cx.notify());
+            (cards, observed)
         });
         cx.notify();
     }
@@ -334,103 +336,116 @@ impl MarleyHome {
     // The page's handlers are plain closures over weak handles, never `cx.listener`: a workspace
     // updated from them reads its items, this page among them, which a listener would hold leased.
 
-    fn render_start(&self) -> impl IntoElement {
-        let entries: [(&'static str, &'static str, IconName); 4] = [
-            (
-                "marley-home-new-terminal",
-                "New Terminal",
-                IconName::Terminal,
-            ),
-            (
-                "marley-home-open-folder",
-                "Open Folder…",
-                IconName::FolderOpen,
-            ),
-            (
-                "marley-home-clone",
-                "Clone Repository…",
-                IconName::GitBranch,
-            ),
-            ("marley-home-palette", "Command Palette", IconName::Command),
+    /// The start actions under the prompt, as pills (#903): a terminal, a folder, a clone, the
+    /// threads to reopen, and Today's note while Rusty is on.
+    fn render_start(&self, cx: &App) -> impl IntoElement {
+        let mut entries: Vec<(&'static str, &'static str)> = vec![
+            ("marley-home-new-terminal", "New Terminal"),
+            ("marley-home-open-folder", "Open Folder\u{2026}"),
+            ("marley-home-clone", "Clone Repository\u{2026}"),
+            ("marley-home-threads", "Reopen a Thread"),
         ];
+        if self.rusty.is_some() {
+            entries.push(("marley-home-today", "Today\u{2019}s Note"));
+        }
         h_flex()
+            .debug_selector(|| "marley-home-start".into())
             .flex_wrap()
+            .justify_center()
             .gap_2()
-            .children(entries.into_iter().map(|(id, label, icon)| {
+            .children(entries.into_iter().map(|(id, label)| {
                 let workspace = self.workspace.clone();
                 let focus = self.focus_handle.clone();
-                Button::new(id, label)
-                    .start_icon(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
-                    .style(ButtonStyle::Subtle)
+                pill(id, false, cx)
+                    .px_3p5()
+                    .child(Label::new(label).size(LabelSize::Small))
                     .on_click(move |_, window, cx| match id {
                         "marley-home-new-terminal" => new_terminal(&workspace, window, cx),
                         "marley-home-open-folder" => {
                             focus.dispatch_action(&workspace::Open::DEFAULT, window, cx);
                         }
                         "marley-home-clone" => focus.dispatch_action(&git::Clone, window, cx),
+                        "marley-home-threads" => {
+                            workspace
+                                .update(cx, |workspace, cx| {
+                                    crate::threads_page::open(workspace, window, cx);
+                                })
+                                .log_err();
+                        }
                         _ => {
-                            focus.dispatch_action(
-                                &zed_actions::command_palette::Toggle,
-                                window,
-                                cx,
-                            );
+                            RustyCards::open_screen(crate::rusty::brain::Screen::Today, window, cx);
                         }
                     })
             }))
     }
 
-    /// The PROMPT card (#835): a box for the task, the agent CLIs to start it with, where it
-    /// starts, and Start; under it the links START and NEW AGENT held.
+    /// The prompt (#835), as the Home board draws it (#903): a box two lines tall, then the
+    /// project chip (#867), the agent CLIs as pills, and a round Start.
     fn render_prompt(&self, cx: &Context<Self>) -> AnyElement {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
         let picked = self.picked.or_else(|| kinds.first().copied());
         let colors = cx.theme().colors();
-        let field = div()
-            .key_context("MarleyHomePrompt")
-            .on_action(cx.listener(|home, _: &menu::Confirm, window, cx| {
-                home.start_prompt(window, cx);
-            }))
-            .w_full()
-            .px_3()
-            .py_2()
-            .rounded_lg()
-            .border_1()
-            .border_color(colors.border)
-            .bg(colors.editor_background)
-            .children(self.prompt.clone());
+        let accent = colors.text_accent;
         let chips = kinds.into_iter().enumerate().map(|(index, kind)| {
-            Button::new(("marley-home-agent", index), kind.display_name())
-                .start_icon(Icon::new(agents::cli_icon(kind)).size(IconSize::Small))
-                .style(ButtonStyle::Filled)
-                .toggle_state(picked == Some(kind))
-                .selected_style(ButtonStyle::Tinted(ui::TintColor::Accent))
+            pill(("marley-home-agent", index), picked == Some(kind), cx)
+                .child(glyph_tile(cli_glyph(kind), cx))
+                .child(Label::new(kind.display_name()).size(LabelSize::Small))
                 .on_click(cx.listener(move |home, _, _, cx| {
                     home.picked = Some(kind);
                     cx.notify();
                 }))
         });
-        let start = Button::new("marley-home-start-agent", "Start")
-            .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+        let start = div()
+            .id("marley-home-start-agent")
+            .debug_selector(|| "marley-home-start-agent".into())
+            .flex_none()
+            .size(px(34.))
+            .rounded(px(10.))
+            .bg(accent)
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .child(
+                Icon::new(IconName::ArrowRight)
+                    .size(IconSize::Small)
+                    .color(Color::Custom(colors.editor_background)),
+            )
+            .tooltip(Tooltip::text("Start"))
             .on_click(cx.listener(|home, _, window, cx| home.start_prompt(window, cx)));
         v_flex()
-            .gap_2()
-            .child(field)
+            .debug_selector(|| "marley-home-prompt".into())
+            .key_context("MarleyHomePrompt")
+            .on_action(cx.listener(|home, _: &menu::Confirm, window, cx| {
+                home.start_prompt(window, cx);
+            }))
+            // Enter starts the agent: the box is two lines tall only to show a longer task.
+            .capture_action(
+                cx.listener(|home, _: &editor::actions::Newline, window, cx| {
+                    cx.stop_propagation();
+                    home.start_prompt(window, cx);
+                }),
+            )
+            .w_full()
+            .gap_2p5()
+            .pl(px(18.))
+            .pr_3p5()
+            .pt_3p5()
+            .pb_2p5()
+            .rounded(px(18.))
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .children(self.prompt.clone())
             .child(
                 h_flex()
                     .w_full()
-                    .gap_2()
+                    .gap_1p5()
                     .flex_wrap()
-                    .children(chips)
                     .child(self.render_project_chip(cx))
+                    .children(chips)
                     .child(div().flex_1())
                     .child(start),
-            )
-            .child(
-                h_flex()
-                    .flex_wrap()
-                    .gap_1()
-                    .child(self.render_start())
-                    .child(self.render_agent_links()),
             )
             .into_any_element()
     }
@@ -443,11 +458,16 @@ impl MarleyHome {
                 self.workspace.upgrade().map_or_else(
                     || "Home".to_string(),
                     |workspace| {
+                        // The folder's name, as the board's chip reads (#903); the home folder is
+                        // Home.
                         terminal_view::default_working_directory(workspace.read(cx), cx)
-                            .map_or_else(
-                                || "Home".to_string(),
-                                |folder| format!("Home · {}", folder.compact().to_string_lossy()),
-                            )
+                            .filter(|folder| folder != paths::home_dir())
+                            .and_then(|folder| {
+                                folder
+                                    .file_name()
+                                    .map(|name| name.to_string_lossy().into_owned())
+                            })
+                            .unwrap_or_else(|| "Home".to_string())
                     },
                 )
             },
@@ -457,10 +477,10 @@ impl MarleyHome {
         let projects = self.project_choices(cx);
         PopoverMenu::new("marley-home-project")
             .trigger(
-                Button::new("marley-home-project-chip", format!("in {name}"))
+                Button::new("marley-home-project-chip", name)
                     .start_icon(Icon::new(IconName::Folder).size(IconSize::Small))
                     .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall))
-                    .style(ButtonStyle::Subtle)
+                    .style(ButtonStyle::Filled)
                     .label_size(LabelSize::Small),
             )
             .menu(move |window, cx| {
@@ -550,45 +570,6 @@ impl MarleyHome {
     }
 
     /// New Agent…, the picker that asks which agent and where (#735), and Threads (#745), as links.
-    fn render_agent_links(&self) -> impl IntoElement {
-        let picker_workspace = self.workspace.clone();
-        let threads_workspace = self.workspace.clone();
-        h_flex()
-            .gap_1()
-            .child(
-                Button::new("marley-home-new-agent", "New Agent…")
-                    .start_icon(
-                        Icon::new(IconName::Plus)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .style(ButtonStyle::Subtle)
-                    .on_click(move |_, window, cx| {
-                        picker_workspace
-                            .update(cx, |workspace, cx| {
-                                agents::show_picker(workspace, None, window, cx);
-                            })
-                            .log_err();
-                    }),
-            )
-            .child(
-                Button::new("marley-home-threads", "Threads")
-                    .start_icon(
-                        Icon::new(IconName::Thread)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .style(ButtonStyle::Subtle)
-                    .on_click(move |_, window, cx| {
-                        threads_workspace
-                            .update(cx, |workspace, cx| {
-                                crate::threads_page::open(workspace, window, cx);
-                            })
-                            .log_err();
-                    }),
-            )
-    }
-
     /// Starts the picked agent with the prompt's task in Home's workspace, and empties the box.
     fn start_prompt(&self, window: &mut Window, cx: &mut Context<Self>) {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
@@ -708,28 +689,28 @@ impl MarleyHome {
                     _ => Color::Muted,
                 };
                 let opened = agent.row.clone();
+                let status = cx.theme().status();
+                let dot = match agent.state {
+                    "failed" => status.error,
+                    "waiting" => status.warning,
+                    _ => status.success,
+                };
+                // A tile with the agent's state at its corner, over its status, as the board
+                // draws a row (#903).
                 row(("marley-home-at-work", index), cx)
+                    .gap_2p5()
+                    .child(state_tile(dot, cx))
                     .child(
-                        Icon::new(IconName::Sparkle)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        div()
+                        v_flex()
                             .min_w_0()
                             .flex_1()
-                            .child(Label::new(agent.title).size(LabelSize::Small).truncate()),
-                    )
-                    .child(
-                        Label::new(agent.project)
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted)
-                            .truncate(),
-                    )
-                    .child(
-                        Label::new(agent.status)
-                            .size(LabelSize::XSmall)
-                            .color(color),
+                            .child(Label::new(agent.title).size(LabelSize::Small).truncate())
+                            .child(
+                                Label::new(format!("{} \u{b7} {}", agent.status, agent.project))
+                                    .size(LabelSize::XSmall)
+                                    .color(color)
+                                    .truncate(),
+                            ),
                     )
                     .on_click(move |_, window, cx| {
                         rail.update(cx, |rail, cx| {
@@ -741,33 +722,90 @@ impl MarleyHome {
             .into_any_element()
     }
 
+    /// Home's cards in the board's order (#903): agents at work, Rusty's while it is on, recent
+    /// projects, Forge's, agent activity; each at least 300 px wide, so the grid wraps.
+    fn cards(&mut self, window: &Window, cx: &mut Context<Self>) -> Vec<Div> {
+        let at_work = self.render_at_work(window, cx);
+        let rusty_cards = self
+            .rusty
+            .as_ref()
+            .map(|(rusty, _)| rusty.clone())
+            .map(|rusty| rusty.update(cx, |cards, cx| cards.home_cards(cx)))
+            .unwrap_or_default();
+        let threads = self.workspace.clone();
+        let activity = self.workspace.clone();
+        std::iter::once(card_with(
+            "AGENTS AT WORK",
+            "marley-home-at-work",
+            Some(card_link(
+                "marley-home-at-work-threads",
+                "Threads",
+                move |window, cx| {
+                    threads
+                        .update(cx, |workspace, cx| {
+                            crate::threads_page::open(workspace, window, cx);
+                        })
+                        .log_err();
+                },
+            )),
+            at_work,
+            cx,
+        ))
+        .chain(rusty_cards)
+        .chain(std::iter::once(card_with(
+            "RECENT PROJECTS",
+            "marley-home-recent",
+            Some(card_link(
+                "marley-home-recent-open-folder",
+                "Open Folder\u{2026}",
+                |window, cx| window.dispatch_action(Box::new(workspace::Open::DEFAULT), cx),
+            )),
+            self.render_recent(cx),
+            cx,
+        )))
+        .chain(
+            crate::forge_watch::render_home_card(cx)
+                .map(|forge| card("FORGE", "marley-home-forge", forge, cx)),
+        )
+        .chain(std::iter::once(card_with(
+            "AGENT ACTIVITY",
+            "marley-home-activity",
+            Some(card_link(
+                "marley-home-activity-open",
+                "Open",
+                move |window, cx| {
+                    crate::agent_activity::open_later(activity.clone(), window, cx);
+                },
+            )),
+            self.render_activity(cx),
+            cx,
+        )))
+        // Each card takes at least 300 px of the row and grows, so the grid wraps, as the board's
+        // `auto-fit` does.
+        .map(|card| card.flex_grow(1.).flex_basis(px(300.)).min_w_0())
+        .collect()
+    }
+
     fn render_configure(&self) -> impl IntoElement {
-        let entries: [(&'static str, &'static str, IconName); 7] = [
-            ("marley-home-settings", "Settings", IconName::Settings),
-            (
-                "marley-home-marley-settings",
-                "Marley Settings",
-                IconName::Settings,
-            ),
-            ("marley-home-keymap", "Keymap", IconName::Keyboard),
-            ("marley-home-extensions", "Extensions", IconName::Blocks),
-            (
-                "marley-home-mcp-servers",
-                "MCP Servers",
-                IconName::ToolHammer,
-            ),
-            ("marley-home-components", "Components", IconName::Blocks),
-            ("marley-home-guide", "Marley Guide", IconName::Book),
+        let entries: [(&'static str, &'static str); 7] = [
+            ("marley-home-settings", "Settings"),
+            ("marley-home-marley-settings", "Marley Settings"),
+            ("marley-home-keymap", "Keymap"),
+            ("marley-home-extensions", "Extensions"),
+            ("marley-home-mcp-servers", "MCP Servers"),
+            ("marley-home-components", "Components"),
+            ("marley-home-guide", "Marley Guide"),
         ];
         h_flex()
+            .debug_selector(|| "marley-home-configure".into())
             .flex_wrap()
+            .justify_center()
             .gap_2()
-            .children(entries.into_iter().map(|(id, label, icon)| {
+            .children(entries.into_iter().map(|(id, label)| {
                 let focus = self.focus_handle.clone();
-                // Configure's entries read as links (#835).
+                // The board's row of links under the cards (#835, #903).
                 Button::new(id, label)
-                    .start_icon(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
-                    .style(ButtonStyle::Subtle)
+                    .style(ButtonStyle::Transparent)
                     .color(Color::Accent)
                     .on_click(move |_, window, cx| match id {
                         "marley-home-settings" => {
@@ -808,17 +846,137 @@ pub(crate) fn card(
     body: impl IntoElement,
     cx: &App,
 ) -> Div {
+    card_with(title, selector, None, body, cx)
+}
+
+/// A card as the Home board draws one (#903): rounded, its title in capitals with a link at its
+/// right when it has one.
+pub(crate) fn card_with(
+    title: &'static str,
+    selector: &'static str,
+    link: Option<AnyElement>,
+    body: impl IntoElement,
+    cx: &App,
+) -> Div {
     let colors = cx.theme().colors();
     v_flex()
         .debug_selector(move || selector.into())
-        .gap_2()
-        .p_3()
-        .rounded_md()
+        .gap_2p5()
+        .px_4()
+        .py_3p5()
+        .rounded(px(14.))
         .border_1()
         .border_color(colors.border)
         .bg(colors.panel_background)
-        .child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
+        .child(
+            h_flex()
+                .justify_between()
+                .child(
+                    Label::new(title)
+                        .size(LabelSize::XSmall)
+                        .weight(FontWeight::SEMIBOLD)
+                        .color(Color::Muted),
+                )
+                .children(link),
+        )
         .child(body)
+}
+
+/// A card's link at the right of its title (#903).
+pub(crate) fn card_link(
+    id: &'static str,
+    label: &'static str,
+    on_click: impl Fn(&mut Window, &mut App) + 'static,
+) -> AnyElement {
+    Button::new(id, label)
+        .style(ButtonStyle::Transparent)
+        .label_size(LabelSize::Small)
+        .color(Color::Accent)
+        .on_click(move |_, window, cx| on_click(window, cx))
+        .into_any_element()
+}
+
+/// A round-ended button, lit while `pressed` (#903): the agent chips and the start actions.
+fn pill(id: impl Into<ElementId>, pressed: bool, cx: &App) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    let accent = colors.text_accent;
+    let hover = colors.ghost_element_hover;
+    h_flex()
+        .id(id)
+        .flex_none()
+        .h(px(30.))
+        .px_2p5()
+        .gap_1p5()
+        .rounded_full()
+        .border_1()
+        .map(|pill| {
+            if pressed {
+                pill.border_color(accent.opacity(0.6))
+                    .bg(accent.opacity(0.15))
+            } else {
+                pill.border_color(colors.border)
+            }
+        })
+        .cursor_pointer()
+        .hover(move |style| style.bg(hover))
+}
+
+/// An agent CLI's two letters, on its chip's tile (#903).
+const fn cli_glyph(kind: AgentKind) -> &'static str {
+    match kind {
+        AgentKind::Claude => "CC",
+        AgentKind::Codex => "CX",
+        AgentKind::Gemini => "G",
+        AgentKind::OpenCode => "OC",
+    }
+}
+
+/// A chip's small tile with its letters (#903).
+fn glyph_tile(glyph: &'static str, cx: &App) -> Div {
+    div()
+        .flex_none()
+        .size(px(18.))
+        .rounded(px(5.))
+        .bg(cx.theme().colors().element_background)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Label::new(glyph)
+                .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .color(Color::Accent),
+        )
+}
+
+/// An agent at work's tile, its state a dot at the corner (#903).
+fn state_tile(dot: gpui::Hsla, cx: &App) -> Div {
+    let colors = cx.theme().colors();
+    div()
+        .relative()
+        .flex_none()
+        .size(px(30.))
+        .rounded(px(8.))
+        .bg(colors.element_background)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Icon::new(IconName::Sparkle)
+                .size(IconSize::Small)
+                .color(Color::Muted),
+        )
+        .child(
+            div()
+                .absolute()
+                .right(px(-2.))
+                .bottom(px(-2.))
+                .size(px(10.))
+                .rounded_full()
+                .border_2()
+                .border_color(colors.panel_background)
+                .bg(dot),
+        )
 }
 
 /// A clickable row of a card.
@@ -870,68 +1028,55 @@ impl Render for MarleyHome {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.prompt.is_none() {
             self.prompt = Some(cx.new(|cx| {
-                let mut editor = editor::Editor::single_line(window, cx);
-                editor.set_placeholder_text("What should an agent do?", window, cx);
+                let mut editor = editor::Editor::auto_height(2, 6, window, cx);
+                editor.set_placeholder_text(
+                    "Ask Marley, or describe a task and pick who does it",
+                    window,
+                    cx,
+                );
                 editor
             }));
         }
         let colors = cx.theme().colors();
         let background = colors.editor_background;
-        let at_work = self.render_at_work(window, cx);
+        let cards = self.cards(window, cx);
         v_flex()
             .id("marley-home")
             .track_focus(&self.focus_handle)
             .size_full()
             .overflow_y_scroll()
-            .p_4()
-            .gap_4()
+            .items_center()
+            .px_6()
+            .pt(px(56.))
+            .pb_8()
+            .gap_7()
             .bg(background)
-            // One prompt first (#835); START's and NEW AGENT's actions are its links.
-            .child(card(
-                "PROMPT",
-                "marley-home-prompt",
-                self.render_prompt(cx),
-                cx,
-            ))
+            .child(
+                v_flex()
+                    .w_full()
+                    .max_w(px(860.))
+                    .gap(px(18.))
+                    .child(
+                        div().flex().justify_center().child(
+                            Label::new("What are we working on?")
+                                .size(LabelSize::Custom(rems(1.875)))
+                                .weight(FontWeight::SEMIBOLD),
+                        ),
+                    )
+                    .child(self.render_prompt(cx))
+                    .child(self.render_start(cx)),
+            )
             .child(
                 h_flex()
+                    .debug_selector(|| "marley-home-cards".into())
                     .w_full()
-                    .gap_4()
+                    .max_w(px(1080.))
+                    .flex_wrap()
                     .items_start()
-                    .child(
-                        card(
-                            "RECENT PROJECTS",
-                            "marley-home-recent",
-                            self.render_recent(cx),
-                            cx,
-                        )
-                        .flex_1()
-                        .min_w_0(),
-                    )
-                    .child(
-                        card("AGENTS AT WORK", "marley-home-at-work", at_work, cx)
-                            .flex_1()
-                            .min_w_0(),
-                    ),
+                    .gap(px(14.))
+                    .children(cards),
             )
-            .children(self.rusty.clone())
-            .children(
-                crate::forge_watch::render_home_card(cx)
-                    .map(|forge| card("FORGE", "marley-home-forge", forge, cx)),
-            )
-            .child(card(
-                "AGENT ACTIVITY",
-                "marley-home-activity",
-                self.render_activity(cx),
-                cx,
-            ))
-            // The card used least goes last (#782).
-            .child(card(
-                "CONFIGURE",
-                "marley-home-configure",
-                self.render_configure(),
-                cx,
-            ))
+            .child(self.render_configure())
     }
 }
 

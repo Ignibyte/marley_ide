@@ -2254,6 +2254,20 @@ alike.
   after Recent Projects | Agents at Work; Configure moved under Agent Activity. The rail marks the
   page `TabKind::Home` in `member_tabs`, and `marley_rail::walk` lists it first under its group.
 
+- **The board's layout (#903).** `render` is a centered column: "What are we working on?", the
+  prompt and `render_start`'s pills (New Terminal, Open Folder…, Clone Repository…, Reopen a
+  Thread, and Today's Note while Rusty is on), at most 860 px wide; then `cards`, a wrapping row
+  at most 1080 px wide whose cards each take at least 300 px and grow (Agents at work · Threads,
+  Rusty's, Recent projects · Open Folder…, Forge's, Agent activity · Open); then
+  `render_configure`'s links. `card_with` draws a card rounded with its capitals title and a
+  `card_link` at its right; `card` is `card_with` without one. The prompt is an auto-height
+  editor two lines tall; `editor::Newline` is caught to start the agent, as `menu::Confirm` is.
+  The project chip names the folder (Home for the home folder); the agent CLIs are `pill`s with a
+  `glyph_tile`; Start is a round accent square. Command Palette and New Agent… left Home (the
+  title bar's field and the chips cover them). `RustyCards::home_cards` hands its cards to the
+  grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
+  Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
+  Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
 - **The prompt** (#835): `MarleyHome.prompt` (a single-line `Editor`, made at the first `render`,
   since `new` gets a read-only window) and `picked` (the chip lit; the first installed CLI until
   one is picked). `render_prompt` draws the box (`menu::Confirm`, from the global `enter`

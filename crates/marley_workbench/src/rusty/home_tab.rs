@@ -26,7 +26,7 @@ use workspace::{MultiWorkspace, Workspace};
 use super::brain::{Screen, open_screen};
 use super::capture::{CaptureToInbox, CaptureToToday, CaptureUrl};
 use super::page::OpenPage;
-use crate::home_page::{card, muted, row};
+use crate::home_page::{card, card_link, card_with, muted, row};
 
 actions!(
     rusty,
@@ -195,20 +195,47 @@ impl RustyCards {
         .detach();
     }
 
-    fn open_screen(screen: Screen, window: &Window, cx: &mut App) {
+    pub(crate) fn open_screen(screen: Screen, window: &Window, cx: &mut App) {
         if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
             open_screen(screen, &multi_workspace.downgrade(), window, cx);
         }
     }
 
+    /// Rusty's screens as the Home board's grid of tiles (#903): an icon over each name.
     fn render_screens(cx: &Context<Self>) -> impl IntoElement {
-        h_flex()
-            .flex_wrap()
+        let colors = cx.theme().colors();
+        let (border, ground, hover) = (
+            colors.border,
+            colors.editor_background,
+            colors.ghost_element_hover,
+        );
+        div()
+            .grid()
+            .grid_cols(4)
             .gap_2()
             .children(Screen::ALL.iter().map(|&screen| {
-                Button::new(screen.id(), screen.label())
-                    .start_icon(Icon::new(screen.icon()).size(IconSize::Small))
-                    .style(ButtonStyle::Filled)
+                v_flex()
+                    .id(screen.id())
+                    .h(px(58.))
+                    .items_center()
+                    .justify_center()
+                    .gap_1()
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(border)
+                    .bg(ground)
+                    .cursor_pointer()
+                    .hover(move |style| style.bg(hover))
+                    .child(
+                        Icon::new(screen.icon())
+                            .size(IconSize::Small)
+                            .color(Color::Accent),
+                    )
+                    .child(
+                        Label::new(screen.label())
+                            .size(LabelSize::XSmall)
+                            .truncate(),
+                    )
                     .on_click(cx.listener(move |_, _: &ClickEvent, window, cx| {
                         Self::open_screen(screen, window, cx);
                     }))
@@ -334,19 +361,46 @@ impl RustyCards {
                             Color::Muted
                         };
                         let (workspace, slug) = (self.workspace.clone(), decision.slug.clone());
+                        let ground = if decision.overdue {
+                            cx.theme().status().error_background
+                        } else {
+                            cx.theme().colors().element_background
+                        };
+                        // The board's row (#903): a tile, the decision over when it is due, and
+                        // Follow Up, which opens it as a click on the row does.
                         row(("marley-rusty-home-due", index), cx)
-                            .child(
-                                Icon::new(IconName::CheckDouble)
-                                    .size(IconSize::Small)
-                                    .color(Color::Muted),
-                            )
+                            .gap_2p5()
                             .child(
                                 div()
+                                    .flex_none()
+                                    .size(px(30.))
+                                    .rounded(px(8.))
+                                    .bg(ground)
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        Icon::new(IconName::Check)
+                                            .size(IconSize::Small)
+                                            .color(color),
+                                    ),
+                            )
+                            .child(
+                                v_flex()
                                     .min_w_0()
                                     .flex_1()
-                                    .child(Label::new(title).size(LabelSize::Small).truncate()),
+                                    .child(Label::new(title).size(LabelSize::Small).truncate())
+                                    .child(
+                                        Label::new(format!("follow up by {date}"))
+                                            .size(LabelSize::XSmall)
+                                            .color(color),
+                                    ),
                             )
-                            .child(Label::new(date).size(LabelSize::XSmall).color(color))
+                            .child(
+                                Button::new(("marley-rusty-home-follow-up", index), "Follow Up")
+                                    .style(ButtonStyle::Outlined)
+                                    .label_size(LabelSize::Small),
+                            )
                             .on_click(move |_, window, cx| {
                                 super::brain_tab::open_page_later(
                                     workspace.clone(),
@@ -369,26 +423,8 @@ impl RustyCards {
         if tasks.is_empty() {
             return muted("No open task.");
         }
-        let header = h_flex()
-            .px_2()
-            .gap_2()
-            .child(
-                div().flex_1().child(
-                    Label::new("Task")
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                ),
-            )
-            .child(
-                div().w_40().child(
-                    Label::new("List")
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                ),
-            );
         let more = tasks.len().saturating_sub(TASKS_SHOWN);
         v_flex()
-            .child(header)
             .children(
                 tasks
                     .iter()
@@ -409,13 +445,20 @@ impl RustyCards {
                                         .truncate(),
                                 ),
                             )
+                            // Its list as a pill, as the board draws it (#903).
                             .child(
-                                div().w_40().child(
-                                    Label::new(task.list.clone())
-                                        .size(LabelSize::Small)
-                                        .color(Color::Muted)
-                                        .truncate(),
-                                ),
+                                div()
+                                    .flex_none()
+                                    .max_w_32()
+                                    .px_2()
+                                    .rounded_full()
+                                    .bg(cx.theme().colors().element_background)
+                                    .child(
+                                        Label::new(task.list.clone())
+                                            .size(LabelSize::XSmall)
+                                            .color(Color::Muted)
+                                            .truncate(),
+                                    ),
                             )
                             .on_click(move |_, window, cx| {
                                 super::tasks_tab::open_later(
@@ -472,8 +515,10 @@ fn not_connected(cx: &App) -> Option<SharedString> {
     }
 }
 
-impl Render for RustyCards {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+impl RustyCards {
+    /// Rusty's cards for Home's grid (#903): Tasks, Follow-ups due with Recent pages under them,
+    /// and Rusty's screens with the captures; while Rusty cannot be reached, one card saying why.
+    pub(crate) fn home_cards(&self, cx: &Context<Self>) -> Vec<Div> {
         if let Some(reason) = not_connected(cx) {
             // Still connecting reads as a line; a connection that does not hold, as the States
             // board's card with Try Now (#894).
@@ -482,54 +527,69 @@ impl Render for RustyCards {
             } else {
                 super::render_dropped(0, cx)
             };
-            return card("RUSTY", "marley-rusty-home-not-connected", body, cx)
-                .w_full()
-                .into_any_element();
+            return vec![card("RUSTY", "marley-rusty-home-not-connected", body, cx)];
         }
-        v_flex()
-            .w_full()
-            .gap_4()
-            .child(card(
+        let tasks_workspace = self.workspace.clone();
+        let overdue = match &self.read {
+            Read::Done(data) => data.due.iter().filter(|decision| decision.overdue).count(),
+            _ => 0,
+        };
+        let follow_ups_title = h_flex().children((overdue > 0).then(|| {
+            Label::new(format!("{overdue} overdue"))
+                .size(LabelSize::Small)
+                .color(Color::Error)
+                .into_any_element()
+        }));
+        vec![
+            card_with(
+                "TASKS",
+                "marley-rusty-home-tasks",
+                Some(card_link(
+                    "marley-rusty-home-open-tasks",
+                    "Open Tasks",
+                    move |window, cx| {
+                        super::tasks_tab::open_later(tasks_workspace.clone(), None, window, cx);
+                    },
+                )),
+                self.render_tasks(cx),
+                cx,
+            ),
+            card_with(
+                "FOLLOW-UPS DUE",
+                "marley-rusty-home-due",
+                Some(follow_ups_title.into_any_element()),
+                v_flex()
+                    .gap_2p5()
+                    .child(self.render_due(cx))
+                    .child(div().h_px().bg(cx.theme().colors().border_variant))
+                    .child(
+                        div()
+                            .debug_selector(|| "marley-rusty-home-recent".into())
+                            .child(
+                                Label::new("RECENT PAGES")
+                                    .size(LabelSize::XSmall)
+                                    .weight(gpui::FontWeight::SEMIBOLD)
+                                    .color(Color::Muted),
+                            ),
+                    )
+                    .child(self.render_recent(cx)),
+                cx,
+            ),
+            card(
                 "RUSTY",
                 "marley-rusty-home-screens",
                 v_flex()
-                    .gap_2()
+                    .gap_2p5()
                     .child(Self::render_screens(cx))
                     .child(Self::render_forms(cx)),
                 cx,
-            ))
-            .child(
-                h_flex()
-                    .w_full()
-                    .gap_4()
-                    .items_start()
-                    .child(
-                        card(
-                            "RECENT PAGES",
-                            "marley-rusty-home-recent",
-                            self.render_recent(cx),
-                            cx,
-                        )
-                        .flex_1()
-                        .min_w_0(),
-                    )
-                    .child(
-                        card(
-                            "FOLLOW-UPS DUE",
-                            "marley-rusty-home-due",
-                            self.render_due(cx),
-                            cx,
-                        )
-                        .flex_1()
-                        .min_w_0(),
-                    ),
-            )
-            .child(card(
-                "TASKS",
-                "marley-rusty-home-tasks",
-                self.render_tasks(cx),
-                cx,
-            ))
-            .into_any_element()
+            ),
+        ]
+    }
+}
+
+impl Render for RustyCards {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        v_flex().w_full().gap_4().children(self.home_cards(cx))
     }
 }

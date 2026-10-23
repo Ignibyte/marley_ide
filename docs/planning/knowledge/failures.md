@@ -4484,3 +4484,13 @@ The agent got `@src/main.rs` with no lines: inline assist turns the selection in
 its range and leaves the editor only a caret, so the action read no selection. Fixed: the click
 sends the lines the prompt was given (`send_lines`), and the prompt reads them from its codegen's
 range. While inline assist is open, its range is the selection; the editor's own is a caret.
+
+## F-claude-903-a-stand-in-not-on-the-terminals-path-001
+*found: 2026-10-23 · while: testing #903 · severity: medium*
+
+#903's scenario put its stand-in `claude` on Marley's PATH only. Home's Start types the agent's
+command into a terminal, whose shell reads the scenario's `.bashrc`, and that `.bashrc` set only
+the prompt, so the terminal ran the box's real Claude Code (in the run's scratch HOME, stopped at
+its first-run theme screen; nothing sent). Fixed: the `.bashrc` puts the stand-ins first on the
+PATH. A scenario whose terminals start an agent puts its stand-ins on the terminals' PATH through
+the `.bashrc` it hands `terminal_env HOME`, as PR-687 asks.
