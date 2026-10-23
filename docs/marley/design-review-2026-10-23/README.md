@@ -74,3 +74,44 @@ Daily use first, then each area whole. Each line becomes one ticket, taken whole
   were defaults taken while building. They stay out unless Chad says to build them.
 - **Fonts.** The boards set words in Geist and code in Geist Mono; Marley ships Zed's fonts. A
   change of fonts reaches every screen, so it waits for Chad's word.
+
+## Tickets
+
+The build order above is queued as #905 to #946 (2026-10-23), each with a drafted Phase 1 spec in
+`docs/planning/pipeline/queued/`, in `BACKLOG.md`'s order: #906, #905, then #907 to #946. Home's
+Marley and Rusty chips are #904.
+
+## Follow-ups the specs left out
+
+Each spec's Out names what it left for later. These gaps have no ticket yet:
+
+- **Bottom row:** an agent CLI's terminal (agent, model, mode, Turns, context); the Fleet, which is
+  a dock panel; build progress on the rail row and the bottom row, once #918 parses it.
+- **Rail and tabs:** "Link to a Brain Page…" in a project's menu (#911); a project's mark on its
+  tabs (#905).
+- **Agent thread:** reply chips that follow the answer; the model and effort as a button in the
+  composer; a block reference chip in the thread and @-mentioning a block; the model and context in
+  an agent CLI's bar, which needs a model field in the report format rustal-harness shares (#928).
+- **Terminal:** a block's start time in its header; the selected block's labelled toolbar; the tmux
+  window an attach shows; ssh link latency; percent-only progress (cmake, pip, npm) and a "which
+  package has this program" hint (#918).
+- **Dialogs:** the quit dialog's wording ("Quit with 2 agents working?"); "Rusty is not connected"
+  with Open Settings; a proposed setting change as a centred dialog.
+- **Side panels and drawer (#922, #923):** the Changes panel as the board lays it out with Ask an
+  agent beside Commit; Outline's header and kind labels; the breadcrumb's wording and "+N since
+  main"; the drawer's Output and Tasks tabs and the Debug tab's layout (deferred by #838); the
+  "paused · name = …" chip on the stopped line.
+- **tmux (#930):** a New Session… dialog; the Sessions page's three columns and placement card.
+- **Browser (#932):** "drafted from a recording" as a script state; a failed-test count.
+- **Rusty:** the Knowledge panel's asking box (each question records a consultation in Rusty, so it
+  waits for Chad's word), the Following tile and the graph's fixed column (#939); the pairing card
+  (#938); capture, import, draft-tab, picker, memory, link and MCP-form wording (#940); Rusty's
+  calls made from Codex or Zed's own agent, and a call log kept by rusty-mcp (#934).
+- **Open and connect (#944):** the upload's running count; a "connecting" host dot; the page
+  picker's star and slug; the harness seat's footnote.
+- **System pages (#945):** Chromium's "Clear a project's data…"; this build's lead sentence; the
+  Fleet providers' addresses; For developers' planned items and gate rows.
+- **Forge (#946):** a host's role; the board header's tile and bar; the Agent and Sprint tiles; the
+  online agents page title; the rail's Forge header; Home's chips; the bulletins' time and border;
+  the bottom row's Forge chip.
+- **Component Library (#936):** a line number in a template's error.
