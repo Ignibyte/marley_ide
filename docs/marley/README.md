@@ -55,3 +55,4 @@ stay cheap.
   `com.ignibyte.Marley` (#760).
 - The guide's "Install and run" section has the details, and the walkthrough's Part 0 checks an
   install stop by stop.
+- [design-review-2026-10-23/](design-review-2026-10-23/README.md): what the design boards draw that Marley does not yet, board by board, and the order to build it (2026-10-23).
