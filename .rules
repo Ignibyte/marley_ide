@@ -40,6 +40,103 @@ box: the target directory is shared by every project on it.
   });
   ```
 
+# Google's Rust style guide, as Marley applies it
+
+Marley adopts Google's Rust style guide (https://google.github.io/styleguide/rustguide.html), as
+Chad asked on 2026-10-23. It binds new and changed code in the Marley crates (`crates/marley_*`).
+A hunk in a Zed crate follows the surrounding Zed code instead, as upstream discipline asks. Where
+the guide and the rules above disagree, the stricter one wins. Marley's lint table (pedantic,
+nursery and cargo at `-D warnings`) already enforces most of the lints the guide names. The rules
+below are the ones a reviewer has to check by eye.
+
+## Layout and imports
+
+* One module per `use` statement: `use foo::bar::{Bar, Baz};`, never `use foo::{Foo, bar::Bar};`.
+* Import types unqualified (`Regex`, not `regex::Regex`), except for ambiguous names such as
+  `io::Error`, which stay qualified or are renamed.
+* Call a module's free functions through its name (`mem::take(x)`, `util::truncate_and_trailoff`),
+  not as bare imported functions.
+* Import a trait inside the function that uses it, unless its methods are used throughout the file.
+* No glob imports, except `use super::*` in an inline test module and the `gpui::prelude::*` and
+  `ui::prelude::*` preludes Zed's code is written against. Define no preludes of our own.
+* A file is named after its primary item (`debug_row.rs` holds `DebugRow`).
+
+## Functions and types
+
+* Take borrowed data in its most general shape: `&str`, not `&String`; `&[T]`, not `&Vec<T>`;
+  `Option<&T>`, not `&Option<T>`.
+* A `bool` parameter whose meaning is not obvious at the call site is an `enum`. A `bool` that
+  stays gets a comment naming it at the call site: `open(path, /* activate */ true)`.
+* No tuples with more than one field in signatures, fields or type aliases. Use a struct with
+  named fields; `.0` and `.1` hide meaning. A local tuple that never leaves its function is fine.
+* A newtype when a value has its own meaning or could be confused with another of the same type:
+  a port and a pid are both `u32`.
+* Prefer a borrow to `.clone()`. Clone a value only when ownership is needed, or when borrowing
+  would make the code much harder to follow. Cloning an `Entity`, `Arc` or `SharedString` is
+  cheap and expected.
+* Implement standard traits rather than look-alike methods (`FromStr`, not `fn from_str`), and
+  `#[derive]` what can be derived. A type with `new()` and no arguments implements `Default`.
+* Define a trait only for generics, `impl Trait` or `dyn Trait`, or as an extension trait named
+  `…Ext`. Do not use a trait just to group methods.
+* Report errors by kind:
+  - `Option` when the caller needs no detail;
+  - `anyhow::Result` with context when the caller or the user does;
+  - a panic only for a broken invariant, with `expect("why this holds")`. A path that input or a
+    response can reach never panics; the rules above still bind.
+* `#[must_use]` on a function whose result is the point of calling it (a pure lookup, a builder),
+  unless its type already carries it, as `Result` and `Task` do.
+
+## Naming
+
+* Constructors: `new()`; `new_with_…()` when there are several; `try_new()` when it returns a
+  `Result`. Conversions: `from_…()` beside a `From` impl.
+* Accessors: `foo()` returns the value, `foo_mut()` a mutable borrow, `set_foo()` takes a value,
+  `take_foo()` empties and returns it, `replace_foo()` swaps.
+* `as_`, `to_` and `into_` keep their standard meanings and `self` shapes.
+* Lifetimes get descriptive names, except `'_` and at most two short local ones.
+* Generic parameters are named for their main bound (`F: Fn…`, `I: Iterator`); `T` only when the
+  parameter is unbounded.
+* No abbreviation a newcomer would have to look up, and no letters dropped from words. This is
+  the full-words rule above, made stricter.
+
+## Writing the code
+
+* Annotate a binding's type when it is not clear from the right-hand side, above all after
+  `.into()`, `.parse()`, `.collect()` and a long iterator chain. Prefer `let x: T = …` to a
+  turbofish.
+* `if let Some(x) = value`, never `is_some()` followed by an unwrap.
+* Keep iterator chains short; never put a chain in a `for` header (bind it to a name first); no
+  `Iterator::for_each`, use a `for` loop.
+* Build a string from more than two pieces with `format!` or `write!`, not `+` or
+  `str::replace` on a template.
+* `assert!` and `debug_assert!` carry a message that says what went wrong, not a repeat of the
+  condition.
+* In a `match` on another crate's enum, list the variants you handle and let one `_` arm take the
+  rest; use `if let` or `let … else` for a single variant.
+* `#[rustfmt::skip]` only for deliberate alignment, such as a table of constants; never for taste.
+* A macro only when a function, a type or a trait cannot do the job; prefer `macro_rules!` to
+  generated code.
+
+## Documentation
+
+* Document every public item (`missing_docs` is denied in the Marley crates). Say what the code
+  does not: why it exists, what it guarantees, when it panics (`# Panics`) or fails (`# Errors`).
+  Never restate the item's name.
+* `//!` at the top of a module file, `///` on items, `//` for implementation notes. Full
+  sentences, with capitals and punctuation.
+* `unsafe` stays out of the Marley crates (`unsafe_code` is denied). Code that must use it carries
+  a `// SAFETY:` note saying why it is sound and why safe code would not do.
+
+## Where Marley departs from the guide
+
+* `Rc` and `Arc`: GPUI is built on shared ownership (`Entity`, `Arc<dyn Fs>`, `SharedString`). Use
+  them as GPUI does; avoid them only in plain data code that can own its data.
+* Async: GPUI's executors and `Task` are how this application does its work.
+* Crates and files: Zed's rule above (prefer existing files, few small files) replaces the guide's
+  small crates and flat folders, which are Chromium's rules.
+* Tests: Marley writes no unit tests while the look work runs (CONSTITUTION §7). Tests already in
+  the tree keep `#[test]` and `#[gpui::test]`.
+
 # Timers in tests
 
 * In GPUI tests, prefer GPUI executor timers over `smol::Timer::after(...)` when you need timeouts, delays, or to drive `run_until_parked()`:

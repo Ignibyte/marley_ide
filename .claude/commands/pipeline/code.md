@@ -39,7 +39,19 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
    - gpui entity re-entrancy: nothing reads or updates an entity while it is being updated;
    - provenance (§20): nothing derived from Warp's source, and nothing carried over from a
      GPL Zed function body into a Marley crate;
-   - upstream discipline: each Zed hunk additive and minimal, each row written.
+   - upstream discipline: each Zed hunk additive and minimal, each row written;
+   - Google's Rust style guide as `.rules` applies it, in every Marley file the diff touches.
+     Check each point:
+     - imports: one module per `use`, types unqualified, functions called through their module,
+       no new glob imports;
+     - signatures: `&str`/`&[T]`/`Option<&T>`, no unclear `bool` (an `enum`, or a named
+       argument comment), no tuples with more than one field (a struct with named fields);
+     - names: constructors, accessors and conversions as named there, no abbreviations;
+     - bodies: a type annotation where inference hides the type, `if let` rather than
+       check-then-unwrap, short iterator chains and none in a `for` header, no `for_each`,
+       `format!` for more than two pieces, a message on every assert, `expect("why")` only for
+       a true invariant;
+     - documentation: what the code does not say, `# Errors` and `# Panics` where they apply.
    Fix what you find. A real bug found here is an `F-…` block at Complete.
 5. **No unit tests** are written or run (§7), and no regression: the visual check of what
    changed is the Test phase's. The tests already in the tree must keep compiling (gate:2 builds

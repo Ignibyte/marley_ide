@@ -234,6 +234,11 @@ product is finished.
   root named after the crate, full words for names, the GPUI entity and task rules, executor
   timers in tests. `expect()` is acceptable only for a genuine invariant, with a message that
   states it.
+- Google's Rust style guide binds new and changed code in the Marley crates, as `.rules` applies
+  it in its section "Google's Rust style guide, as Marley applies it" (Chad, 2026-10-23). That
+  section names the guide's rules a reviewer checks by eye, and where Marley departs from it
+  (GPUI's shared ownership and async; Zed's file layout). A hunk in a Zed crate follows the
+  surrounding Zed code.
 - Matches the surrounding code's idiom; `cargo fmt` is law (gate:1). clippy clean at
   `-D warnings`, `--all-targets` (gate:2). An `#[allow]` needs a trailing `//` justification
   (gate:12).
