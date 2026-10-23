@@ -2042,6 +2042,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **The rail header's icons sit together on the left** (#902, 2026-10-23). Files, Add Project and
+  Shrink follow Projects, Threads and Sessions instead of sitting at the header's right end.
+
 - **The rail's Files button closes the tree on a second click** (#898, 2026-10-22). It ran Zed's
   toggle-focus, which closes only a focused panel; a click anywhere else first meant the second
   click focused the tree again. While the tree shows, the button now closes it.

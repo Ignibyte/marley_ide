@@ -3190,7 +3190,9 @@ screen opens Home after `rusty_unavailable`.
 - `Rail::threads: ThreadsSide { shown, search, … }`, the view's state outside `Rail::new`'s body.
   `render_view_switch` draws Projects, Threads and Sessions as `IconButton`s (Folder, Thread,
   TerminalAlt, `IconSize::Small`, the shown one toggled, each named in its tooltip; words until
-  #873); Projects takes an accent `Indicator::dot()` while Threads shows and
+  #873), and `render_header` puts Files, Add Project and Shrink right after them, the empty
+  space (and its right-click menu) last (#902); Projects takes an accent `Indicator::dot()` while
+  Threads shows and
   `marley_rail::has_attention` holds. `show_view` flips the view and moves the focus (the search
   field, or the rail); `toggle_thread_history` answers `sidebar::ToggleThreadHistory`, bound to
   `ctrl-g` in the Marley keymap's `MarleyRail && !Picker` block.

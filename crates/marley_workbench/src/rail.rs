@@ -4963,11 +4963,9 @@ impl Rail {
         // Rusty's button left the header for the status bar (#739); the Projects | Threads switch
         // took the PROJECTS label's place (#745).
         let projects = self.projects_shown();
+        // Every button together from the left, the empty space after them (#902).
         header
             .child(self.render_view_switch(cx))
-            .child(div().flex_1().h_full().when(projects, |space| {
-                space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
-            }))
             .child(render_files_button(&self.multi_workspace, cx))
             .when(projects, |header| header.child(self.render_add_project()))
             .child(
@@ -4976,6 +4974,9 @@ impl Rail {
                     .tooltip(Tooltip::text("Shrink the Rail"))
                     .on_click(|_, _, cx| crate::toggle_rail_strip(cx)),
             )
+            .child(div().flex_1().h_full().when(projects, |space| {
+                space.on_mouse_down(MouseButton::Right, cx.listener(Self::empty_space_menu))
+            }))
     }
 
     /// The projects' blocks, each header with its rows, then the harnesses'; with `only`, that
