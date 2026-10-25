@@ -448,6 +448,8 @@ pub fn listen_for_cli_connections(opener: OpenListener) -> Result<()> {
                 gpui::set_next_activation_token(token);
                 continue;
             }
+            // Marley: the running Marley says a folder came from another launch (#913).
+            marley_workbench::single_instance::note_handed(&url);
             opener.open(RawOpenRequest {
                 urls: vec![url],
                 ..Default::default()

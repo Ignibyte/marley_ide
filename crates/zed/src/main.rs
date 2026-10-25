@@ -1334,7 +1334,12 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
         task = Some(cx.spawn(async move |cx| {
             let paths_with_position =
                 derive_paths_with_position(app_state.fs.as_ref(), request.open_paths).await;
-            let (_window, results) = open_paths_with_positions(
+            // Marley: a folder a second launch handed over opens with a notice (#913).
+            let opened: Vec<std::path::PathBuf> = paths_with_position
+                .iter()
+                .map(|path| path.path.clone())
+                .collect();
+            let (window, results) = open_paths_with_positions(
                 &paths_with_position,
                 &request.diff_paths,
                 request.diff_all,
@@ -1351,6 +1356,7 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
                     log::error!("Error opening path: {err:#}");
                 }
             }
+            marley_workbench::single_instance::announce_handed(window, &opened, cx);
             anyhow::Ok(())
         }));
     }

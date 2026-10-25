@@ -37,6 +37,12 @@
   - `crates/zed/src/main.rs:1327-1355` (the open-paths task).
 - **Decisions:** D1–D5 in the spec.
 
+- **Promoted 2026-10-25:** seams re-read: `close_guard.rs` (`guard`, `question`, `ask_tmux`,
+  `working_status`, `hold`), the seat's `title` (`marley_fleet::Session`), `prompts.rs`'s card,
+  `tmux_sessions.rs` (`TmuxSession`, `PANE_FORMAT` already carries `pane_current_command`,
+  `parse`), `open_listener.rs` `listen_for_cli_connections`, `main.rs` `handle_open_request`'s
+  open-paths task (it has the window from `open_paths_with_positions`), `single_instance.rs`.
+
 ### Design
 - Wait:
   - `guard` picks the buttons from the one working agent: `Close, Wait, Cancel` when
@@ -92,7 +98,34 @@
   still shows there, which is right (the launch handed it over).
 
 ## Phase 2 — Code
+- **Built:** as scoped in `close_guard.rs`, `prompts.rs` (`PromptHead`, `set_head`,
+  `clear_head`, `title`), `tmux_sessions.rs` (`command`, `SHELLS`, `is_local`, `session_of`),
+  `single_instance.rs` (`note_handed`, `announce_handed`), and two Zed hunks with their ledger
+  rows (`open_listener.rs`, `main.rs`).
+- **Deviations:** the turn is the seat's `prompt` label, not its title: the first run's dialog
+  quoted "Claude Code", the seat's title being the agent's name. With no prompt the sentence reads
+  "It is in a turn."
+- **Review:** the wait closes through Zed's own close (D2), from the window the dialog was in;
+  the toast's Keep It Open and the observer both end the wait by id, deferred. A hand-off is known
+  by the listener noting it (D5).
+- **Gate:** `just gate-diff` 17/17 green after missing imports, `option_if_let_else`,
+  `needless_pass_by_value`, a rustdoc HTML tag and a duplicate scenario function.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/913-dialogs-wait-and-second-launch.sh` (sway): #827's stand-in in `a`
+  stepped to working (prompt "Run the build"), then to its stop; tmux `build` running `sleep` on a
+  private socket; a second launch for `b`.
+- `913-01-close`: "Claude Code is still working", "“Run the build” is in a turn. Close keeps it
+  running for 60 s so Undo can bring it back.", Cancel · Wait · Close (REQ-001, REQ-002).
+- `913-06-day`: the same in Marley Day (REQ-001, REQ-002).
+- `913-02-waiting`: the tab still open, "Claude Code in a closes when its turn ends", Keep It Open
+  (REQ-003).
+- `913-03-closed`: the stand-in stopped: the tab closed (REQ-003).
+- `913-04-tmux`: the `tx` tile, "Close the tmux session “build”?", "On this machine · 1 window ·
+  sleep is running", the body, Cancel · Hide · Close Session (REQ-004).
+- `913-05-handed`: `b` opened by the second launch, "Opened b from another launch" with Dismiss,
+  behind `b`'s trust prompt (REQ-005).
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`, two ledger rows.
+- Knowledge: nothing new.

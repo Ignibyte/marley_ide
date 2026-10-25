@@ -20,20 +20,23 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    App, Context, Entity, EntityId, Global, PromptLevel, SharedString, Task, WeakEntity, Window,
+    AnyWindowHandle, App, Context, Entity, EntityId, Global, PromptLevel, SharedString,
+    Subscription, Task, TaskExt as _, WeakEntity, Window,
 };
 use marley_agent::{AgentKind, AgentStatus, claude_events};
 use marley_fleet::State;
 use settings::Settings as _;
 use terminal::{Event, TaskStatus};
 use terminal_view::TerminalView;
+use ui::ActiveTheme as _;
 use util::ResultExt as _;
 use workspace::item::ItemHandle;
 use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
 use workspace::{
-    CloseIntent, MarleyClose, MarleyCloseGuard, MultiWorkspace, Pane, Toast, Workspace,
+    CloseIntent, MarleyClose, MarleyCloseGuard, MultiWorkspace, Pane, SaveIntent, Toast, Workspace,
 };
 
+use crate::agent_events::AgentEvents;
 use crate::tmux_sessions::TmuxHosts;
 use crate::{MarleySettings, UndoCloseTerminal};
 
@@ -43,6 +46,10 @@ struct Working {
     kind: AgentKind,
     project: String,
     status: &'static str,
+    /// The turn it is in, by its prompt (#913).
+    turn: Option<String>,
+    /// Whether a seat reports its turns, so a wait can tell when the turn ends (#913, D1).
+    reports_turns: bool,
 }
 
 /// A working terminal closed from its tab, kept until its deadline.
@@ -58,12 +65,20 @@ struct Held {
 #[derive(Default)]
 struct Guard {
     held: Vec<Held>,
+    /// The tabs that close when their agent's turn ends (#913).
+    waits: Vec<Wait>,
     next_id: u64,
     asking: bool,
     last_output: HashMap<EntityId, Instant>,
 }
 
 impl Global for Guard {}
+
+/// A tab that closes when its agent's turn ends (#913): its view, and the watch on the seats.
+struct Wait {
+    id: u64,
+    _watch: Subscription,
+}
 
 /// Sets the guard Zed's close paths ask, follows every terminal's output for the quiet timer, and
 /// registers the undo. [`crate::init`] calls it once.
@@ -132,14 +147,19 @@ fn guard(close: MarleyClose, window: &mut Window, cx: &mut App) -> Task<bool> {
         return Task::ready(false);
     }
     guard.asking = true;
-    let (message, detail, confirm) = question(&working, close.intent);
+    let (message, detail, confirm) = question(&working, close.intent, hold_for);
+    // Wait where it can work: one agent closed from its tab, whose seat reports turns (D1).
+    let waits =
+        close.intent.is_none() && matches!(working.as_slice(), [agent] if agent.reports_turns);
+    let second = if waits { "Wait" } else { "Show" };
     let answer = window.prompt(
         PromptLevel::Warning,
         &message,
         Some(&detail),
-        &[confirm, "Show", "Cancel"],
+        &[confirm, second, "Cancel"],
         cx,
     );
+    let window_handle = window.window_handle();
     cx.spawn(async move |cx| {
         let answer = answer.await;
         cx.update(|cx| {
@@ -150,6 +170,12 @@ fn guard(close: MarleyClose, window: &mut Window, cx: &mut App) -> Task<bool> {
                         hold(working, pane.as_ref(), hold_for, cx);
                     }
                     true
+                }
+                Ok(1) if waits => {
+                    if let Some(agent) = working.into_iter().next() {
+                        wait(&agent, pane, window_handle, cx);
+                    }
+                    false
                 }
                 Ok(1) => {
                     if let Some(first) = working.first() {
@@ -189,9 +215,19 @@ fn ask_tmux(host: SharedString, session: String, window: &mut Window, cx: &mut A
         return Task::ready(false);
     }
     guard.asking = true;
-    let message = format!("Close the tmux session {session}?");
-    let detail = "Close Session ends it and whatever runs in it. Hide closes this tab and leaves \
-                  the session running; its row stays in the rail.";
+    let message = format!("Close the tmux session \u{201c}{session}\u{201d}?");
+    let detail = "Close Session ends what runs in it. Hide detaches the tab; the session keeps \
+                  running and its row stays in the rail.";
+    // The TmuxSessions board's head (#913): a `tx` tile, the host, the windows, the program.
+    crate::prompts::set_head(
+        crate::prompts::PromptHead {
+            message: message.clone(),
+            glyph: SharedString::new_static("tx"),
+            ink: cx.theme().colors().terminal_ansi_cyan,
+            line: tmux_line(&host, &session, cx),
+        },
+        cx,
+    );
     let answer = window.prompt(
         PromptLevel::Warning,
         &message,
@@ -202,7 +238,10 @@ fn ask_tmux(host: SharedString, session: String, window: &mut Window, cx: &mut A
     let window_handle = window.window_handle();
     cx.spawn(async move |cx| {
         let answer = answer.await;
-        cx.update(|cx| cx.default_global::<Guard>().asking = false);
+        cx.update(|cx| {
+            cx.default_global::<Guard>().asking = false;
+            crate::prompts::clear_head(&message, cx);
+        });
         match answer {
             Ok(0) => {
                 let killed = cx.update(|cx| crate::tmux_sessions::kill(&host, &session, cx));
@@ -229,6 +268,31 @@ fn ask_tmux(host: SharedString, session: String, window: &mut Window, cx: &mut A
     })
 }
 
+/// The line under the tmux prompt's title: where the session runs, its windows, and the program it
+/// runs when that is not a shell (#913).
+fn tmux_line(host: &str, session: &str, cx: &App) -> String {
+    let place = if crate::tmux_sessions::is_local(host) {
+        "On this machine".to_string()
+    } else {
+        format!("On {host}")
+    };
+    let found = cx
+        .try_global::<TmuxHosts>()
+        .and_then(|tmux| tmux.session_of(host, session));
+    let Some(found) = found else {
+        return place;
+    };
+    let windows = if found.windows == 1 {
+        "1 window".to_string()
+    } else {
+        format!("{} windows", found.windows)
+    };
+    found.command.as_ref().map_or_else(
+        || format!("{place} \u{b7} {windows}"),
+        |command| format!("{place} \u{b7} {windows} \u{b7} {command} is running"),
+    )
+}
+
 /// The agents at work in `items`: each terminal whose foreground program is a known agent that
 /// is working.
 fn working_agents(items: &[Box<dyn ItemHandle>], cx: &App) -> Vec<Working> {
@@ -247,11 +311,20 @@ fn working_agents(items: &[Box<dyn ItemHandle>], cx: &App) -> Vec<Working> {
                     |name| name.to_string_lossy().into_owned(),
                 );
             let status = working_status(&view, kind, cx)?;
+            let seat = crate::agent_events::seat_of(view.entity_id(), kind, cx);
+            // The turn's prompt, as the rail's line names it (#913).
+            let turn = seat
+                .and_then(|seat| seat.labels.get(claude_events::PROMPT_LABEL))
+                .map(|prompt| prompt.split_whitespace().collect::<Vec<_>>().join(" "))
+                .filter(|prompt| !prompt.is_empty());
+            let reports_turns = seat.is_some();
             Some(Working {
                 view,
                 kind,
                 project,
                 status,
+                turn,
+                reports_turns,
             })
         })
         .collect()
@@ -285,7 +358,11 @@ pub(crate) fn working_status(
 }
 
 /// The question's message, its detail (a line per agent) and the button that goes on.
-fn question(working: &[Working], intent: Option<CloseIntent>) -> (String, String, &'static str) {
+fn question(
+    working: &[Working],
+    intent: Option<CloseIntent>,
+    hold_for: Duration,
+) -> (String, String, &'static str) {
     let detail = working
         .iter()
         .map(|agent| {
@@ -303,16 +380,26 @@ fn question(working: &[Working], intent: Option<CloseIntent>) -> (String, String
         count => format!("{count} agents are working"),
     };
     match (intent, working) {
-        (None, [agent]) => (
-            format!(
-                "Close {} in {}? It is {}.",
-                agent.kind.display_name(),
-                agent.project,
-                agent.status
-            ),
-            detail,
-            "Close",
-        ),
+        // The board's words (#913): the agent, its turn, and the undo hold.
+        (None, [agent]) => {
+            let turn = agent.turn.as_ref().map_or_else(
+                || "It is in a turn.".to_string(),
+                |turn| format!("\u{201c}{turn}\u{201d} is in a turn."),
+            );
+            let hold = if hold_for.is_zero() {
+                String::new()
+            } else {
+                format!(
+                    " Close keeps it running for {} s so Undo can bring it back.",
+                    hold_for.as_secs()
+                )
+            };
+            (
+                format!("{} is still working", agent.kind.display_name()),
+                format!("{turn}{hold}"),
+                "Close",
+            )
+        }
         (None, _) => (format!("Close these terminals? {count}:"), detail, "Close"),
         (Some(CloseIntent::Quit), _) => (format!("Quit Marley? {count}:"), detail, "Quit"),
         (Some(CloseIntent::CloseWindow), _) => (
@@ -369,6 +456,89 @@ fn hold(working: Vec<Working>, pane: Option<&WeakEntity<Pane>>, hold_for: Durati
             })
             .log_err();
     }
+}
+
+/// Wait (#913): the tab stays, with a toast, until the agent's seat leaves its turn; then it closes
+/// through the pane's own close, so the guard runs again and finds the agent idle (D2). A seat
+/// waiting on the user keeps the wait (D3); Keep It Open, or the tab closed by hand, ends it.
+fn wait(agent: &Working, pane: Option<WeakEntity<Pane>>, window: AnyWindowHandle, cx: &mut App) {
+    let guard = cx.default_global::<Guard>();
+    let id = guard.next_id;
+    guard.next_id = guard.next_id.wrapping_add(1);
+    let view = agent.view.downgrade();
+    let kind = agent.kind;
+    let workspace = agent.view.read(cx).marley_workspace().clone();
+    let watch = cx.observe_global::<AgentEvents>({
+        let workspace = workspace.clone();
+        move |cx| {
+            let Some(entity) = view.upgrade() else {
+                end_wait(id, &workspace, cx);
+                return;
+            };
+            let in_turn =
+                crate::agent_events::seat_of(entity.entity_id(), kind, cx).is_some_and(|seat| {
+                    matches!(
+                        seat.state,
+                        State::Starting | State::Working | State::Waiting
+                    )
+                });
+            if in_turn {
+                return;
+            }
+            end_wait(id, &workspace, cx);
+            let Some(pane) = pane.as_ref().and_then(WeakEntity::upgrade) else {
+                return;
+            };
+            let item = entity.entity_id();
+            window
+                .update(cx, |_, window, cx| {
+                    pane.update(cx, |pane, cx| {
+                        pane.close_item_by_id(item, SaveIntent::Skip, window, cx)
+                            .detach_and_log_err(cx);
+                    });
+                })
+                .log_err();
+        }
+    });
+    cx.default_global::<Guard>()
+        .waits
+        .push(Wait { id, _watch: watch });
+    let message = format!(
+        "{} in {} closes when its turn ends",
+        agent.kind.display_name(),
+        agent.project
+    );
+    let toast_workspace = workspace.clone();
+    workspace
+        .update(cx, |workspace, cx| {
+            workspace.show_toast(
+                Toast::new(NotificationId::unique::<Wait>(), message).on_click(
+                    "Keep It Open",
+                    move |_, cx| {
+                        end_wait(id, &toast_workspace, cx);
+                    },
+                ),
+                cx,
+            );
+        })
+        .log_err();
+}
+
+/// Ends the wait `id` and takes its toast away, after the observer that may be running it.
+fn end_wait(id: u64, workspace: &WeakEntity<Workspace>, cx: &mut App) {
+    let workspace = workspace.clone();
+    cx.defer(move |cx| {
+        if cx.has_global::<Guard>() {
+            cx.default_global::<Guard>()
+                .waits
+                .retain(|wait| wait.id != id);
+        }
+        workspace
+            .update(cx, |workspace, cx| {
+                workspace.dismiss_toast(&NotificationId::unique::<Wait>(), cx);
+            })
+            .log_err();
+    });
 }
 
 /// Puts the newest held terminal back in its pane, or in `workspace`'s active pane when it came

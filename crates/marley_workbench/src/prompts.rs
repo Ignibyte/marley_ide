@@ -7,7 +7,7 @@
 
 use std::rc::Rc;
 
-use gpui::{AnyElement, App, Div, FontWeight, Stateful, Window, px};
+use gpui::{AnyElement, App, Div, FontWeight, Global, Hsla, Stateful, Window, px};
 use ui::prelude::*;
 use ui_prompt::{MarleyPrompt, MarleyPromptLook};
 
@@ -33,6 +33,40 @@ pub(crate) enum Role {
     Plain,
     Primary,
     Danger,
+}
+
+/// A head a caller sets for its next prompt (#913, D4): a glyph tile left of the title and a line
+/// under it, found by the prompt's message.
+pub(crate) struct PromptHead {
+    /// The prompt's message, which finds the head.
+    pub(crate) message: String,
+    /// The tile's letters and their colour.
+    pub(crate) glyph: SharedString,
+    pub(crate) ink: Hsla,
+    /// The line under the title.
+    pub(crate) line: String,
+}
+
+/// The heads callers set, each until its prompt is answered.
+#[derive(Default)]
+struct PromptHeads(Vec<PromptHead>);
+
+impl Global for PromptHeads {}
+
+/// Sets `head` for the prompt about to show with its message.
+pub(crate) fn set_head(head: PromptHead, cx: &mut App) {
+    let heads = &mut cx.default_global::<PromptHeads>().0;
+    heads.retain(|old| old.message != head.message);
+    heads.push(head);
+}
+
+/// Forgets the head of the prompt with `message`, once it is answered.
+pub(crate) fn clear_head(message: &str, cx: &mut App) {
+    if cx.has_global::<PromptHeads>() {
+        cx.default_global::<PromptHeads>()
+            .0
+            .retain(|head| head.message != message);
+    }
 }
 
 /// Sets the hook. [`crate::init`] calls it once.
@@ -81,7 +115,7 @@ fn card(prompt: &MarleyPrompt<'_>, _window: &mut Window, cx: &mut App) -> Option
         .border_color(border)
         .bg(colors.elevated_surface_background)
         .shadow_lg()
-        .child(Label::new(plain(prompt.message)).weight(FontWeight::SEMIBOLD))
+        .child(title(prompt.message, cx))
         .when_some(prompt.detail, |card, detail| {
             card.child(
                 Label::new(plain(detail))
@@ -117,6 +151,44 @@ fn role(prompt: &MarleyPrompt<'_>, index: usize, label: &str) -> Role {
     }
 }
 
+/// The card's title: the message, with the tile and the line of a head set for it (#913).
+fn title(message: &str, cx: &App) -> AnyElement {
+    let text = Label::new(plain(message)).weight(FontWeight::SEMIBOLD);
+    let head = cx
+        .try_global::<PromptHeads>()
+        .and_then(|heads| heads.0.iter().find(|head| head.message == message));
+    let Some(head) = head else {
+        return text.into_any_element();
+    };
+    h_flex()
+        .gap_2p5()
+        .items_start()
+        .child(
+            div()
+                .flex_none()
+                .size(px(32.))
+                .rounded(px(8.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(head.ink.opacity(0.15))
+                .child(
+                    Label::new(head.glyph.clone())
+                        .size(LabelSize::Small)
+                        .buffer_font(cx)
+                        .color(Color::Custom(head.ink)),
+                ),
+        )
+        .child(
+            v_flex().min_w_0().gap_0p5().child(text).child(
+                Label::new(head.line.clone())
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            ),
+        )
+        .into_any_element()
+}
+
 /// Zed's prompts write their message as Markdown; the card draws it as text, without the code
 /// marks.
 fn plain(text: &str) -> String {
@@ -125,7 +197,7 @@ fn plain(text: &str) -> String {
 
 /// A primary button's fill (#906, D3): the coat (`icon.accent`) in a dark theme, under dark ink;
 /// `text.accent` in a light one, where the coat under light ink falls short of AA contrast.
-pub(crate) fn primary_fill(cx: &App) -> gpui::Hsla {
+pub(crate) fn primary_fill(cx: &App) -> Hsla {
     let colors = cx.theme().colors();
     if cx.theme().appearance().is_light() {
         colors.text_accent

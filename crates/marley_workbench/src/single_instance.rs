@@ -13,7 +13,7 @@
 
 use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use anyhow::{Context as _, Result, bail};
 use release_channel::RELEASE_CHANNEL_NAME;
@@ -37,6 +37,10 @@ const ACTIVATION_TOKEN_URL: &str = "zed://marley-activation-token/";
 
 /// The launch's `XDG_ACTIVATION_TOKEN`, read before the platform takes it out of the environment.
 static ACTIVATION_TOKEN: OnceLock<Option<String>> = OnceLock::new();
+
+/// The folders a second launch handed over and the running Marley has not yet opened (#913, D5):
+/// the socket's listener is a thread of its own.
+static HANDED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
 /// Reads the launch's `XDG_ACTIVATION_TOKEN`, the token its launcher made for its click (#545).
 ///
@@ -229,3 +233,60 @@ fn url_for(arg: &str, working_dir: &Path) -> String {
     }
     format!("file://{}", working_dir.join(arg).display())
 }
+
+/// Notes a path a second launch handed over through the socket (#913, D5), so the window it opens
+/// says where it came from. A launch's own arguments never pass here.
+pub fn note_handed(url: &str) {
+    let Some(path) = url.strip_prefix("file://") else {
+        return;
+    };
+    if let Ok(mut handed) = HANDED.lock() {
+        handed.push(PathBuf::from(path));
+    }
+}
+
+/// Shows "Opened `<name>` from another launch" in `window` for each of `paths` a second launch
+/// handed over (#913), and forgets them.
+pub fn announce_handed(
+    window: gpui::WindowHandle<workspace::MultiWorkspace>,
+    paths: &[PathBuf],
+    cx: &mut gpui::AsyncApp,
+) {
+    let mut announced: Vec<String> = Vec::new();
+    if let Ok(mut handed) = HANDED.lock() {
+        handed.retain(|path| {
+            let opened = paths.iter().any(|opened| opened == path);
+            if opened {
+                announced.push(path.file_name().map_or_else(
+                    || path.display().to_string(),
+                    |name| name.to_string_lossy().into_owned(),
+                ));
+            }
+            !opened
+        });
+    }
+    let Some(name) = announced.first().cloned() else {
+        return;
+    };
+    let message = format!(
+        "Opened {name} from another launch. Only one Marley runs on a data folder. The second \
+         launch handed you its folder and quit."
+    );
+    window
+        .update(cx, |multi_workspace, _, cx| {
+            multi_workspace.workspace().update(cx, |workspace, cx| {
+                workspace.show_toast(
+                    workspace::Toast::new(
+                        workspace::notifications::NotificationId::unique::<HandedNotice>(),
+                        message,
+                    )
+                    .on_click("Dismiss", |_, _| {}),
+                    cx,
+                );
+            });
+        })
+        .ok();
+}
+
+/// The second-launch notice's toast (#913).
+struct HandedNotice;

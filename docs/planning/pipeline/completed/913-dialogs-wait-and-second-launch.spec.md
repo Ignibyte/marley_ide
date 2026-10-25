@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8e3b1061-7d90-4326-b75d-9318ea5b2c9a
 ticket: docs/planning/tickets/open/TICKET-913-dialogs-wait-and-second-launch.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Wait before closing, a second launch says so, the tmux close prompt
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

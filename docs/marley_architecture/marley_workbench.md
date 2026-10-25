@@ -2268,6 +2268,17 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Wait, the tmux prompt and the second-launch notice (#913).** `close_guard.rs`: `Working`
+  gains the turn's prompt (the seat's `prompt` label) and whether a seat reports turns; `question`
+  words a single agent's close with the hold; the dialog offers Wait in Show's place when one
+  agent with a seat closes from its tab, and `wait` keeps a `Wait` that observes `AgentEvents`
+  and closes the tab through `Pane::close_item_by_id` once the seat leaves its turn (a waiting
+  seat keeps it), with a Keep It Open toast; `end_wait` defers past the observer. `ask_tmux` sets a
+  `prompts::PromptHead` (tile, line) that the card's `title` draws, from `tmux_line`
+  (`TmuxHosts::session_of`, `TmuxSession.command`, the pane's program when not a shell).
+  `single_instance.rs`: `note_handed` (from the socket listener in `open_listener.rs`) and
+  `announce_handed` (from `main.rs` after the open) show the notice for paths a second launch
+  handed over.
 - **Welcome to Marley (#912).** `welcome_page.rs`: `show_first_run(app_state, first_open, cx)`,
   which `crates/zed/src/main.rs` calls in place of `show_onboarding_view` (it opens a window, adds
   `MarleyWelcome` to the center and writes the `first_open` key as Zed's page does), and

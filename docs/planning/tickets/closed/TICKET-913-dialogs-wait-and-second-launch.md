@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #913 (feature, the Marley look, dialogs)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [913-dialogs-wait-and-second-launch.spec.md](../../pipeline/queued/913-dialogs-wait-and-second-launch.spec.md)
+- **Pipeline doc:** [913-dialogs-wait-and-second-launch.spec.md](../../pipeline/completed/913-dialogs-wait-and-second-launch.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/G-system.md, board Dialogs: "Close dialog 'Wait'
   button", "Close dialog wording", "Second-launch notice";
   docs/marley/design-review-2026-10-23/B-rail-chrome.md, board Chrome: "tmux close prompt")
 - **Boards:** Dialogs, Chrome
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

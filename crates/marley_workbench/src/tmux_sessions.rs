@@ -26,6 +26,15 @@ use crate::remote::Host;
 /// The name `marley.tmux_hosts` gives this machine.
 const LOCAL: &str = "local";
 
+/// The programs a pane runs while it waits at its shell's prompt, which a session's line leaves out
+/// (#913).
+const SHELLS: [&str; 7] = ["bash", "zsh", "fish", "sh", "dash", "nu", "-bash"];
+
+/// Whether `host` is this machine (#913).
+pub(crate) fn is_local(host: &str) -> bool {
+    host == LOCAL
+}
+
 /// How often each host's sessions are listed.
 const LIST_EVERY: Duration = Duration::from_secs(10);
 
@@ -54,6 +63,8 @@ pub(crate) struct TmuxSession {
     pub(crate) agent: Option<AgentKind>,
     /// The folder it started in, which places its row under a project (#821).
     pub(crate) folder: PathBuf,
+    /// The program one of its panes runs, when it is not a shell (#913).
+    pub(crate) command: Option<String>,
 }
 
 /// What Marley last read of a host's sessions.
@@ -145,6 +156,15 @@ impl Global for TmuxHosts {}
 
 impl TmuxHosts {
     /// The session a task labelled `label` attaches, if Marley opened it.
+    /// The session named `session` on the host named `host`, as the last listing gave it (#913).
+    pub(crate) fn session_of(&self, host: &str, session: &str) -> Option<&TmuxSession> {
+        let host = self.hosts.iter().find(|candidate| candidate.name == host)?;
+        match &host.listing {
+            Listing::Sessions(sessions) => sessions.iter().find(|found| found.name == session),
+            Listing::Waiting | Listing::Failed(_) => None,
+        }
+    }
+
     pub(crate) fn attach_of<'a>(&'a self, label: &str) -> Option<&'a Attach> {
         self.attaches.iter().find(|attach| attach.label == label)
     }
@@ -375,8 +395,11 @@ fn parse(stdout: &str) -> Vec<TmuxSession> {
             continue;
         };
         let agent = marley_agent::agent_kind_of(command);
+        let program =
+            (!SHELLS.contains(&command) && !command.is_empty()).then(|| command.to_string());
         if let Some(session) = sessions.iter_mut().find(|session| session.name == name) {
             session.agent = session.agent.or(agent);
+            session.command = session.command.take().or(program);
             continue;
         }
         sessions.push(TmuxSession {
@@ -385,6 +408,7 @@ fn parse(stdout: &str) -> Vec<TmuxSession> {
             attached: attached.parse::<u32>().is_ok_and(|clients| clients > 0),
             agent,
             folder: PathBuf::from(folder),
+            command: program,
         });
     }
     sessions

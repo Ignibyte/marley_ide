@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Wait, the tmux prompt and the second-launch notice** (#913, 2026-10-25). Closing a working
+  agent's tab asks "Claude Code is still working", names its turn and the undo hold, and offers
+  Wait, which keeps the tab until the turn ends and then closes it. Closing a tmux session's tab
+  shows a `tx` tile and "On this machine · 1 window · sleep is running" over Cancel · Hide ·
+  Close Session. A folder a second launch hands over opens with "Opened <name> from another
+  launch".
+
 - **Welcome to Marley** (#912, 2026-10-25). A first start shows Marley's own welcome in place of
   Zed's onboarding: the cat, "Welcome to Marley", and four rows of choices (Layout, Theme with
   Follow Omarchy where Omarchy is, Agents with what Marley found and Connect the plugin, Rusty),
