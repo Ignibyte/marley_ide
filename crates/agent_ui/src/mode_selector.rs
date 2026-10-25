@@ -69,6 +69,12 @@ impl ModeSelector {
             .map(|mode| mode.name.clone())
     }
 
+    // Marley: the composer's Plan / Act switch reads the agent's modes (#915).
+    /// Every mode the agent offers.
+    pub fn all_modes(&self) -> Vec<acp::SessionConfigSelectOption> {
+        self.connection.all_modes()
+    }
+
     pub fn mode(&self) -> acp::SessionConfigValueId {
         self.connection.current_mode()
     }

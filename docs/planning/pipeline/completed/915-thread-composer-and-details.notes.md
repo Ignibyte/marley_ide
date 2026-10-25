@@ -30,6 +30,12 @@
   - `crates/marley_workbench/src/thread_tab.rs:697-960` (the panel and its sections).
 - **Decisions:** D1–D5 in the spec.
 
+- **Promoted 2026-10-25:** seams re-read after #914: `render_message_editor`'s composer and
+  bottom row, `ModeSelector` (`mode`, `set_mode`, `mode_name`; `all_modes` private), the draft's
+  creases through `MentionSet::mention_uri_for_crease`, `thread_tab.rs` `render_details`,
+  `terminal_peek`, `peek_section`, `section_label`; #907's `thread_activity` lands first, so the
+  state line reads it.
+
 ### Design
 - Composer (Zed crate, `thread_view.rs`):
   - `render_marley_context_chips(&self, cx) -> Option<AnyElement>`: the mentions in crease order
@@ -78,7 +84,48 @@
   terminal while another holder keeps it).
 
 ## Phase 2 — Code
+- **Built:** `ModeSelector::all_modes`; `MessageEditor::marley_mention_names` (the draft's creases
+  through `crease_items_with_offsets`, sorted by offset); in `thread_view.rs`
+  `render_marley_mention_chips` above the editor, `render_marley_plan_act` before the option and
+  mode menus, `MarleyModeControl` and `marley_last_act_mode`; `ConfigOptionsView::value_ids_of`,
+  `value_of`, `set_value_of`. In `thread_tab.rs`: `detail_card`, `detail_tile`, `state_line`,
+  `TerminalPeek`, Open in a tab through `open_terminal_tab`.
+- **Deviations:**
+  - Zed's mode menu stays beside the switch rather than becoming a chevron on Act: it is the only
+    way to reach a third mode (Bypass, Accept Edits), and it shows which Act mode is set.
+  - The switch also covers an agent that reports its mode as a config option (F-claude-915),
+    which the plan named as a risk; three accessors in `config_options.rs` and a ledger row.
+  - The opened terminal tab takes the command as its custom title: an agent's terminal runs no
+    shell, so the tab and its rail row had no name.
+  - The chips are named `render_marley_mention_chips` and the switch `render_marley_plan_act`
+    (the design said `context_chips` and `plan_switch`).
+- **Review:** the details panel reads the root thread view from Marley's tab, outside any thread
+  view render (F-claude-865 holds); Open in a tab updates the workspace from a plain click closure
+  on the window's root, not from inside the thread tab's update (PR-claude-701 holds).
+- **Gate:** `just gate-diff` 17/17 green, run again after each change.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/915-thread-composer-and-details.sh`, sway, 7 shots, every one read.
+  - `915-01-details`: the cards: THIS THREAD with "Working · Edit notes.md" in the working colour,
+    the context line, Folder "config" (Marley's own agent runs in its folder) and Mode
+    "Act · Default"; FILES CHANGED; ITS TERMINAL with the command, two lines and Open in a tab;
+    CHECKS. REQ-003, REQ-004 met.
+  - `915-02-chips`: the chip `notes.md` above "Look at [notes.md]"; Plan / Act with Act lit
+    beside the "Default" menu. REQ-001, REQ-002 met.
+  - `915-03-plan`: Plan lit, the menu and the status bar read "Plan", the Mode tile "Plan".
+  - `915-05-day`: the same in Marley Day, cards on the light surface, chip legible.
+  - `915-04-terminal`: a tab "sh -c echo Compiling; echo Finished" with the two lines as a block;
+    its rail row named the same. REQ-005 met.
+  - `915-06-options`: the second thread (config option, values Ask and Plan): the switch beside
+    the "Ask" option menu, the Mode tile "Act · Ask"; `915-07-options-plan`: Plan lit, the menu
+    and the tile "Plan". REQ-002 met for both shapes.
+- **Fixes found in Test:** the first full run showed the opened tab with no title (fixed with the
+  custom title); reading Claude Code's adapter showed its modes come as a config option
+  (F-claude-915), fixed and given its own shots. Gate rerun green after each.
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's TICKET-825 row, the ledger rows for
+  `thread_view.rs`, `message_editor.rs`, `mode_selector.rs` and `config_options.rs`.
+- Knowledge appended: F-claude-915-plan-act-read-only-the-session-modes-001,
+  L-claude-915-an-acp-agent-reports-modes-two-ways-001.
+- Brain: decision recorded (Plan / Act over both mode shapes, Zed's menu kept).

@@ -4560,3 +4560,15 @@ The rail lights a thread's attention dot when its run ends while the thread is n
 shows in the panel (#772), so every run that ended in a thread tab right in front of the user
 left the dot lit and the row read "done, unseen" until something else cleared it. Fixed: the
 displayed workspace's active thread tab is the shown thread, before the panel's.
+
+## F-claude-915-plan-act-read-only-the-session-modes-001
+*found: 2026-10-25 · while: testing #915 · severity: medium*
+
+The Plan / Act switch was written over Zed's `ModeSelector`, which exists only for an agent that
+offers ACP session modes. Claude Code's ACP adapter reports its modes as a config option of
+category mode, so Zed builds `ConfigOptionsView` and no mode selector, and the switch would never
+have drawn for the agent Chad uses most. The scripted agent offered session modes, so the first
+run looked right. Fixed: `MarleyModeControl` reads and sets the mode through the selector or
+through the config option (`ConfigOptionsView::value_ids_of`, `value_of`, `set_value_of`), and the
+scenario's second thread is given its modes as a config option.
+

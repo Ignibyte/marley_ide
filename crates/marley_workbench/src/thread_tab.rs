@@ -59,12 +59,13 @@ use project::{AgentId, DisableAiSettings, Project, Worktree};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
+use terminal_view::TerminalView;
 use ui::{Callout, Severity, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::NotificationId;
-use workspace::{ItemId, Toast, Workspace, WorkspaceId};
+use workspace::{ItemId, MultiWorkspace, Toast, Workspace, WorkspaceId};
 
 use persistence::MarleyThreadTabsDb;
 
@@ -730,12 +731,30 @@ impl ThreadTab {
             let plan = plan_of(thread);
             let peek = terminal_peek(thread, cx);
             let checks = checks_of(thread, cx);
-            v_flex()
-                .gap_4()
-                .p_3()
+            let folder = thread
+                .work_dirs()
+                .and_then(|folders| folders.paths().first().cloned())
+                .and_then(|folder| {
+                    folder
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                });
+            let mode = view.marley_session_facts(cx).mode.map(|mode| {
+                if mode.eq_ignore_ascii_case("plan") {
+                    "Plan".to_string()
+                } else {
+                    format!("Act \u{b7} {mode}")
+                }
+            });
+            let activity = crate::thread_activity::thread_activity(&self.conversation_view, cx);
+            // Each section a card, as the board draws the panel (#915); the first holds the agent,
+            // its state, its context and the Folder and Mode tiles.
+            let this_thread = v_flex()
+                .gap_2()
+                .child(section_label("THIS THREAD"))
                 .child(
                     v_flex()
-                        .gap_1()
+                        .gap_0p5()
                         .child(
                             h_flex()
                                 .gap_2()
@@ -745,17 +764,28 @@ impl ThreadTab {
                                         .size(LabelSize::Small),
                                 ),
                         )
+                        .children(activity.map(|activity| state_line(&activity, cx)))
                         .child(
                             Label::new(model)
                                 .size(LabelSize::XSmall)
                                 .color(Color::Muted),
                         ),
                 )
-                .children(plan_section(plan))
                 .child(context_section(usage, cx))
-                .child(files_section(files, cx))
-                .children(peek.map(|lines| peek_section(lines, cx)))
-                .child(checks_section(checks))
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .children(folder.map(|folder| detail_tile("Folder", folder, cx)))
+                        .children(mode.map(|mode| detail_tile("Mode", mode, cx))),
+                );
+            v_flex()
+                .gap_3()
+                .p_3()
+                .child(detail_card(this_thread.into_any_element(), cx))
+                .children(plan_section(plan).map(|plan| detail_card(plan, cx)))
+                .child(detail_card(files_section(files, cx), cx))
+                .children(peek.map(|peek| detail_card(peek_section(peek, cx), cx)))
+                .child(detail_card(checks_section(checks), cx))
         });
         v_flex()
             .debug_selector(|| "marley-thread-details".into())
@@ -828,7 +858,15 @@ fn plan_section(plan: Vec<(String, acp::PlanEntryStatus)>) -> Option<AnyElement>
 }
 
 /// The newest terminal call's command and last four lines (#864), when the thread ran one.
-fn terminal_peek(thread: &acp_thread::AcpThread, cx: &App) -> Option<(String, Vec<String>)> {
+/// The newest terminal call: its command, its last lines, and the terminal itself, which Open in a
+/// tab shows (#915).
+struct TerminalPeek {
+    command: String,
+    lines: Vec<String>,
+    terminal: Entity<terminal::Terminal>,
+}
+
+fn terminal_peek(thread: &acp_thread::AcpThread, cx: &App) -> Option<TerminalPeek> {
     thread.entries().iter().rev().find_map(|entry| {
         let acp_thread::AgentThreadEntry::ToolCall(call) = entry else {
             return None;
@@ -840,13 +878,24 @@ fn terminal_peek(thread: &acp_thread::AcpThread, cx: &App) -> Option<(String, Ve
             let terminal = terminal.read(cx);
             let command = terminal.command().read(cx).source().to_string();
             let lines = terminal.inner().read(cx).last_n_non_empty_lines(4);
-            Some((command, lines))
+            Some(TerminalPeek {
+                command,
+                lines,
+                terminal: terminal.inner().clone(),
+            })
         })
     })
 }
 
 /// ITS TERMINAL (#864): the newest terminal call's command and its last lines, in the buffer font.
-fn peek_section((command, lines): (String, Vec<String>), cx: &App) -> AnyElement {
+fn peek_section(peek: TerminalPeek, cx: &App) -> AnyElement {
+    let TerminalPeek {
+        command,
+        lines,
+        terminal,
+    } = peek;
+    let command: SharedString = command.trim().trim_matches('`').trim().to_string().into();
+    let title = command.clone();
     v_flex()
         .gap_1()
         .child(section_label("ITS TERMINAL"))
@@ -858,7 +907,7 @@ fn peek_section((command, lines): (String, Vec<String>), cx: &App) -> AnyElement
                 .border_1()
                 .border_color(cx.theme().colors().border_variant)
                 .child(
-                    Label::new(format!("$ {}", command.trim().trim_matches('`').trim()))
+                    Label::new(format!("$ {command}"))
                         .size(LabelSize::XSmall)
                         .buffer_font(cx)
                         .truncate(),
@@ -871,6 +920,89 @@ fn peek_section((command, lines): (String, Vec<String>), cx: &App) -> AnyElement
                         .truncate()
                 })),
         )
+        // The same terminal in a tab, live while the agent runs (#915, D5).
+        .child(
+            Button::new("marley-thread-details-open-terminal", "Open in a tab")
+                .style(ButtonStyle::Transparent)
+                .color(Color::Accent)
+                .label_size(LabelSize::XSmall)
+                .on_click(move |_, window, cx| open_terminal_tab(&terminal, &title, window, cx)),
+        )
+        .into_any_element()
+}
+
+/// Opens `terminal` in a tab of the window's shown workspace, over the same terminal, named for its
+/// command: an agent's terminal runs no shell to give it a title (#915, D5).
+fn open_terminal_tab(
+    terminal: &Entity<terminal::Terminal>,
+    command: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
+        return;
+    };
+    let workspace = multi_workspace.read(cx).workspace().clone();
+    let terminal = terminal.clone();
+    workspace.update(cx, |workspace, cx| {
+        let weak = workspace.weak_handle();
+        let id = workspace.database_id();
+        let project = workspace.project().downgrade();
+        let view = cx.new(|cx| {
+            let mut view = TerminalView::new(terminal, weak, id, project, window, cx);
+            view.set_custom_title(Some(command.to_string()), cx);
+            view
+        });
+        workspace.add_item_to_active_pane(Box::new(view), None, true, window, cx);
+    });
+}
+
+/// A section of the details panel as a card (#915).
+fn detail_card(section: AnyElement, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    div()
+        .p_3()
+        .rounded(px(12.))
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.elevated_surface_background)
+        .child(section)
+        .into_any_element()
+}
+
+/// A small tile: its label over its value in the buffer font (#915).
+fn detail_tile(label: &'static str, value: String, cx: &App) -> AnyElement {
+    v_flex()
+        .flex_1()
+        .min_w_0()
+        .p_2()
+        .rounded_md()
+        .bg(cx.theme().colors().element_background)
+        .child(section_label(label))
+        .child(
+            Label::new(value)
+                .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .truncate(),
+        )
+        .into_any_element()
+}
+
+/// The thread's state in its colour (#915, D4): "Working · <what it does>", "Needs you", "Idle".
+fn state_line(activity: &crate::thread_activity::ThreadActivity, cx: &App) -> AnyElement {
+    let state = crate::item_kind::ItemState::from_thread(activity.status());
+    let words = match activity.status() {
+        marley_rail::ThreadStatus::Running if activity.doing().as_ref() != "thinking" => {
+            format!("Working \u{b7} {}", activity.doing())
+        }
+        marley_rail::ThreadStatus::Running => "Working".to_string(),
+        marley_rail::ThreadStatus::Waiting => "Needs you".to_string(),
+        marley_rail::ThreadStatus::Error => "Failed".to_string(),
+        marley_rail::ThreadStatus::Done => "Idle".to_string(),
+    };
+    Label::new(words)
+        .size(LabelSize::XSmall)
+        .color(state.line(cx))
         .into_any_element()
 }
 
@@ -1030,9 +1162,7 @@ fn files_section(files: Vec<ChangedFile>, cx: &App) -> AnyElement {
                     let Some(path) = path.clone() else {
                         return;
                     };
-                    let Some(multi_workspace) =
-                        window.root::<workspace::MultiWorkspace>().flatten()
-                    else {
+                    let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
                         return;
                     };
                     let workspace = multi_workspace.read(cx).workspace().clone();

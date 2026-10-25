@@ -2268,6 +2268,15 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **The composer and the details panel (#915).** `thread_tab.rs` `render_details` draws each
+  section through `detail_card`. The first card, THIS THREAD, holds the agent, `state_line` (from
+  `thread_activity`, in `ItemState::line`'s colour), the model, `context_section`, and two
+  `detail_tile`s: Folder (the thread's first work dir) and Mode (`marley_session_facts().mode`,
+  "Plan" or "Act · <mode>"). `terminal_peek` returns a `TerminalPeek` with the call's terminal;
+  `peek_section`'s Open in a tab calls `open_terminal_tab`, a `TerminalView` over that terminal
+  added to the shown workspace's active pane, its custom title the command (an agent's terminal
+  runs no shell to name it). The composer's chips and Plan / Act are hunks in `agent_ui`'s thread
+  view (see the ledger).
 - **Answers as the board draws them (#914).** `answer_header.rs` draws `MarleyThreadLook`'s new
   `answer_header` from `agent_ui::AnswerFacts` (agent id and name, model, effort, and an
   `AnswerState` of `Working(elapsed)` or `NeedsYou` on the newest answer) with `item_kind::tile`

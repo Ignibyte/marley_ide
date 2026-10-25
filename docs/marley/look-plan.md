@@ -103,7 +103,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 A tile per kind, the state dot, a colored second line, folded headers that still say what needs
 you. Mostly `rail.rs` layout once W0.1 lands.
 
-**TICKET-825 The agent thread with panels.** *Done (#825, 2026-10-21; plan, card labels, chips, terminal peek and checks done, #864, 2026-10-22; answer headers, filled labels, pills and the send square, #914, 2026-10-25).* *L.* Boards: Main, ThreadStates, MainDay.
+**TICKET-825 The agent thread with panels.** *Done (#825, 2026-10-21; plan, card labels, chips, terminal peek and checks done, #864, 2026-10-22; answer headers, filled labels, pills and the send square, #914, 2026-10-25; the composer's chips and Plan / Act, the details panel as cards with Open in a tab, #915, 2026-10-25).* *L.* Boards: Main, ThreadStates, MainDay.
 User messages as bubbles, the agent's plan, EDIT and RUN cards, reply chips, the rounded composer
 with context chips, and a details panel (context use, files changed, its terminal, checks). The
 thread view lives in Zed's `agent_ui`, so this is the largest upstream touch in the plan. Keep

@@ -6485,3 +6485,13 @@ else the PATH Marley resolved at start, which on this box can be the real one ev
 stand-in first on the scenario's PATH. A scenario that shows the version or clicks Connect the
 plugin exports `MARLEY_CLAUDE` (the stand-in) and `CLAUDE_CONFIG_DIR` (a scratch folder), so no
 real Claude Code runs and the user's `~/.claude` is never written.
+
+## L-claude-915-an-acp-agent-reports-modes-two-ways-001
+*learned: 2026-10-25 · while: testing #915*
+
+An ACP agent offers its modes either as session modes (`modes` in `session/new`, which Zed shows
+through `ModeSelector`) or as a select config option of category mode (`configOptions`, shown
+through `ConfigOptionsView`, with `mode_selector` left `None`). Claude Code's adapter does the
+second. A Marley feature over a thread's mode, model or effort reads both, and its scenario's
+scripted agent offers each shape at least once.
+

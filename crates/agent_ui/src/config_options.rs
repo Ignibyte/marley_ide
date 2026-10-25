@@ -89,6 +89,68 @@ impl ConfigOptionsView {
         }
     }
 
+    // Marley: the composer's Plan / Act switch reads and sets a mode an agent reports as a config
+    // option, as Claude Code's adapter does (#915).
+    /// The value ids the first select option in `category` offers.
+    pub fn value_ids_of(
+        &self,
+        category: &acp::SessionConfigOptionCategory,
+    ) -> Vec<acp::SessionConfigValueId> {
+        let Some(config_id) = self.first_config_option_id_matching(category.clone(), |option| {
+            matches!(&option.kind, acp::SessionConfigKind::Select(_))
+        }) else {
+            return Vec::new();
+        };
+        extract_options(&self.config_options, &config_id)
+            .into_iter()
+            .map(|option| option.value)
+            .collect()
+    }
+
+    /// The current value id of the first select option in `category`.
+    pub fn value_of(
+        &self,
+        category: &acp::SessionConfigOptionCategory,
+    ) -> Option<acp::SessionConfigValueId> {
+        let config_id = self.first_config_option_id_matching(category.clone(), |option| {
+            matches!(&option.kind, acp::SessionConfigKind::Select(_))
+        })?;
+        get_current_select_value(&self.config_options, &config_id)
+    }
+
+    /// Sets the first select option in `category` to `value`, and saves it as the agent's default
+    /// as a pick from its menu does.
+    pub fn set_value_of(
+        &mut self,
+        category: &acp::SessionConfigOptionCategory,
+        value: acp::SessionConfigValueId,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(config_id) = self.first_config_option_id_matching(category.clone(), |option| {
+            matches!(&option.kind, acp::SessionConfigKind::Select(_))
+        }) else {
+            return;
+        };
+        self.agent_server.set_default_config_option(
+            config_id.0.as_ref(),
+            Some(AgentConfigOptionValue::ValueId(value.0.to_string())),
+            self.fs.clone(),
+            cx,
+        );
+        let task = self.config_options.set_config_option(
+            config_id,
+            acp::SessionConfigOptionValue::id(value),
+            cx,
+        );
+        cx.spawn(async move |_, _| {
+            if let Err(err) = task.await {
+                log::error!("Failed to set config option: {:?}", err);
+            }
+        })
+        .detach();
+        cx.notify();
+    }
+
     pub fn toggle_category_picker(
         &mut self,
         category: acp::SessionConfigOptionCategory,

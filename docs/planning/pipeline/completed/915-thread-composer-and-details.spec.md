@@ -1,7 +1,7 @@
 ---
 pipeline_id: fe5dac6e-3c33-42bd-9fbc-a1b0bfc682eb
 ticket: docs/planning/tickets/open/TICKET-915-thread-composer-and-details.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The thread's composer and details panel
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -79,18 +79,22 @@ send. Marley adds the chips' row, the switch's drawing and the panel's layout.
   none.
 
 ## UI proof
-Scenario `script/e2e/915-thread-composer-and-details.sh` (sway): #864's set-up, Marley's own agent
-on the scripted ACP agent (`MARLEY_ASSISTANT_ADAPTER`) in a scratch crate. The scripted agent
-offers three modes (`default`, `plan`, `bypassPermissions`), and for the prompt it runs a command
-through the client's terminal that prints a line a second for six seconds, then answers.
-- `915-01-composer`: "@" and the crate's `src/main.rs` picked, a word typed: the chip
-  `main.rs` above the text, Plan / Act with Act lit (REQ-001, REQ-002).
-- `915-02-plan`: Plan clicked: Plan lit, the details panel's Mode tile "Plan" (REQ-002, REQ-004).
-- `915-03-working`: Act clicked and the prompt sent, during the command: the panel's cards, the
-  state line "Working · <the command's label>", Folder and Mode tiles, the peek with Open in a
-  tab (REQ-003, REQ-004, REQ-005).
-- `915-04-tab`: Open in a tab clicked: a terminal tab with the command's output (REQ-005).
-- `915-05-day`: Marley Day, the composer with a chip and the panel (REQ-001 to REQ-004).
+Scenario `script/e2e/915-thread-composer-and-details.sh` (sway): Marley's own agent on a scripted
+ACP agent (`MARLEY_ASSISTANT_ADAPTER`) in a scratch repository. The agent offers the modes Default
+and Plan, as session modes to its first session and as a config option of category mode to the
+next (as Claude Code's adapter does). For "start" it runs a command through the client's terminal,
+then holds an "Edit notes.md" call open. (Revised in Test from the planned shots: the order now
+shows the panel mid-turn first, and two shots cover the config-option shape.)
+- `915-01-details`: mid-turn: the panel's cards, the state line "Working · Edit notes.md", the
+  Folder and Mode tiles, the peek with Open in a tab (REQ-003, REQ-004).
+- `915-02-chips`: "@notes" accepted in the draft: the chip `notes.md` above the text, Plan / Act
+  with Act lit (REQ-001, REQ-002).
+- `915-03-plan`: Plan clicked: Plan lit, the Mode tile "Plan" (REQ-002, REQ-004).
+- `915-05-day`: Marley Day: the chip, the switch and the cards (REQ-001, REQ-003, REQ-004).
+- `915-04-terminal`: Open in a tab clicked: a terminal tab named for the command, with its output
+  (REQ-005).
+- `915-06-options`, `915-07-options-plan`: a second thread whose mode is a config option: Plan /
+  Act beside Zed's option menu, then Plan clicked and set (REQ-002).
 
 ## Locked-In Decisions
 - D1 — The chips are a reading of the draft's mentions, not a second editor: they change as the
@@ -108,11 +112,11 @@ through the client's terminal that prints a line a second for six seconds, then 
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHILE the draft holds mentions, the composer shall show a chip for each above its text, in Marley Night and Marley Day. | `915-01-composer`, `915-05-day` |
-| REQ-002 | WHERE the agent offers a plan mode, the composer shall show a Plan / Act switch with the current one lit, and a click shall set that mode. | `915-01-composer`, `915-02-plan` |
-| REQ-003 | The details panel shall draw each section as a card. | `915-03-working`, `915-05-day` |
-| REQ-004 | The details panel's first card shall show the agent's state line in its state colour and the Folder and Mode tiles. | `915-02-plan`, `915-03-working` |
-| REQ-005 | WHEN Open in a tab under the terminal peek is clicked, a terminal tab shall open over the terminal the agent ran. | `915-03-working`, `915-04-tab` |
+| REQ-001 | WHILE the draft holds mentions, the composer shall show a chip for each above its text, in Marley Night and Marley Day. | `915-02-chips`, `915-05-day` |
+| REQ-002 | WHERE the agent offers a plan mode, the composer shall show a Plan / Act switch with the current one lit, and a click shall set that mode. | `915-02-chips`, `915-03-plan`, `915-06-options`, `915-07-options-plan` |
+| REQ-003 | The details panel shall draw each section as a card. | `915-01-details`, `915-05-day` |
+| REQ-004 | The details panel's first card shall show the agent's state line in its state colour and the Folder and Mode tiles. | `915-01-details`, `915-03-plan` |
+| REQ-005 | WHEN Open in a tab under the terminal peek is clicked, a terminal tab shall open over the terminal the agent ran. | `915-01-details`, `915-04-terminal` |
 | REQ-006 | Each Zed path changed shall have its row in `docs/marley/zed-touchpoints.md`. | gate:16 |
 
 ## Phase Plan

@@ -2057,6 +2057,27 @@ impl Focusable for MessageEditor {
     }
 }
 
+impl MessageEditor {
+    // Marley: the composer's chips name what the draft mentions (#915).
+    /// The draft's mentions by name, in the order they appear in it.
+    pub fn marley_mention_names(&self, cx: &App) -> Vec<String> {
+        let editor = self.editor.read(cx);
+        let crease_snapshot = editor.display_map.read(cx).crease_snapshot();
+        let buffer = editor.buffer().read(cx).snapshot(cx);
+        let mention_set = self.mention_set.read(cx);
+        let mut found: Vec<(MultiBufferOffset, String)> = crease_snapshot
+            .crease_items_with_offsets(&buffer)
+            .into_iter()
+            .filter_map(|(crease_id, range)| {
+                let uri = mention_set.mention_uri_for_crease(&crease_id)?;
+                Some((range.start.to_offset(&buffer), uri.name()))
+            })
+            .collect();
+        found.sort_by_key(|(offset, _)| *offset);
+        found.into_iter().map(|(_, name)| name).collect()
+    }
+}
+
 impl Render for MessageEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()

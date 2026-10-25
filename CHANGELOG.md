@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The thread's composer and details panel** (#915, 2026-10-25). Each file or symbol the draft
+  mentions shows as a chip above the composer's text. An agent that offers a plan mode gets a
+  Plan / Act switch beside its mode menu, for Claude Code too, which reports its modes as a
+  config option; Act goes back to the last other mode the thread used. A Plan click also makes
+  Plan the agent's default mode, as a pick from Zed's menu does. The details panel draws each
+  section as a card. The first card holds the agent, its state in colour ("Working · Edit
+  notes.md", "Needs you", "Idle"), the context bar, and Folder and Mode tiles. The terminal peek
+  gains Open in a tab, which shows the agent's terminal in a tab named for its command.
+
 - **An agent's answers as the board draws them** (#914, 2026-10-25). Each answer in a thread opens
   with a header: the agent's tile and name, the model and effort, and on the newest answer
   "Working · 12 s" or "Needs you". EDIT and RUN labels are filled in their colours; an edit card

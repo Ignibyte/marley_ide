@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-915](open/TICKET-915-thread-composer-and-details.md) | feature | The thread's composer and details panel (design review 2026-10-23) |
 | [TICKET-916](open/TICKET-916-terminal-block-look.md) | feature | Terminal blocks as the board draws them (design review 2026-10-23) |
 | [TICKET-917](open/TICKET-917-terminal-prompt-and-session.md) | feature | The terminal prompt as a card, the sticky header, session chips (design review 2026-10-23) |
 | [TICKET-918](open/TICKET-918-block-map-and-build-progress.md) | feature | A block map by state, build progress, and the exit-127 hint (design review 2026-10-23) |

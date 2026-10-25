@@ -623,7 +623,53 @@ fn marley_card_label(text: &'static str, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
+/// Marley: where a thread's mode is set (#915): Zed's mode selector, or the config option of
+/// category mode for an agent that reports its mode that way.
+#[derive(Clone)]
+enum MarleyModeControl {
+    Selector(Entity<ModeSelector>),
+    Options(Entity<ConfigOptionsView>),
+}
+
+impl MarleyModeControl {
+    fn modes(&self, cx: &App) -> Vec<acp_v2::SessionConfigValueId> {
+        match self {
+            Self::Selector(selector) => selector
+                .read(cx)
+                .all_modes()
+                .into_iter()
+                .map(|mode| mode.value)
+                .collect(),
+            Self::Options(options) => options
+                .read(cx)
+                .value_ids_of(&acp_v2::SessionConfigOptionCategory::Mode),
+        }
+    }
+
+    fn current(&self, cx: &App) -> Option<acp_v2::SessionConfigValueId> {
+        match self {
+            Self::Selector(selector) => Some(selector.read(cx).mode()),
+            Self::Options(options) => options
+                .read(cx)
+                .value_of(&acp_v2::SessionConfigOptionCategory::Mode),
+        }
+    }
+
+    fn set(&self, mode: acp_v2::SessionConfigValueId, cx: &mut App) {
+        match self {
+            Self::Selector(selector) => {
+                selector.update(cx, |selector, cx| selector.set_mode(mode, cx));
+            }
+            Self::Options(options) => options.update(cx, |options, cx| {
+                options.set_value_of(&acp_v2::SessionConfigOptionCategory::Mode, mode, cx);
+            }),
+        }
+    }
+}
+
 pub struct ThreadView {
+    /// Marley: the last mode other than plan this thread used, which Act sets again (#915, D3).
+    marley_last_act_mode: Option<acp_v2::SessionConfigValueId>,
     pub(crate) root_thread_id: ThreadId,
     pub session_id: acp_v2::SessionId,
     pub parent_session_id: Option<acp_v2::SessionId>,
@@ -1073,6 +1119,7 @@ impl ThreadView {
 
         let current_submission = thread.read(cx).latest_submission_id();
         let mut this = Self {
+            marley_last_act_mode: None,
             root_thread_id,
             session_id,
             parent_session_id,
@@ -5166,6 +5213,9 @@ impl ThreadView {
                             .when(fills_container, |this| this.flex_1())
                             .pt_1()
                             .pr_2p5()
+                            // Marley: a chip above the text for each thing the draft mentions
+                            // (#915).
+                            .children(self.render_marley_mention_chips(cx))
                             .child(self.message_editor.clone())
                             .when(has_messages, |this| {
                                 this.child(
@@ -5227,6 +5277,8 @@ impl ThreadView {
                                     .children(discard_draft_button)
                                     .children(self.render_token_usage(cx))
                                     .children(self.profile_selector.clone())
+                                    // Marley: Plan / Act for an agent with a plan mode (#915).
+                                    .children(self.render_marley_plan_act(cx))
                                     .map(|this| match self.config_options_view.clone() {
                                         Some(config_view) => this.child(config_view),
                                         None => this
@@ -7896,6 +7948,99 @@ impl ThreadView {
             .children(marley_chips)
             .child(controls)
             .into_any_element()
+    }
+
+    /// Marley: the draft's mentions as chips over the composer's text (#915, D1), none while it
+    /// mentions nothing.
+    fn render_marley_mention_chips(&self, cx: &App) -> Option<AnyElement> {
+        cx.try_global::<crate::MarleyThreadHost>()?;
+        let names = self.message_editor.read(cx).marley_mention_names(cx);
+        if names.is_empty() {
+            return None;
+        }
+        let colors = cx.theme().colors();
+        Some(
+            h_flex()
+                .flex_wrap()
+                .gap_1()
+                .pb_1p5()
+                .children(names.into_iter().map(|name| {
+                    div()
+                        .h(px(24.))
+                        .px_2()
+                        .flex()
+                        .items_center()
+                        .rounded(px(7.))
+                        .bg(colors.element_background)
+                        .child(Label::new(name).size(LabelSize::XSmall).buffer_font(cx))
+                }))
+                .into_any_element(),
+        )
+    }
+
+    /// Marley: Plan / Act (#915, D2): where the agent offers a mode whose id is `plan`, through
+    /// Zed's mode selector or, for an agent that reports its mode as a config option, through
+    /// that option; two segments that set it. Act sets the last other mode this thread used, else
+    /// the first other one (D3). Zed's mode menu stays beside it for every mode.
+    fn render_marley_plan_act(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        cx.try_global::<crate::MarleyThreadHost>()?;
+        let control = match (&self.mode_selector, &self.config_options_view) {
+            (Some(selector), _) => MarleyModeControl::Selector(selector.clone()),
+            (None, Some(options)) => MarleyModeControl::Options(options.clone()),
+            (None, None) => return None,
+        };
+        let modes = control.modes(cx);
+        let plan = modes.iter().find(|mode| mode.0.as_ref() == "plan")?.clone();
+        let in_plan = control.current(cx).as_ref() == Some(&plan);
+        let act = self
+            .marley_last_act_mode
+            .clone()
+            .filter(|mode| modes.contains(mode))
+            .or_else(|| modes.iter().find(|mode| **mode != plan).cloned())?;
+        let colors = cx.theme().colors();
+        let segment = |id: &'static str, label: &'static str, on: bool| {
+            div()
+                .id(id)
+                .px_2()
+                .py_0p5()
+                .rounded_sm()
+                .cursor_pointer()
+                .when(on, |segment| segment.bg(colors.element_selected))
+                .child(Label::new(label).size(LabelSize::Small).color(if on {
+                    Color::Default
+                } else {
+                    Color::Muted
+                }))
+        };
+        let act_control = control.clone();
+        Some(
+            h_flex()
+                .p_0p5()
+                .gap_0p5()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .child(
+                    segment("marley-plan", "Plan", in_plan).on_click(cx.listener(
+                        move |this, _, _, cx| {
+                            if let Some(current) = control.current(cx)
+                                && current != plan
+                            {
+                                this.marley_last_act_mode = Some(current);
+                            }
+                            control.set(plan.clone(), cx);
+                            cx.notify();
+                        },
+                    )),
+                )
+                .child(segment("marley-act", "Act", !in_plan).on_click(cx.listener(
+                    move |_, _, _, cx| {
+                        act_control.set(act.clone(), cx);
+                        cx.notify();
+                    },
+                )))
+                .into_any_element(),
+        )
     }
 
     /// Marley: an answer's header (#914) for the entry at `entry_ix`, when it is the first top-level
