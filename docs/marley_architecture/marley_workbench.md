@@ -2268,6 +2268,12 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Answers as the board draws them (#914).** `answer_header.rs` draws `MarleyThreadLook`'s new
+  `answer_header` from `agent_ui::AnswerFacts` (agent id and name, model, effort, and an
+  `AnswerState` of `Working(elapsed)` or `NeedsYou` on the newest answer) with `item_kind::tile`
+  and `thread_activity::elapsed_words`. The rest are hunks in `agent_ui`'s thread view (see the
+  ledger): filled card labels, the RUN result chip, the EDIT counts, pill chips, the send square,
+  the width text button, and `MessageEditor::marley_plain` for a sent message.
 - **Wait, the tmux prompt and the second-launch notice (#913).** `close_guard.rs`: `Working`
   gains the turn's prompt (the seat's `prompt` label) and whether a seat reports turns; `question`
   words a single agent's close with the hold; the dialog offers Wait in Show's place when one

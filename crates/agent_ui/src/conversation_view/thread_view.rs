@@ -575,23 +575,50 @@ pub struct MarleyThreadLook {
     /// Given the asking thread view's id (the view is being drawn, so not to be read) and its
     /// thread.
     pub extra_chip: fn(gpui::EntityId, &Entity<AcpThread>, &App) -> Option<AnyElement>,
+    /// Marley: the header over each answer (#914), from what the view knows of it.
+    pub answer_header: fn(&AnswerFacts, &App) -> AnyElement,
 }
 
 impl gpui::Global for MarleyThreadLook {}
 
-/// Marley: a card's framed label (#864).
+/// Marley: what an answer's header says (#914): the agent, its model and effort, and on the newest
+/// answer the thread's state.
+pub struct AnswerFacts {
+    pub agent_id: SharedString,
+    pub agent_name: SharedString,
+    pub model: Option<SharedString>,
+    pub effort: Option<SharedString>,
+    pub state: Option<AnswerState>,
+}
+
+/// Marley: the newest answer's state in its header (#914).
+#[derive(Clone, Copy)]
+pub enum AnswerState {
+    /// The agent works, for this long so far.
+    Working(Duration),
+    /// A tool call waits for the user's permission.
+    NeedsYou,
+}
+
+/// Marley: a card's label, filled in its colour (#864, #914): EDIT on the success colour, RUN on
+/// the warning colour.
 fn marley_card_label(text: &'static str, cx: &App) -> AnyElement {
+    let status = cx.theme().status();
+    let (ink, fill) = if text == "EDIT" {
+        (status.success, status.success_background)
+    } else {
+        (status.warning, status.warning_background)
+    };
     div()
         .flex_none()
         .px_1()
         .rounded_sm()
-        .border_1()
-        .border_color(cx.theme().colors().border)
+        .bg(fill)
         .child(
             Label::new(text)
                 .size(LabelSize::XSmall)
                 .buffer_font(cx)
-                .color(Color::Muted),
+                .color(Color::Custom(ink)),
         )
         .into_any_element()
 }
@@ -6207,6 +6234,43 @@ impl ThreadView {
             } else {
                 IconName::Send
             };
+            // Marley: a filled accent square with an up arrow in the background's ink; empty, the
+            // same square greyed (#914). Stop and the queue keep Zed's look.
+            if cx.has_global::<crate::MarleyThreadHost>() && !is_generating {
+                let colors = cx.theme().colors();
+                let (fill, ink) = if is_editor_empty {
+                    (colors.element_background, Color::Muted)
+                } else {
+                    (colors.text_accent, Color::Custom(colors.editor_background))
+                };
+                return div()
+                    .id("send-message")
+                    .flex_none()
+                    .size(px(34.))
+                    .rounded(px(10.))
+                    .bg(fill)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .tooltip(move |_window, cx| {
+                        if is_editor_empty {
+                            Tooltip::for_action("Type to Send", &Chat, cx)
+                        } else {
+                            Tooltip::for_action("Send Message", &Chat, cx)
+                        }
+                    })
+                    .when(!is_editor_empty, |button| {
+                        button
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, window, cx| this.send(window, cx)))
+                    })
+                    .child(
+                        Icon::new(IconName::ArrowUp)
+                            .size(IconSize::Small)
+                            .color(ink),
+                    )
+                    .into_any_element();
+            }
             IconButton::new("send-message", send_icon)
                 .style(ButtonStyle::Filled)
                 .map(|this| {
@@ -6486,16 +6550,18 @@ impl ThreadView {
     fn render_marley_text_width(&self, cx: &App) -> Option<AnyElement> {
         cx.try_global::<crate::MarleyThreadHost>()?;
         let limited = AgentSettings::get_global(cx).max_content_width.is_some();
-        let (icon, tooltip) = if limited {
-            (IconName::Maximize, "Text: the full width")
+        // Marley: a text button naming the width in effect (#914).
+        let (label, tooltip) = if limited {
+            ("Readable column", "Text: the full width")
         } else {
-            (IconName::Minimize, "Text: a readable column")
+            ("Full width", "Text: a readable column")
         };
         let project = self.project.clone();
         Some(
-            IconButton::new("marley-agent-text-width", icon)
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Muted)
+            Button::new("marley-agent-text-width", label)
+                .label_size(LabelSize::Small)
+                .color(Color::Muted)
+                .style(ButtonStyle::Subtle)
                 .tooltip(Tooltip::text(tooltip))
                 .on_click(move |_, _, cx| {
                     let Some(project) = project.upgrade() else {
@@ -7389,6 +7455,16 @@ impl ThreadView {
             primary
         };
 
+        // Marley: the first entry of an answer opens with the answer's header (#914).
+        let primary = match self.marley_answer_header(entry_ix, entry, cx) {
+            Some(header) => v_flex()
+                .w_full()
+                .child(header)
+                .child(primary)
+                .into_any_element(),
+            None => primary,
+        };
+
         let is_generating = matches!(thread.read(cx).status(), ThreadStatus::Generating);
 
         let is_turn_end = Self::entry_is_finalized_turn_end(thread.read(cx).entries(), entry_ix)
@@ -7822,6 +7898,94 @@ impl ThreadView {
             .into_any_element()
     }
 
+    /// Marley: an answer's header (#914) for the entry at `entry_ix`, when it is the first top-level
+    /// entry after a user message; the state only on the newest answer.
+    fn marley_answer_header(
+        &self,
+        entry_ix: usize,
+        entry: &AgentThreadEntry,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        let look = cx.try_global::<MarleyThreadLook>()?;
+        if entry.is_indented() || matches!(entry, AgentThreadEntry::UserMessage(_)) {
+            return None;
+        }
+        let thread = self.thread.read(cx);
+        let entries = thread.entries();
+        let previous = entries.get(entry_ix.checked_sub(1)?)?;
+        if !matches!(previous, AgentThreadEntry::UserMessage(_)) || previous.is_indented() {
+            return None;
+        }
+        let newest = !entries
+            .iter()
+            .skip(entry_ix + 1)
+            .any(|later| matches!(later, AgentThreadEntry::UserMessage(_)) && !later.is_indented());
+        let state = newest
+            .then(|| {
+                if thread.has_pending_edit_tool_calls() || self.marley_waits_for_permission(cx) {
+                    Some(AnswerState::NeedsYou)
+                } else if thread.status() == ThreadStatus::Generating {
+                    self.turn_fields
+                        .turn_started_at
+                        .map(|started| AnswerState::Working(started.elapsed()))
+                } else {
+                    None
+                }
+            })
+            .flatten();
+        let facts = self.marley_session_facts(cx);
+        Some((look.answer_header)(
+            &AnswerFacts {
+                agent_id: SharedString::from(self.agent_id.0.to_string()),
+                agent_name: self.agent_display_name.clone(),
+                model: facts.model,
+                effort: facts.effort,
+                state,
+            },
+            cx,
+        ))
+    }
+
+    /// Marley: whether a tool call of the thread waits for the user's permission (#914).
+    fn marley_waits_for_permission(&self, cx: &App) -> bool {
+        self.thread.read(cx).entries().iter().any(|entry| {
+            matches!(entry, AgentThreadEntry::ToolCall(call)
+                if matches!(call.status(), ToolCallStatus::WaitingForConfirmation))
+        })
+    }
+
+    /// Marley: "+N −M" for an edit's diffs, in the added and removed colours (#914); none before a
+    /// diff has lines.
+    fn marley_edit_counts(tool_call: &ToolCall, cx: &App) -> Option<AnyElement> {
+        let (added, removed) = tool_call.diffs().fold((0, 0), |(added, removed), diff| {
+            let diff = diff.read(cx);
+            let buffer_id = diff.buffer().read(cx).remote_id();
+            diff.multibuffer().read(cx).diff_for(buffer_id).map_or(
+                (added, removed),
+                |buffer_diff| {
+                    let stats = DiffStats::single_file(buffer_diff.read(cx));
+                    (added + stats.lines_added, removed + stats.lines_removed)
+                },
+            )
+        });
+        (added + removed > 0).then(|| {
+            h_flex()
+                .flex_none()
+                .gap_1()
+                .child(
+                    Label::new(format!("+{added}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Created),
+                )
+                .child(
+                    Label::new(format!("\u{2212}{removed}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Deleted),
+                )
+                .into_any_element()
+        })
+    }
+
     /// Marley: the board's reply chips (#864); each puts its words in the message box and sends
     /// nothing.
     fn render_marley_chips(
@@ -7840,9 +8004,19 @@ impl ThreadView {
             .pt_2()
             .gap_1p5()
             .children(CHIPS.iter().enumerate().map(|(index, (label, words))| {
-                Button::new(("marley-reply-chip", entry_ix * 10 + index), *label)
-                    .style(ButtonStyle::Outlined)
-                    .label_size(LabelSize::Small)
+                // Marley: each a pill, as the Main board draws them (#914).
+                let colors = cx.theme().colors();
+                h_flex()
+                    .id(("marley-reply-chip", entry_ix * 10 + index))
+                    .px_2p5()
+                    .py_0p5()
+                    .rounded_full()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.element_background)
+                    .cursor_pointer()
+                    .hover(|style| style.bg(colors.element_hover))
+                    .child(Label::new(*label).size(LabelSize::Small))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.message_editor.update(cx, |editor, cx| {
                             editor.clear(window, cx);
@@ -8891,10 +9065,33 @@ impl ThreadView {
         })
         // Marley: the board's framed RUN label before a terminal card's command (#864).
         .command_slot(if cx.has_global::<MarleyThreadLook>() {
+            // Marley: once the command ends, a result chip after it (#914).
+            let result = output
+                .filter(|_| command_finished)
+                .and_then(|output| output.exit_status.exit_code)
+                .map(|code| {
+                    let status = cx.theme().status();
+                    let (words, ink) = if code == 0 {
+                        ("passed".to_string(), status.success)
+                    } else {
+                        (format!("exit {code}"), status.error)
+                    };
+                    div()
+                        .flex_none()
+                        .px_1p5()
+                        .rounded_full()
+                        .bg(ink.opacity(0.15))
+                        .child(
+                            Label::new(words)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Custom(ink)),
+                        )
+                });
             h_flex()
                 .gap_2()
                 .child(marley_card_label("RUN", cx))
                 .child(command_element)
+                .children(result)
                 .into_any_element()
         } else {
             command_element.into_any_element()
@@ -11063,6 +11260,12 @@ impl ThreadView {
             .children(
                 (is_edit && cx.has_global::<MarleyThreadLook>())
                     .then(|| marley_card_label("EDIT", cx)),
+            )
+            // Marley: the edit's line counts (#914).
+            .children(
+                (is_edit && cx.has_global::<MarleyThreadLook>())
+                    .then(|| Self::marley_edit_counts(tool_call, cx))
+                    .flatten(),
             )
             .child(
                 div()

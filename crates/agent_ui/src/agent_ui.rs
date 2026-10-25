@@ -87,6 +87,8 @@ pub use conversation_view::open_markdown_in_workspace;
 pub use conversation_view::{ConversationView, StateChange};
 // Marley: the thread's look, which Marley sets (#864).
 pub use conversation_view::MarleyThreadLook;
+// Marley: what an answer's header draws (#914).
+pub use conversation_view::{AnswerFacts, AnswerState};
 // Marley: the session facts Marley's bottom row reads (#907).
 pub use conversation_view::MarleySessionFacts;
 pub use external_source_prompt::ExternalSourcePrompt;

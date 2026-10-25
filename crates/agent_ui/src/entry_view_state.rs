@@ -294,6 +294,8 @@ impl EntryViewState {
                         if !is_editable {
                             editor.set_read_only(true, cx);
                         }
+                        // Marley: a sent message, drawn as plain text in its bubble (#914).
+                        editor.marley_plain = true;
                         editor.set_source_message(source_blocks, window, cx);
                         editor
                     });

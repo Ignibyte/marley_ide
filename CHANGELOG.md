@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's answers as the board draws them** (#914, 2026-10-25). Each answer in a thread opens
+  with a header: the agent's tile and name, the model and effort, and on the newest answer
+  "Working · 12 s" or "Needs you". EDIT and RUN labels are filled in their colours; an edit card
+  shows its "+N −M", a command card "passed" or "exit N" once it ends. The reply chips are pills,
+  the send button a filled accent square, the text-width toggle a text button, and a sent message
+  reads as plain text in its bubble.
+
 - **Wait, the tmux prompt and the second-launch notice** (#913, 2026-10-25). Closing a working
   agent's tab asks "Claude Code is still working", names its turn and the undo hold, and offers
   Wait, which keeps the tab until the turn ends and then closes it. Closing a tmux session's tab

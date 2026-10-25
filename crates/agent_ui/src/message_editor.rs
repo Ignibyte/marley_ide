@@ -207,6 +207,9 @@ impl PromptCompletionProviderDelegate for MessageEditorCompletionDelegate {
 }
 
 pub struct MessageEditor {
+    /// Marley: a sent message's editor, drawn in the UI font on no field of its own while Marley
+    /// hosts threads (#914).
+    pub(crate) marley_plain: bool,
     mention_set: Entity<MentionSet>,
     editor: Entity<Editor>,
     workspace: WeakEntity<Workspace>,
@@ -615,6 +618,7 @@ impl MessageEditor {
         }
 
         Self {
+            marley_plain: false,
             editor,
             mention_set,
             workspace,
@@ -2068,22 +2072,41 @@ impl Render for MessageEditor {
             .flex_1()
             .child({
                 let settings = ThemeSettings::get_global(cx);
+                // Marley: a sent message reads as plain text in its bubble (#914).
+                let plain = self.marley_plain && cx.has_global::<crate::MarleyThreadHost>();
 
-                let text_style = TextStyle {
-                    color: cx.theme().colors().text,
-                    font_family: settings.agent_buffer_font_family().clone(),
-                    font_fallbacks: settings.buffer_font.fallbacks.clone(),
-                    font_features: settings.buffer_font.features.clone(),
-                    font_size: settings.agent_buffer_font_size(cx).into(),
-                    font_weight: settings.buffer_font.weight,
-                    line_height: relative(settings.buffer_line_height.value()),
-                    ..Default::default()
+                let text_style = if plain {
+                    TextStyle {
+                        color: cx.theme().colors().text,
+                        font_family: settings.ui_font.family.clone(),
+                        font_fallbacks: settings.ui_font.fallbacks.clone(),
+                        font_features: settings.ui_font.features.clone(),
+                        font_size: settings.agent_ui_font_size(cx).into(),
+                        font_weight: settings.ui_font.weight,
+                        line_height: relative(1.5),
+                        ..Default::default()
+                    }
+                } else {
+                    TextStyle {
+                        color: cx.theme().colors().text,
+                        font_family: settings.agent_buffer_font_family().clone(),
+                        font_fallbacks: settings.buffer_font.fallbacks.clone(),
+                        font_features: settings.buffer_font.features.clone(),
+                        font_size: settings.agent_buffer_font_size(cx).into(),
+                        font_weight: settings.buffer_font.weight,
+                        line_height: relative(settings.buffer_line_height.value()),
+                        ..Default::default()
+                    }
                 };
 
                 EditorElement::new(
                     &self.editor,
                     EditorStyle {
-                        background: cx.theme().colors().editor_background,
+                        background: if plain {
+                            gpui::transparent_black()
+                        } else {
+                            cx.theme().colors().editor_background
+                        },
                         local_player: cx.theme().players().local(),
                         text: text_style,
                         syntax: cx.theme().syntax().clone(),

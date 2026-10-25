@@ -34,6 +34,7 @@ pub mod agent_tab;
 pub mod agent_trust;
 pub mod agent_versions;
 pub mod agents;
+pub mod answer_header;
 pub mod asks;
 pub mod assistant;
 pub mod autosuggest;

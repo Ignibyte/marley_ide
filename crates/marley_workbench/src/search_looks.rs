@@ -34,6 +34,7 @@ pub fn init(cx: &mut App) {
     });
     cx.set_global(agent_ui::MarleyThreadLook {
         extra_chip: crate::beside::apply_chip,
+        answer_header: crate::answer_header::answer_header,
     });
 }
 

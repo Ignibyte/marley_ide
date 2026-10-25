@@ -30,6 +30,13 @@
   - `crates/marley_workbench/src/search_looks.rs:35`, `home_page.rs:925` (`cli_glyph`).
 - **Decisions:** D1–D5 in the spec.
 
+- **Promoted 2026-10-25:** seams re-read after #907: `MarleyThreadLook` (`extra_chip`),
+  `marley_card_label`, `render_entry`'s turn-end wrap, the RUN `command_slot`, the EDIT label in
+  the tool call header, `render_marley_chips`, `render_send_button`, `render_marley_text_width`,
+  `marley_session_facts` (#907); the per-diff `BufferDiff` comes through the diff's
+  multibuffer (`MultiBuffer::diff_for`); a sent message's editor is made in
+  `entry_view_state.rs`.
+
 ### Design
 - `AnswerFacts { agent_id: SharedString, agent_name: SharedString, model: Option<SharedString>,
   effort: Option<SharedString>, state: Option<AnswerState> }` and `enum AnswerState { Working {
@@ -74,7 +81,33 @@
   75 % bubble in the shot.
 
 ## Phase 2 — Code
+- **Built:** `AnswerFacts`, `AnswerState`, `MarleyThreadLook::answer_header`,
+  `marley_answer_header`, `marley_waits_for_permission`, `marley_edit_counts`, the filled
+  `marley_card_label`, the RUN result chip, pill chips, the send square and the width text button
+  in `thread_view.rs`; `marley_plain` in `message_editor.rs`, set in `entry_view_state.rs`; the
+  re-export in `agent_ui.rs`; `answer_header.rs` and its field in `search_looks.rs`. Ledger rows
+  for the four Zed paths.
+- **Deviations:** the chips and the send square are drawn as plain elements rather than
+  `Button`/`IconButton` styles, since neither has a pill or a custom fill; the EDIT counts read
+  each diff's `BufferDiff` through its multibuffer (no new accessor).
+- **Review:** the header reads the thread and the view's own fields in its render; nothing is
+  updated. Google style: `AnswerFacts` named fields, `AnswerState` an enum.
+- **Gate:** `just gate-diff` 17/17 green (one wrong local name fixed before it).
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/914-thread-answers-as-the-board.sh` (sway): Marley's entry on a
+  scripted ACP agent with model, effort and mode options; "start" sends an edit with a diff, a
+  command through the client's terminal, then holds; "ask" asks a permission.
+- `914-01-working`: the header `M` · Marley · "Opus 5.5 · High" · "Working · 8 s"; EDIT filled
+  green, "+3 −0"; RUN filled amber, "passed"; the sent "start" plain in its bubble; "Full width"
+  as text (REQ-001 to REQ-004, REQ-007, REQ-008).
+- `914-02-done`: no state on the header; Continue, Explain, Undo the Edits as pills; the send
+  square greyed while empty (REQ-005, REQ-006).
+- `914-03-asks`: the newest answer's header "Needs you" in pink, the earlier one with none
+  (REQ-002).
+- `914-04-day`: Marley Day.
+- Not shot: the send square in the accent fill with text typed; read in the diff.
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`, four ledger rows.
+- Knowledge: nothing new.
