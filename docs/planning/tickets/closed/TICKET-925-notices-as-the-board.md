@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #925 (feature, the Marley look, notices)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [925-notices-as-the-board.spec.md](../../pipeline/queued/925-notices-as-the-board.spec.md)
+- **Pipeline doc:** [925-notices-as-the-board.spec.md](../../pipeline/completed/925-notices-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/C-threads.md, board Inbox)
 - **Boards:** Inbox
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

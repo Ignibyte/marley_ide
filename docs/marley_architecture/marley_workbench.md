@@ -1682,6 +1682,10 @@ alike.
   told, at or over `marley.long_command_seconds` (0 is never), posts `done in <d>` or `exit <n>
   after <d>` titled with the command; a running block whose PTY reads with echo off
   (`Terminal::marley_foreground_reads_password`) posts `waiting for a password` once per block.
+  Since #925 a finished block's banner is titled `<command> finished · exit <n>` (0 for a clean
+  end) and `ran_words` gives the body: `<terminal title> ran <d> while you were in <item>.` when
+  the window is active and its workspace's active item is another one, else `<terminal title>
+  ran <d>.`
   Both go through `notifications::notify`, so the focus rule and the project's five-second
   cooldown hold, and both set the view's unread mark (`notifications::mark_unread`) first.
 - The rail's plain terminal rows carry the same block as `CommandSnapshot` (`command_snapshot` in
@@ -3240,8 +3244,15 @@ screen opens Home after `rusty_unavailable`.
   `content_icon` (`IconName::Circle`).
 - `split`: the title ends at the first ". " or ": " after a title of more than one word (so
   `commands.rs`'s `marley: …` keeps its prefix); the line starts with a capital; a message with
-  neither is a title alone, its final period trimmed. `FAILURES` ("Could not", "failed",
-  "Failed") makes the dot `Color::Error`, else `Color::Accent`.
+  neither is a title alone, its final period trimmed.
+- **Kinds (#925).** The dot follows the toast's `MarleyToastKind`, which a Marley crate sets with
+  `Toast::marley_kind` and `show_toast` hands to the hook: Warning `Color::Warning`, Success
+  `Color::Success`, Error `Color::Error`, Question `Color::Accent`, Neutral `Color::Muted`. A toast
+  with no kind, Zed's own among them, is read from its words: `FAILURES` ("Could not", "failed",
+  "Failed") is an Error, a title ending in "?" a Question, the rest Neutral. Kinds set at the call
+  sites: the close guard's Undo and Keep It Open (Warning), the plugin's install and update, a
+  capture with a page to open and the Forge token written (Success), a push that failed and the
+  Forge token not written (Error).
 - Notifications Marley builds as `MessageNotification`s itself, and app notifications, keep
   their own content.
 
@@ -3768,6 +3779,9 @@ below describe what #743 retired.
   focus) and keeps the request in the `PendingPlans` global, which the rail observes. A second
   plan from the same terminal replaces the first, whose request is refused. A one-second watch
   drops plans whose `withdrawn` flag the socket raised and marks their tabs.
+- Since #925 `Pending` keeps the plan's title (`plan_title`: its first heading, else its first
+  line, cut to sixty characters), and `entry_of` asks "Plan to review: “<title>”". The rail draws
+  a plan entry's button as Open the plan, filled with `prompts::primary_fill`.
 - `PlanReview`: a `Markdown` (default options, HTML not parsed) in an area whose focus is the
   tab's (`PlanReviewPlan`, where Marley's keymap binds `c` to `plan_review::Comment`); the
   right-click menu keeps the selected range when it opens, since a click on its entry clears the
@@ -4053,8 +4067,11 @@ below describe what #743 retired.
   A terminal whose foreground arguments hold `--remote-control` (`marley_agent::remote_control`)
   pushes nothing, since the Claude app notifies for it (#757).
 - `post` runs on a background task: the token from `token_file`, refused when group or others
-  can read the file; `Title: Marley`, `Priority` 4 (needs input, failed) or 3 (finished), `Tags`
-  `question`, `white_check_mark` or `x`, the line as the body. `report` logs a refusal, and a
+  can read the file; `Priority` 4 (needs input, failed) or 3 (finished), `Tags` `question`,
+  `white_check_mark` or `x`. Since #925 the text is `marley_agent::push_text`'s `PushText`: the
+  `Title` header the event in fixed words with the agent's name, ASCII only ("Claude needs you",
+  "Turn finished", "Turn failed"), and the body `<project> · <detail>` ("approval", "a question",
+  or the agent's name). `event_line` stays for the agents' desktop banners. `report` logs a refusal, and a
   failure too, with one toast (`Pushes::failing`) until a post succeeds.
 - **More sources and four kinds (#752).** `on_change` reads the event with `TurnEvent::of_seat`
   (an approval, a question, a finish, a failure) and names the seat's agent (`agent_name`, from

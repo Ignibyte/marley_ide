@@ -780,6 +780,8 @@ pub struct Toast {
     message: Cow<'static, str>,
     autohide: bool,
     on_click: Option<(Cow<'static, str>, Arc<dyn Fn(&mut Window, &mut App)>)>,
+    // Marley: the kind a Marley crate gives the toast, which colours its dot (#925).
+    marley_kind: Option<notifications::MarleyToastKind>,
 }
 
 impl Toast {
@@ -789,7 +791,14 @@ impl Toast {
             message: message.into(),
             on_click: None,
             autohide: false,
+            marley_kind: None,
         }
+    }
+
+    // Marley: the toast's kind, which Marley's look colours its dot by (#925).
+    pub fn marley_kind(mut self, kind: notifications::MarleyToastKind) -> Self {
+        self.marley_kind = Some(kind);
+        self
     }
 
     pub fn on_click<F, M>(mut self, message: M, on_click: F) -> Self

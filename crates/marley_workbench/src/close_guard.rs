@@ -31,7 +31,7 @@ use terminal_view::TerminalView;
 use ui::ActiveTheme as _;
 use util::ResultExt as _;
 use workspace::item::ItemHandle;
-use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
+use workspace::notifications::{DetachAndPromptErr as _, MarleyToastKind, NotificationId};
 use workspace::{
     CloseIntent, MarleyClose, MarleyCloseGuard, MultiWorkspace, Pane, SaveIntent, Toast, Workspace,
 };
@@ -445,12 +445,11 @@ fn hold(working: Vec<Working>, pane: Option<&WeakEntity<Pane>>, hold_for: Durati
         workspace
             .update(cx, |workspace, cx| {
                 workspace.show_toast(
-                    Toast::new(NotificationId::unique::<Guard>(), message).on_click(
-                        "Undo",
-                        |window, cx| {
+                    Toast::new(NotificationId::unique::<Guard>(), message)
+                        .marley_kind(MarleyToastKind::Warning)
+                        .on_click("Undo", |window, cx| {
                             window.dispatch_action(Box::new(UndoCloseTerminal), cx);
-                        },
-                    ),
+                        }),
                     cx,
                 );
             })
@@ -512,12 +511,11 @@ fn wait(agent: &Working, pane: Option<WeakEntity<Pane>>, window: AnyWindowHandle
     workspace
         .update(cx, |workspace, cx| {
             workspace.show_toast(
-                Toast::new(NotificationId::unique::<Wait>(), message).on_click(
-                    "Keep It Open",
-                    move |_, cx| {
+                Toast::new(NotificationId::unique::<Wait>(), message)
+                    .marley_kind(MarleyToastKind::Warning)
+                    .on_click("Keep It Open", move |_, cx| {
                         end_wait(id, &toast_workspace, cx);
-                    },
-                ),
+                    }),
                 cx,
             );
         })

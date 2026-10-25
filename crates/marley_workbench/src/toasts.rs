@@ -2,12 +2,14 @@
 //!
 //! In the Marley layout a toast reads as a coloured dot, a title and the rest of its message as a
 //! muted line under it. Marley raises most of its notices with one string, so the title is the
-//! message's first sentence or clause: up to its first ". " or ": ". The dot is red for a failure
-//! and the accent otherwise. A hook `Workspace::show_toast` asks.
+//! message's first sentence or clause: up to its first ". " or ": ". The dot says the toast's kind
+//! (#925): yellow for a warning, green for a thing done, red for a failure, the accent for a
+//! question, grey for the rest. A toast with no kind is read from its words. A hook
+//! `Workspace::show_toast` asks.
 
 use gpui::{App, SharedString};
 use ui::Color;
-use workspace::notifications::{MarleyToast, MarleyToastLook};
+use workspace::notifications::{MarleyToast, MarleyToastKind, MarleyToastLook};
 
 /// The words that mark a toast as a failure.
 const FAILURES: [&str; 3] = ["Could not", "failed", "Failed"];
@@ -18,15 +20,27 @@ pub(crate) fn init(cx: &mut App) {
 }
 
 /// A toast's look in the Marley layout; none in Zed's, which keeps Zed's toasts.
-fn look(message: &str, cx: &App) -> Option<MarleyToast> {
+fn look(message: &str, kind: Option<MarleyToastKind>, cx: &App) -> Option<MarleyToast> {
     if !crate::marley_layout(cx) {
         return None;
     }
     let (title, line) = split(message);
-    let dot = if FAILURES.iter().any(|word| message.contains(word)) {
-        Color::Error
-    } else {
-        Color::Accent
+    // The raiser's kind, else the words': a failure, a question, else neutral (#925, D1, D2).
+    let kind = kind.unwrap_or_else(|| {
+        if FAILURES.iter().any(|word| message.contains(word)) {
+            MarleyToastKind::Error
+        } else if title.trim_end().ends_with('?') {
+            MarleyToastKind::Question
+        } else {
+            MarleyToastKind::Neutral
+        }
+    });
+    let dot = match kind {
+        MarleyToastKind::Warning => Color::Warning,
+        MarleyToastKind::Success => Color::Success,
+        MarleyToastKind::Error => Color::Error,
+        MarleyToastKind::Question => Color::Accent,
+        MarleyToastKind::Neutral => Color::Muted,
     };
     Some(MarleyToast {
         title: title.into(),

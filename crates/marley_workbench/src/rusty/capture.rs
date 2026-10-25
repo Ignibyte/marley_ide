@@ -18,7 +18,7 @@ use marley_rusty::vault::{self, BRAIN_DAILY_NOTE};
 use serde_json::json;
 use ui::prelude::*;
 use util::ResultExt as _;
-use workspace::notifications::NotificationId;
+use workspace::notifications::{MarleyToastKind, NotificationId};
 use workspace::{ModalView, Toast, Workspace};
 
 actions!(
@@ -80,6 +80,7 @@ fn toast(workspace: &WeakEntity<Workspace>, message: String, open: Option<String
         let opener = workspace.clone();
         // A confirmation goes by itself, as Zed's own do; a failure stays until closed.
         toast = toast
+            .marley_kind(MarleyToastKind::Success)
             .on_click("Open", move |window, cx| {
                 super::page::open_later(opener.clone(), slug.clone(), false, true, window, cx);
             })

@@ -15,7 +15,7 @@ use gpui::{App, AppContext as _, AsyncApp, Global, WeakEntity};
 use util::ResultExt as _;
 use workspace::Toast;
 use workspace::Workspace;
-use workspace::notifications::NotificationId;
+use workspace::notifications::{MarleyToastKind, NotificationId};
 
 /// The marketplace's name, and the plugin's.
 pub const MARKETPLACE: &str = "marley";
@@ -241,7 +241,8 @@ pub fn install(plugin: ClaudePlugin, workspace: WeakEntity<Workspace>, cx: &mut 
                             "Marley's plugin for Claude Code is installed: notifications, and \
                              Marley's tools for its terminals and Browser tabs. New Claude Code \
                              sessions use it; in a running one, run /reload-plugins.",
-                        ),
+                        )
+                        .marley_kind(MarleyToastKind::Success),
                         cx,
                     ),
                     Err(error) => workspace.show_error(error, cx),
@@ -324,7 +325,8 @@ pub fn update(plugin: ClaudePlugin, workspace: WeakEntity<Workspace>, cx: &mut A
                             "Marley's plugin for Claude Code is updated, and now tells the rail \
                              what Claude Code is doing. New Claude Code sessions use it; restart \
                              a running one to pick it up.",
-                        ),
+                        )
+                        .marley_kind(MarleyToastKind::Success),
                         cx,
                     ),
                     Err(error) => workspace.show_error(error, cx),

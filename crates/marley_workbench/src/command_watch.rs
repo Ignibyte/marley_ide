@@ -142,7 +142,8 @@ fn check(
     let threshold = MarleySettings::get_global(cx).long_command_seconds;
     let id = cx.entity_id();
     let told = cx.default_global::<Watch>().0.entry(id).or_default();
-    let body = match tell {
+    // A finished block's time and exit, or none for a password's tell.
+    let ending = match tell {
         Tell::Finished { took, exit } => {
             if told
                 .finished_through
@@ -158,23 +159,54 @@ fn check(
             if !asked && (threshold == 0 || took < Duration::from_secs(threshold)) {
                 return;
             }
-            let took = marley_terminal::duration_label(took);
-            match exit {
-                Some(code) if code != 0 => format!("exit {code} after {took}"),
-                _ => format!("done in {took}"),
-            }
+            Some((
+                marley_terminal::duration_label(took),
+                exit.unwrap_or_default(),
+            ))
         }
         Tell::Password => {
             if told.password_for == Some(index) {
                 return;
             }
             told.password_for = Some(index);
-            "waiting for a password".to_string()
+            None
         }
     };
     if command.is_empty() || looking_at(view, window, cx) {
         return;
     }
+    // As the Inbox board words it (#925): "<command> finished · exit N", and where it ran.
+    let (title, body) = match ending {
+        Some((took, code)) => (
+            format!("{command} finished \u{b7} exit {code}"),
+            ran_words(view, terminal, &took, window, cx),
+        ),
+        None => (command, "waiting for a password".to_string()),
+    };
     mark_unread(cx);
-    notify(view, Some(&command), &body, window, cx);
+    notify(view, Some(&title), &body, window, cx);
+}
+
+/// "<terminal> ran <time> while you were in <item>.", naming the active item only while the window
+/// is active and shows another item; "<terminal> ran <time>." otherwise (#925, D5).
+fn ran_words(
+    view: &TerminalView,
+    terminal: &Entity<Terminal>,
+    took: &str,
+    window: &Window,
+    cx: &Context<TerminalView>,
+) -> String {
+    let tab = terminal.read(cx).title(true);
+    let me = cx.entity_id();
+    let elsewhere = window
+        .is_window_active()
+        .then(|| view.marley_workspace().upgrade())
+        .flatten()
+        .and_then(|workspace| workspace.read(cx).active_item(cx))
+        .filter(|item| item.item_id() != me)
+        .map(|item| item.tab_content_text(0, cx));
+    elsewhere.map_or_else(
+        || format!("{tab} ran {took}."),
+        |item| format!("{tab} ran {took} while you were in {item}."),
+    )
 }

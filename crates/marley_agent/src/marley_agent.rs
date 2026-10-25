@@ -871,6 +871,44 @@ pub fn event_line(project: &str, agent: &str, event: TurnEvent) -> String {
     format!("{}: {} {}", plain(project), plain(agent), event.words())
 }
 
+/// What a phone push says (#925): its title, the event in fixed words with the agent's short name,
+/// and its body, the project and what the event is about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PushText {
+    /// The push's title, ASCII only, for the HTTP header that carries it (D4).
+    pub title: String,
+    /// The push's body: `<project> · <detail>`.
+    pub body: String,
+}
+
+/// The push for an agent's `event` in `project`, such as "Claude needs you" over "repo ·
+/// approval" (#925). The names lose their control characters; nothing the agent wrote goes in.
+#[must_use]
+pub fn push_text(project: &str, agent: &str, event: TurnEvent) -> PushText {
+    let plain = |text: &str| -> String {
+        text.chars()
+            .filter(|character| !character.is_control())
+            .collect()
+    };
+    let (project, agent) = (plain(project), plain(agent));
+    // The title goes in an HTTP header; a name it cannot carry whole is "Agent" there (D4).
+    let named = if !agent.is_empty() && agent.is_ascii() {
+        agent.as_str()
+    } else {
+        "Agent"
+    };
+    let (title, detail) = match event {
+        TurnEvent::NeedsApproval => (format!("{named} needs you"), "approval".to_string()),
+        TurnEvent::NeedsInput => (format!("{named} needs you"), "a question".to_string()),
+        TurnEvent::Finished => ("Turn finished".to_string(), agent),
+        TurnEvent::Failed => ("Turn failed".to_string(), agent),
+    };
+    PushText {
+        title,
+        body: format!("{project} \u{b7} {detail}"),
+    }
+}
+
 /// The heading of the dialog where ssh in an agent's terminal asks for a passphrase, such as
 /// `ssh for Claude Code in marley_ide` (#596). The project's name loses its control characters.
 #[must_use]

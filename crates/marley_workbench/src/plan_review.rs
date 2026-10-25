@@ -106,6 +106,25 @@ struct Pending {
     withdrawn: Arc<AtomicBool>,
     tab: WeakEntity<PlanReview>,
     workspace: WeakEntity<Workspace>,
+    /// The plan's title, for its Needs you entry (#925, D3).
+    title: String,
+}
+
+/// A plan's title (#925): its first heading, else its first line, cut to sixty characters.
+fn plan_title(plan: &str) -> String {
+    let mut lines = plan.lines().map(str::trim).filter(|line| !line.is_empty());
+    let heading = plan
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with('#'))
+        .map(|line| line.trim_start_matches('#').trim());
+    let title = heading.or_else(|| lines.next()).unwrap_or_default();
+    if title.chars().count() > 60 {
+        let cut: String = title.chars().take(59).collect();
+        format!("{}\u{2026}", cut.trim_end())
+    } else {
+        title.to_string()
+    }
 }
 
 /// Follows the setting; `agent_reports::start` calls it once. Marley's keymap binds `c` to
@@ -193,6 +212,7 @@ pub(crate) fn arrived(
         plans.next_nonce += 1;
         plans.next_nonce
     };
+    let title = plan_title(&plan);
     let opened = window.update(cx, |_, window, cx| {
         open_tab(workspace, view, plan, nonce, window, cx)
     });
@@ -218,6 +238,7 @@ pub(crate) fn arrived(
             withdrawn,
             tab,
             workspace: workspace.downgrade(),
+            title,
         });
         earlier
     });
@@ -374,7 +395,7 @@ pub(crate) fn entry_of(view: EntityId, project: &str, cx: &App) -> Option<InboxE
         kind: InboxKind::Plan,
         agent: marley_agent::AgentKind::Claude.display_name().to_string(),
         project: project.to_string(),
-        ask: "Plan to review".to_string(),
+        ask: format!("Plan to review: \u{201c}{}\u{201d}", pending.title),
         waited: marley_rail::waited_words(pending.since.elapsed().as_secs()),
         answers: Vec::new(),
         chips: Vec::new(),

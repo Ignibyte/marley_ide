@@ -70,9 +70,20 @@ pub trait Notification:
 
 pub struct SuppressEvent;
 
-// Marley: asked by `Workspace::show_toast` for a toast's look; Marley's answers in its own layout
-// (#869).
-pub struct MarleyToastLook(pub fn(&str, &App) -> Option<MarleyToast>);
+// Marley: asked by `Workspace::show_toast` for a toast's look, with its words and the kind its
+// raiser gave it; Marley's answers in its own layout (#869, #925).
+pub struct MarleyToastLook(pub fn(&str, Option<MarleyToastKind>, &App) -> Option<MarleyToast>);
+
+// Marley: what a toast says, which colours its dot: a warning, a thing done, a failure, a question
+// or none of these (#925).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarleyToastKind {
+    Warning,
+    Success,
+    Error,
+    Question,
+    Neutral,
+}
 
 impl gpui::Global for MarleyToastLook {}
 
@@ -212,7 +223,7 @@ impl Workspace {
         let marley_look = cx
             .try_global::<MarleyToastLook>()
             .map(|marley| marley.0)
-            .and_then(|look| look(&toast.message, cx));
+            .and_then(|look| look(&toast.message, toast.marley_kind, cx));
         self.show_notification(toast.id.clone(), cx, |cx| {
             cx.new(|cx| {
                 let notification = match marley_look {

@@ -16,7 +16,7 @@ use marley_sdk::{AgentSummary, Attention, State, WorkItem};
 use serde::Deserialize;
 use settings::{FleetProviderContent, Settings as _};
 use ui::prelude::*;
-use workspace::notifications::NotificationId;
+use workspace::notifications::{MarleyToastKind, NotificationId};
 use workspace::{ModalView, Toast, Workspace};
 
 use crate::{MarleySettings, SetForgeToken};
@@ -202,17 +202,23 @@ impl ForgeToken {
         let write = cx.write_credentials(&self.url, KEYRING_USER, token.as_bytes());
         let workspace = self.workspace.clone();
         cx.spawn(async move |_, cx| {
-            let message = match write.await {
-                Ok(()) => "The Forge token is in the keyring; the fleet uses it at its next \
-                           connection."
-                    .to_string(),
-                Err(error) => format!("Could not write the Forge token: {error:#}"),
+            let (message, kind) = match write.await {
+                Ok(()) => (
+                    "The Forge token is in the keyring; the fleet uses it at its next connection."
+                        .to_string(),
+                    MarleyToastKind::Success,
+                ),
+                Err(error) => (
+                    format!("Could not write the Forge token: {error:#}"),
+                    MarleyToastKind::Error,
+                ),
             };
             workspace
                 .update(cx, |workspace, cx| {
                     struct TokenWritten;
                     workspace.show_toast(
-                        Toast::new(NotificationId::unique::<TokenWritten>(), message),
+                        Toast::new(NotificationId::unique::<TokenWritten>(), message)
+                            .marley_kind(kind),
                         cx,
                     );
                 })

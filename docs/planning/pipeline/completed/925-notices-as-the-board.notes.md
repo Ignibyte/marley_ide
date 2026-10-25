@@ -90,7 +90,46 @@
   "Agent".
 
 ## Phase 2 — Code
+- **Built:** `MarleyToastKind` and the hook's kind argument (`workspace/src/notifications.rs`),
+  `Toast::marley_kind` (`workspace/src/workspace.rs`); `toasts::look` maps the kind, else the
+  words (failure → Error, a title ending "?" → Question, else Neutral). Kinds set: the close
+  guard's Undo and Keep It Open (Warning); the plugin's install and update, a capture with a page
+  to open, the Forge token written (Success); a failed push and the Forge token not written
+  (Error). The other 60-odd sites build their message at run time ("Could not …" and the like)
+  and keep the words' reading.
+- `plan_review.rs`: `Pending::title` from `plan_title`; `entry_of` asks "Plan to review:
+  “<title>”". `rail.rs`: a plan entry's Open the plan, filled with `prompts::primary_fill`.
+- `command_watch.rs`: the title "<command> finished · exit N" and `ran_words` for the body.
+- `marley_agent::push_text` / `PushText`; `push.rs` posts its title and body.
+- **Deviations:** the plan's Open the plan is a filled `h_flex`, not `ButtonStyle::Filled`, so its
+  ink is the theme's background on the accent as the prompts' primary is. The push's title uses
+  "Agent" for a name that is not plain ASCII (the risk above), rather than dropping characters.
+- **Review:** `FAILURES` misses the push failure's lowercase "could not", so it carries an
+  explicit Error. `ran_words` reads the workspace and the terminal, not the view being updated.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/925-notices-as-the-board.sh` (sway), full run green, every check passed.
+- `925-02-plan`: Needs you "Claude Code · repo / Plan to review: “Tidy the notes”" with Open the
+  plan filled in the accent; the plan's tab opened by its arrival. REQ-002.
+- `925-03-opened`: after the terminal was brought forward, Open the plan clicked: Plan · repo in
+  front. REQ-002.
+- The push log: `title: Turn finished`, body `repo · Claude`. REQ-004.
+- The banner log: `Marley|sleep 8; false finished · exit 1|repo — sleep 8 ran 8 s while you were
+  in Plan · repo.` REQ-003.
+- `925-01-toasts`: the plugin installed (green), could not push (red), Panel Layout presets
+  (grey), "Claude Code in repo closes when its turn ends" with Keep It Open (yellow). REQ-001. A
+  question's accent dot has no toast a scenario raises; it is the words' rule in `look`.
+- `925-04-day`: the same four dots and the plan entry in Marley Day. REQ-001, REQ-002.
+- Found while writing the scenario: a stand-in that reports idle through `marley report` before
+  its `event.py` frames gets no push for its turns (L-claude-925). Seen, not in scope: the first
+  turn logged two identical "Turn finished" pushes; #535's scenario checks one push per turn, so
+  it is noted for a regression pass. #535's `last_push` expects the old "Marley" title and the
+  old line, and needs the new words when the regression phase runs.
+- The `push_text` fallback for a non-ASCII name changed after the run; no shot rests on it, and
+  the gate ran again.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `docs/marley_architecture/marley_workbench.md` (toasts' kinds, the long
+  command's words, the push's text, the plan entry); the look plan's W3.4; the two ledger rows.
+- Knowledge: L-claude-925.

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9534c51f-6b95-4354-a964-1a5592338aae
 ticket: docs/planning/tickets/open/TICKET-925-notices-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Toasts, the plan entry and notifications as the board words them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Notices worded and coloured as the board draws them** (#925, 2026-10-25). A toast's dot says
+  what it is: yellow for a warning (a working agent's close), green for a thing done (the plugin
+  connected, a page captured), red for a failure, the accent for a question, grey for the rest. A
+  plan waiting in Needs you reads "Plan to review: “<its heading>”" with Open the plan in the
+  accent. A long command's desktop notification is titled "<command> finished · exit <code>" and
+  says which terminal ran it, for how long, and what you were looking at meanwhile. A phone push
+  is titled with the event ("Claude needs you", "Turn finished") over "<project> · <detail>".
+
 - **Plan review and the diff review as the board draws them** (#924, 2026-10-25). Plan review
   opens with the plan's own heading. Send Answers or Approve sits beside Send Feedback (N) in a
   foot row under the plan, with "Select a passage and press c to comment" at its right. The

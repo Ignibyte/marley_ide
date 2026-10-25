@@ -27,8 +27,9 @@ use git_ui::branch_diff::BranchDiff;
 use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, AnyView, App, BoxShadow, ClickEvent,
     ClipboardItem, Context, DismissEvent, Div, ElementId, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, Hsla, Image, MouseButton, MouseDownEvent, Pixels, Point, PromptLevel,
-    Render, Stateful, Subscription, Task, WeakEntity, Window, anchored, deferred, img, point, px,
+    FocusHandle, Focusable, FontWeight, Hsla, Image, MouseButton, MouseDownEvent, Pixels, Point,
+    PromptLevel, Render, Stateful, Subscription, Task, WeakEntity, Window, anchored, deferred, img,
+    point, px,
 };
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
@@ -2711,6 +2712,31 @@ impl Rail {
         // An entry no answer goes to in place says how to reach it, as the board's quiet Open (#840).
         buttons.unwrap_or_else(|| {
             let open_key = key.clone();
+            // A plan's entry opens it in the accent, as the board's Open the plan (#925).
+            if entry.kind == InboxKind::Plan {
+                let colors = cx.theme().colors();
+                let fill = crate::prompts::primary_fill(cx);
+                return h_flex().justify_end().pr_1p5().child(
+                    h_flex()
+                        .id(SharedString::from(format!("marley-rail-inbox-open-{key}")))
+                        .h(px(24.))
+                        .px_2p5()
+                        .rounded(px(7.))
+                        .bg(fill)
+                        .cursor_pointer()
+                        .hover(|style| style.opacity(0.9))
+                        .child(
+                            Label::new("Open the plan")
+                                .size(LabelSize::Small)
+                                .weight(FontWeight::SEMIBOLD)
+                                .color(Color::Custom(colors.background)),
+                        )
+                        .on_click(cx.listener(move |rail, _, window, cx| {
+                            cx.stop_propagation();
+                            rail.open_inbox_entry(&open_key, window, cx);
+                        })),
+                );
+            }
             h_flex().justify_end().pr_1p5().child(
                 Button::new(
                     SharedString::from(format!("marley-rail-inbox-open-{key}")),

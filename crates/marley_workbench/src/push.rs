@@ -21,13 +21,13 @@ use anyhow::{Context as _, bail};
 use gpui::{App, AppContext as _, Context, Global, WeakEntity, Window};
 use http_client::{AsyncBody, Host, HttpClient, Method, Request, Url};
 use marley_agent::claude_events::CWD_LABEL;
-use marley_agent::{AgentKind, TurnEvent, event_line};
+use marley_agent::{AgentKind, PushText, TurnEvent, push_text};
 use marley_fleet::{Session, State};
 use project::AgentId;
 use settings::Settings as _;
 use terminal_view::TerminalView;
 use util::ResultExt as _;
-use workspace::notifications::NotificationId;
+use workspace::notifications::{MarleyToastKind, NotificationId};
 use workspace::{MultiWorkspace, Toast, Workspace};
 
 use crate::{MarleySettings, PushSettings, notifications};
@@ -170,12 +170,12 @@ fn push(
             let _stored = slot.insert(now);
         }
     }
-    let line = event_line(project, agent, event);
+    let text = push_text(project, agent, event);
     let post = cx.background_spawn(post(
         cx.http_client(),
         target,
         settings.token_file.clone(),
-        line,
+        text,
         event,
     ));
     cx.spawn(async move |cx| {
@@ -233,12 +233,12 @@ pub(crate) fn project_name(seat: &Session) -> String {
         )
 }
 
-/// Posts `line` for `event` to `target`, off the main thread, with the token from `token_file`.
+/// Posts `text` for `event` to `target`, off the main thread, with the token from `token_file`.
 async fn post(
     client: Arc<dyn HttpClient>,
     target: Url,
     token_file: Option<String>,
-    line: String,
+    text: PushText,
     event: TurnEvent,
 ) -> Outcome {
     let token = match token_file.as_deref().map(read_token).transpose() {
@@ -254,7 +254,7 @@ async fn post(
     let mut request = Request::builder()
         .method(Method::POST)
         .uri(target.as_str())
-        .header("Title", "Marley")
+        .header("Title", text.title)
         .header("Priority", priority)
         .header("Tags", tag)
         .header("Content-Type", "text/plain; charset=utf-8");
@@ -262,7 +262,9 @@ async fn post(
         request = request.header("Authorization", format!("Bearer {token}"));
     }
     let sent = async {
-        let response = client.send(request.body(AsyncBody::from(line))?).await?;
+        let response = client
+            .send(request.body(AsyncBody::from(text.body))?)
+            .await?;
         if !response.status().is_success() {
             bail!("it answered {}", response.status());
         }
@@ -325,7 +327,8 @@ fn report(outcome: Outcome, server: &str, workspace: &WeakEntity<Workspace>, cx:
                                     "Marley could not push to your phone: the server at {server} \
                                      did not take it ({error})."
                                 ),
-                            ),
+                            )
+                            .marley_kind(MarleyToastKind::Error),
                             cx,
                         );
                     })

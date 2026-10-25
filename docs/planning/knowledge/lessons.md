@@ -6512,3 +6512,12 @@ design review listed per-file +/− as missing, and #924 first added Marley's ow
 which showed the numbers twice. Before adding a mark to a Zed surface, look at the surface in a
 shot of the current build: the review may have been taken against an older one.
 
+
+## L-claude-925-a-reported-seat-takes-no-frames-pushes-001
+
+- **Ticket:** #925, 2026-10-25.
+- **What happened:** the scenario's stand-in Claude Code ran `"$MARLEY_BIN" report … idle`, as
+  #881's does for a plan, and then acted out turns through the plugin's `event.py`. Nothing was
+  pushed for those turns; without the report the same turns pushed.
+- **Lesson:** a stand-in that drives turns through `event.py` frames does not also report through
+  `marley report`. `marley approve` asks a plan without a report first.
