@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom row for Marley's own screens** (#909, 2026-10-25). The row now says what is in
+  front on the Threads page (conversations, open tabs), a Browser tab (title, address, console
+  errors in red, picks ready, the recorded minute), MCP Servers (each agent CLI not on the PATH,
+  Marley's tool count), the Component Library (the first broken template and its error, the
+  counts), and Rusty's Tasks (the list, decisions overdue, open tasks), Graph (scope, depth,
+  pages, the embedding) and brain pages (the slug, ★ favourite, whether Rusty is connected).
+
 - **The bottom row for a terminal** (#908, 2026-10-25). With a terminal in front, the bottom row
   names its folder (the project's root too), the branch with its changed count in violet ("main ·
   1 changed"), and a failed command as a red chip, "false · exit 1 · Ask an agent", that sends the

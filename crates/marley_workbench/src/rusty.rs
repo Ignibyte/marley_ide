@@ -738,6 +738,17 @@ pub(crate) fn call_tool_within(
 }
 
 /// Whether Marley is connected to Rusty.
+/// Whether `slug` is one of Rusty's bookmarked pages, for the bottom row (#909).
+pub(crate) fn is_favourite_page(slug: &str, cx: &App) -> bool {
+    favourites::is_page(slug, cx)
+}
+
+/// How far Rusty's brain search has its pages embedded, as last read; none before the first read
+/// or after a failed one (#909, D6).
+pub(crate) fn semantic(cx: &App) -> Option<&SemanticStatus> {
+    cx.try_global::<Rusty>()?.semantic.as_ref()?.as_ref().ok()
+}
+
 pub(crate) fn is_connected(cx: &App) -> bool {
     matches!(cx.global::<Rusty>().state, State::Connected { .. })
 }

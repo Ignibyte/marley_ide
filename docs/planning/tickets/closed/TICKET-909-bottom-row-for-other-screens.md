@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #909 (feature, the Marley look, the bottom row)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [909-bottom-row-for-other-screens.spec.md](../../pipeline/queued/909-bottom-row-for-other-screens.spec.md)
+- **Pipeline doc:** [909-bottom-row-for-other-screens.spec.md](../../pipeline/completed/909-bottom-row-for-other-screens.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/C-threads.md,
   F-tools.md and E-rusty.md; boards Threads, Browser, Tools, Components, Tasks, Knowledge,
   BrainPage)
 - **Boards:** Threads, Browser, Tools, Components, Tasks, Knowledge, BrainPage
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

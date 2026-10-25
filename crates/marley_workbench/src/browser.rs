@@ -8493,7 +8493,7 @@ fn recording_line(recording: &RecordingRow) -> String {
 }
 
 /// Whether a console entry's level is an error or an exception (#887, D1).
-fn is_error(level: &str) -> bool {
+pub(crate) fn is_error(level: &str) -> bool {
     matches!(level, "error" | "exception")
 }
 

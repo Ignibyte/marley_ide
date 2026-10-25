@@ -73,6 +73,7 @@ pub mod fleet;
 pub mod fleet_hosts;
 pub mod fleet_providers;
 pub mod focus_row;
+pub mod focus_screens;
 pub mod forge;
 pub mod forge_board;
 pub mod forge_watch;

@@ -1,7 +1,7 @@
 ---
 pipeline_id: ec4e1a13-fcdd-490e-bafb-bc2abf2b524e
 ticket: docs/planning/tickets/open/TICKET-909-bottom-row-for-other-screens.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The bottom row for the other screens
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

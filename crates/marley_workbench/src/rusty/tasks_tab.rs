@@ -197,6 +197,16 @@ struct Side {
     memories: Vec<Memory>,
 }
 
+/// What the bottom row says of the Tasks tab (#909).
+pub(crate) struct TasksFacts {
+    /// The chosen list's name.
+    pub(crate) list: Option<String>,
+    /// The decisions overdue, from the due list the tab last read.
+    pub(crate) overdue: usize,
+    /// The chosen list's open tasks.
+    pub(crate) open: usize,
+}
+
 /// How wide the window is before the Rusty column shows (D2).
 const SIDE_FROM: Pixels = px(1300.);
 
@@ -268,6 +278,30 @@ async fn read_side(this: &WeakEntity<TasksView>, cx: &mut AsyncApp) -> Option<Si
 }
 
 /// The Tasks tab.
+impl TasksView {
+    /// The chosen list, its open tasks and the decisions overdue, for the bottom row (#909).
+    pub(crate) fn row_facts(&self) -> TasksFacts {
+        let list = self
+            .chosen
+            .and_then(|chosen| self.lists.iter().find(|list| list.id == chosen))
+            .map(|list| list.name.clone());
+        let open = self
+            .tasks
+            .iter()
+            .filter(|task| !task.completed && !task.archived)
+            .count();
+        let overdue = self
+            .side
+            .as_ref()
+            .map_or(0, |side| side.due.iter().filter(|due| due.overdue).count());
+        TasksFacts {
+            list,
+            overdue,
+            open,
+        }
+    }
+}
+
 pub(crate) struct TasksView {
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,

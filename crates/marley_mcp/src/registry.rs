@@ -914,6 +914,21 @@ pub fn tools_list() -> Value {
     tools_list_for(&Principal::Marley, &BTreeSet::new())
 }
 
+/// How many tools Marley's own server lists, without building the list: the bottom row's count
+/// (#909).
+#[must_use]
+pub fn served_tool_count() -> usize {
+    REGISTRY
+        .iter()
+        .filter(|spec| {
+            let name = spec.name();
+            spec.family.is_served()
+                && permits(&Principal::Marley, &name).is_ok()
+                && !is_off(&name, &BTreeSet::new())
+        })
+        .count()
+}
+
 /// The `tools/list` result for `principal` (#524).
 ///
 /// Marley's own bearer lists every served tool, and an outside client only the tools its grant's

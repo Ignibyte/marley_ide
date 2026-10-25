@@ -46,6 +46,8 @@ enum Focus {
     File(Box<dyn ItemHandle>),
     Terminal(Box<dyn ItemHandle>, Entity<TerminalView>),
     Thread(Entity<ConversationView>),
+    /// One of Marley's own screens (#909).
+    Screen(crate::focus_screens::Screen),
 }
 
 /// The bottom row's focus item.
@@ -434,6 +436,7 @@ impl Render for FocusRow {
         let rail = self.rail(window, cx);
         let focus = match &self.focus {
             Focus::File(item) => Self::render_file(item.as_ref(), cx),
+            Focus::Screen(screen) => Some(screen.render(window, cx)),
             Focus::Terminal(item, view) => {
                 Some(self.render_terminal(item.as_ref(), view, rail.as_ref(), cx))
             }
@@ -482,6 +485,9 @@ impl StatusItemView for FocusRow {
                     let conversation = tab.read(cx).conversation().clone();
                     self.item_events = Some(cx.observe(&conversation, |_, _, cx| cx.notify()));
                     Focus::Thread(conversation)
+                } else if let Some(screen) = crate::focus_screens::Screen::of(item) {
+                    self.item_events = screen.observe(cx);
+                    Focus::Screen(screen)
                 } else if item.project_path(cx).is_some() {
                     Focus::File(item.boxed_clone())
                 } else {
@@ -734,7 +740,7 @@ fn show_tmux_sessions(rail: &WeakEntity<Rail>, window: &mut Window, cx: &mut App
 }
 
 /// A small rounded chip of short text on its kind's tint: a file's extension, `>_`.
-fn chip(text: String, kind: ItemKind, cx: &App) -> AnyElement {
+pub(crate) fn chip(text: String, kind: ItemKind, cx: &App) -> AnyElement {
     div()
         .px_1()
         .rounded_sm()
@@ -748,7 +754,8 @@ fn chip(text: String, kind: ItemKind, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn muted(text: String) -> AnyElement {
+/// Small muted words, the row's facts.
+pub(crate) fn muted(text: String) -> AnyElement {
     Label::new(text)
         .size(LabelSize::Small)
         .color(Color::Muted)

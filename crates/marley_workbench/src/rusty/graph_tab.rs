@@ -246,6 +246,31 @@ struct Look {
 }
 
 /// The Graph tab.
+/// What the bottom row says of the Graph tab (#909).
+pub(crate) struct GraphFacts {
+    /// "local" or "vault".
+    pub(crate) scope: &'static str,
+    /// The local graph's depth; none for the vault's.
+    pub(crate) depth: Option<usize>,
+    /// The pages the graph shows.
+    pub(crate) pages: usize,
+}
+
+impl GraphView {
+    /// The graph's scope, depth and shown pages, for the bottom row (#909).
+    pub(crate) const fn row_facts(&self) -> GraphFacts {
+        let (scope, depth) = match self.scope {
+            Scope::Local => ("local", Some(self.depth)),
+            Scope::Vault => ("vault", None),
+        };
+        GraphFacts {
+            scope,
+            depth,
+            pages: self.shown.nodes.len(),
+        }
+    }
+}
+
 pub(crate) struct GraphView {
     workspace: WeakEntity<Workspace>,
     /// The workspace's events, followed again when the tab moves to another (L-613).

@@ -69,8 +69,8 @@ pub use expose::ExposeConfig;
 pub use jsonrpc::{RpcRequest, parse_request};
 pub use permission::{Decision, GrantTable, Tier, decide};
 pub use registry::{
-    CONDITIONAL_TOOLS, Family, ToolSpec, is_off, lookup, registry, tool_name, tools_list,
-    tools_list_for,
+    CONDITIONAL_TOOLS, Family, ToolSpec, is_off, lookup, registry, served_tool_count, tool_name,
+    tools_list, tools_list_for,
 };
 pub use resource::{
     FLEET_RESOURCE_URI, resource_read, resource_updated_notification, resources_list,

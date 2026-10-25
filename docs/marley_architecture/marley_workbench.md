@@ -2268,6 +2268,16 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **The bottom row for Marley's own screens (#909).** `focus_screens.rs`: `Screen` (Threads,
+  Browser, MCP Servers, Components, Tasks, Graph, Brain, Page, each holding its entity), `of`
+  (downcasts the active item), `observe` (the Browser's hub, else the screen itself) and `render`
+  (`name_chip`, `dot_chip` in the needs-you pink or the error red, `capped` at 220 px, and
+  `focus_row::chip` and `muted`). `Focus::Screen` holds it. Facts come from state already held:
+  `threads_page::conversations`, `thread_tab::tab_threads`, `BrowserHub` (`browser::is_error`
+  made `pub(crate)`), `agent_versions::found`, `marley_mcp::served_tool_count`, the templates and
+  `marley_components::catalog`, `TasksView::row_facts` (`TasksFacts`), `GraphView::row_facts`
+  (`GraphFacts`), `BrainTab::page`, `rusty::is_favourite_page`, `rusty::semantic` and
+  `rusty::is_connected`.
 - **The bottom row for a terminal (#908).** `focus_row.rs` `render_terminal` draws two groups:
   the `>_` chip on the shell tint with the title (capped 100 px), the folder in
   `block_headers::folder_label`'s short form (110 px), `agent_bar::branch_and_changes` (a

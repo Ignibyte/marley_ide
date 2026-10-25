@@ -41,6 +41,15 @@
   - The Fleet is `impl Panel` (`fleet.rs:35`), so `set_active_pane_item` never sees it: Out.
 - **Decisions:** D1–D7 in the spec. Fleet and Agent Activity Out.
 
+- **Promoted 2026-10-25:** seams re-read after #907 and #908: `focus_row.rs` now has `Focus`
+  with File, Terminal and Thread, `chip(text, kind, cx)` and `muted`; `ThreadsPage`
+  (`threads_page.rs:204`), `conversations` :91; `BrowserHub::title`, `address`, `pick_count`,
+  `console_entries`, `is_error` (private, :8496); `agent_versions::found`; `marley_mcp`'s
+  `tools_list_for` filter; `Templates::broken` and `templates()`, `marley_components::catalog`;
+  `TasksView` (`chosen`, `lists`, `counts` as open and done, `side.due`), `GraphView` (`scope`,
+  `depth`, `shown.nodes`), `PageView::slug`, `BrainTab.page`, `favourites::is_page`
+  (`pub(super)` in a private module), `rusty::is_connected`, the `Rusty` global's `semantic`.
+
 ### Design
 - `Focus` gains `Threads(Entity<ThreadsPage>)`, `Browser(Entity<BrowserView>)`,
   `McpServers(Entity<McpServers>)`, `Components(Entity<ComponentLibrary>)`,
@@ -106,7 +115,39 @@
   only the page it held when the tab came forward.
 
 ## Phase 2 — Code
+- **Built:** `focus_screens.rs` (new: `Screen` with `of`, `observe`, `render`, one function per
+  screen, `dot_chip`, `name_chip`, `capped`, `count_words`); `focus_row.rs` (`Focus::Screen`,
+  `chip` and `muted` shared); accessors `TasksView::row_facts`, `GraphView::row_facts`,
+  `rusty::is_favourite_page`, `rusty::semantic`, `browser::is_error`, and
+  `marley_mcp::served_tool_count` (re-exported). `BrainTab::page` already existed.
+- **Deviations:** a module of its own for the screens, so `focus_row.rs` keeps to files,
+  terminals and threads. The Graph's scope and depth are a `&'static str` and an `Option<usize>`
+  (no `bool` for the scope).
+- **Review:** `set_active_pane_item` only downcasts the item and observes it (D1); the Threads
+  page's open count reads the window's workspaces in `render`, outside a workspace update. No Zed
+  path.
+- **Gate:** `just gate-diff` 17/17 green after `option_if_let_else` (the downcasts as an
+  `or_else` chain), `needless_pass_by_value` (`Severity` is `Copy`) and `missing_const_for_fn`.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/909-bottom-row-for-other-screens.sh` (sway): Rusty's stand-in with
+  today's note bookmarked, a decision due yesterday and a three-task list; a broken template;
+  Codex's folder off Marley's PATH; a local page that logs a console error.
+- `909-01-threads`: "Threads", "1 conversation", "0 open" (REQ-001).
+- `909-02-browser`: `www` "Console fixture", the address in the buffer font, "2 console errors" in
+  red (the page's own and the browser's favicon miss), "recording the last minute" (REQ-002).
+- `909-08-day`: the Browser row in Marley Day (REQ-002, REQ-008).
+- `909-03-mcp`: "Codex is not on the PATH" in pink, "marley · 68 tools" (REQ-003).
+- `909-04-components`: "quota.json · The file is not a template…" in pink, capped; "15 components
+  · 0 templates" (REQ-004).
+- `909-05-tasks`: "Tasks · Home", "1 decision overdue", "3 open" (REQ-005).
+- `909-06-graph`: "Graph · vault", "2 pages", "full-text only" (the stand-in has no embedding
+  provider) (REQ-006).
+- `909-07-brain-page`: "Brain", "daily/2026-10-25", "★ favourite", "Rusty connected" (REQ-007).
+- Not reached: a pick in the Browser tray ("N picks ready" shows only above zero), a local graph's
+  depth (the tab opened on the vault with no page in front), and the embedded count with a
+  provider; each reads the state shown in the diff.
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`. No Zed path, so no ledger row.
+- Knowledge: nothing new; the run found no bug.

@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-909](open/TICKET-909-bottom-row-for-other-screens.md) | feature | The bottom row for the other screens (design review 2026-10-23) |
 | [TICKET-910](open/TICKET-910-rail-rows-say-whats-going-on.md) | feature | Rail rows say what is going on (design review 2026-10-23) |
 | [TICKET-911](open/TICKET-911-rail-menus-and-strip.md) | feature | The rail's menus and strip (design review 2026-10-23) |
 | [TICKET-912](open/TICKET-912-welcome-to-marley.md) | feature | Welcome to Marley on first run (design review 2026-10-23) |
