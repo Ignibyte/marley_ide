@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #917 (feature, the Marley look, terminal)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [917-terminal-prompt-and-session.spec.md](../../pipeline/queued/917-terminal-prompt-and-session.spec.md)
+- **Pipeline doc:** [917-terminal-prompt-and-session.spec.md](../../pipeline/completed/917-terminal-prompt-and-session.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/A-core.md, boards Terminal and TerminalSession: "Prompt
   bar as a card", "'N changed' chip at the prompt", "Prompt card extras", "Sticky 'above you'
   banner", "Session chips in the tab row", "'Tell me when done' on a running block")
 - **Boards:** Terminal, TerminalSession
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

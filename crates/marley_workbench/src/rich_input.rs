@@ -897,13 +897,15 @@ pub(crate) fn holds_focus(view: &TerminalView, window: &Window, cx: &App) -> boo
 }
 
 /// The editor of the terminal in `context`, while it is open.
-pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
+pub fn element(context: &MarleyFooterContext, frame: PromptFrame, cx: &App) -> Option<AnyElement> {
     let view = context.view.upgrade()?;
     let prompt = cx.try_global::<Prompts>()?.0.get(&view.entity_id())?;
     if !prompt.open {
         return None;
     }
     let colors = cx.theme().colors();
+    let accepts = matches!(prompt.target, Target::Shell)
+        && shows_suggestion(&prompt.editor, context.terminal, cx);
     let (send_to, close_on, clear_on, accept_on, up_on, down_on, paste_on, copy_on) = (
         context.view.clone(),
         context.view.clone(),
@@ -956,12 +958,56 @@ pub fn element(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
             })
             .flex_none()
             .w_full()
-            .px_2()
-            .py_1p5()
-            .border_t_1()
-            .border_color(colors.border_variant)
-            .bg(colors.editor_background)
-            .child(prompt.editor.clone())
+            .map(|strip| match frame {
+                PromptFrame::Strip => strip
+                    .px_2()
+                    .py_1p5()
+                    .border_t_1()
+                    .border_color(colors.border_variant)
+                    .bg(colors.editor_background)
+                    .child(prompt.editor.clone()),
+                // The card draws the frame; the line leads with the prompt's mark and ends with
+                // the key that takes the suggestion while one shows (#917).
+                PromptFrame::Card => strip.child(
+                    h_flex()
+                        .w_full()
+                        .gap_2()
+                        .items_start()
+                        .child(Label::new("\u{276f}").buffer_font(cx).color(Color::Accent))
+                        .child(div().flex_1().min_w_0().child(prompt.editor.clone()))
+                        .children(accepts.then(|| {
+                            Label::new("\u{2192} to accept")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted)
+                        })),
+                ),
+            })
             .into_any_element(),
     )
+}
+
+/// How the prompt editor is framed (#917): inside the prompt card the shell's prompt becomes, or
+/// as the flat strip under an agent's bar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromptFrame {
+    /// In the card, which draws the border and the background.
+    Card,
+    /// A strip with its own top border and background.
+    Strip,
+}
+
+/// Whether `editor`, the shell's editor of `terminal`, shows the history's suggestion after its
+/// text (#917). It takes the terminal from the footer's context: the footer draws while the view
+/// is being updated, so the view itself cannot be read (F-claude-917).
+fn shows_suggestion(editor: &Entity<Editor>, terminal: &Entity<Terminal>, cx: &App) -> bool {
+    let text = editor.read(cx).text(cx);
+    history_suggestion(editor, &text, terminal, cx).is_some()
+}
+
+/// The focus handle of `view`'s open prompt editor, from which the prompt card reads its keys
+/// (#917).
+pub(crate) fn editor_focus(view: &WeakEntity<TerminalView>, cx: &App) -> Option<gpui::FocusHandle> {
+    let view = view.upgrade()?;
+    let prompt = cx.try_global::<Prompts>()?.0.get(&view.entity_id())?;
+    prompt.open.then(|| prompt.editor.focus_handle(cx))
 }

@@ -3620,6 +3620,19 @@ impl Pane {
                         .start_child(navigate_forward)
                 },
             )
+            // Marley: an element before the tab bar's end buttons for the active item, such as a
+            // terminal's session, folder and branch (#917).
+            .map(|tab_bar| {
+                let marley_end = cx
+                    .try_global::<MarleyTabBarEnd>()
+                    .copied()
+                    .zip(self.active_item())
+                    .and_then(|(hook, item)| (hook.0)(item.as_ref(), window, cx));
+                match marley_end {
+                    Some(element) => tab_bar.end_child(element),
+                    None => tab_bar,
+                }
+            })
             .map(|tab_bar| {
                 if self.show_tab_bar_buttons {
                     let render_tab_buttons = self.render_tab_bar_buttons.clone();
@@ -4355,6 +4368,13 @@ pub struct MarleyTabMark {
 pub struct MarleyTabLook(pub fn(&dyn ItemHandle, &mut Window, &mut App) -> Option<MarleyTabMark>);
 
 impl gpui::Global for MarleyTabLook {}
+
+// Marley: an element the tab bar draws before its end buttons for the pane's active item, which a
+// Marley crate gives, such as a terminal's session; none leaves the bar as Zed draws it (#917).
+#[derive(Clone, Copy)]
+pub struct MarleyTabBarEnd(pub fn(&dyn ItemHandle, &mut Window, &mut App) -> Option<AnyElement>);
+
+impl gpui::Global for MarleyTabBarEnd {}
 
 // Marley: the picture of a split, by the side the new pane takes, which a Marley crate draws
 // (#866).

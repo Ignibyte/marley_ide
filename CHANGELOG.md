@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The terminal prompt as a card, the sticky header's words, session chips** (#917, 2026-10-25).
+  The shell's prompt editor sits in a card: the folder, the branch, "2 changed" and "last: exit
+  1" over the line, `❯` before it, "→ to accept" while a suggestion shows, and under it the keys
+  as the keymap binds them with Start an agent here. The pinned row reads "seq 300 is above you ·
+  running · 4 s" with Jump to it. The tab row's right end names a terminal's session ("bash",
+  "tmux · build · 1 window", "ssh · host · connected"), folder and branch. A running block offers
+  Tell me when done, which posts its end whatever the long-command setting says.
+
 - **Terminal blocks as the board draws them** (#916, 2026-10-25). Each block sits in a rounded
   frame with a gap to the next and a state dot before its command, in a gutter two cells wide.
   A passed block's frame is neutral; a failed one is red with a tinted header band; a running one

@@ -94,7 +94,45 @@
   `None` fast for non-terminal items.
 
 ## Phase 2 — Code
+- **Built:** `pane.rs` `MarleyTabBarEnd` and its call in `configure_tab_bar_start`;
+  `session_chips.rs` (new: `Session`, `tab_bar_end`, `session_chip`); `remote::Link`/`link_of`;
+  `rich_input::PromptFrame`, `shows_suggestion`, `editor_focus`; `agent_bar::prompt_card`,
+  `last_exit`, `key_hints`, `colored_chip`; the sticky header's words; `command_watch`'s
+  `tell_for`, `toggle_tell`, `will_tell`; the header's Tell me when done.
+- **Deviations:**
+  - "N changed" comes from `branch_and_changes` (#908's `status_summary().count`), the number the
+    bottom row shows, not `cached_status()`; the same files `git status --short` lists.
+  - The folder chips use `block_headers::folder_label` (short, "…/work/repo"); `compact()` left a
+    path outside the home folder at full length, which took the tab row.
+  - "Jump to it" is the row's words in the accent, not a separate button: the whole row already
+    jumps on a press.
+  - The shell's name is the program at the prompt, else `$SHELL`'s: the terminal does not keep
+    the shell it started.
+- **Review:** the tab bar hook reads only the item, the terminal and the workspace's project; the
+  footer reads no view (after F-claude-917).
+- **Gate:** `just gate-diff` 17/17 green after the last change.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/917-terminal-prompt-and-session.sh`, sway, 8 shots, each read, and one
+  log check.
+  - `917-01-prompt`: the card: "…/repo" cyan, "main" magenta, "2 changed", "last: exit 1" red;
+    `❯ git log --oneline -5 --graph` with the suggestion dim and "→ to accept"; "Enter runs ·
+    Ctrl-Shift-Enter asks the agent · Up history · Ctrl-G a bigger editor"; Start an agent here.
+    The tab row: "bash", "…/repo", "main". REQ-001, REQ-002, REQ-004 met.
+  - `917-02-start-agent`: "Start an agent in /…/repo" over the agent list. REQ-002 met.
+  - `917-03-sticky`: "seq 300; sleep 8 is above you · running · 4 s" and "Jump to it";
+    `917-04-jumped`: the block's header at the top over lines 1… REQ-003 met.
+  - `917-05-chips`: "bash", the folder, "main"; `917-05-tmux`: "tmux · build · 1 window". REQ-004.
+  - `917-06-tell`: "Will tell you" after `sleep 5`; the log holds `Marley|sleep 5|done in 5 s`, a
+    5 s command under the 30 s threshold, told after the tab moved away. REQ-005 met.
+  - `917-07-day`: the card and the chips in Marley Day.
+- **Fix found in Test:** the first run drew nothing: the card's suggestion check read the terminal
+  view while it was being updated and panicked (F-claude-917); it now takes the editor and the
+  context's terminal. Gate and scenario rerun.
+- Not reached: an ssh terminal's chip (no ssh host in a scenario); its words come from #641's link
+  state.
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's TICKET-826 row, the `pane.rs` ledger row.
+- Knowledge appended: F-claude-917-the-prompt-card-read-its-own-view-001.
+- Brain: decision recorded.

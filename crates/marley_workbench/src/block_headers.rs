@@ -233,12 +233,37 @@ fn header(
                 .truncate(),
         )
     });
+    // A running block offers to tell when it is done, or says it will (#917).
+    let tell = (block.state == BlockState::Running).then(|| {
+        let view_id = view.entity_id();
+        let marked = crate::command_watch::will_tell(view_id, index, cx);
+        let view = view.clone();
+        div().flex_none().child(
+            Button::new(
+                ("marley-tell-when-done", index),
+                if marked {
+                    "Will tell you"
+                } else {
+                    "Tell me when done"
+                },
+            )
+            .style(ButtonStyle::Subtle)
+            .size(ButtonSize::Compact)
+            .label_size(LabelSize::XSmall)
+            .color(if marked { Color::Accent } else { Color::Muted })
+            .on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                crate::command_watch::toggle_tell(view_id, index, cx);
+                view.update(cx, |_, cx| cx.notify());
+            }),
+        )
+    });
     let header = if rows >= 2 {
         v_flex()
             .child(row().children(place))
-            .child(row().child(command))
+            .child(row().child(command).children(tell))
     } else {
-        v_flex().child(row().child(command).children(place))
+        v_flex().child(row().child(command).children(tell).children(place))
     };
     let focus_handle = view.focus_handle(cx);
     Some(

@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use gpui::{AnyElement, App, Context, Entity, PathPromptOptions, SharedString, WeakEntity, Window};
 use marley_agent::AgentKind;
+use marley_terminal::BlockState;
 use project::{DirectoryLister, Project};
 use settings::Settings as _;
 use terminal::Terminal;
@@ -200,37 +201,15 @@ fn branch_for<'a>(
 fn footer_without_agent(
     context: &MarleyFooterContext,
     offer: Option<AnyElement>,
+    window: &Window,
     cx: &App,
 ) -> Option<AnyElement> {
     let drive = crate::terminal_drive::footer(context, cx);
-    let prompt_editor = rich_input::element(context, cx);
+    let prompt_editor = rich_input::element(context, rich_input::PromptFrame::Card, cx);
     let colors = cx.theme().colors();
-    // The prompt editor says where the command runs, as the agent bar does (#826).
-    let place = prompt_editor.is_some().then(|| {
-        let folder = context.terminal.read(cx).working_directory();
-        let branch = folder.as_deref().and_then(|folder| {
-            let project = context.project.upgrade()?;
-            branch_of(&project, folder, cx)
-        });
-        h_flex()
-            .debug_selector(|| "marley-prompt-place".into())
-            .flex_none()
-            .w_full()
-            .gap_3()
-            .px_2()
-            .py_1()
-            .bg(colors.editor_background)
-            .children(folder.map(|folder| {
-                let text = folder.compact().to_string_lossy().into_owned();
-                place_chip(IconName::Folder, text.into())
-                    .debug_selector(|| "marley-prompt-place-folder".into())
-            }))
-            .children(branch.map(|branch| {
-                place_chip(IconName::GitBranch, branch)
-                    .debug_selector(|| "marley-prompt-place-branch".into())
-            }))
-            .into_any_element()
-    });
+    // The prompt editor as the boards' prompt card, which says where the command runs, as the
+    // agent bar does (#826, #917).
+    let card = prompt_editor.map(|editor| prompt_card(context, editor, window, cx));
     let strip = offer.map(|offer| {
         h_flex()
             .debug_selector(|| "marley-served-url-strip".into())
@@ -245,10 +224,7 @@ fn footer_without_agent(
             .child(offer)
             .into_any_element()
     });
-    let mut parts: Vec<AnyElement> = [drive, prompt_editor, place, strip]
-        .into_iter()
-        .flatten()
-        .collect();
+    let mut parts: Vec<AnyElement> = [drive, card, strip].into_iter().flatten().collect();
     match parts.len() {
         0 => None,
         1 => parts.pop(),
@@ -260,6 +236,152 @@ fn footer_without_agent(
                 .into_any_element(),
         ),
     }
+}
+
+/// The shell's prompt editor as the boards' prompt card (#917): the folder, the branch, the changed
+/// files and a failed last exit over the line, and under it the prompt's keys as the keymap binds
+/// them and Start an agent here.
+fn prompt_card(
+    context: &MarleyFooterContext,
+    editor: AnyElement,
+    window: &Window,
+    cx: &App,
+) -> AnyElement {
+    let colors = cx.theme().colors();
+    let terminal = context.terminal.read(cx);
+    let folder = terminal.working_directory();
+    let repository = folder.as_deref().and_then(|folder| {
+        let project = context.project.upgrade()?;
+        branch_and_changes(&project, folder, cx)
+    });
+    let changed = repository
+        .as_ref()
+        .map(|repository| repository.changed)
+        .filter(|changed| *changed > 0);
+    let failed = last_exit(terminal);
+    let chips = h_flex()
+        .debug_selector(|| "marley-prompt-place".into())
+        .w_full()
+        .min_w_0()
+        .gap_3()
+        .children(folder.as_ref().map(|folder| {
+            // Short, as the block headers name it (#630).
+            let text = crate::block_headers::folder_label(&folder.to_string_lossy());
+            colored_chip(
+                IconName::Folder,
+                text.into(),
+                Color::Custom(colors.terminal_ansi_cyan),
+            )
+            .debug_selector(|| "marley-prompt-place-folder".into())
+        }))
+        .children(repository.map(|repository| {
+            colored_chip(
+                IconName::GitBranch,
+                repository.branch,
+                Color::Custom(colors.terminal_ansi_magenta),
+            )
+            .debug_selector(|| "marley-prompt-place-branch".into())
+        }))
+        .children(changed.map(|changed| {
+            Label::new(format!("{changed} changed"))
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+        }))
+        .children(failed.map(|code| {
+            Label::new(format!("last: exit {code}"))
+                .size(LabelSize::Small)
+                .color(Color::Error)
+        }));
+    let start_here = folder.map(|folder| {
+        Button::new("marley-start-agent-here", "Start an agent here")
+            .style(ButtonStyle::Subtle)
+            .label_size(LabelSize::XSmall)
+            .color(Color::Accent)
+            .on_click(move |_, window, cx| {
+                window.dispatch_action(
+                    Box::new(crate::agents::NewAgent {
+                        folder: Some(folder.clone()),
+                    }),
+                    cx,
+                );
+            })
+    });
+    let hints = h_flex()
+        .w_full()
+        .gap_3()
+        .children(key_hints(&context.view, window, cx))
+        .child(div().flex_1())
+        .children(start_here);
+    v_flex()
+        .debug_selector(|| "marley-prompt-card".into())
+        .flex_none()
+        .m_2()
+        .px_3()
+        .py_2()
+        .gap_1p5()
+        .rounded(px(14.))
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.editor_background)
+        .child(chips)
+        .child(editor)
+        .child(hints)
+        .into_any_element()
+}
+
+/// The newest live block's exit while it failed and the shell waits at its prompt (#917).
+fn last_exit(terminal: &Terminal) -> Option<i32> {
+    let anchored = terminal.marley_anchored();
+    let block = anchored.live().last()?;
+    let code = block.exit_code.0.filter(|code| *code != 0)?;
+    (block.state == BlockState::Finished && anchored.at_prompt()).then_some(code)
+}
+
+/// The prompt's keys, each with what it does, read from the keymap from the prompt editor; a key
+/// shows only while its action is bound (#917, D2).
+fn key_hints(view: &WeakEntity<TerminalView>, window: &Window, cx: &App) -> Vec<AnyElement> {
+    let Some(focus) = rich_input::editor_focus(view, cx) else {
+        return Vec::new();
+    };
+    let hints: [(&dyn gpui::Action, &'static str); 4] = [
+        (&crate::SendRichInput, "runs"),
+        (&crate::AskAgent, "asks the agent"),
+        (&crate::RichInputUp, "history"),
+        (&RichInput, "a bigger editor"),
+    ];
+    let mut shown = Vec::new();
+    for (action, words) in hints {
+        let binding = ui::KeyBinding::for_action_in(action, &focus, cx);
+        if !binding.has_binding(window) {
+            continue;
+        }
+        shown.push(
+            h_flex()
+                .gap_1()
+                .child(binding.size(rems_from_px(11_f32)))
+                .child(
+                    Label::new(words)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .into_any_element(),
+        );
+    }
+    shown
+}
+
+/// A chip with its icon and name in `color` (#917).
+fn colored_chip(icon: IconName, text: SharedString, color: Color) -> Div {
+    h_flex()
+        .min_w_0()
+        .gap_1()
+        .child(Icon::new(icon).size(IconSize::XSmall).color(color))
+        .child(
+            Label::new(text)
+                .size(LabelSize::Small)
+                .color(color)
+                .truncate(),
+        )
 }
 
 /// A folder's or a branch's chip: its icon and its muted name (#477, #826).
@@ -276,7 +398,7 @@ fn place_chip(icon: IconName, text: SharedString) -> Div {
         )
 }
 
-fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option<AnyElement> {
+fn render(context: &MarleyFooterContext, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     let offer = links::offer(context, cx).map(|url| links::offer_button(context, url));
     let Some(BarContents {
         agent,
@@ -284,10 +406,10 @@ fn render(context: &MarleyFooterContext, _: &mut Window, cx: &mut App) -> Option
         branch,
     }) = contents(context, cx)
     else {
-        return footer_without_agent(context, offer, cx);
+        return footer_without_agent(context, offer, window, cx);
     };
     let microphone = microphone(context, cx);
-    let prompt_editor = rich_input::element(context, cx);
+    let prompt_editor = rich_input::element(context, rich_input::PromptFrame::Strip, cx);
     let colors = cx.theme().colors();
     let chip = place_chip;
     let bar = h_flex()

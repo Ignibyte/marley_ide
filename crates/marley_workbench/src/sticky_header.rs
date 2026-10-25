@@ -9,6 +9,7 @@
 //! off.
 
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use gpui::{AnyElement, App, Entity, Focusable, MouseButton};
 use marley_terminal::BlockState;
@@ -25,8 +26,8 @@ pub fn init(cx: &mut App) {
 }
 
 /// The row pinned over the view's top row for its block at `index`: the command's first line in
-/// the buffer font, cut to fit, the block's state, and an arrow, over the terminal's background.
-/// None while the setting is off.
+/// the buffer font, cut to fit, "is above you" with the block's state, and Jump to it, over the
+/// terminal's background (#917). None while the setting is off.
 fn header(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -49,20 +50,30 @@ fn header(
     } else {
         format!("{prompt}{first}")
     };
+    // The block's state in words (#917): its time ticks with the view's repaint while it runs
+    // (#916).
+    let times = terminal.read(cx).marley_anchored().times(index);
     let state = match (block.state, block.exit_code.0) {
-        (BlockState::Pending | BlockState::Running, _) => Label::new("running")
-            .size(LabelSize::Small)
-            .color(Color::Muted)
-            .into_any_element(),
-        (BlockState::Finished, Some(0)) => Icon::new(IconName::Check)
-            .size(IconSize::Small)
-            .color(Color::Success)
-            .into_any_element(),
-        (BlockState::Finished, Some(code)) => Label::new(format!("exit {code}"))
-            .size(LabelSize::Small)
-            .color(Color::Error)
-            .into_any_element(),
-        (BlockState::Finished, None) => gpui::Empty.into_any_element(),
+        (BlockState::Pending | BlockState::Running, _) => {
+            let so_far = times
+                .and_then(|times| SystemTime::now().duration_since(times.started).ok())
+                .unwrap_or_default();
+            Label::new(format!(
+                "running \u{b7} {}",
+                marley_terminal::duration_label(so_far)
+            ))
+            .color(Color::Warning)
+        }
+        (BlockState::Finished, Some(code)) if code != 0 => {
+            Label::new(format!("exit {code}")).color(Color::Error)
+        }
+        (BlockState::Finished, _) => {
+            let took = times
+                .and_then(|times| times.finished?.duration_since(times.started).ok())
+                .map(marley_terminal::duration_label);
+            Label::new(took.map_or_else(|| "done".to_string(), |took| format!("done in {took}")))
+                .color(Color::Muted)
+        }
     };
     let colors = cx.theme().colors();
     let focus_handle = view.focus_handle(cx);
@@ -79,15 +90,27 @@ fn header(
             .cursor_pointer()
             .child(
                 div()
-                    .flex_1()
+                    .flex_shrink(1.)
                     .min_w_0()
                     .child(Label::new(command).buffer_font(cx).single_line().truncate()),
             )
-            .child(state)
             .child(
-                Icon::new(IconName::ArrowUp)
-                    .size(IconSize::Small)
-                    .color(Color::Muted),
+                h_flex()
+                    .flex_none()
+                    .gap_1()
+                    .child(
+                        Label::new("is above you \u{b7}")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(state.size(LabelSize::Small)),
+            )
+            .child(div().flex_1())
+            // The whole row jumps; the words say so (#917).
+            .child(
+                Label::new("Jump to it")
+                    .size(LabelSize::Small)
+                    .color(Color::Accent),
             )
             // The press jumps, as Zed's sticky scroll headers do, and the press and its release
             // are the header's: the terminal under it starts no selection, reports no click to

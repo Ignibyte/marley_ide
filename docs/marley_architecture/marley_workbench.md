@@ -1302,6 +1302,32 @@ alike.
   the header with that row more, so `header`'s two-row layout draws, and inserts the space
   through its display-row map (`marley_terminal::RowMap`).
 
+## The prompt card, the session chips and Tell me when done (#917)
+
+- `agent_bar::footer_without_agent` (now given the window) frames the shell's prompt editor as
+  `prompt_card`: a 14 px card with a border on `editor_background`, a margin from the terminal's
+  edges. Its top row: the folder (`block_headers::folder_label`) in `terminal_ansi_cyan`, the
+  branch in `terminal_ansi_magenta` and "N changed" from `branch_and_changes`, and "last: exit N"
+  from `last_exit` (the newest live block failed, at the prompt). Under the line, `key_hints`
+  reads each key from the keymap through the prompt editor's focus (`rich_input::editor_focus`,
+  `KeyBinding::for_action_in`, shown only while bound) for `SendRichInput`, `AskAgent`,
+  `RichInputUp` and `RichInput`, and Start an agent here dispatches `agents::NewAgent` with the
+  terminal's folder. `rich_input::element` takes a `PromptFrame`: `Card` leads the line with `❯`
+  and ends it with "→ to accept" while `shows_suggestion` (the editor and the context's terminal,
+  never the view, which is being updated) finds the history's suggestion; `Strip` is the old strip
+  under an agent's bar.
+- `sticky_header::header` reads "<command> is above you · <state>": "running · N s" in the
+  warning colour (its time moves with #916's ticking repaint), "exit N" in red, "done in N s";
+  "Jump to it" at the right, where the whole row's press still jumps.
+- `session_chips.rs` sets `workspace::MarleyTabBarEnd`: for a terminal tab, a session chip
+  ("bash", from the program at the prompt or `$SHELL`; "tmux · build · 1 window" from
+  `TmuxHosts::attach_of` and `session_of`; "ssh · host · connected" or "link lost" in red from
+  `remote::link_of`), then the folder and branch chips.
+- `command_watch`: `Told::tell_for`, set by `toggle_tell` and read by `will_tell`; the block's
+  end is told whatever `long_command_seconds` says, still not while the user looks at the
+  terminal. `block_headers::header` offers Tell me when done (Will tell you once marked) after a
+  running block's command.
+
 ## The sticky command header (`src/sticky_header.rs`, #529)
 
 - The terminal element picks the block, `marley_terminal::sticky_block` over its spans: the top

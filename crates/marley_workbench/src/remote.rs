@@ -125,6 +125,29 @@ pub(crate) fn is_remote(terminal: &Terminal) -> bool {
         .is_some_and(|task| task.spawned_task.id.0.starts_with(ID_BASE))
 }
 
+/// A remote terminal's host and whether its link is down (#917).
+pub(crate) struct Link {
+    pub(crate) host: SharedString,
+    pub(crate) lost: bool,
+}
+
+/// The link of `terminal`, a remote terminal Marley opened, as #641 tracks it.
+pub(crate) fn link_of(terminal: &Entity<Terminal>, cx: &App) -> Option<Link> {
+    let links = cx.try_global::<Links>()?;
+    if let Some(down) = links.down.get(&terminal.entity_id()) {
+        return Some(Link {
+            host: down.host.clone(),
+            lost: true,
+        });
+    }
+    let task = terminal.read(cx).task()?;
+    let host = links.hosts.get(&task.spawned_task.id)?;
+    Some(Link {
+        host: host.label.clone(),
+        lost: false,
+    })
+}
+
 fn open_remote_terminal(
     workspace: &mut Workspace,
     _: &OpenRemoteTerminal,

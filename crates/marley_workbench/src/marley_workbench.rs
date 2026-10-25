@@ -130,6 +130,7 @@ pub mod scrollback;
 pub mod search_looks;
 pub mod send_block;
 pub mod send_selection;
+pub mod session_chips;
 pub mod sessions_page;
 pub mod settings_change;
 pub mod settings_tools;
@@ -1169,6 +1170,7 @@ pub fn init(cx: &mut App) {
     failures::init(cx);
     sticky_header::init(cx);
     block_headers::init(cx);
+    session_chips::init(cx);
     harness::init(cx);
     home_page::init(cx);
     rusty::init(cx);

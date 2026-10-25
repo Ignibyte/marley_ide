@@ -4582,3 +4582,13 @@ command on the second and nothing below, so the dot sat beside empty rows. Fixed
 the band's second row when the band is two rows or more, else on its only row, as `header` lays
 the command out.
 
+
+## F-claude-917-the-prompt-card-read-its-own-view-001
+*found: 2026-10-25 · while: testing #917 · severity: high*
+
+The prompt card asked whether the history's suggestion shows through `rich_input::shell_editor`,
+which reads the terminal view to reach its terminal. The card draws in the terminal's footer hook,
+which runs inside the view's render, so the read panicked ("cannot read TerminalView while it is
+already being updated") and Marley drew nothing. F-claude-865 is the same class. Fixed: the check
+takes the prompt's editor and the footer context's terminal and reads no view. A footer or header
+hook takes what it needs from its context and never reads the view it draws in.

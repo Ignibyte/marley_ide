@@ -31,6 +31,26 @@ impl Global for Watch {}
 struct Told {
     finished_through: Option<usize>,
     password_for: Option<usize>,
+    /// The block whose end is told whatever the long-command setting says (#917, D5).
+    tell_for: Option<usize>,
+}
+
+/// Marks the block at `index` of the terminal view `view` to be told of when it ends, whatever
+/// the long-command setting says, or unmarks it (#917, D5).
+pub(crate) fn toggle_tell(view: EntityId, index: usize, cx: &mut App) {
+    let told = cx.default_global::<Watch>().0.entry(view).or_default();
+    told.tell_for = if told.tell_for == Some(index) {
+        None
+    } else {
+        Some(index)
+    };
+}
+
+/// Whether the block at `index` of the terminal view `view` is marked to be told of (#917).
+pub(crate) fn will_tell(view: EntityId, index: usize, cx: &App) -> bool {
+    cx.try_global::<Watch>()
+        .and_then(|watch| watch.0.get(&view))
+        .is_some_and(|told| told.tell_for == Some(index))
 }
 
 /// What a check of a terminal's last block found to tell.
@@ -59,6 +79,7 @@ pub fn init(cx: &App) {
                 Told {
                     finished_through,
                     password_for: None,
+                    tell_for: None,
                 },
             );
             // A block's end stamps its times and notifies the terminal, with no event.
@@ -130,7 +151,11 @@ fn check(
                 return;
             }
             told.finished_through = Some(index);
-            if threshold == 0 || took < Duration::from_secs(threshold) {
+            let asked = told.tell_for == Some(index);
+            if asked {
+                told.tell_for = None;
+            }
+            if !asked && (threshold == 0 || took < Duration::from_secs(threshold)) {
                 return;
             }
             let took = marley_terminal::duration_label(took);

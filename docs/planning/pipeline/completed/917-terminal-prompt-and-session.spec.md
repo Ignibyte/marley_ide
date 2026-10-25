@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4c4d3adc-a1ff-4d4a-a4e9-868465ecf002
 ticket: docs/planning/tickets/open/TICKET-917-terminal-prompt-and-session.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The terminal prompt as a card, the sticky header, session chips
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -104,8 +104,8 @@ private session bus whose notification server logs each banner (#551's).
 - `917-03-sticky`: a command printing 300 lines then sleeping 8 s: the pinned row "… is above you
   · running N s" and Jump to it (REQ-003).
 - `917-04-jumped`: Jump to it clicked: the block's start at the top (REQ-003).
-- `917-05-chips`: the tab row's right end: "bash", the folder and the branch; then `build`
-  attached: "tmux · build · 1 window" (REQ-004).
+- `917-05-chips`: the tab row's right end: "bash", the folder and the branch (REQ-004).
+- `917-05-tmux`: `build` attached from its rail row: "tmux · build · 1 window" (REQ-004).
 - `917-06-tell`: `sleep 5`, Tell me when done clicked ("Will tell you"), focus moved to another
   terminal; after the end, the notification server's log holds the banner (REQ-005).
 - `917-07-day`: Marley Day, the prompt card and the tab row's chips (REQ-001, REQ-004).
@@ -127,7 +127,7 @@ private session bus whose notification server logs each banner (#551's).
 | REQ-001 | WHILE the shell waits at its prompt with the prompt editor, the prompt shall be a card with the folder, branch and changed-files chips, the last exit when the newest block failed, and `❯` before the line, in Marley Night and Marley Day. | `917-01-prompt`, `917-07-day` |
 | REQ-002 | The prompt card shall show "→ to accept" while a suggestion shows, a row of key hints from the keymap, and "Start an agent here", which opens New Agent for the terminal's folder. | `917-01-prompt`, `917-02-start-agent` |
 | REQ-003 | WHILE a block's start is above the view, the pinned row shall read "<command> is above you ·" with the block's state, and Jump to it shall scroll to the block's start. | `917-03-sticky`, `917-04-jumped` |
-| REQ-004 | WHILE a terminal tab is active, the tab row's right end shall show its session (the shell, a tmux session with its windows, or an ssh host with its link), its folder and its branch. | `917-05-chips`, `917-07-day` |
+| REQ-004 | WHILE a terminal tab is active, the tab row's right end shall show its session (the shell, a tmux session with its windows, or an ssh host with its link), its folder and its branch. | `917-05-chips`, `917-05-tmux`, `917-07-day` |
 | REQ-005 | WHEN Tell me when done was clicked on a running block, its end shall post a notification whatever the long-command setting, unless the user is looking at that terminal. | `917-06-tell` |
 | REQ-006 | Each Zed path changed shall have its row in `docs/marley/zed-touchpoints.md`. | gate:16 |
 
