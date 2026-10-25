@@ -87,7 +87,34 @@
   reads the map's output over the whole command list once, as a quick check.
 
 ## Phase 2 — Code
+- **Built:** in `command_palette.rs`, `MarleyPaletteRow`, `MarleyPaletteLook`, `Command::marley_row`
+  (asked in `new`), `marley_drop_twins`, `marley_positions`, `marley_tile`, `marley_footer`, the
+  delegate's `marley_look`/`marley_help`, `Case::Ignore` while the look is set, the "?" list in
+  `matches_updated`, and a `searchbar_trailer` (the palette had none; the trait's default was
+  `None`); in `pickers.rs`, `PaletteName`, `PALETTE_NAMES`, `palette_row`, `capitalized`.
+- **Deviations:** the footer's keys are `KeyBinding`s for `menu::Confirm` and
+  `menu::SecondaryConfirm` with the board's words beside them, so a rebound key reads as bound.
+  The look is on when any command got a row, which `palette_row` gives only in the Marley layout.
+- **Review:** matching, `command_usage`, history and `confirm` still use `Command::name` (REQ-007);
+  the look runs once per palette, never in `render_match` (D7). The unit test's `Command` gained
+  the field.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/920-palette-as-the-board.sh`, sway, 6 shots, each read.
+  - `920-01-empty`: RECENT and MARLEY groups; rows "Open Browser" (www, accent), "Use Marley
+    Layout" (Ma), "Accept Suggestion" (Su) with Right; the Commands chip; the footer "Enter to run
+    · Ctrl-Enter to bind a key · ? for help". REQ-001, REQ-003, REQ-004.
+  - `920-02-typed`: "Open th": Open Threads first, "Open" and "th" lit; Zed's own commands with
+    neutral tiles; three "open preview to the side" commands keep Zed's names (twins, D2). REQ-002.
+  - `920-03-help`: "?": Open Guide (?) and Open Keymap (Km, Ctrl-K Ctrl-S). REQ-005.
+  - `920-04-ran`: "marley: open threads" ran: the Threads page. REQ-002.
+  - `920-05-day`: the palette in Marley Day. `920-06-zed`: Zed's layout: "marley: use zed layout"
+    rows, no tiles, Add Keybinding… and Run. REQ-006.
+- The scenario gained its own HOME after the first run (the run's terminal had read the box's
+  shell config); rerun green.
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's W3.3 row, the `command_palette.rs` ledger row.
+- Knowledge: nothing new.
+- Brain: decision recorded.

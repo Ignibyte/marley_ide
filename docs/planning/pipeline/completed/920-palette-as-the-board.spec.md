@@ -1,7 +1,7 @@
 ---
 pipeline_id: 8141484f-f66a-492f-9980-3b0eff04d87a
 ticket: docs/planning/tickets/open/TICKET-920-palette-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The command palette as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -82,8 +82,7 @@ what "?" lists.
 - `docs/zed_architecture/`: nothing on the palette's rows. Published material: none needed.
 
 ## UI proof
-Scenario `script/e2e/920-palette-as-the-board.sh` (keys only, so Hyprland's hidden workspace; no
-sway): a scratch repository opened in the Marley layout, no terminals or agents needed. The
+Scenario `script/e2e/920-palette-as-the-board.sh` (run under sway, as #839's is, keys only): a scratch repository opened in the Marley layout, no terminals or agents needed. The
 palette opens with `ctrl-shift-p`.
 - `920-01-empty`: the palette with an empty query: #839's groups with a tile and a plain name on
   each row, the Commands chip, the footer (REQ-001, REQ-003, REQ-004).

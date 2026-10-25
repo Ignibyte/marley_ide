@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #920 (feature, the Marley look, the command palette)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [920-palette-as-the-board.spec.md](../../pipeline/queued/920-palette-as-the-board.spec.md)
+- **Pipeline doc:** [920-palette-as-the-board.spec.md](../../pipeline/completed/920-palette-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/C-threads.md, boards Palette), build order line 8
 - **Boards:** Palette (its command palette column)
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

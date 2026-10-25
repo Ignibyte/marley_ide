@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The command palette as the board draws it** (#920, 2026-10-25). In the Marley layout each
+  row shows a plain name ("Open Threads", not "marley: open threads") after a glyph tile, accent
+  for Marley's commands and plain for Zed's. The field carries a Commands chip, the footer reads
+  "Enter to run · Ctrl-Enter to bind a key · ? for help", and "?" lists Open Guide and Open
+  Keymap. Typing still matches Zed's names, case aside, so history, aliases and keys stay.
+
 - **The Threads page as the board draws it** (#919, 2026-10-25). The header counts the
   conversations and the open ones and offers New Agent. The search has a magnifier and shorter
   words. Each WHO row has its agent's tile and a count. Each conversation is a card: a 32 px

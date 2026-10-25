@@ -118,8 +118,10 @@ impl CommandPalette {
         cx: &mut Context<Self>,
     ) -> Self {
         let filter = CommandPaletteFilter::try_global(cx);
+        // Marley: each command's row as Marley's layout draws it, asked once here (#920).
+        let marley_look = cx.try_global::<MarleyPaletteLook>().map(|look| look.row);
 
-        let commands = window
+        let mut commands: Vec<Command> = window
             .available_actions(cx)
             .into_iter()
             .filter_map(|action| {
@@ -127,13 +129,17 @@ impl CommandPalette {
                     return None;
                 }
 
+                let name = SharedString::from(humanize_action_name(action.name()));
+                let marley_row = marley_look.and_then(|row| row(&name, cx));
                 Some(Command {
-                    name: SharedString::from(humanize_action_name(action.name())),
+                    name,
                     action,
                     usage: None,
+                    marley_row,
                 })
             })
             .collect();
+        marley_drop_twins(&mut commands);
 
         let mut delegate = CommandPaletteDelegate::new(
             cx.entity().downgrade(),
@@ -147,6 +153,14 @@ impl CommandPalette {
             .try_global::<MarleyPaletteGroups>()
             .map(|marley| marley.0)
             .is_some_and(|groups| groups(cx));
+        // Marley: the board's rows, chip and footer while the look answers (#920).
+        delegate.marley_look = delegate
+            .all_commands
+            .iter()
+            .any(|command| command.marley_row.is_some());
+        delegate.marley_help = cx
+            .try_global::<MarleyPaletteLook>()
+            .map_or(&[], |look| look.help);
         let grouped = delegate.marley_groups;
         let picker = cx.new(|cx| {
             // One-shot action; there's nothing to reopen.
@@ -220,12 +234,68 @@ pub struct CommandPaletteDelegate {
     query_history: QueryHistory,
     // Marley: whether an empty query lists its commands in groups under headings (#839).
     marley_groups: bool,
+    // Marley: whether the rows, the field's chip and the footer are the board's, and the commands
+    // a "?" query lists, by Zed's name (#920).
+    marley_look: bool,
+    marley_help: &'static [&'static str],
 }
 
 // Marley: asked when the palette opens whether to group its commands (#839).
 pub struct MarleyPaletteGroups(pub fn(&App) -> bool);
 
 impl gpui::Global for MarleyPaletteGroups {}
+
+// Marley: a command's row as Marley's layout draws it: its plain name, its tile's glyph, and whether
+// it is Marley's command, which tints the tile (#920).
+#[derive(Clone)]
+pub struct MarleyPaletteRow {
+    pub name: SharedString,
+    pub glyph: SharedString,
+    pub ours: bool,
+}
+
+// Marley: asked once per command when the palette opens, with Zed's name, for its row, none
+// keeping Zed's; and the commands a "?" query lists, by Zed's name (#920).
+pub struct MarleyPaletteLook {
+    pub row: fn(&str, &App) -> Option<MarleyPaletteRow>,
+    pub help: &'static [&'static str],
+}
+
+impl gpui::Global for MarleyPaletteLook {}
+
+// Marley: two commands whose plain names would read the same both keep Zed's names (#920).
+fn marley_drop_twins(commands: &mut [Command]) {
+    let mut seen: HashMap<SharedString, usize> = HashMap::default();
+    for command in commands.iter() {
+        if let Some(row) = &command.marley_row {
+            *seen.entry(row.name.clone()).or_default() += 1;
+        }
+    }
+    for command in commands.iter_mut() {
+        if command
+            .marley_row
+            .as_ref()
+            .is_some_and(|row| seen.get(&row.name).copied().unwrap_or_default() > 1)
+        {
+            command.marley_row = None;
+        }
+    }
+}
+
+// Marley: the typed letters' places in the plain name, when it is Zed's name with its namespace
+// dropped; none otherwise (#920).
+fn marley_positions(zed_name: &str, plain: &str, positions: &[usize]) -> Vec<usize> {
+    match zed_name.split_once(": ") {
+        Some((_, rest)) if rest.eq_ignore_ascii_case(plain) => {
+            let offset = zed_name.len() - rest.len();
+            positions
+                .iter()
+                .filter_map(|position| position.checked_sub(offset))
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
 
 // Marley: an empty query's groups, in their order, and their headings (#839).
 const MARLEY_GROUPS: [&str; 3] = ["RECENT", "MARLEY", "EDITOR AND WORKSPACE"];
@@ -247,6 +317,8 @@ struct Command {
     name: SharedString,
     action: Box<dyn Action>,
     usage: Option<CommandUsage>,
+    // Marley: the row Marley's layout draws for it (#920).
+    marley_row: Option<MarleyPaletteRow>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -346,6 +418,7 @@ impl Clone for Command {
             name: self.name.clone(),
             action: self.action.boxed_clone(),
             usage: self.usage,
+            marley_row: self.marley_row.clone(),
         }
     }
 }
@@ -369,6 +442,8 @@ impl CommandPaletteDelegate {
             updating_matches: None,
             query_history: QueryHistory::default(),
             marley_groups: false,
+            marley_look: false,
+            marley_help: &[],
         }
     }
 
@@ -402,6 +477,7 @@ impl CommandPaletteDelegate {
                 name: string.clone(),
                 action,
                 usage: None,
+                marley_row: None,
             });
             new_matches.push(StringMatch {
                 candidate_id: commands.len() - 1,
@@ -412,6 +488,22 @@ impl CommandPaletteDelegate {
         }
         if !intercept_result.exclusive {
             new_matches.append(&mut matches);
+        }
+        // Marley: a query of "?" lists the help commands, in the look's order (#920).
+        if self.marley_look && self.latest_query == "?" {
+            new_matches = self
+                .marley_help
+                .iter()
+                .filter_map(|help| {
+                    let candidate_id = commands.iter().position(|command| command.name == *help)?;
+                    Some(StringMatch {
+                        candidate_id,
+                        string: SharedString::new_static(help),
+                        positions: Vec::new(),
+                        score: 0.0,
+                    })
+                })
+                .collect();
         }
         self.commands = commands;
         self.matches = new_matches;
@@ -642,6 +734,12 @@ impl PickerDelegate for CommandPaletteDelegate {
         let query_str = query.as_str();
         let is_zed_link = parse_zed_link(query_str, cx).is_some();
 
+        // Marley: a query typed as a row reads still finds it (#920).
+        let case = if self.marley_look {
+            fuzzy_nucleo::Case::Ignore
+        } else {
+            fuzzy_nucleo::Case::Smart
+        };
         let task = cx.background_spawn({
             let mut commands = self.all_commands.clone();
             let command_usage = self.command_usage(cx);
@@ -663,7 +761,7 @@ impl PickerDelegate for CommandPaletteDelegate {
                 let mut matches = fuzzy_nucleo::match_strings_async(
                     &candidates,
                     &query,
-                    fuzzy_nucleo::Case::Smart,
+                    case,
                     fuzzy_nucleo::LengthPenalty::On,
                     10000,
                     &Default::default(),
@@ -806,6 +904,20 @@ impl PickerDelegate for CommandPaletteDelegate {
         window.dispatch_action(action, cx);
     }
 
+    // Marley: the board's Commands chip in Marley's layout (#920).
+    fn searchbar_trailer(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Picker<Self>>,
+    ) -> Option<AnyElement> {
+        self.marley_look.then(|| {
+            Label::new("Commands")
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .into_any_element()
+        })
+    }
+
     fn render_match(
         &self,
         ix: usize,
@@ -839,13 +951,31 @@ impl PickerDelegate for CommandPaletteDelegate {
                         .py_px()
                         .justify_between()
                         .gap_2()
-                        .child(
-                            HighlightedLabel::new(
+                        // Marley: the tile and the plain name in Marley's layout (#920).
+                        .child(match &command.marley_row {
+                            Some(marley) => h_flex()
+                                .min_w_0()
+                                .gap_2()
+                                .child(marley_tile(marley, cx))
+                                .child(
+                                    HighlightedLabel::new(
+                                        marley.name.clone(),
+                                        marley_positions(
+                                            &command.name,
+                                            &marley.name,
+                                            &matching_command.positions,
+                                        ),
+                                    )
+                                    .truncate(),
+                                )
+                                .into_any_element(),
+                            None => HighlightedLabel::new(
                                 command.name.clone(),
                                 matching_command.positions.clone(),
                             )
-                            .truncate(),
-                        )
+                            .truncate()
+                            .into_any_element(),
+                        })
                         .child(
                             h_flex()
                                 .flex_shrink_0()
@@ -885,6 +1015,10 @@ impl PickerDelegate for CommandPaletteDelegate {
         window: &mut Window,
         cx: &mut Context<Picker<Self>>,
     ) -> Option<AnyElement> {
+        // Marley: the board's footer in Marley's layout (#920).
+        if self.marley_look {
+            return Some(self.marley_footer(cx));
+        }
         let selected_command = self.selected_command()?;
         let keybind =
             KeyBinding::for_action_in(&*selected_command.action, &self.previous_focus_handle, cx);
@@ -932,6 +1066,67 @@ impl PickerDelegate for CommandPaletteDelegate {
                 .into_any(),
         )
     }
+}
+
+impl CommandPaletteDelegate {
+    // Marley: the Palette board's footer: Enter runs, Ctrl Enter binds a key, "?" helps (#920).
+    fn marley_footer(&self, cx: &mut Context<Picker<Self>>) -> AnyElement {
+        let focus_handle = &self.previous_focus_handle;
+        let hint = |action: &dyn Action, words: &'static str, cx: &mut Context<Picker<Self>>| {
+            h_flex()
+                .gap_1()
+                .child(
+                    KeyBinding::for_action_in(action, focus_handle, cx).size(rems_from_px(11_f32)),
+                )
+                .child(
+                    Label::new(words)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+        };
+        h_flex()
+            .w_full()
+            .px_3()
+            .py_1p5()
+            .gap_3()
+            .border_t_1()
+            .border_color(cx.theme().colors().border_variant)
+            .child(hint(&menu::Confirm, "to run", cx))
+            .child(hint(&menu::SecondaryConfirm, "to bind a key", cx))
+            .child(div().flex_1())
+            .child(
+                Label::new("? for help")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .into_any_element()
+    }
+}
+
+// Marley: a command's tile: its glyph, on the accent's tint for Marley's commands and on the
+// element background for the rest (#920).
+fn marley_tile(row: &MarleyPaletteRow, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let (fill, ink) = if row.ours {
+        (colors.text_accent.opacity(0.15), Color::Accent)
+    } else {
+        (colors.element_background, Color::Muted)
+    };
+    div()
+        .flex_none()
+        .size(px(24.))
+        .rounded(px(6.))
+        .bg(fill)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Label::new(row.glyph.clone())
+                .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .color(ink),
+        )
+        .into_any_element()
 }
 
 pub fn humanize_action_name(name: &str) -> String {
@@ -1453,6 +1648,7 @@ mod tests {
                         last_invoked: 0,
                         invocations: 1,
                     }),
+                    marley_row: None,
                 })
                 .collect::<Vec<_>>();
                 let matches = commands

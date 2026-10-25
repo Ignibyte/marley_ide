@@ -3247,6 +3247,15 @@ screen opens Home after `rusty_unavailable`.
 
 ## The pickers (`src/pickers.rs`, `src/agents.rs`, Zed's `command_palette.rs` and `picker.rs`, #839)
 
+- **The palette's rows as the board draws them (#920).** `pickers::init` sets
+  `command_palette::MarleyPaletteLook { row: palette_row, help }`. `palette_row` answers, in the
+  Marley layout only, a `MarleyPaletteRow` for each of Zed's names: `PALETTE_NAMES` for the
+  commands the board draws ("Open Folder…", "Open MCP Servers"), else the name past its namespace
+  with each word capitalized and the first two letters of its second word as the glyph; `ours`
+  for `marley*` and `rusty` namespaces. The palette asks once in `new`, drops twins, draws the
+  tile and the plain name with the typed letters mapped past the namespace, matches with
+  `Case::Ignore`, and shows the Commands chip, the board's footer and, for "?", `help`.
+
 - `pickers::init` sets `MarleyPaletteGroups(marley_layout)`, which the palette asks when it opens:
   true makes it a `Picker::list`, sorts an empty query's matches by `Command::marley_group` (used
   before, `marley:`, the rest; stable, so each group keeps Zed's order) and draws `MARLEY_GROUPS`'
