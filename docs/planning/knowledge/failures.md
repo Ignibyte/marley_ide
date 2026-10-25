@@ -4601,3 +4601,12 @@ after a final newline: a 1 201-line file read "1 202 lines". Fixed: the row coun
 when the last line holds text (`max_point().column > 0`). A line count from a rope's end point
 counts the last row only when it is not empty.
 
+## F-claude-922-a-side-dock-laid-the-strip-beside-its-panel-001
+*found: 2026-10-25 · while: testing #922 · severity: medium*
+
+Moved to the right dock, the drawer showed its strip and an empty body. `Dock::render` lays a side
+dock's children in a row (`flex_row` for the horizontal axis), and the strip, `w_full`, took the
+whole width, leaving the panel none. #838 drew the strip only on the bottom dock, a column, so it
+never showed. Fixed: while the dock carries Marley's header it stacks its children in a column on
+every side.
+

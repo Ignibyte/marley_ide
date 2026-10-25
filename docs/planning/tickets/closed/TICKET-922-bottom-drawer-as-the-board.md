@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #922 (feature, the Marley look, the bottom drawer)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [922-bottom-drawer-as-the-board.spec.md](../../pipeline/queued/922-bottom-drawer-as-the-board.spec.md)
+- **Pipeline doc:** [922-bottom-drawer-as-the-board.spec.md](../../pipeline/completed/922-bottom-drawer-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/D-panels-editor.md, board BottomPanel), build order line 9.
 - **Boards:** BottomPanel
 - **Size:** L
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

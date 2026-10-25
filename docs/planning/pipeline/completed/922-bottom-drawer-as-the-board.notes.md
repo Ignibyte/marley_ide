@@ -101,7 +101,40 @@
   follow-up restyles the Debug tab.
 
 ## Phase 2 — Code
+- **Built:** `dock.rs` `DockShape`, `MarleyDockShape`, the card branch of `Dock::render` and the
+  stacked side dock; `problems_panel.rs` (new); `drawer.rs` rewritten around it (`shows_drawer`,
+  `shape`, `debug_state`, `tab_pill`, `tabs`, `drawer_buttons`, `move_drawer`, `zoom`);
+  `send_selection::ask_to_fix_at`; `dap` added to `marley_workbench`'s dependencies for
+  `DebuggerSettings`.
+- **Deviations:**
+  - A zoomed panel draws outside its dock, so the strip's Restore cannot show; Problems draws its
+    own Restore row while zoomed. Zoomed Debug keeps Zed's own controls.
+  - In a side dock the strip wraps its buttons under the tabs, and the dock stacks the strip over
+    the panel (it laid them in a row, F-claude-922).
+- **Review:** handlers are plain closures over weak handles; Close reads the dock, not the focus
+  (F-claude-898); Zed's layout keeps the flush dock and Zed's diagnostics tab (the hooks answer
+  only in the Marley layout).
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/922-bottom-drawer-as-the-board.sh`, sway, 10 shots, each read.
+  - `922-01-problems`: the inset card with its grab handle; "Problems 4" (red pill), "Debug"; Move
+    to the Side, Maximize, ×; the filter; four rows with red dots, the messages, main.rs:5 or
+    parts.rs:2, Ask an agent to fix. REQ-001, REQ-005, REQ-009 met.
+  - `922-02-filtered`: "parts": parts.rs's row only. REQ-002.
+  - `922-03-opened`: main.rs with the caret at 5:17. REQ-003.
+  - `922-04-asked`: the stand-in's terminal: "Fix this: @src/main.rs#L5 (expected expression,
+    found `;`)", no Enter. REQ-004.
+  - `922-05-paused`: Debug with its "paused" pill, GDB at hello.c:3. REQ-005.
+  - `922-06-maximized`: Problems filling the window, Restore at its right. REQ-006.
+  - `922-07-side`: the drawer in the right dock, the strip wrapped, the list under it, "Move to the
+    Bottom"; `922-08-bottom`: back at the bottom. REQ-008.
+  - `922-09-closed`: the drawer gone. REQ-007. `922-10-day`: Marley Day.
+- **Fixes found in Test:** the side dock squeezed the panel to nothing (F-claude-922); the strip's
+  buttons overflowed a side dock (wrap); zoomed Problems had no Restore (its own row).
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's W3.2 row, the `dock.rs` ledger row.
+- Knowledge appended: F-claude-922-a-side-dock-laid-the-strip-beside-its-panel-001,
+  AD-claude-922-problems-is-a-list-of-marleys-001 (supersedes half of AD-claude-838).
+- Brain: decision recorded.

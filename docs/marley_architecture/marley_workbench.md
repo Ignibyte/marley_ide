@@ -3287,6 +3287,19 @@ screen opens Home after `rusty_unavailable`.
 
 ## The bottom drawer (`src/drawer.rs`, Zed's `dock.rs` and `diagnostics.rs`, #838)
 
+- **As the board draws it (#922).** `problems_panel.rs` holds `ProblemsPanel`, now a list of
+  Marley's (AD-claude-922): `refresh` reads `Project::diagnostic_summaries` for the files with
+  errors (and warnings while `diagnostics.include_warnings`), opens each buffer and keeps its
+  primary diagnostics as `Problem`s (`problems_in`), again on `project::Event::DiagnosticsUpdated`;
+  `shown` filters by message or file name; a row's click `open`s the file at its place, its pill
+  `ask`s through `send_selection::ask_to_fix_at` (split out of #899's `ask_to_fix`). Its position
+  is `debugger.dock`; `set_position` writes it; it zooms through `ToggleZoom` and, zoomed, draws
+  its own Restore. `drawer.rs`: `tabs` serves whichever dock shows the drawer, with `tab_pill`s
+  (the count, red with errors; Debug's `debug_state`), `drawer_buttons` (Move through
+  `debugger.dock`, Maximize through `ToggleZoom`, Close through `Dock::set_open`) and a grab
+  handle at the bottom; `shape` answers `workspace::dock::MarleyDockShape` with `Card` for the
+  drawer at the bottom. The dock stacks the strip over the panel in a side dock too.
+
 - `drawer::init` sets two globals Zed's code asks: `MarleyDockHeader(tabs)`, which `Dock::render`
   calls for an element above the shown panel, and `MarleyDiagnosticsDeploy(deploy)`, which
   `ProjectDiagnosticsEditor::deploy` asks first (the status bar's indicator calls `deploy` directly,

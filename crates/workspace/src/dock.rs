@@ -1288,6 +1288,20 @@ pub struct MarleyDockHeader(
 
 impl gpui::Global for MarleyDockHeader {}
 
+// Marley: how the dock draws its box: flush against the window's edge, as Zed draws it, or as a
+// rounded card inset from the edges, as Marley's drawer is (#922).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockShape {
+    Flush,
+    Card,
+}
+
+// Marley: asked by `Dock::render` for the dock's shape; Marley's workbench sets it (#922).
+#[derive(Clone, Copy)]
+pub struct MarleyDockShape(pub fn(&Dock, &App) -> DockShape);
+
+impl gpui::Global for MarleyDockShape {}
+
 impl Render for Dock {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dispatch_context = Self::dispatch_context();
@@ -1297,6 +1311,10 @@ impl Render for Dock {
                 .try_global::<MarleyDockHeader>()
                 .map(|marley| marley.0)
                 .and_then(|header| header(self, &cx.weak_entity(), window, cx));
+            // Marley: the drawer as a rounded card inset from the window's edges (#922).
+            let marley_card = cx
+                .try_global::<MarleyDockShape>()
+                .is_some_and(|marley| (marley.0)(self, cx) == DockShape::Card);
             let position = self.position;
             let create_resize_handle = || {
                 let handle = div()
@@ -1357,44 +1375,67 @@ impl Render for Dock {
                 }
             };
 
+            let content = div()
+                .map(|this| match self.position().axis() {
+                    Axis::Horizontal => this.w_full().h_full(),
+                    Axis::Vertical => this.h_full().w_full(),
+                })
+                // Marley: below the drawer's tabs, the panel takes what is left (#838).
+                .flex_1()
+                .min_h_0()
+                .child(
+                    entry
+                        .panel
+                        .to_any()
+                        .cached(StyleRefinement::default().v_flex().size_full()),
+                );
+            let colors = cx.theme().colors();
+            // Marley: with the drawer's strip a side dock stacks it over the panel too (#922).
+            let marley_stacked = marley_header.is_some();
             div()
                 .id("dock-panel")
                 .key_context(dispatch_context)
                 .track_focus(&self.focus_handle(cx))
                 .focus_follows_mouse(self.focus_follows_mouse, cx)
                 .flex()
-                .bg(cx.theme().colors().panel_background)
-                .border_color(cx.theme().colors().border)
                 .overflow_hidden()
                 .map(|this| match self.position().axis() {
                     // Width and height are always set on the workspace wrapper in
                     // render_dock, so fill whatever space the wrapper provides.
+                    Axis::Horizontal if marley_stacked => this.w_full().h_full().flex_col(),
                     Axis::Horizontal => this.w_full().h_full().flex_row(),
                     Axis::Vertical => this.h_full().w_full().flex_col(),
                 })
-                .map(|this| match self.position() {
-                    DockPosition::Left => this.border_r_1(),
-                    DockPosition::Right => this.border_l_1(),
-                    DockPosition::Bottom => this.border_t_1(),
+                .map(|this| {
+                    if marley_card {
+                        // Marley: the card holds the drawer's tabs and the panel (#922).
+                        this.pl(px(10.)).pr(px(10.)).pb(px(8.)).pt(px(4.)).child(
+                            div()
+                                .size_full()
+                                .flex()
+                                .flex_col()
+                                .min_h_0()
+                                .bg(colors.panel_background)
+                                .border_1()
+                                .border_color(colors.border)
+                                .rounded(px(14.))
+                                .overflow_hidden()
+                                .children(marley_header)
+                                .child(content),
+                        )
+                    } else {
+                        this.bg(colors.panel_background)
+                            .border_color(colors.border)
+                            .map(|this| match self.position() {
+                                DockPosition::Left => this.border_r_1(),
+                                DockPosition::Right => this.border_l_1(),
+                                DockPosition::Bottom => this.border_t_1(),
+                            })
+                            // Marley: the bottom drawer's tabs, above the panel (#838).
+                            .children(marley_header)
+                            .child(content)
+                    }
                 })
-                // Marley: the bottom drawer's tabs, above the panel (#838).
-                .children(marley_header)
-                .child(
-                    div()
-                        .map(|this| match self.position().axis() {
-                            Axis::Horizontal => this.w_full().h_full(),
-                            Axis::Vertical => this.h_full().w_full(),
-                        })
-                        // Marley: below the drawer's tabs, the panel takes what is left (#838).
-                        .flex_1()
-                        .min_h_0()
-                        .child(
-                            entry
-                                .panel
-                                .to_any()
-                                .cached(StyleRefinement::default().v_flex().size_full()),
-                        ),
-                )
                 .when(self.resizable(cx), |this| {
                     this.child(create_resize_handle())
                 })

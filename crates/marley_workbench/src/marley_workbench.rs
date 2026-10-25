@@ -110,6 +110,7 @@ pub mod pickers;
 pub mod plan_review;
 pub mod playwright_scripts;
 pub mod ports;
+pub mod problems_panel;
 pub mod process;
 pub mod project_icons;
 pub mod prompt_colors;

@@ -233,6 +233,19 @@ fn ask_to_fix(
         .ok_or("Ask an agent to fix this works in a file's editor.")?;
     let (path, line, problem) = line_and_problem(&editor, cx)
         .ok_or("Ask an agent to fix this works in a file's editor: this one shows no file.")?;
+    ask_to_fix_at(workspace, path, line, problem, window, cx)
+}
+
+/// Asks an agent to fix the problem at `line` (from 1) of `path`, with its words when there are
+/// any: the request #899's key makes, for a row of the drawer's Problems too (#922).
+pub(crate) fn ask_to_fix_at(
+    workspace: &mut Workspace,
+    path: PathBuf,
+    line: u32,
+    problem: Option<String>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Result<(), &'static str> {
     let mut targets = agent_targets(workspace, cx);
     let window_handle = window.window_handle();
     let request = move |target: &Target| {

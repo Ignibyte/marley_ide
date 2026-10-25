@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom drawer as the board draws it** (#922, 2026-10-25). Problems is now a list: a filter
+  field and a row per error or warning with its dot, message, place and an Ask an agent to fix
+  pill; a click opens the file at the line. The Problems tab carries its count in a pill, red
+  while there are errors, and Debug says "paused" or "running". The drawer has its own Move to
+  the Side or Bottom, Maximize or Restore, and Close, and at the bottom it is a rounded card
+  inset from the window's edges with a grab handle. Problems and Debug move together through
+  `debugger.dock`.
+
 - **The file finder as the board draws it** (#921, 2026-10-25). In the Marley layout each file row
   shows its extension in a small mono slot, its name over its path, and a git letter at the right
   (M, U, A, D, !) in its colour. The field ends with the finder's own key, and the preview is

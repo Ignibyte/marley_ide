@@ -1,7 +1,7 @@
 ---
 pipeline_id: a5963ec7-a056-4cf8-b9f5-59c8badc3b9e
 ticket: docs/planning/tickets/open/TICKET-922-bottom-drawer-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The bottom drawer as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

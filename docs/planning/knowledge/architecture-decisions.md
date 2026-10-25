@@ -5706,3 +5706,15 @@ on another page reads the same.
 
 Rejected: a flag on `SettingsPage` threaded into every renderer, which would change Zed's
 renderer signatures.
+
+## AD-claude-922-problems-is-a-list-of-marleys-001
+*decided: 2026-10-25 · while: #922 · supersedes: half of AD-claude-838-the-drawer-is-the-bottom-dock-with-a-strip-001*
+
+In the Marley layout the drawer's Problems is a list of Marley's (`problems_panel.rs`), not Zed's
+diagnostics editor: one row per primary error or warning with its place and an Ask an agent to fix
+pill, under a filter, read from the project's diagnostic summaries and each file's buffer as Zed's
+editor reads them, so the list and the pill agree. The BottomPanel board asks for rows, which the
+excerpts editor cannot draw. The drawer stays the dock with a strip (AD-claude-838's other half);
+its place is `debugger.dock`, which Problems follows, and at the bottom it draws as a card through
+`MarleyDockShape`. Zed's layout keeps Zed's diagnostics tab and flush dock.
+
