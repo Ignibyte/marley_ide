@@ -40,6 +40,9 @@ pub struct Turn {
     pub title: String,
     /// How many files it changed.
     pub files: usize,
+    /// Each file it changed with its lines, read when it was recorded; empty for a turn recorded
+    /// before #924 (D4).
+    pub(crate) file_counts: Vec<turn_git::FileCount>,
     /// Whether it ended in an error (Claude Code's `StopFailure`, a Codex turn `failed`).
     pub failed: bool,
     /// Whether a harness's prompt started it.
@@ -486,6 +489,10 @@ async fn record(
             repository.update_ref(format!("{prefix}{number}"), sha.clone())
         })?
         .await??;
+    let file_counts = turn_git::numstat_in(&turn.work_dir, &start_sha, &sha)
+        .await
+        .log_err()
+        .unwrap_or_default();
     let diff_type = DiffTreeType::Since {
         base: SharedString::from(start_sha),
         head: SharedString::from(sha.clone()),
@@ -506,6 +513,7 @@ async fn record(
     let listed = Turn {
         title: turn.open.title,
         files,
+        file_counts,
         failed: turn.failed,
         injected: turn.open.injected,
         sha,

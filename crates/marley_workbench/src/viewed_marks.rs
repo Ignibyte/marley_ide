@@ -29,6 +29,20 @@ pub fn init(cx: &App) {
         editor.update(cx, |editor, _| {
             editor.register_addon(ViewedAddon { marks });
         });
+        // A mark in the gutter on each noted line, in the accent (#924, D5).
+        cx.subscribe(&editor, |_, editor, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::ReviewCommentsChanged { .. }) {
+                editor.update(cx, |editor, cx| {
+                    let ranges = editor.review_note_ranges();
+                    editor.highlight_gutter::<NotedLines>(
+                        ranges,
+                        |cx| cx.theme().colors().text_accent,
+                        cx,
+                    );
+                });
+            }
+        })
+        .detach();
     })
     .detach();
 }
@@ -190,6 +204,9 @@ fn forget(path: String, cx: &App) {
     cx.background_spawn(async move { store.scoped(STORE).delete(path).await })
         .detach_and_log_err(cx);
 }
+
+/// The gutter highlight that marks a noted line (#924).
+enum NotedLines {}
 
 /// The Viewed tick at the end of each file's header in a project diff.
 struct ViewedAddon {

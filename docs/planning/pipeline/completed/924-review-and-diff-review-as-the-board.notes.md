@@ -94,7 +94,38 @@
   they are not re-run (no regression per ticket, §7).
 
 ## Phase 2 — Code
+- **Built:** `editor/src/git.rs` `review_note_ranges`; `plan_review.rs` (`render_foot`, the
+  headline, `render_column`, `render_notes`, `turn_state`, `turn_files`, the placeholder, Send
+  Review to Agent); `turns.rs` `Turn::file_counts`; `turn_git.rs` `FileCount`, `numstat_in`;
+  `viewed_marks.rs` the gutter mark (`NotedLines`); `guide_tab.rs` the state colours, the filled
+  row and `copy_notes_row`.
+- **Deviations:**
+  - The per-file +/− in the diff's headers was already drawn by Zed (beside Open File); a first
+    version added Marley's own beside Viewed, which repeated it, and was taken out. REQ-006 is met
+    by Zed's own counts.
+  - The gutter mark's subscription lives in `viewed_marks.rs`, which already observes each
+    project diff, not in `review_notes.rs`.
+  - The scenario reviews `brief.md` for REQ-005 (a file), not a reply: both take the same column.
+- **Review:** plan review keeps every action (D1); Send Feedback still sends the notes alone and
+  Send Answers the answers with them (D2); a turn recorded before this change shows its file count
+  (D4).
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/924-review-and-diff-review-as-the-board.sh`, sway, 6 shots, each read.
+  - `924-03-diff`: notes.txt's line 12 with the accent gutter mark and the kept note; each header's
+    +/− (Zed's) and Viewed. REQ-006, REQ-008.
+  - `924-04-guide`: Send to: "Claude Code · repo" on a filled row, "ready" in green, then "Copy
+    notes · any agent". REQ-007.
+  - `924-01-plan`: "Tidy the notes" opens the plan; the question answered; Send Answers and Send
+    Feedback (1) at the foot with the hint; YOUR NOTES with "notes" as a mono chip, "Start at
+    line 9", Remove; Turn 1 with its "new" pill and "todo.txt +1 −0". REQ-001 to REQ-004.
+  - `924-02-file`: "Review · brief.md" over the text, the note, Send Review to Agent (1) at the
+    column's foot. REQ-005.
+  - `924-05-day`, `924-06-day-diff`: the same in Marley Day.
+- **Fix in Test:** the duplicate header counts (above); coordinates from the probe.
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's review row, the `editor/src/git.rs` ledger row.
+- Knowledge appended: L-claude-924-zeds-diff-header-already-counts-a-files-lines-001.
+- Brain: decision recorded.

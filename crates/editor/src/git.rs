@@ -785,6 +785,17 @@ impl Editor {
     // `SendReviewToAgent`, which upstream left without one (#522).
     /// The review notes not yet sent to an agent, each with its file's absolute path and its lines
     /// from 1; a note whose file is not on this machine is left out.
+    // Marley: the notes' places, for a mark in the gutter on each noted line (#924).
+    /// The anchor ranges of the review notes not dropped, sent or not.
+    pub fn review_note_ranges(&self) -> Vec<Range<Anchor>> {
+        self.stored_review_comments
+            .iter()
+            .flat_map(|(_, comments)| comments.iter())
+            .filter(|comment| !comment.proposed)
+            .map(|comment| comment.range.clone())
+            .collect()
+    }
+
     pub fn unsent_review_notes(&self, cx: &App) -> Vec<ReviewNote> {
         let snapshot = self.buffer.read(cx).snapshot(cx);
         let mut notes = Vec::new();

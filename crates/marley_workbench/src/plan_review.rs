@@ -793,7 +793,7 @@ impl PlanReview {
         cx: &mut Context<Self>,
     ) -> Self {
         let placeholder = match subject {
-            Subject::Plan { .. } => "A note on the whole plan",
+            Subject::Plan { .. } => "Anything about the whole plan",
             Subject::File { .. } => "A note on the whole file",
             Subject::Reply(_) => "A note on the whole reply",
         };
@@ -1481,6 +1481,7 @@ impl PlanReview {
 
     fn render_notes(&self, cx: &Context<Self>) -> impl IntoElement {
         let surface = cx.theme().colors().surface_background;
+        let accent = cx.theme().colors().text_accent;
         let focused_border = cx.theme().colors().border_focused;
         let taking_notes = self.taking_notes();
         v_flex()
@@ -1491,6 +1492,7 @@ impl PlanReview {
                 } else {
                     format!("“{}”", note.quote.trim())
                 };
+                // The quote as a mono chip on an accent rule, Remove at the note's foot (#924).
                 v_flex()
                     .gap_1()
                     .p_2()
@@ -1501,11 +1503,18 @@ impl PlanReview {
                             .justify_between()
                             .gap_1()
                             .child(
-                                Label::new(quote)
-                                    .size(LabelSize::Small)
-                                    .color(Color::Muted)
-                                    .italic()
-                                    .line_clamp(2),
+                                div()
+                                    .min_w_0()
+                                    .pl_2()
+                                    .border_l_2()
+                                    .border_color(accent)
+                                    .child(
+                                        Label::new(quote)
+                                            .size(LabelSize::XSmall)
+                                            .buffer_font(cx)
+                                            .color(Color::Muted)
+                                            .line_clamp(2),
+                                    ),
                             )
                             .when(note.sent, |row| {
                                 row.child(
@@ -1513,24 +1522,22 @@ impl PlanReview {
                                         .size(LabelSize::XSmall)
                                         .color(Color::Success),
                                 )
-                            })
-                            .when(taking_notes && !note.sent, |row| {
-                                row.child(
-                                    IconButton::new(
-                                        ("plan-review-remove-note", index),
-                                        IconName::Close,
-                                    )
-                                    .icon_size(IconSize::Small)
-                                    .tooltip(ui::Tooltip::text("Remove the note"))
-                                    .on_click(cx.listener(
-                                        move |tab, _, _, cx| {
-                                            tab.remove_note(index, cx);
-                                        },
-                                    )),
-                                )
                             }),
                     )
                     .child(Label::new(note.comment.clone()).size(LabelSize::Small))
+                    .when(taking_notes && !note.sent, |note_card| {
+                        note_card.child(
+                            h_flex().child(
+                                Button::new(("plan-review-remove-note", index), "Remove")
+                                    .style(ButtonStyle::Subtle)
+                                    .label_size(LabelSize::XSmall)
+                                    .color(Color::Muted)
+                                    .on_click(cx.listener(move |tab, _, _, cx| {
+                                        tab.remove_note(index, cx);
+                                    })),
+                            ),
+                        )
+                    })
             }))
             .when_some(self.composing.as_ref(), |column, composing| {
                 column.child(
@@ -1559,9 +1566,6 @@ impl PlanReview {
     /// The column at the right: the tab's title and status, the notes, the overall note, and the
     /// answers.
     fn render_column(&self, border: gpui::Hsla, cx: &Context<Self>) -> impl IntoElement {
-        let waiting = self.waiting().is_some();
-        let has_feedback = !self.notes.is_empty() || !self.overall_note(cx).is_empty();
-        let answers_pending = self.answers_pending(cx);
         let (answered, questions) = self.answered(cx);
         let taking_notes = self.taking_notes();
         let is_plan = self.plan_view().is_some();
@@ -1576,7 +1580,6 @@ impl PlanReview {
             .border_color(border)
             .p_3()
             .gap_3()
-            .child(Label::new(self.title.clone()).size(LabelSize::Large))
             // With an earlier version the tabs' line carries the count (#893).
             .when(questions > 0 && self.changes.is_none(), |column| {
                 column.child(
@@ -1593,13 +1596,11 @@ impl PlanReview {
                         Color::Muted
                     }),
             )
-            .when(taking_notes, |column| {
-                column.child(
-                    Label::new("Select a passage, then right-click Comment… or press c.")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-            })
+            .child(
+                Label::new("YOUR NOTES")
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
             .child(self.render_notes(cx))
             .child(
                 v_flex()
@@ -1620,16 +1621,11 @@ impl PlanReview {
                     ),
             )
             .children(self.render_turns(cx))
-            .when(is_plan, |column| {
-                column.child(Self::answer_buttons(
-                    waiting,
-                    answers_pending,
-                    has_feedback,
-                    cx,
-                ))
-            })
+            // A file's or a reply's send at the column's foot; a plan's under the plan (#924).
             .when(!is_plan, |column| {
-                column.child(Self::send_notes_button(unsent, cx))
+                column
+                    .child(div().flex_1())
+                    .child(Self::send_notes_button(unsent, cx))
             })
     }
 
@@ -1724,16 +1720,9 @@ impl PlanReview {
         }
         let colors = cx.theme().colors();
         let rows = turns.iter().enumerate().rev().map(|(index, turn)| {
-            let state = match turn.mark {
-                Some(TurnMark::Kept) => "kept",
-                Some(TurnMark::Undone) => "undone",
-                None if turn.failed => "failed",
-                None => "to review",
-            };
-            let files = match turn.files {
-                1 => "1 file".to_string(),
-                count => format!("{count} files"),
-            };
+            let (state, state_color) = turn_state(turn);
+            let files = turn_files(turn);
+            let tint = state_color.color(cx);
             let undone = turn.mark == Some(TurnMark::Undone);
             let (show, keep, undo) = (turn.sha.clone(), turn.sha.clone(), turn.sha.clone());
             v_flex()
@@ -1743,14 +1732,32 @@ impl PlanReview {
                 .border_1()
                 .border_color(colors.border)
                 .child(
-                    Label::new(format!("Turn {} · {}", index + 1, turn.title))
-                        .size(LabelSize::Small)
-                        .truncate(),
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            div().flex_1().min_w_0().child(
+                                Label::new(format!("Turn {} \u{b7} {}", index + 1, turn.title))
+                                    .size(LabelSize::Small)
+                                    .truncate(),
+                            ),
+                        )
+                        .child(
+                            div()
+                                .flex_none()
+                                .px_1p5()
+                                .rounded_full()
+                                .bg(tint.opacity(0.15))
+                                .child(
+                                    Label::new(state).size(LabelSize::XSmall).color(state_color),
+                                ),
+                        ),
                 )
                 .child(
-                    Label::new(format!("{files} · {state}"))
+                    Label::new(files)
                         .size(LabelSize::XSmall)
-                        .color(Color::Muted),
+                        .buffer_font(cx)
+                        .color(Color::Muted)
+                        .truncate(),
                 )
                 .child(
                     h_flex()
@@ -1832,9 +1839,9 @@ impl PlanReview {
     /// A file's or a reply's Send Notes, with how many notes it sends (#729).
     fn send_notes_button(unsent: usize, cx: &Context<Self>) -> impl IntoElement {
         let label = if unsent > 0 {
-            format!("Send Notes ({unsent})")
+            format!("Send Review to Agent ({unsent})")
         } else {
-            "Send Notes".to_string()
+            "Send Review to Agent".to_string()
         };
         h_flex().child(
             action_button(13, &label, Role::Primary, unsent > 0, cx).when(unsent > 0, |button| {
@@ -1874,15 +1881,26 @@ impl PlanReview {
             )
     }
 
-    /// Approve and Send Feedback, or Send Answers while answers wait to go.
-    fn answer_buttons(
-        waiting: bool,
-        answers_pending: bool,
-        has_feedback: bool,
-        cx: &Context<Self>,
-    ) -> impl IntoElement {
+    /// The foot under a plan (#924): Send Answers while answers wait, else Approve, then Send
+    /// Feedback (N) with how many notes it sends, and the hint at the row's right.
+    fn render_foot(&self, cx: &Context<Self>) -> impl IntoElement {
+        let waiting = self.waiting().is_some();
+        let has_feedback = !self.notes.is_empty() || !self.overall_note(cx).is_empty();
+        let answers_pending = self.answers_pending(cx);
+        let (unsent, overall) = self.unsent(cx);
+        let unsent = unsent.len() + usize::from(!overall.is_empty());
+        let feedback = if unsent > 0 {
+            format!("Send Feedback ({unsent})")
+        } else {
+            "Send Feedback".to_string()
+        };
         h_flex()
+            .flex_none()
+            .px_4()
+            .py_2()
             .gap_2()
+            .border_t_1()
+            .border_color(cx.theme().colors().border)
             // An approval carries no text, so unsent answers take Approve's place (#728).
             .when(answers_pending, |row| {
                 row.child(
@@ -1899,17 +1917,48 @@ impl PlanReview {
                             button.on_click(cx.listener(|tab, _, _, cx| tab.approve(cx)))
                         }),
                 )
-                .child({
-                    let enabled = waiting && has_feedback;
-                    action_button(12, "Send Feedback", Role::Plain, enabled, cx).when(
-                        enabled,
-                        |button| {
-                            button.on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx)))
-                        },
-                    )
+            })
+            .child({
+                let enabled = waiting && has_feedback;
+                action_button(12, &feedback, Role::Plain, enabled, cx).when(enabled, |button| {
+                    button.on_click(cx.listener(|tab, _, _, cx| tab.send_feedback(cx)))
                 })
             })
+            .child(div().flex_1())
+            .when(self.taking_notes(), |row| {
+                row.child(
+                    Label::new("Select a passage and press c to comment")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
     }
+}
+
+/// A turn's state as the board's pill and its colour (#924).
+const fn turn_state(turn: &crate::turns::Turn) -> (&'static str, Color) {
+    match turn.mark {
+        Some(TurnMark::Kept) => ("kept", Color::Success),
+        Some(TurnMark::Undone) => ("undone", Color::Muted),
+        None if turn.failed => ("failed", Color::Error),
+        None if turn.injected => ("injected", Color::Warning),
+        None => ("new", Color::Accent),
+    }
+}
+
+/// A turn's files with their lines, else how many, for a turn recorded before #924 (D4).
+fn turn_files(turn: &crate::turns::Turn) -> String {
+    if turn.file_counts.is_empty() {
+        return match turn.files {
+            1 => "1 file".to_string(),
+            count => format!("{count} files"),
+        };
+    }
+    turn.file_counts
+        .iter()
+        .map(|file| format!("{} +{} \u{2212}{}", file.name, file.added, file.removed))
+        .collect::<Vec<_>>()
+        .join(" \u{b7} ")
 }
 
 /// The lines added and removed from `before` to `after`, and their diff in a read-only editor as
@@ -2059,62 +2108,77 @@ impl Render for PlanReview {
         context_style.paragraph_line_height = relative(1.5);
         context_style.base_text_style.color = cx.theme().colors().text_muted;
         let tabs = self.render_tabs(cx);
+        let is_plan = self.plan_view().is_some();
+        // A plan's own heading opens it; a file or a reply opens with the tab's title (#924).
+        let headline = (!is_plan).then(|| {
+            div()
+                .pb_2()
+                .child(Headline::new(self.title.clone()).size(HeadlineSize::Small))
+        });
+        let foot = is_plan.then(|| self.render_foot(cx));
         h_flex()
             .key_context("PlanReview")
             .size_full()
             .bg(background)
             .child(
-                v_flex().flex_1().min_w_0().h_full().children(tabs).child(
-                    if let Some(editor) = self
-                        .changes
-                        .as_ref()
-                        .filter(|_| self.showing_changes)
-                        .map(|changes| changes.editor.clone())
-                    {
-                        // The diff takes no notes: its own area, out of the plan's key context.
-                        div()
-                            .id("plan-review-changes")
-                            .flex_1()
-                            .min_h_0()
-                            .p_2()
-                            .child(editor)
-                            .into_any_element()
-                    } else {
-                        v_flex()
-                            .id("plan-review-plan")
-                            .key_context("PlanReviewPlan")
-                            .track_focus(&self.plan_focus)
-                            .on_action(cx.listener(Self::comment))
-                            // Before the Markdown's own handling, which may stop the event.
-                            .capture_any_mouse_down(cx.listener(
-                                |tab, _: &MouseDownEvent, window, cx| {
-                                    window.focus(&tab.plan_focus, cx);
-                                },
-                            ))
-                            .on_mouse_down(
-                                MouseButton::Right,
-                                cx.listener(|tab, event: &MouseDownEvent, window, cx| {
-                                    tab.open_menu(event.position, window, cx);
-                                }),
-                            )
-                            .flex_1()
-                            .min_h_0()
-                            .overflow_y_scroll()
-                            .p_4()
-                            .children(self.parts.iter().map(|part| {
-                                match part {
-                                    Part::Text { markdown, .. } => {
-                                        MarkdownElement::new(markdown.clone(), style.clone())
-                                            .into_any_element()
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .children(tabs)
+                    .child(
+                        if let Some(editor) = self
+                            .changes
+                            .as_ref()
+                            .filter(|_| self.showing_changes)
+                            .map(|changes| changes.editor.clone())
+                        {
+                            // The diff takes no notes: its own area, out of the plan's key context.
+                            div()
+                                .id("plan-review-changes")
+                                .flex_1()
+                                .min_h_0()
+                                .p_2()
+                                .child(editor)
+                                .into_any_element()
+                        } else {
+                            v_flex()
+                                .id("plan-review-plan")
+                                .key_context("PlanReviewPlan")
+                                .track_focus(&self.plan_focus)
+                                .on_action(cx.listener(Self::comment))
+                                // Before the Markdown's own handling, which may stop the event.
+                                .capture_any_mouse_down(cx.listener(
+                                    |tab, _: &MouseDownEvent, window, cx| {
+                                        window.focus(&tab.plan_focus, cx);
+                                    },
+                                ))
+                                .on_mouse_down(
+                                    MouseButton::Right,
+                                    cx.listener(|tab, event: &MouseDownEvent, window, cx| {
+                                        tab.open_menu(event.position, window, cx);
+                                    }),
+                                )
+                                .flex_1()
+                                .min_h_0()
+                                .overflow_y_scroll()
+                                .p_4()
+                                .children(headline)
+                                .children(self.parts.iter().map(|part| {
+                                    match part {
+                                        Part::Text { markdown, .. } => {
+                                            MarkdownElement::new(markdown.clone(), style.clone())
+                                                .into_any_element()
+                                        }
+                                        Part::Card(index) => self
+                                            .render_card(*index, &context_style, cx)
+                                            .into_any_element(),
                                     }
-                                    Part::Card(index) => self
-                                        .render_card(*index, &context_style, cx)
-                                        .into_any_element(),
-                                }
-                            }))
-                            .into_any_element()
-                    },
-                ),
+                                }))
+                                .into_any_element()
+                        },
+                    )
+                    .children(foot),
             )
             .child(self.render_column(border, cx))
             .children(self.menu.as_ref().map(|(menu, position, _)| {

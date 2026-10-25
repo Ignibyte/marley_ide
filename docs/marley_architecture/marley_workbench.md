@@ -3745,6 +3745,18 @@ below describe what #743 retired.
 
 ## Plan review (`src/plan_review.rs`, `src/agent_reports.rs`, `src/last_reply.rs`, #726 to #729)
 
+- **As the Review and DiffReview boards draw it (#924).** `render` gives a file or a reply the
+  tab's title as a headline over its text (a plan opens with its own heading) and a plan a foot
+  row (`render_foot`): Send Answers while answers wait, else Approve, then Send Feedback (N), the
+  hint at the right. `render_column` drops the title and the hint, heads the notes YOUR NOTES and
+  ends a file's or a reply's column with Send Review to Agent (N). `render_notes` draws each quote
+  as a mono chip on an accent rule and Remove as text at the note's foot. `render_turns` uses
+  `turn_state` (the pill and its colour) and `turn_files`: `Turn::file_counts`, read once when
+  `turns::record` keeps a turn with `turn_git::numstat_in` (`git diff --numstat`). The project
+  diff's noted lines get a gutter highlight in the accent (`viewed_marks`' subscription to
+  `ReviewCommentsChanged`, over `Editor::review_note_ranges`); the guide's Send to colours each
+  state, fills the first ready row and ends with `copy_notes_row`.
+
 - `plan_review::init` (from `agent_reports::start`) follows `marley.plan_review`: on, it hands
   `identity::set_approve_tools(Some("ExitPlanMode"))` to the terminals started from then on.
 - `agent_reports::take` hands a `Request::Approve` from a known terminal to `plan_review::arrived`

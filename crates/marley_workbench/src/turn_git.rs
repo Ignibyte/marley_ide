@@ -57,6 +57,52 @@ pub(crate) async fn commit_tree_in(
     Ok(sha)
 }
 
+/// A file a turn changed, by its name, with its added and removed lines (#924).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FileCount {
+    pub(crate) name: String,
+    pub(crate) added: u32,
+    pub(crate) removed: u32,
+}
+
+/// Each file changed from `base` to `head` in the repository at `work_dir`, with its lines, from
+/// `git diff --numstat` (#924).
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn numstat_in(
+    work_dir: &Path,
+    base: &str,
+    head: &str,
+) -> anyhow::Result<Vec<FileCount>> {
+    let output = crate::process::output(
+        "git",
+        ["diff", "--numstat", base, head],
+        Some(work_dir),
+        &[],
+    )
+    .await
+    .context("running git diff --numstat")?;
+    anyhow::ensure!(
+        output.status.success(),
+        "git diff --numstat refused: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    let stat = git::status::parse_numstat(&String::from_utf8_lossy(&output.stdout));
+    Ok(stat
+        .entries
+        .iter()
+        .map(|(path, counts)| FileCount {
+            name: path
+                .file_name()
+                .map_or_else(|| path.as_unix_str().to_string(), str::to_string),
+            added: counts.added,
+            removed: counts.deleted,
+        })
+        .collect())
+}
+
 /// One turn ref: its name, its commit and when that commit was made, in seconds since the epoch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TurnRef {

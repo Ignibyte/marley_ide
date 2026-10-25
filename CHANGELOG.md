@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Plan review and the diff review as the board draws them** (#924, 2026-10-25). Plan review
+  opens with the plan's own heading. Send Answers or Approve sits beside Send Feedback (N) in a
+  foot row under the plan, with "Select a passage and press c to comment" at its right. The
+  notes column is headed YOUR NOTES, with each quote as a mono chip and Remove as text. A turn
+  card shows a pill for its state (new, kept, undone, failed, injected) and each file with its
+  lines. A file or a reply ends its column with Send Review to Agent (N). In the diff a noted
+  line carries an accent mark in the gutter, and the guide's Send to colours each agent's state
+  and ends with Copy notes · any agent.
+
 - **The Inspector and Files as the board draws them** (#923, 2026-10-25). The Inspector's switcher
   is a segmented track, and its Changes segment counts the changed files ("Changes 3"), following
   the disk. An Inspector button at the right of the focused pane's tab bar lights while the

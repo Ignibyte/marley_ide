@@ -227,6 +227,32 @@ impl Focusable for GuideTab {
 
 impl EventEmitter<ItemEvent> for GuideTab {}
 
+/// The Send to's last row: the notes on the clipboard for any agent (#924).
+fn copy_notes_row(editor: Entity<Editor>, cx: &App) -> impl IntoElement + use<> {
+    let colors = cx.theme().colors();
+    h_flex()
+        .id("marley-guide-copy-notes")
+        .gap_2()
+        .px_2()
+        .py_1()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .cursor_pointer()
+        .hover(|row| row.bg(colors.element_hover))
+        .child(
+            Icon::new(IconName::Copy)
+                .size(IconSize::Small)
+                .color(Color::Muted),
+        )
+        .child(
+            Label::new("Copy notes \u{b7} any agent")
+                .size(LabelSize::Small)
+                .color(Color::Muted),
+        )
+        .on_click(move |_, _, cx| crate::review_notes::copy_notes(&editor, cx))
+}
+
 impl Render for GuideTab {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
@@ -363,9 +389,18 @@ impl GuideTab {
                 .size(LabelSize::Small)
                 .color(Color::Muted)
         });
+        // The first ready agent's row is the one the board fills (#924).
+        let first_ready = targets.iter().position(|target| target.ready);
         let rows = targets.into_iter().enumerate().map(|(index, target)| {
             let name = format!("{} · {}", target.kind.display_name(), target.project);
             let state = crate::review_notes::readiness(&target);
+            let state_color = if target.ready {
+                Color::Success
+            } else if target.waiting || target.status.is_some() {
+                Color::Warning
+            } else {
+                Color::Muted
+            };
             h_flex()
                 .id(("marley-guide-send-to", index))
                 .gap_2()
@@ -374,6 +409,9 @@ impl GuideTab {
                 .rounded_md()
                 .border_1()
                 .border_color(colors.border)
+                .when(first_ready == Some(index), |row| {
+                    row.bg(colors.element_selected)
+                })
                 .cursor_pointer()
                 .hover(|row| row.bg(colors.element_hover))
                 .child(
@@ -387,15 +425,15 @@ impl GuideTab {
                         .min_w_0()
                         .child(Label::new(name).size(LabelSize::Small).truncate()),
                 )
-                .child(
-                    Label::new(state)
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                )
+                .child(Label::new(state).size(LabelSize::XSmall).color(state_color))
                 .on_click(cx.listener(move |guide, _, window, cx| {
                     guide.send_to(target.clone(), window, cx);
                 }))
         });
+        // Last, the notes on the clipboard for any agent, as the header's Copy Notes (#924).
+        let copy = self
+            .diff_editor(cx)
+            .map(|editor| copy_notes_row(editor, cx));
         v_flex()
             .gap_1p5()
             .p_3()
@@ -415,6 +453,7 @@ impl GuideTab {
             )
             .children(rows)
             .children(empty)
+            .children(copy)
             .children(
                 self.send_error
                     .clone()

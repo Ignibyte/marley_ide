@@ -6503,3 +6503,12 @@ A block's exit code is the shell's `$?`, which for a pipeline is its last comman
 grep libfoo` on a box without dpkg ends with grep's 1, not 127. A feature keyed on 127 (the
 package hint, #557's English ask) sees only a lone command or one whose last stage is missing; a
 scenario that wants 127 runs the missing program alone.
+
+## L-claude-924-zeds-diff-header-already-counts-a-files-lines-001
+*learned: 2026-10-25 · while: testing #924*
+
+Zed's project diff draws each file header's added and removed lines itself, beside Open File. The
+design review listed per-file +/− as missing, and #924 first added Marley's own beside Viewed,
+which showed the numbers twice. Before adding a mark to a Zed surface, look at the surface in a
+shot of the current build: the review may have been taken against an older one.
+

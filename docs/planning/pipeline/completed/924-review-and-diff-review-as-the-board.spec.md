@@ -1,7 +1,7 @@
 ---
 pipeline_id: c7cc5032-8976-47ea-a730-7cc27f432f8e
 ticket: docs/planning/tickets/open/TICKET-924-review-and-diff-review-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Plan review and diff review as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
