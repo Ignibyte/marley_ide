@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The file finder as the board draws it** (#921, 2026-10-25). In the Marley layout each file row
+  shows its extension in a small mono slot, its name over its path, and a git letter at the right
+  (M, U, A, D, !) in its colour. The field ends with the finder's own key, and the preview is
+  headed by the file's path and its line count ("src/rail.rs · 1 201 lines").
+
 - **The command palette as the board draws it** (#920, 2026-10-25). In the Marley layout each
   row shows a plain name ("Open Threads", not "marley: open threads") after a glyph tile, accent
   for Marley's commands and plain for Zed's. The field carries a Commands chip, the footer reads

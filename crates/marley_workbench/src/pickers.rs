@@ -5,8 +5,13 @@
 //! are hooks Zed's crates ask.
 
 use command_palette::{MarleyPaletteGroups, MarleyPaletteLook, MarleyPaletteRow};
+use file_finder::{MarleyFinderLook, MarleyFinderMarks};
+use gpui::{AnyElement, Entity, FocusHandle, Window};
 use gpui::{App, SharedString};
 use picker::{MarleyPreviewDefault, PreviewLayout};
+use picker_preview::MarleyPreviewHeader;
+use project::{Project, ProjectPath};
+use ui::prelude::*;
 
 /// The file finder's delegate name, under which the picker keeps its layout.
 const FILE_FINDER: &str = "file finder";
@@ -19,6 +24,11 @@ pub(crate) fn init(cx: &mut App) {
         help: &["marley: open guide", "zed: open keymap"],
     });
     cx.set_global(MarleyPreviewDefault(preview_default));
+    cx.set_global(MarleyFinderLook {
+        row: finder_marks,
+        hint: finder_hint,
+    });
+    cx.set_global(MarleyPreviewHeader(preview_header));
 }
 
 /// A command the Palette board draws with its own name and glyph (#920, D2, D3).
@@ -111,6 +121,125 @@ fn capitalized(word: &str) -> String {
     characters.next().map_or_else(String::new, |first| {
         first.to_uppercase().chain(characters).collect()
     })
+}
+
+/// A file row's marks in the Marley layout (#921): the extension in mono on the accent's tint (a
+/// file with none keeps its icon, D2), and the git status's letter in its colour, as the project
+/// panel orders them (D3). None in Zed's layout (D1).
+fn finder_marks(
+    project: &Entity<Project>,
+    path: &ProjectPath,
+    extension: Option<&str>,
+    cx: &App,
+) -> Option<MarleyFinderMarks> {
+    if !crate::marley_layout(cx) {
+        return None;
+    }
+    let colors = cx.theme().colors();
+    let tile = extension.map(|extension| {
+        let shown: String = extension.chars().take(4).collect();
+        div()
+            .flex_none()
+            .min_w(px(26.))
+            .h(px(18.))
+            .px_1()
+            .rounded(px(4.))
+            .bg(colors.text_accent.opacity(0.12))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                Label::new(shown)
+                    .size(LabelSize::XSmall)
+                    .buffer_font(cx)
+                    .color(Color::Accent),
+            )
+            .into_any_element()
+    });
+    let badge = project
+        .read(cx)
+        .project_path_git_status(path, cx)
+        .and_then(|status| {
+            let (letter, color) = if status.is_conflicted() {
+                ("!", Color::Conflict)
+            } else if status.is_untracked() {
+                ("U", Color::Created)
+            } else if status.is_deleted() {
+                ("D", Color::Deleted)
+            } else if status.is_modified() {
+                ("M", Color::Modified)
+            } else if status.is_created() {
+                ("A", Color::Created)
+            } else {
+                return None;
+            };
+            Some(
+                Label::new(letter)
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .color(color)
+                    .into_any_element(),
+            )
+        });
+    Some(MarleyFinderMarks { tile, badge })
+}
+
+/// The file finder's own key at the field's end in the Marley layout, as the keymap binds it (D5).
+fn finder_hint(focus: &FocusHandle, window: &Window, cx: &App) -> Option<AnyElement> {
+    if !crate::marley_layout(cx) {
+        return None;
+    }
+    let binding = ui::KeyBinding::for_action_in(&workspace::ToggleFileFinder::default(), focus, cx);
+    binding
+        .has_binding(window)
+        .then(|| binding.size(rems_from_px(11_f32)).into_any_element())
+}
+
+/// The preview's header in the Marley layout: the file's path and its line count, grouped by
+/// thousands with a space, as the board writes it (#921, D6).
+fn preview_header(path: &str, lines: u32, cx: &App) -> Option<AnyElement> {
+    if !crate::marley_layout(cx) {
+        return None;
+    }
+    let count = grouped(lines);
+    let noun = if lines == 1 { "line" } else { "lines" };
+    Some(
+        h_flex()
+            .w_full()
+            .px_3()
+            .py_1()
+            .gap_1()
+            .border_b_1()
+            .border_color(cx.theme().colors().border_variant)
+            .child(
+                div().min_w_0().child(
+                    Label::new(path.to_string())
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .color(Color::Muted)
+                        .truncate_start(),
+                ),
+            )
+            .child(
+                Label::new(format!("\u{b7} {count} {noun}"))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .into_any_element(),
+    )
+}
+
+/// `count` with a space between each group of three digits: `3 412`.
+fn grouped(count: u32) -> String {
+    let digits = count.to_string();
+    let mut shown = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            shown.push(' ');
+        }
+        shown.push(digit);
+    }
+    shown
 }
 
 /// The file finder's preview at the right in the Marley layout; Zed's default elsewhere.

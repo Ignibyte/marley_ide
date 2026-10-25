@@ -1,7 +1,7 @@
 ---
 pipeline_id: a7c319a2-1ec0-4266-86eb-f45755f8ad3a
 ticket: docs/planning/tickets/open/TICKET-921-file-finder-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The file finder as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -75,7 +75,7 @@ behaviour stays Zed's; Marley changes how a row, the field's end and the preview
   row stays a uniform list), PR-claude-a-render-hook-reads-its-context-not-its-view-001.
 
 ## UI proof
-Scenario `script/e2e/921-file-finder-as-the-board.sh` (keys only, hidden workspace 9): a scratch
+Scenario `script/e2e/921-file-finder-as-the-board.sh` (run under sway, keys only): a scratch
 repository with a committed `src/rail.rs`, `src/rail_order.rs`, `docs/rail.md` and
 `script/rail.sh`; then `src/rail.rs` changed and `src/rail_new.rs` left untracked. No agent runs.
 - `921-01-rows`: Ctrl P, "rail" typed: rows with the extension, the name over the path, "M" on

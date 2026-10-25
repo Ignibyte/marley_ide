@@ -83,7 +83,32 @@
   review of the diff checks it stays Zed's outside the Marley layout.
 
 ## Phase 2 — Code
+- **Built:** `file_finder.rs` `MarleyFinderMarks`, `MarleyFinderLook` (row and hint), the ask in
+  `render_match_impl` (the row's `ProjectPath` from a history or search match, its extension),
+  the tile in the icon's place, the stacked labels, the badge in the end slot, the hint first in
+  `searchbar_trailer`; `picker_preview.rs` `MarleyPreviewHeader`, `marley_lines`, the header over
+  the editor; `pickers.rs` `finder_marks`, `finder_hint`, `preview_header`, `grouped`;
+  `file_finder` and `picker_preview` added to `marley_workbench`'s dependencies.
+- **Deviations:** the hook takes the project and the `ProjectPath` and Marley reads the git status
+  itself, since `file_finder` does not depend on the `git` crate where `FileStatus` lives. The key
+  is `workspace::ToggleFileFinder` (the action named `file_finder::Toggle`).
+- **Review:** without the global the row and the trailer are Zed's; the history row keeps its
+  icon when it has no badge; nothing reads a view in a render.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/921-file-finder-as-the-board.sh`, sway, 4 shots, each read.
+  - `921-01-rows`: rail.rs (rs, M), rail.md (md), rail.sh (sh), rail_new.rs (rs, U),
+    rail_order.rs (rs), each name over "repo/src/"; Ctrl-P at the field's end; the preview headed
+    "src/rail.rs · 1 201 lines". REQ-001 to REQ-004 met.
+  - `921-02-history`: the opened rail.rs as the history row, same layout, its M badge.
+  - `921-03-day`: Marley Day, "docs/rail.md · 1 line".
+  - `921-04-zed`: Zed's rows on one line with icons, no hint, Zed's layout. REQ-005 met.
+- **Fix found in Test:** the count read 1 202 for a 1 201-line file: the empty line after the final
+  newline was counted (F-claude-921). Gate and scenario rerun.
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's W3.3 row, ledger rows for `file_finder.rs`
+  and `picker_preview.rs`.
+- Knowledge appended: F-claude-921-a-buffers-line-count-took-the-line-after-its-newline-001.
+- Brain: decision recorded.

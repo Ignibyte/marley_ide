@@ -467,6 +467,22 @@ impl PartialOrd for ProjectPanelOrdMatch {
     }
 }
 
+// Marley: a file row's marks as Marley's layout draws them: the extension's tile in the file
+// icon's place, and a git badge at the end (#921).
+pub struct MarleyFinderMarks {
+    pub tile: Option<AnyElement>,
+    pub badge: Option<AnyElement>,
+}
+
+// Marley: asked for each file row with the project, its path and its extension, none keeping
+// Zed's row; and for the field's key hint, given the finder's focus (#921).
+pub struct MarleyFinderLook {
+    pub row: fn(&Entity<Project>, &ProjectPath, Option<&str>, &App) -> Option<MarleyFinderMarks>,
+    pub hint: fn(&FocusHandle, &Window, &App) -> Option<AnyElement>,
+}
+
+impl gpui::Global for MarleyFinderLook {}
+
 #[derive(Debug, Default)]
 struct Matches {
     separate_history: bool,
@@ -1848,9 +1864,13 @@ impl PickerDelegate for FileFinderDelegate {
 
     fn searchbar_trailer(
         &self,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Picker<Self>>,
     ) -> Option<AnyElement> {
+        // Marley: the finder's own key before the toggle in Marley's layout (#921).
+        let marley_hint = cx
+            .try_global::<MarleyFinderLook>()
+            .and_then(|look| (look.hint)(&self.focus_handle, window, cx));
         let focus_handle = self.focus_handle.clone();
         let including_ignored = self.include_ignored == Some(true);
         // Clicking includes ignored files unless they're already included, in
@@ -1873,6 +1893,7 @@ impl PickerDelegate for FileFinderDelegate {
         Some(
             h_flex()
                 .gap_1()
+                .children(marley_hint)
                 .child(filter_button)
                 .children(picker::parts::project_scan_indicator(
                     self.latest_search_query.is_some(),
@@ -2184,6 +2205,21 @@ impl FileFinderDelegate {
         let path_match = self.matches.get(ix)?;
 
         let (file_name_label, full_path_label) = self.labels_for_match(path_match, window, cx);
+        // Marley: the row's marks in Marley's layout (#921).
+        let marley = cx.try_global::<MarleyFinderLook>().and_then(|look| {
+            let project_path = match path_match {
+                Match::History { path, .. } => path.project.clone(),
+                Match::Search(ProjectPanelOrdMatch(found)) => {
+                    project_path_for_search_match(&self.project, found, cx)
+                }
+                Match::Channel { .. } | Match::CreateNew(_) => return None,
+            };
+            let extension = path_match
+                .relative_path()
+                .and_then(|path| path.extension())
+                .map(str::to_string);
+            (look.row)(&self.project, &project_path, extension.as_deref(), cx)
+        });
 
         let start_icon = match path_match {
             Match::CreateNew(_) => Some(Icon::new(IconName::Plus).size(IconSize::Small)),
@@ -2197,7 +2233,15 @@ impl FileFinderDelegate {
                 let icon = FileIcons::get_icon(file_name.as_ref(), cx)?;
                 Some(Icon::from_path(icon).color(Color::Muted))
             }),
+        }
+        .map(IntoElement::into_any_element);
+        // Marley: the extension's tile in the icon's place (#921).
+        let (marley_tile, marley_badge) = match marley {
+            Some(marks) => (marks.tile, marks.badge),
+            None => (None, None),
         };
+        let marley_rows = marley_tile.is_some() || marley_badge.is_some();
+        let start_icon = marley_tile.or(start_icon);
 
         let checkbox = checkbox.map(|checkbox| {
             if matches!(path_match, Match::CreateNew(_) | Match::Channel { .. }) {
@@ -2222,6 +2266,8 @@ impl FileFinderDelegate {
         };
 
         let end_slot: Option<AnyElement> = match path_match {
+            // Marley: the git badge at the end (#921).
+            _ if marley_badge.is_some() => marley_badge,
             Match::History { .. } => Some(
                 Icon::new(IconName::HistoryRerun)
                     .color(Color::Muted)
@@ -2243,14 +2289,23 @@ impl FileFinderDelegate {
                 .inset(true)
                 .toggle_state(selected)
                 .start_slot::<AnyElement>(start_slot)
-                .child(
+                // Marley: the name over the path in Marley's layout (#921).
+                .child(if marley_rows {
+                    v_flex()
+                        .w_full()
+                        .min_w_0()
+                        .child(file_name_label.truncate_middle())
+                        .child(full_path_label.truncate_start())
+                        .into_any_element()
+                } else {
                     h_flex()
                         .w_full()
                         .min_w_0()
                         .gap_1p5()
                         .child(file_name_label.flex_none().truncate_middle())
-                        .child(full_path_label.flex_1().truncate_start()),
-                )
+                        .child(full_path_label.flex_1().truncate_start())
+                        .into_any_element()
+                })
                 .end_slot::<AnyElement>(end_slot),
         )
     }

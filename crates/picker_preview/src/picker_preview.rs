@@ -54,9 +54,17 @@ impl PreviewBackend for EditorPreviewHandle {
 
 struct SearchMatchLineHighlight;
 
+// Marley: a header line over a file's preview, given its path and its line count, or none; Marley's
+// workbench sets it (#921).
+pub struct MarleyPreviewHeader(pub fn(&str, u32, &App) -> Option<AnyElement>);
+
+impl gpui::Global for MarleyPreviewHeader {}
+
 struct EditorPreview {
     project: Entity<Project>,
     current_path: Option<Arc<RelPath>>,
+    // Marley: the shown buffer's line count (#921).
+    marley_lines: Option<u32>,
     /// When set show a text message instead of a preview
     message: Option<HighlightedText>,
     preview_editor: Entity<Editor>,
@@ -100,6 +108,7 @@ impl EditorPreview {
             project,
             preview_editor,
             current_path: None,
+            marley_lines: None,
             message: None,
             pending_update: Task::ready(()),
         };
@@ -203,6 +212,10 @@ impl EditorPreview {
     ) {
         self.message = None; // show the preview editor
         self.current_path = buffer.read(cx).file().map(|file| file.path().clone());
+        // Marley: the shown file's line count, for the preview's header (#921); the empty line
+        // after a final newline is no line.
+        let marley_end = buffer.read(cx).max_point();
+        self.marley_lines = Some(marley_end.row + u32::from(marley_end.column > 0));
 
         const MIN_LINE_HEIGHT_PX: Pixels = px(6.0);
         const MARGIN: u32 = 2; // scrolling can offset things;
@@ -330,11 +343,30 @@ impl EditorPreview {
         if let Some(message) = &self.message {
             self.render_message(message, cx).into_any_element()
         } else {
-            div()
-                .flex_1()
-                .overflow_hidden()
-                .child(self.occluded_editor())
-                .into_any_element()
+            // Marley: the file's path and line count over the editor (#921).
+            let marley_header = cx
+                .try_global::<MarleyPreviewHeader>()
+                .zip(self.current_path.as_ref())
+                .zip(self.marley_lines)
+                .and_then(|((hook, path), lines)| (hook.0)(path.as_unix_str(), lines, cx));
+            match marley_header {
+                Some(header) => v_flex()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(header)
+                    .child(
+                        div()
+                            .flex_1()
+                            .overflow_hidden()
+                            .child(self.occluded_editor()),
+                    )
+                    .into_any_element(),
+                None => div()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(self.occluded_editor())
+                    .into_any_element(),
+            }
         }
     }
 

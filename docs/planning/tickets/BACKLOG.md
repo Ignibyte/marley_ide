@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-921](open/TICKET-921-file-finder-as-the-board.md) | feature | The file finder as the board draws it (design review 2026-10-23) |
 | [TICKET-922](open/TICKET-922-bottom-drawer-as-the-board.md) | feature | The bottom drawer as the board draws it (design review 2026-10-23) |
 | [TICKET-923](open/TICKET-923-side-panels-as-the-board.md) | feature | The Inspector and Files as the SidePanels board draws them (design review 2026-10-23) |
 | [TICKET-924](open/TICKET-924-review-and-diff-review-as-the-board.md) | feature | Plan review and diff review as the board draws them (design review 2026-10-23) |

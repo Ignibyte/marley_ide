@@ -4592,3 +4592,12 @@ which runs inside the view's render, so the read panicked ("cannot read Terminal
 already being updated") and Marley drew nothing. F-claude-865 is the same class. Fixed: the check
 takes the prompt's editor and the footer context's terminal and reads no view. A footer or header
 hook takes what it needs from its context and never reads the view it draws in.
+
+## F-claude-921-a-buffers-line-count-took-the-line-after-its-newline-001
+*found: 2026-10-25 · while: testing #921 · severity: low*
+
+The preview's header counted a buffer's lines as `max_point().row + 1`, which counts the empty line
+after a final newline: a 1 201-line file read "1 202 lines". Fixed: the row count, plus one only
+when the last line holds text (`max_point().column > 0`). A line count from a rope's end point
+counts the last row only when it is not empty.
+

@@ -3247,6 +3247,13 @@ screen opens Home after `rusty_unavailable`.
 
 ## The pickers (`src/pickers.rs`, `src/agents.rs`, Zed's `command_palette.rs` and `picker.rs`, #839)
 
+- **The file finder's rows and the preview's header (#921).** `pickers::init` also sets
+  `file_finder::MarleyFinderLook { row: finder_marks, hint: finder_hint }` and
+  `picker_preview::MarleyPreviewHeader(preview_header)`. `finder_marks`, in the Marley layout,
+  gives a row its extension's tile (none for a file with no extension, which keeps its icon) and
+  a badge from `Project::project_path_git_status` (`!`, `U`, `D`, `M`, `A`, the project panel's
+  order and colours); `finder_hint` the key bound to `file_finder::Toggle`; `preview_header` the
+  path and "N lines", grouped by thousands with a space (`grouped`).
 - **The palette's rows as the board draws them (#920).** `pickers::init` sets
   `command_palette::MarleyPaletteLook { row: palette_row, help }`. `palette_row` answers, in the
   Marley layout only, a `MarleyPaletteRow` for each of Zed's names: `PALETTE_NAMES` for the

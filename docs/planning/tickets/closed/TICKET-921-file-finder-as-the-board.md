@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #921 (feature, the Marley look, file finder)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [921-file-finder-as-the-board.spec.md](../../pipeline/queued/921-file-finder-as-the-board.spec.md)
+- **Pipeline doc:** [921-file-finder-as-the-board.spec.md](../../pipeline/completed/921-file-finder-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/C-threads.md, boards Palette), build order line 8
 - **Boards:** Palette (its "Go to a file" panel)
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 
