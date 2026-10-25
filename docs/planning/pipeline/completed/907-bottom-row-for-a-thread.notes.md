@@ -42,6 +42,14 @@
   names it until the Plan / Act ticket; the activity text is capped at about 320 px, as the waiting
   chip is (`ASK_WIDTH`).
 
+- **Promoted 2026-10-25:** seams re-read after #905: `focus_row.rs` `render_thread` and
+  `set_active_pane_item` unchanged; `thread_tab.rs` `follow_details_thread` :673,
+  `render_details` :697, `humanize` :1069; `thread_view.rs` `TurnFields` :699 (pub, the view's
+  `turn_fields` pub), `current_model_id` :1282, `render_thinking_control` :5841 (native effort
+  from `LanguageModelEffortLevel { name, value }`); `config_options.rs` `current_value_name`
+  :395 (on `ConfigOptionSelector`), `find_option_name` :1105; `mode_selector.rs` `render` :133.
+  #905's `item_kind::AgentMark` gives the tile.
+
 ### Design
 - `thread_activity.rs` (Marley crate, new): `pub(crate) struct ThreadActivity { status:
   marley_rail::ThreadStatus, doing: SharedString, since: Option<Instant> }` with accessors, and
@@ -96,7 +104,37 @@
   profile shows cost, observe only while the status is running.
 
 ## Phase 2 — Code
+- **Built:** `thread_activity.rs`; `focus_row.rs` (`render_thread`, `follow_thread`,
+  `render_full_width`, `activity_chip`, `context_meter`, `files_changed`); `thread_tab.rs`
+  (`ChangedFile`, `changed_files`, `humanize` shared); `item_kind::tile` moved out of
+  `tab_tiles.rs`; Zed hunks: `MarleySessionFacts` and `marley_session_facts` (`thread_view.rs`,
+  re-exported from `agent_ui.rs`), `ConfigOptionsView::value_name_of`, `ModeSelector::mode_name`
+  (which `render` now calls). Ledger rows written first.
+- **Deviations:** `follow_thread` is generic over the view type: `ThreadView` has no export. The
+  row's needs-you part leaves out the front thread's own request
+  (F-claude-907-the-row-repeated-the-front-threads-wait-001).
+- **Review:** the row reads the conversation, its thread view, thread and action log in its own
+  render, never the workspace in an update; each Zed hunk is an accessor with a `// Marley:`
+  comment (REQ-009). Google style: `ChangedFile` with named fields replaces the details panel's
+  four-field tuple; `MarleySessionFacts` has named fields.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/907-bottom-row-for-a-thread.sh` (sway): Marley's entry on a scripted
+  ACP agent with model, thought-level and mode config options, a usage update, a client write of
+  notes.md, an "Edit notes.md" tool call held open on a flag file, then a permission request.
+- `907-01-working`: `M` tile, "Marley", "Opus 5.5 · High", "Act", "Working · Edit notes.md · 6 s"
+  on amber, Context bar "48k of 200k", "1 file · +4 −0", Full width (REQ-001 to REQ-006).
+- `907-02-ticked`: "· 14 s" (REQ-004).
+- `907-03-done`: "Idle · 1 file changed" on grey (REQ-004, REQ-006).
+- `907-04-waiting`: "Needs you · Edit README.md · 5 s" in pink; no repeated request after Full
+  width (REQ-004).
+- `907-05-full-width`: the text runs the window's width, Full width lit (REQ-007).
+- `907-06-day`: Marley Day (REQ-008).
+- The first full run showed the request twice (fixed, above). The details panel still reads "its
+  default model" for an agent that names its model through config options; it reads
+  `current_model_id`, which this ticket left alone.
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`, three ledger rows.
+- Knowledge: F-claude-907-the-row-repeated-the-front-threads-wait-001.

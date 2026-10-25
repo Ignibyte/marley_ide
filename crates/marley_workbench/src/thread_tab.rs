@@ -726,24 +726,7 @@ impl ThreadTab {
             let usage = thread
                 .token_usage()
                 .map(|usage| (usage.used_tokens, usage.max_tokens));
-            let files: Vec<(SharedString, u32, u32, Option<project::ProjectPath>)> = thread
-                .action_log()
-                .read(cx)
-                .changed_buffers(cx)
-                .map(|(buffer, diff)| {
-                    let file = buffer.read(cx).file().cloned();
-                    let name = file.as_ref().map_or_else(
-                        || SharedString::new_static("untitled"),
-                        |file| SharedString::from(file.path().as_unix_str().to_string()),
-                    );
-                    let stats = action_log::DiffStats::single_file(diff.read(cx));
-                    let path = file.map(|file| project::ProjectPath {
-                        worktree_id: file.worktree_id(cx),
-                        path: Arc::clone(file.path()),
-                    });
-                    (name, stats.lines_added, stats.lines_removed, path)
-                })
-                .collect();
+            let files = changed_files(thread, cx);
             let plan = plan_of(thread);
             let peek = terminal_peek(thread, cx);
             let checks = checks_of(thread, cx);
@@ -1001,10 +984,7 @@ fn context_section(usage: Option<(u64, u64)>, cx: &App) -> AnyElement {
 }
 
 /// FILES CHANGED: each file the thread edited and has not had kept or rejected, a click opening it.
-fn files_section(
-    files: Vec<(SharedString, u32, u32, Option<project::ProjectPath>)>,
-    cx: &App,
-) -> AnyElement {
+fn files_section(files: Vec<ChangedFile>, cx: &App) -> AnyElement {
     let empty = files.is_empty();
     v_flex()
         .gap_1()
@@ -1016,57 +996,94 @@ fn files_section(
                     .color(Color::Muted),
             )
         })
-        .children(
-            files
-                .into_iter()
-                .enumerate()
-                .map(|(index, (name, added, removed, path))| {
-                    h_flex()
-                        .id(("marley-thread-details-file", index))
-                        .gap_2()
-                        .px_1()
-                        .rounded_sm()
-                        .hover(|style| style.bg(cx.theme().colors().element_hover))
-                        .cursor_pointer()
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .child(Label::new(name).size(LabelSize::Small).truncate()),
-                        )
-                        .child(
-                            Label::new(format!("+{added}"))
-                                .size(LabelSize::XSmall)
-                                .color(Color::Created),
-                        )
-                        .child(
-                            Label::new(format!("−{removed}"))
-                                .size(LabelSize::XSmall)
-                                .color(Color::Deleted),
-                        )
-                        .on_click(move |_, window, cx| {
-                            let Some(path) = path.clone() else {
-                                return;
-                            };
-                            let Some(multi_workspace) =
-                                window.root::<workspace::MultiWorkspace>().flatten()
-                            else {
-                                return;
-                            };
-                            let workspace = multi_workspace.read(cx).workspace().clone();
-                            workspace.update(cx, |workspace, cx| {
-                                workspace
-                                    .open_path(path, None, true, window, cx)
-                                    .detach_and_log_err(cx);
-                            });
-                        })
-                }),
-        )
+        .children(files.into_iter().enumerate().map(|(index, file)| {
+            let ChangedFile {
+                name,
+                added,
+                removed,
+                path,
+            } = file;
+            h_flex()
+                .id(("marley-thread-details-file", index))
+                .gap_2()
+                .px_1()
+                .rounded_sm()
+                .hover(|style| style.bg(cx.theme().colors().element_hover))
+                .cursor_pointer()
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new(name).size(LabelSize::Small).truncate()),
+                )
+                .child(
+                    Label::new(format!("+{added}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Created),
+                )
+                .child(
+                    Label::new(format!("−{removed}"))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Deleted),
+                )
+                .on_click(move |_, window, cx| {
+                    let Some(path) = path.clone() else {
+                        return;
+                    };
+                    let Some(multi_workspace) =
+                        window.root::<workspace::MultiWorkspace>().flatten()
+                    else {
+                        return;
+                    };
+                    let workspace = multi_workspace.read(cx).workspace().clone();
+                    workspace.update(cx, |workspace, cx| {
+                        workspace
+                            .open_path(path, None, true, window, cx)
+                            .detach_and_log_err(cx);
+                    });
+                })
+        }))
         .into_any_element()
 }
 
+/// A file a thread changed, with the lines it added and removed (#825), as the details panel and
+/// the bottom row (#907) both count them.
+pub(crate) struct ChangedFile {
+    pub(crate) name: SharedString,
+    pub(crate) added: u32,
+    pub(crate) removed: u32,
+    pub(crate) path: Option<project::ProjectPath>,
+}
+
+/// The files `thread`'s action log holds changes to.
+pub(crate) fn changed_files(thread: &acp_thread::AcpThread, cx: &App) -> Vec<ChangedFile> {
+    thread
+        .action_log()
+        .read(cx)
+        .changed_buffers(cx)
+        .map(|(buffer, diff)| {
+            let file = buffer.read(cx).file().cloned();
+            let name = file.as_ref().map_or_else(
+                || SharedString::new_static("untitled"),
+                |file| SharedString::from(file.path().as_unix_str().to_string()),
+            );
+            let stats = action_log::DiffStats::single_file(diff.read(cx));
+            let path = file.map(|file| project::ProjectPath {
+                worktree_id: file.worktree_id(cx),
+                path: Arc::clone(file.path()),
+            });
+            ChangedFile {
+                name,
+                added: stats.lines_added,
+                removed: stats.lines_removed,
+                path,
+            }
+        })
+        .collect()
+}
+
 /// A token count as the Agent Panel writes it: `48k`, `1.2M`.
-fn humanize(count: u64) -> String {
+pub(crate) fn humanize(count: u64) -> String {
     match count {
         0..1_000 => count.to_string(),
         1_000..1_000_000 => format!("{}k", count / 1_000),

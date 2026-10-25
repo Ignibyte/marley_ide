@@ -9,7 +9,7 @@ use gpui::{App, EntityId, Global, Hsla};
 use marley_agent::AgentKind;
 use marley_rail::{Attention, ThreadStatus};
 use project::AgentId;
-use ui::{ActiveTheme as _, Color, IconName, SharedString};
+use ui::{Color, IconName, prelude::*};
 
 /// An agent, as its tile's glyph and colour tell it apart (#905, D2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -191,6 +191,25 @@ impl ItemState {
             Self::Idle => "idle",
         }
     }
+}
+
+/// `glyph` on a tile `width` wide, in `kind`'s tint and ink: a tab's, a switcher row's and the
+/// bottom row's agent tile (#905, #907).
+pub(crate) fn tile(kind: ItemKind, glyph: SharedString, width: Pixels, cx: &App) -> Div {
+    div()
+        .flex_none()
+        .w(width)
+        .py_0p5()
+        .flex()
+        .justify_center()
+        .rounded_sm()
+        .bg(kind.tint(cx))
+        .child(
+            Label::new(glyph)
+                .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .color(Color::Custom(kind.ink(cx))),
+        )
 }
 
 /// Each terminal's state as its rail row shows it, by the terminal view's entity id (#905): the

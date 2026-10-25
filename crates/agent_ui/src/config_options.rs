@@ -73,6 +73,22 @@ impl ConfigOptionsView {
         }
     }
 
+    // Marley: the bottom row shows the model, effort and mode an agent's options name (#907).
+    /// The current value's name of the first option in `category`, as its selector names it.
+    pub fn value_name_of(&self, category: &acp::SessionConfigOptionCategory) -> Option<String> {
+        let option = self
+            .config_options
+            .config_options()
+            .into_iter()
+            .find(|option| option.category.as_ref() == Some(category))?;
+        match &option.kind {
+            acp::SessionConfigKind::Select(select) => {
+                find_option_name(&select.options, &select.current_value)
+            }
+            _ => None,
+        }
+    }
+
     pub fn toggle_category_picker(
         &mut self,
         category: acp::SessionConfigOptionCategory,

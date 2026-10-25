@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #907 (feature, the Marley look, the bottom row)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [907-bottom-row-for-a-thread.spec.md](../../pipeline/queued/907-bottom-row-for-a-thread.spec.md)
+- **Pipeline doc:** [907-bottom-row-for-a-thread.spec.md](../../pipeline/completed/907-bottom-row-for-a-thread.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/A-core.md, board Main; docs/marley/design-review-2026-10-23/B-rail-chrome.md, board BottomRow)
 - **Boards:** Main, BottomRow
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

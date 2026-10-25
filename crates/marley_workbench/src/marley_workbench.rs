@@ -148,6 +148,7 @@ pub mod terminal_drive;
 pub mod terminal_ids;
 pub mod terminal_show;
 pub mod terminal_size;
+pub mod thread_activity;
 pub mod thread_tab;
 pub mod thread_tools;
 pub mod threads_page;

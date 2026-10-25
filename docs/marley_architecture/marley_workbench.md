@@ -2268,6 +2268,16 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **The bottom row for a thread (#907).** `thread_activity.rs`: `ThreadActivity { status, doing,
+  since }` from a conversation (the newest tool call still open, "thinking", "N files changed",
+  "idle", "failed"; since the turn started while it works or waits) and `elapsed_words`; #910's
+  rail rows are to read it too. `focus_row.rs` `render_thread`: `item_kind::tile`, the agent's
+  name, `ThreadView::marley_session_facts` (model, effort, mode), `activity_chip`,
+  `context_meter`, `files_changed` (`thread_tab::changed_files`, which the details panel uses
+  too) and `render_full_width` (`agent.limit_content_width`, as #822). `follow_thread` observes the
+  thread view (its one-second turn timer), the thread and its action log. `render_waiting` leaves
+  out a request of the thread in front. `item_kind::tile` is now the one tile (tabs, switcher,
+  row).
 - **Kinds and states in one place (#905).** `item_kind.rs` owns `AgentMark` (from an
   `AgentKind`, or a thread's `AgentId`: the Claude and Codex ACP adapters, Marley's and Rusty's
   entries by `assistant_icon`, else the id's first letter), `ItemKind` (`ink`, and `tint` the ink

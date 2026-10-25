@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom row for a thread** (#907, 2026-10-25). With a thread tab in front, the bottom row
+  shows the agent's tile and name, the model and its effort ("Opus 5.5 · High"), the mode, what
+  the agent does or asks with how long ("Working · Edit notes.md · 14 s", "Needs you · Edit
+  README.md · 5 s", "Idle · 1 file changed"), a Context meter ("48k of 200k"), the files it
+  changed with lines added and removed, and Full width, the same switch as the composer's.
+
 - **Tabs and the Ctrl Tab switcher tinted by kind** (#905, 2026-10-25). A tab's tile now says
   what it holds in the boards' colours: an agent's letters in its own colour (`CC` amber, `CX`
   violet, `M` for Marley, `R` for Rusty), `tx` in teal for tmux, `www` and a file's extension in

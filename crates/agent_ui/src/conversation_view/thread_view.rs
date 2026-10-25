@@ -695,6 +695,14 @@ impl ThreadView {
     }
 }
 
+// Marley: what Marley's bottom row shows of a session (#907).
+/// The names of a session's model, effort and mode; each `None` when the agent does not report it.
+pub struct MarleySessionFacts {
+    pub model: Option<SharedString>,
+    pub effort: Option<SharedString>,
+    pub mode: Option<SharedString>,
+}
+
 #[derive(Default)]
 pub struct TurnFields {
     pub _turn_timer_task: Option<Task<()>>,
@@ -1283,6 +1291,53 @@ impl ThreadView {
         let selector = self.model_selector.as_ref()?;
         let model = selector.read(cx).active_model(cx)?;
         Some(model.id.to_string())
+    }
+
+    // Marley: the model, effort and mode the view shows, for Marley's bottom row (#907).
+    /// The names of the session's model, its effort and its mode, as the composer's selectors and
+    /// an agent's config options show them; none for what the agent does not report.
+    pub fn marley_session_facts(&self, cx: &App) -> MarleySessionFacts {
+        let options = self.config_options_view.as_ref().map(|view| view.read(cx));
+        let option = |category| {
+            options
+                .and_then(|options| options.value_name_of(&category))
+                .map(SharedString::from)
+        };
+        let native = self.as_native_thread(cx).map(|thread| thread.read(cx));
+        let model = self
+            .model_selector
+            .as_ref()
+            .and_then(|selector| selector.read(cx).active_model(cx))
+            .map(|model| model.name.clone())
+            .or_else(|| option(acp_v2::SessionConfigOptionCategory::Model))
+            .or_else(|| {
+                native
+                    .and_then(|thread| thread.model())
+                    .map(|model| model.name().0)
+            });
+        let effort = native
+            .and_then(|thread| {
+                let selected = thread.thinking_effort()?;
+                thread
+                    .model()?
+                    .supported_effort_levels()
+                    .into_iter()
+                    .find(|level| level.value.as_ref() == selected.as_str())
+                    .map(|level| level.name)
+            })
+            .or_else(|| option(acp_v2::SessionConfigOptionCategory::ThoughtLevel));
+        let mode = self
+            .mode_selector
+            .as_ref()
+            .and_then(|selector| selector.read(cx).mode_name())
+            .map(SharedString::from)
+            .or_else(|| option(acp_v2::SessionConfigOptionCategory::Mode))
+            .or_else(|| native.map(|thread| SharedString::from(thread.profile().0.to_string())));
+        MarleySessionFacts {
+            model,
+            effort,
+            mode,
+        }
     }
 
     pub fn current_mode_id(&self, cx: &App) -> Option<Arc<str>> {

@@ -87,6 +87,8 @@ pub use conversation_view::open_markdown_in_workspace;
 pub use conversation_view::{ConversationView, StateChange};
 // Marley: the thread's look, which Marley sets (#864).
 pub use conversation_view::MarleyThreadLook;
+// Marley: the session facts Marley's bottom row reads (#907).
+pub use conversation_view::MarleySessionFacts;
 pub use external_source_prompt::ExternalSourcePrompt;
 pub use inline_prompt_editor::MarleyInlineAssistLook;
 pub(crate) use mode_selector::ModeSelector;

@@ -4532,3 +4532,12 @@ from how long the agent's screen has been quiet (`marley_agent::agent_status`). 
 Code sat quiet: its rail row said "waiting" in pink and its tab's dot was amber. Fixed: the rail
 publishes each shown terminal's row state (`item_kind::TerminalStates`) when it rebuilds its
 snapshot, and the tab and the switcher take that word first.
+
+## F-claude-907-the-row-repeated-the-front-threads-wait-001
+*found: 2026-10-25 · while: testing #907 · severity: low*
+
+With #907's activity chip in the bottom row, a thread in front that waited on a permission was
+said twice: the chip read "Needs you · Edit README.md", and the row's needs-you part (#833) named
+the same request after Full width, where the language-server message's room cut it to "Marley i".
+Fixed: `render_waiting` leaves the request out when the oldest one belongs to the thread in front
+(its inbox key starts `thread:<key>:`); a request from anywhere else still shows.

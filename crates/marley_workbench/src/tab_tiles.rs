@@ -17,7 +17,7 @@ use workspace::pane::{MarleySplitPictures, MarleyTabLook, MarleyTabMark};
 use workspace::{MultiWorkspace, SplitDirection};
 
 use crate::browser::{BrowserHub, BrowserView};
-use crate::item_kind::{AgentMark, ItemKind, ItemState};
+use crate::item_kind::{AgentMark, ItemKind, ItemState, tile};
 use crate::thread_tab::ThreadTab;
 use crate::tmux_sessions::TmuxHosts;
 
@@ -177,24 +177,6 @@ fn split_picture(direction: SplitDirection, cx: &App) -> AnyElement {
         .border_1()
         .border_color(colors.border)
         .into_any_element()
-}
-
-/// `glyph` on a tile `width` wide, in `kind`'s tint and ink.
-fn tile(kind: ItemKind, glyph: SharedString, width: Pixels, cx: &App) -> Div {
-    div()
-        .flex_none()
-        .w(width)
-        .py_0p5()
-        .flex()
-        .justify_center()
-        .rounded_sm()
-        .bg(kind.tint(cx))
-        .child(
-            Label::new(glyph)
-                .size(LabelSize::XSmall)
-                .buffer_font(cx)
-                .color(Color::Custom(kind.ink(cx))),
-        )
 }
 
 /// `item`'s tile, its state a dot at the corner, and its line, "<project> · <state>" (#883,

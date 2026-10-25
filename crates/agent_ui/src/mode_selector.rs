@@ -58,6 +58,17 @@ impl ModeSelector {
         }
     }
 
+    // Marley: the bottom row shows the mode's name (#907).
+    /// The current mode's name, as the selector shows it.
+    pub fn mode_name(&self) -> Option<String> {
+        let current_mode_id = self.connection.current_mode();
+        self.connection
+            .all_modes()
+            .iter()
+            .find(|mode| mode.value == current_mode_id)
+            .map(|mode| mode.name.clone())
+    }
+
     pub fn mode(&self) -> acp::SessionConfigValueId {
         self.connection.current_mode()
     }
@@ -131,14 +142,7 @@ impl ModeSelector {
 
 impl Render for ModeSelector {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let current_mode_id = self.connection.current_mode();
-        let current_mode_name = self
-            .connection
-            .all_modes()
-            .iter()
-            .find(|mode| mode.value == current_mode_id)
-            .map(|mode| mode.name.clone())
-            .unwrap_or_else(|| "Unknown".into());
+        let current_mode_name = self.mode_name().unwrap_or_else(|| "Unknown".into());
 
         let this = cx.weak_entity();
 

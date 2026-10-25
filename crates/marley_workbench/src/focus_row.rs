@@ -1,25 +1,31 @@
 //! The start of the bottom row says what has the focus (#833).
 //!
 //! A file shows its type and path; a terminal its title, folder, last command and its exit,
-//! whether a command runs, and its blocks; an agent thread its agent and state. Whenever an agent
+//! whether a command runs, and its blocks; an agent thread its agent, model, mode, what it does
+//! and for how long, its context and the files it changed (#907). Whenever an agent
 //! anywhere waits on the user, the row says so, with Allow and Open, as the rail's inbox does.
 
 use std::path::Path;
+use std::sync::Arc;
 
+use agent_settings::AgentSettings;
 use agent_ui::ConversationView;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, IntoElement, Render, Subscription, WeakEntity,
-    Window, px,
+    AnyElement, App, Context, Entity, EntityId, FontWeight, IntoElement, Render, Subscription,
+    WeakEntity, Window, px,
 };
 use marley_rail::{InboxAnswer, InboxEntry};
+use settings::Settings as _;
 use terminal_view::{MarleyBlockMarks, TerminalView};
 use ui::{Button, ButtonStyle, Label, LabelSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::item::ItemHandle;
 use workspace::{MultiWorkspace, StatusItemView, Workspace};
 
+use crate::item_kind::{self, AgentMark, ItemKind, ItemState};
 use crate::rail::Rail;
-use crate::thread_tab::ThreadTab;
+use crate::thread_activity::{self, ThreadActivity};
+use crate::thread_tab::{self, ThreadTab};
 use crate::tmux_sessions::{Listing, TmuxHosts};
 
 /// The most of a waiting agent's request the row shows.
@@ -28,6 +34,8 @@ const ASK_MAX: usize = 80;
 /// keep their places.
 const TITLE_MAX: f32 = 200.;
 const ASK_WIDTH: f32 = 320.;
+/// The widest a thread's activity draws (PR-claude-833).
+const ACTIVITY_WIDTH: f32 = 280.;
 
 /// What the active item is, as the row tells it.
 enum Focus {
@@ -43,6 +51,9 @@ pub struct FocusRow {
     focus: Focus,
     /// The active item's entity, observed so its state redraws the row.
     item_events: Option<Subscription>,
+    /// A thread tab's thread view, thread and action log, observed once it has them, so the turn's
+    /// timer, token use and edits redraw the row (#907).
+    thread_events: Option<(EntityId, [Subscription; 3])>,
     /// The rail the needs-you part reads, observed.
     rail: Option<(WeakEntity<Rail>, Subscription)>,
     _tmux: Subscription,
@@ -62,6 +73,7 @@ impl FocusRow {
             workspace,
             focus: Focus::None,
             item_events: None,
+            thread_events: None,
             rail: None,
             _tmux: cx.observe_global::<TmuxHosts>(|_, cx| cx.notify()),
         }
@@ -194,50 +206,136 @@ impl FocusRow {
             .into_any_element()
     }
 
-    fn render_thread(&self, conversation: &Entity<ConversationView>, cx: &App) -> AnyElement {
-        let conversation = conversation.read(cx);
-        let agent = conversation.agent_key().id();
+    /// Follows a conversation's thread view (its turn timer), its thread (token use, tool calls)
+    /// and its action log (edits) (#907). `ThreadView` is `agent_ui`'s own, named by no export.
+    fn follow_thread<V: 'static>(
+        &mut self,
+        view: &Entity<V>,
+        thread: &Entity<acp_thread::AcpThread>,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .thread_events
+            .as_ref()
+            .is_some_and(|(id, _)| *id == view.entity_id())
+        {
+            return;
+        }
+        let action_log = thread.read(cx).action_log().clone();
+        self.thread_events = Some((
+            view.entity_id(),
+            [
+                cx.observe(view, |_, _, cx| cx.notify()),
+                cx.observe(thread, |_, _, cx| cx.notify()),
+                cx.observe(&action_log, |_, _, cx| cx.notify()),
+            ],
+        ));
+    }
+
+    /// A thread as the Main and `BottomRow` boards draw it (#907): its agent, model and effort,
+    /// mode, what it does or asks and for how long, its context, the files it changed, and Full
+    /// width.
+    fn render_thread(
+        &mut self,
+        conversation: &Entity<ConversationView>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let agent = conversation.read(cx).agent_key().id();
         let name = self.workspace.upgrade().map_or_else(
             || agent.0.clone(),
             |workspace| crate::agents::thread_agent_name(&agent, workspace.read(cx).project(), cx),
         );
-        let status = conversation.root_thread_view().map(|view| {
-            let thread = view.read(cx).thread.read(cx);
-            marley_rail::thread_status(
-                conversation.root_thread_has_pending_tool_call(cx),
-                thread.had_error(),
-                thread.status() == acp_thread::ThreadStatus::Generating,
-            )
+        let mark = AgentMark::from_agent_id(&agent);
+        let view = conversation.read(cx).root_thread_view();
+        if let Some(view) = &view {
+            let thread = view.read(cx).thread.clone();
+            self.follow_thread(view, &thread, cx);
+        }
+        let facts = view
+            .as_ref()
+            .map(|view| view.read(cx).marley_session_facts(cx));
+        let (usage, files) = view.as_ref().map_or_else(
+            || (None, Vec::new()),
+            |view| {
+                let thread = view.read(cx).thread.read(cx);
+                let usage = thread
+                    .token_usage()
+                    .map(|usage| (usage.used_tokens, usage.max_tokens));
+                (usage, thread_tab::changed_files(thread, cx))
+            },
+        );
+        let activity = thread_activity::thread_activity(conversation, cx);
+        let (model, mode) = facts.map_or((None, None), |facts| {
+            let model = facts.model.map(|model| {
+                facts.effort.map_or_else(
+                    || model.to_string(),
+                    |effort| format!("{model} \u{b7} {effort}"),
+                )
+            });
+            (model, facts.mode.map(|mode| mode.to_string()))
         });
         h_flex()
             .debug_selector(|| "marley-focus-thread".into())
-            .gap_2()
+            .gap_3()
             .child(
-                Label::new(name)
-                    .size(LabelSize::Small)
-                    .weight(FontWeight::SEMIBOLD),
+                h_flex()
+                    .gap_1p5()
+                    .child(item_kind::tile(
+                        ItemKind::Thread(mark),
+                        mark.glyph(),
+                        px(22.),
+                        cx,
+                    ))
+                    .child(
+                        Label::new(name)
+                            .size(LabelSize::Small)
+                            .weight(FontWeight::SEMIBOLD),
+                    ),
             )
-            .children(status.map(|status| {
-                let color = match status {
-                    marley_rail::ThreadStatus::Running => Color::Warning,
-                    marley_rail::ThreadStatus::Waiting => Color::Conflict,
-                    marley_rail::ThreadStatus::Error => Color::Error,
-                    marley_rail::ThreadStatus::Done => Color::Muted,
+            .children(model.map(muted))
+            .children(mode.map(muted))
+            .children(activity.map(|activity| activity_chip(&activity, cx)))
+            .children(usage.and_then(|usage| context_meter(usage, cx)))
+            .children(files_changed(&files))
+            .child(self.render_full_width(cx))
+            .into_any_element()
+    }
+
+    /// Full width (#907, D3): the thread's text the full width or a readable column, the one
+    /// setting #822's button in the composer flips.
+    fn render_full_width(&self, cx: &App) -> AnyElement {
+        let limited = AgentSettings::get_global(cx).max_content_width.is_some();
+        let fs = self
+            .workspace
+            .upgrade()
+            .map(|workspace| Arc::clone(&workspace.read(cx).app_state().fs));
+        Button::new("marley-focus-full-width", "Full width")
+            .label_size(LabelSize::Small)
+            .style(ButtonStyle::Subtle)
+            .toggle_state(!limited)
+            .on_click(move |_, _, cx| {
+                let Some(fs) = fs.clone() else {
+                    return;
                 };
-                Label::new(status.label())
-                    .size(LabelSize::Small)
-                    .color(color)
-                    .into_any_element()
-            }))
-            .child(muted(conversation.title(cx).to_string()))
+                settings::update_settings_file(fs, cx, move |settings, _| {
+                    settings.agent.get_or_insert_default().limit_content_width = Some(!limited);
+                });
+            })
             .into_any_element()
     }
 
     /// The oldest request waiting on the user, with Allow when it takes one, Open, and how many
     /// more wait.
-    fn render_waiting(rail: &Entity<Rail>, cx: &App) -> Option<AnyElement> {
+    /// `front` is the thread in front, by its key: when it is the one waiting, its own chip already
+    /// says so (#907), and the row leaves the request out.
+    fn render_waiting(rail: &Entity<Rail>, front: Option<&str>, cx: &App) -> Option<AnyElement> {
         let inbox = rail.read(cx).inbox();
         let entry: &InboxEntry = inbox.first()?;
+        if let Some(front) = front
+            && entry.key.starts_with(&format!("thread:{front}:"))
+        {
+            return None;
+        }
         let more = inbox.len() - 1;
         let ask = if entry.ask.chars().count() > ASK_MAX {
             let mut cut: String = entry.ask.chars().take(ASK_MAX - 1).collect();
@@ -314,12 +412,22 @@ impl Render for FocusRow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let rail = self.rail(window, cx);
         let focus = match &self.focus {
-            Focus::None => None,
             Focus::File(item) => Self::render_file(item.as_ref(), cx),
             Focus::Terminal(item, view) => Some(self.render_terminal(item.as_ref(), view, cx)),
-            Focus::Thread(conversation) => Some(self.render_thread(conversation, cx)),
+            // A thread draws below, where the row's own context can follow its thread.
+            Focus::None | Focus::Thread(_) => None,
         };
-        let waiting = rail.and_then(|rail| Self::render_waiting(&rail, cx));
+        let thread = match &self.focus {
+            Focus::Thread(conversation) => Some(conversation.clone()),
+            _ => None,
+        };
+        let focus =
+            focus.or_else(|| thread.map(|conversation| self.render_thread(&conversation, cx)));
+        let front = match &self.focus {
+            Focus::Thread(conversation) => Some(conversation.read(cx).parent_id().to_key_string()),
+            _ => None,
+        };
+        let waiting = rail.and_then(|rail| Self::render_waiting(&rail, front.as_deref(), cx));
         // The row keeps its width, its title and request already capped; Zed's items after it
         // (the language servers' message) are the ones that shorten.
         h_flex()
@@ -339,6 +447,7 @@ impl StatusItemView for FocusRow {
         cx: &mut Context<Self>,
     ) {
         self.item_events = None;
+        self.thread_events = None;
         self.focus = match active_pane_item {
             None => Focus::None,
             Some(item) => {
@@ -363,6 +472,118 @@ impl StatusItemView for FocusRow {
     fn hide_setting(&self, _cx: &App) -> Option<workspace::HideStatusItem> {
         None
     }
+}
+
+/// A thread's state, what it does or asks and for how long, on its state's colour (#907).
+fn activity_chip(activity: &ThreadActivity, cx: &App) -> AnyElement {
+    let state = ItemState::from_thread(activity.status());
+    let status = cx.theme().status();
+    let background = match state {
+        ItemState::Working => status.warning_background,
+        ItemState::NeedsYou => status.conflict_background,
+        ItemState::Failed => status.error_background,
+        ItemState::Done | ItemState::Idle => cx.theme().colors().element_background,
+    };
+    let word = state.words();
+    let mut parts: Vec<String> = vec![capitalized(word)];
+    if activity.doing().as_ref() != word {
+        parts.push(activity.doing().to_string());
+    }
+    if let Some(elapsed) = activity.elapsed() {
+        parts.push(thread_activity::elapsed_words(elapsed));
+    }
+    h_flex()
+        .debug_selector(|| "marley-focus-activity".into())
+        .flex_none()
+        .gap_1p5()
+        .px_1p5()
+        .rounded_sm()
+        .bg(background)
+        .child(div().size_1p5().rounded_full().bg(state.dot(cx)))
+        .child(
+            div().max_w(px(ACTIVITY_WIDTH)).min_w_0().child(
+                Label::new(parts.join(" \u{b7} "))
+                    .size(LabelSize::Small)
+                    .color(state.line(cx))
+                    .truncate(),
+            ),
+        )
+        .into_any_element()
+}
+
+/// "Context", a small bar and "<used> of <max>" (#907), when the agent says its window.
+fn context_meter((used, max): (u64, u64), cx: &App) -> Option<AnyElement> {
+    if max == 0 {
+        return None;
+    }
+    // In thousandths, which a u16 holds and an f32 takes whole.
+    let thousandths = u16::try_from(used.min(max) * 1000 / max).unwrap_or(1000);
+    let share = f32::from(thousandths) / 1000.;
+    Some(
+        h_flex()
+            .flex_none()
+            .gap_1p5()
+            .child(muted("Context".to_string()))
+            .child(
+                div()
+                    .w(px(48.))
+                    .h_1()
+                    .rounded_full()
+                    .bg(cx.theme().colors().element_background)
+                    .child(
+                        div()
+                            .h_full()
+                            .w(relative(share))
+                            .rounded_full()
+                            .bg(cx.theme().colors().text_accent),
+                    ),
+            )
+            .child(muted(format!(
+                "{} of {}",
+                thread_tab::humanize(used),
+                thread_tab::humanize(max)
+            )))
+            .into_any_element(),
+    )
+}
+
+/// "<N> files · +<added> −<removed>" (#907), when the thread changed any.
+fn files_changed(files: &[thread_tab::ChangedFile]) -> Option<AnyElement> {
+    if files.is_empty() {
+        return None;
+    }
+    let added: u32 = files.iter().map(|file| file.added).sum();
+    let removed: u32 = files.iter().map(|file| file.removed).sum();
+    let count = if files.len() == 1 {
+        "1 file".to_string()
+    } else {
+        format!("{} files", files.len())
+    };
+    Some(
+        h_flex()
+            .flex_none()
+            .gap_1()
+            .child(muted(format!("{count} \u{b7}")))
+            .child(
+                Label::new(format!("+{added}"))
+                    .size(LabelSize::Small)
+                    .color(Color::Created),
+            )
+            .child(
+                Label::new(format!("\u{2212}{removed}"))
+                    .size(LabelSize::Small)
+                    .color(Color::Deleted),
+            )
+            .into_any_element(),
+    )
+}
+
+/// `word` with its first letter in capitals: "needs you" → "Needs you".
+fn capitalized(word: &str) -> String {
+    let mut letters = word.chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
 }
 
 /// A small rounded chip of short text: a file's extension, `>_`.

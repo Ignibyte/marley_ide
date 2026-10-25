@@ -1,7 +1,7 @@
 ---
 pipeline_id: e4905be0-9ae2-4426-bade-f69ceb8e77cd
 ticket: docs/planning/tickets/open/TICKET-907-bottom-row-for-a-thread.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The bottom row for a thread
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
