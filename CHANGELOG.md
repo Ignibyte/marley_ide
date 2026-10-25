@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The rail's menus and strip** (#911, 2026-10-25). A header's menu gains Fold (Unfold while
+  folded) and ends with Close Project in red. A terminal row's menu gains Turns (N), Send Block to
+  Agent and Split Right, and ends with Close in red. The empty space offers "New Terminal in
+  Default" and "New Browser Tab in Default". New Group… names the group in a field at the rail's
+  foot. The shrunk strip has a `+` at its foot that opens Add Project.
+
 - **Rail rows say what is going on** (#910, 2026-10-25). A thread row's second line says what its
   agent does ("Edit notes.md") or asks ("Allow Edit README.md?"), what a turn finished unseen left
   ("1 file changed"), else its model and "idle", in its state's colour. A shell row says its

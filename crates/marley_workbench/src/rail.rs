@@ -69,7 +69,7 @@ use util::shell::ShellKind;
 use uuid::Uuid;
 use workspace::{
     MultiWorkspace, MultiWorkspaceEvent, OpenMode, Pane, ProjectGroup, RemovalIntent, SaveIntent,
-    Sidebar, SidebarEvent, SidebarSide, Toast, Workspace, WorkspaceId,
+    Sidebar, SidebarEvent, SidebarSide, SplitDirection, Toast, Workspace, WorkspaceId,
     dock::DockPosition,
     item::{Item as _, ItemBufferKind, ItemEvent, WeakItemHandle},
     notifications::{DetachAndPromptErr as _, NotificationId},
@@ -198,6 +198,10 @@ pub struct Rail {
     /// reads its own fields from it and writes it back with every other field kept.
     zed_sidebar_state: Option<String>,
     add_project_menu: PopoverMenuHandle<SidebarRecentProjects>,
+    /// The strip's own Add Project popover, at its foot (#911).
+    strip_add_project_menu: PopoverMenuHandle<SidebarRecentProjects>,
+    /// New Group…'s field at the rail's foot while it is open, and its blur (#911, D8).
+    new_group: Option<(Entity<Editor>, Subscription)>,
     workspace_subscriptions: HashMap<EntityId, Subscription>,
     /// Per project: its folders, which decide its row, the row's name and its terminals'
     /// subtitles.
@@ -519,6 +523,20 @@ struct HeaderMenu {
     /// Whether the project's pull request has a failed check, which the menu offers to send to an
     /// agent (#718).
     failed_checks: bool,
+    /// The header's place in the rail, which Fold folds (#911).
+    index: usize,
+    /// Whether the header is open, for Fold or Unfold (#911).
+    open: bool,
+}
+
+/// What a terminal row's right-click menu acts on (#911).
+struct TerminalMenu {
+    /// The terminal's id in the rail.
+    id: u64,
+    /// The projects it may move to, by their place and name (#613).
+    targets: Vec<(usize, String)>,
+    /// How many turns its row lists, for Turns (N).
+    turns: usize,
 }
 
 /// A project's archived thread, as its header's menu lists it (#616).
@@ -649,17 +667,38 @@ fn archived_threads(key: &ProjectGroupKey, cx: &App) -> Vec<ArchivedThread> {
 impl HeaderMenu {
     fn build(&self, window: &mut Window, cx: &mut App) -> Entity<ContextMenu> {
         match &self.group {
-            Some((group, name)) => Rail::group_context_menu(
-                self.rail.clone(),
-                *group,
-                name.clone(),
-                self.workspace.clone(),
-                window,
-                cx,
-            ),
+            Some((group, name)) => {
+                Rail::group_context_menu(self.clone(), *group, name.clone(), window, cx)
+            }
             None => Rail::project_context_menu(self.clone(), window, cx),
         }
     }
+
+    /// Fold while the header is open, Unfold while it is folded (#911, D4).
+    fn fold_entry(&self, menu: ContextMenu) -> ContextMenu {
+        let (rail, index, open) = (self.rail.clone(), self.index, self.open);
+        menu.entry(
+            if open { "Fold" } else { "Unfold" },
+            None,
+            move |window, cx| {
+                rail.update(cx, |rail, cx| rail.fold(index, open, window, cx))
+                    .log_err();
+            },
+        )
+    }
+}
+
+/// A menu row whose words are red: a closing entry, as the board draws Close Project and Close
+/// (#911, D3), through the menu's own custom entry, so it sits in the same list.
+fn red_entry(
+    menu: ContextMenu,
+    label: &'static str,
+    handler: impl Fn(&mut Window, &mut App) + 'static,
+) -> ContextMenu {
+    menu.custom_entry(
+        move |_, _| Label::new(label).color(Color::Error).into_any_element(),
+        handler,
+    )
 }
 
 /// An element id for a closed group's header (#606), which has no workspace to take one from.
@@ -1081,12 +1120,7 @@ impl Rail {
                 },
             ),
         ];
-        // Built over Zed's sidebar, the rail starts at its width: one width for both layouts.
-        let saved = zed_sidebar
-            .as_ref()
-            .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
-            .map(|blob| read_rail_state(&blob))
-            .unwrap_or_default();
+        let saved = saved_rail_state(zed_sidebar.as_ref(), cx);
         // The `MultiWorkspace` may be mid-update while its sidebar is built, so the first read
         // waits for the end of this effect cycle.
         cx.defer_in(window, Self::refresh);
@@ -1146,6 +1180,8 @@ impl Rail {
             zed_sidebar,
             zed_sidebar_state: None,
             add_project_menu: PopoverMenuHandle::default(),
+            strip_add_project_menu: PopoverMenuHandle::default(),
+            new_group: None,
             workspace_subscriptions: HashMap::default(),
             pane_subscriptions: HashMap::default(),
             files_folded: HashSet::default(),
@@ -4641,12 +4677,89 @@ impl Rail {
     }
 
     /// Opens the prompt for a new projectless group's name (#600).
-    fn new_group(&self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+    /// New Group… (#911, D8): a field at the rail's foot names the group; Enter makes it, Escape
+    /// or leaving the field closes it.
+    fn new_group(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_placeholder_text("Group name", window, cx);
+            editor
+        });
+        let blur = cx.subscribe_in(&editor, window, |rail, _, event: &EditorEvent, _, cx| {
+            if matches!(event, EditorEvent::Blurred) {
+                rail.new_group = None;
+                cx.notify();
+            }
+        });
+        window.focus(&editor.focus_handle(cx), cx);
+        self.new_group = Some((editor, blur));
+        cx.notify();
+    }
+
+    /// Makes the group the field names, unless the name is empty, and closes the field.
+    fn make_new_group(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let Some((editor, _)) = self.new_group.take() else {
             return;
         };
-        let workspace = multi_workspace.read(cx).workspace().clone();
-        groups::prompt(&workspace, self.multi_workspace.clone(), None, window, cx);
+        let name = editor.read(cx).text(cx).trim().to_string();
+        if !name.is_empty()
+            && let Some(multi_workspace) = self.multi_workspace.upgrade()
+        {
+            groups::make(
+                &multi_workspace,
+                &name,
+                groups::GroupKind::Named,
+                |_, _, _| {},
+                window,
+                cx,
+            );
+        }
+        cx.notify();
+    }
+
+    /// New Group…'s field, as the `RailMenus` board draws it: "New group", the name and an Enter
+    /// hint on an accent border.
+    fn render_new_group(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let (editor, _) = self.new_group.as_ref()?;
+        let colors = cx.theme().colors();
+        Some(
+            v_flex()
+                .id("marley-rail-new-group")
+                .debug_selector(|| "marley-rail-new-group".into())
+                .key_context("MarleyNewGroup")
+                .on_action(cx.listener(|rail, _: &Confirm, window, cx| {
+                    rail.make_new_group(window, cx);
+                }))
+                .on_action(cx.listener(|rail, _: &Cancel, _, cx| {
+                    rail.new_group = None;
+                    cx.notify();
+                }))
+                .flex_none()
+                .m_2()
+                .px_2()
+                .py_1p5()
+                .gap_1()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border_focused)
+                .bg(colors.editor_background)
+                .child(
+                    Label::new("New group")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().child(editor.clone()))
+                        .child(
+                            Label::new("Enter")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .into_any_element(),
+        )
     }
 
     /// Opens the prompt for the projectless group `group`'s new name, holding `name` (#600).
@@ -4768,34 +4881,42 @@ impl Rail {
                         .log_err();
                 })
                 .separator()
-                .entry("New Terminal", None, move |window, cx| {
-                    terminal_rail
-                        .update(cx, |rail, cx| {
-                            rail.in_home(
-                                |rail, workspace, window, cx| {
-                                    rail.new_terminal(workspace, window, cx)
-                                },
-                                window,
-                                cx,
-                            )
-                        })
-                        .flatten()
-                        .log_err();
-                })
-                .entry("New Browser Tab", None, move |window, cx| {
-                    browser_rail
-                        .update(cx, |rail, cx| {
-                            rail.in_home(
-                                |rail, workspace, window, cx| {
-                                    rail.new_browser_tab(workspace, window, cx)
-                                },
-                                window,
-                                cx,
-                            )
-                        })
-                        .flatten()
-                        .log_err();
-                });
+                .entry(
+                    format!("New Terminal in {}", groups::DEFAULT),
+                    None,
+                    move |window, cx| {
+                        terminal_rail
+                            .update(cx, |rail, cx| {
+                                rail.in_home(
+                                    |rail, workspace, window, cx| {
+                                        rail.new_terminal(workspace, window, cx)
+                                    },
+                                    window,
+                                    cx,
+                                )
+                            })
+                            .flatten()
+                            .log_err();
+                    },
+                )
+                .entry(
+                    format!("New Browser Tab in {}", groups::DEFAULT),
+                    None,
+                    move |window, cx| {
+                        browser_rail
+                            .update(cx, |rail, cx| {
+                                rail.in_home(
+                                    |rail, workspace, window, cx| {
+                                        rail.new_browser_tab(workspace, window, cx)
+                                    },
+                                    window,
+                                    cx,
+                                )
+                            })
+                            .flatten()
+                            .log_err();
+                    },
+                );
             // The one way to start an agent (#744), as the `+` has it (#820).
             menu.entry("New Agent…", None, move |window, cx| {
                 picker_rail
@@ -5804,6 +5925,8 @@ impl Rail {
             closed,
             archived: archived_threads(&group.key, cx),
             failed_checks: has_failed_checks(group),
+            index,
+            open: row.expanded,
         };
         // A project's name reads as a section label, as Warp's tab list labels its tabs; a closed
         // one's is dimmed.
@@ -5955,18 +6078,21 @@ impl Rail {
     /// A projectless group's right-click menu (#600): what its `+` offers (#820), then Rename
     /// Group… and Remove Group.
     fn group_context_menu(
-        rail: WeakEntity<Self>,
+        header: HeaderMenu,
         group: Uuid,
         name: String,
-        workspace: WeakEntity<Workspace>,
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        let (rail, workspace) = (header.rail.clone(), header.workspace.clone());
         let search_path = agents::launcher(cx).search_path;
         // Default is always there, so it is not renamed or removed (#700).
         if groups::is_home(group, cx) {
             return ContextMenu::build(window, cx, move |menu, _, cx| {
-                Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx)
+                let menu = Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx)
+                    .separator();
+                header
+                    .fold_entry(menu)
                     .separator()
                     .label("What belongs to no project opens here")
             });
@@ -5974,6 +6100,7 @@ impl Rail {
         ContextMenu::build(window, cx, move |menu, _, cx| {
             let menu =
                 Self::new_entries(menu, &rail, &workspace, search_path.as_deref(), cx).separator();
+            let menu = header.fold_entry(menu).separator();
             let rename_rail = rail.clone();
             menu.entry("Rename Group…", None, move |window, cx| {
                 rename_rail
@@ -5999,6 +6126,7 @@ impl Rail {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        let folding = header.clone();
         let HeaderMenu {
             rail,
             key,
@@ -6077,24 +6205,24 @@ impl Rail {
             };
             // Clearing resets the project's browser (#581), which a closed project has not started
             // (#606); removing the project is what stops it (#507).
-            menu.separator()
-                .item(
-                    ContextMenuEntry::new("Clear Browser Data…")
-                        .disabled(closed)
-                        .handler(move |window, cx| {
-                            workspace
-                                .update(cx, |workspace, cx| {
-                                    browser::clear_project_browser_data(workspace, window, cx);
-                                })
-                                .log_err();
-                        }),
-                )
-                .item(
-                    ContextMenuEntry::new("Remove Project").handler(move |window, cx| {
-                        rail.update(cx, |rail, cx| rail.remove_project(&key, window, cx))
+            let menu = menu.separator().item(
+                ContextMenuEntry::new("Clear Browser Data…")
+                    .disabled(closed)
+                    .handler(move |window, cx| {
+                        workspace
+                            .update(cx, |workspace, cx| {
+                                browser::clear_project_browser_data(workspace, window, cx);
+                            })
                             .log_err();
                     }),
-                )
+            );
+            // Fold, then Close Project in red and last (#911, D2): Remove Project as it was.
+            let menu = folding.fold_entry(menu.separator());
+            let rail = rail.clone();
+            red_entry(menu, "Close Project", move |window, cx| {
+                rail.update(cx, |rail, cx| rail.remove_project(&key, window, cx))
+                    .log_err();
+            })
         })
     }
 
@@ -6725,6 +6853,7 @@ impl Rail {
         }));
         let item = Self::draggable_row(item, drag, cx);
         let nested = row.worktree.is_some();
+        let turn_count = row.turns.len();
         let turns = Self::render_turns(id, row.turns, row.turns_open, &terminal.workspace, cx);
         let rail = cx.entity().downgrade();
         let (menu_workspace, menu_view) = (terminal.workspace.clone(), terminal.view.clone());
@@ -6736,14 +6865,12 @@ impl Rail {
                     .child(item)
             })
             .menu(move |window, cx| {
-                Self::terminal_context_menu(
-                    &rail,
-                    &menu_workspace,
-                    &menu_view,
-                    (id, &targets),
-                    window,
-                    cx,
-                )
+                let menu = TerminalMenu {
+                    id,
+                    targets: targets.clone(),
+                    turns: turn_count,
+                };
+                Self::terminal_context_menu(&rail, &menu_workspace, &menu_view, menu, window, cx)
             });
         v_flex().child(menu).children(turns)
     }
@@ -6792,17 +6919,30 @@ impl Rail {
         rail: &WeakEntity<Self>,
         workspace: &WeakEntity<Workspace>,
         view: &WeakEntity<TerminalView>,
-        moves: (u64, &[(usize, String)]),
+        menu: TerminalMenu,
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<ContextMenu> {
+        let TerminalMenu {
+            id: terminal,
+            targets,
+            turns,
+        } = menu;
+        // The selected block, else the newest one (#911, D5); none while the terminal has none.
+        let block = view.upgrade().and_then(|view| block_to_send(&view, cx));
+        let (turns_rail, send_view, split_rail, split_workspace, split_view) = (
+            rail.clone(),
+            view.clone(),
+            rail.clone(),
+            workspace.clone(),
+            view.clone(),
+        );
         let (rename_rail, rename_workspace, rename_view) =
             (rail.clone(), workspace.clone(), view.clone());
         let (close_workspace, close_view) = (workspace.clone(), view.clone());
         let (here_rail, here_workspace, here_view) =
             (rail.clone(), workspace.clone(), view.clone());
         let (reply_workspace, reply_view) = (workspace.clone(), view.clone());
-        let (terminal, targets) = (moves.0, moves.1.to_vec());
         let move_rail = rail.clone();
         ContextMenu::build(window, cx, move |menu, _, _| {
             let menu = menu
@@ -6840,10 +6980,27 @@ impl Rail {
                             crate::plan_review::show_toast(workspace, message, cx);
                         }
                     });
+                })
+                // The row's turns, as its card's disclosure opens them (#911).
+                .when(turns > 0, |menu| {
+                    let rail = turns_rail.clone();
+                    menu.entry(format!("Turns ({turns})"), None, move |window, cx| {
+                        rail.update(cx, |rail, cx| rail.toggle_turns(terminal, window, cx))
+                            .log_err();
+                    })
+                })
+                .item(send_block_entry(send_view.clone(), block))
+                // A new shell beside it, as Zed's split does for a terminal (#911, D6).
+                .entry("Split Right", None, move |window, cx| {
+                    split_rail
+                        .update(cx, |rail, cx| {
+                            rail.split_terminal_right(&split_workspace, &split_view, window, cx);
+                        })
+                        .log_err();
                 });
             let targets = targets.clone();
             let move_rail = move_rail.clone();
-            menu.when(!targets.is_empty(), move |menu| {
+            let menu = menu.when(!targets.is_empty(), move |menu| {
                 menu.submenu("Move to Project", move |menu, _, _| {
                     targets.iter().fold(menu, |menu, (project, name)| {
                         let (rail, project) = (move_rail.clone(), *project);
@@ -6855,11 +7012,43 @@ impl Rail {
                         })
                     })
                 })
-            })
-            .entry("Close", None, move |window, cx| {
+            });
+            // Last, in red (#911, D3).
+            red_entry(menu, "Close", move |window, cx| {
                 Self::close_terminal(&close_workspace, &close_view, window, cx).log_err();
             })
         })
+    }
+
+    /// Split Right on a terminal row (#911, D6): the terminal to the front, then its pane split with
+    /// a clone at the right, a new shell, as Zed's split does for a terminal. Deferred: it updates
+    /// the pane, which the rail's update must not hold.
+    fn split_terminal_right(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        view: &WeakEntity<TerminalView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.activate_terminal(workspace, view, window, cx)
+            .log_err();
+        let (workspace, view) = (workspace.clone(), view.clone());
+        window.defer(cx, move |window, cx| {
+            let (Some(workspace), Some(view)) = (workspace.upgrade(), view.upgrade()) else {
+                return;
+            };
+            let Some(pane) = workspace.read(cx).pane_for(&view) else {
+                return;
+            };
+            pane.update(cx, |pane, cx| {
+                pane.split(
+                    SplitDirection::Right,
+                    workspace::pane::SplitMode::ClonePane,
+                    window,
+                    cx,
+                );
+            });
+        });
     }
 
     /// The open projects a terminal of the project at `project` may move to: every other one of
@@ -9734,6 +9923,40 @@ fn shell_folder(folder: Option<&Path>, root: Option<&Path>, home: &Path) -> Opti
     })
 }
 
+/// The rail's saved state: built over Zed's sidebar, the rail starts at its width, one width for
+/// both layouts.
+fn saved_rail_state(zed_sidebar: Option<&KeptSidebar>, cx: &App) -> RailState {
+    zed_sidebar
+        .and_then(|(sidebar, _)| sidebar.read(cx).serialized_state(cx))
+        .map(|blob| read_rail_state(&blob))
+        .unwrap_or_default()
+}
+
+/// Send Block to Agent (#911, D5): `block` of `view` to an agent, as Send to Agent in the Block
+/// menu sends one; disabled while there is none.
+fn send_block_entry(view: WeakEntity<TerminalView>, block: Option<usize>) -> ContextMenuEntry {
+    ContextMenuEntry::new("Send Block to Agent")
+        .disabled(block.is_none())
+        .handler(move |window, cx| {
+            if let (Some(view), Some(index)) = (view.upgrade(), block) {
+                crate::send_block::send(&view, index, crate::send_block::Request::Bare, window, cx);
+            }
+        })
+}
+
+/// The block Send Block to Agent sends (#911, D5): the selected one, else the newest live one.
+fn block_to_send(view: &Entity<TerminalView>, cx: &App) -> Option<usize> {
+    let terminal = view.read(cx).terminal();
+    terminal_view::MarleyBlockSelection::selected(terminal, cx).or_else(|| {
+        terminal
+            .read(cx)
+            .marley_anchored()
+            .live()
+            .last()
+            .map(|block| block.index)
+    })
+}
+
 /// A terminal row's lines made ready: the first says the row's state by its color, unless it says
 /// something of its own (a limit, an error) (#827); blank lines make up two, so a command's or an
 /// agent's activity line that comes and goes moves neither the title nor the rows under it (#796).
@@ -11738,7 +11961,8 @@ impl Render for Rail {
                                     .children(crate::forge_watch::render_rail_section(cx))
                                     .child(self.render_rows(self.render_blocks(None, cx), cx))
                             }
-                        }),
+                        })
+                        .children(self.render_new_group(cx)),
                 ),
             })
             .children(self.empty_menu.as_ref().map(|(menu, position, _)| {

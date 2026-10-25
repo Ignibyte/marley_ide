@@ -99,7 +99,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
 
 ## Wave 2: the core screens
 
-**TICKET-827 Rail rows say their state.** *Done (#827, 2026-10-21; what is going on, pills and the Default tile, #910, 2026-10-25).* *M.* Boards: Rail, RailMenus.
+**TICKET-827 Rail rows say their state.** *Done (#827, 2026-10-21; what is going on, pills and the Default tile, #910; the menus and the strip's +, #911, 2026-10-25).* *M.* Boards: Rail, RailMenus.
 A tile per kind, the state dot, a colored second line, folded headers that still say what needs
 you. Mostly `rail.rs` layout once W0.1 lands.
 

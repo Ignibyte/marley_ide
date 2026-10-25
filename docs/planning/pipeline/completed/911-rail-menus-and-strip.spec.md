@@ -1,7 +1,7 @@
 ---
 pipeline_id: f168244f-96fb-48eb-a112-73e55d2930d1
 ticket: docs/planning/tickets/open/TICKET-911-rail-menus-and-strip.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The rail's menus and strip as the RailMenus and RailStates boards draw them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

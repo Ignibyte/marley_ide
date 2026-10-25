@@ -8,12 +8,13 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyElement, App, Bounds, Context, Div, Focusable as _, FontWeight, Pixels, Task, Window,
-    anchored, canvas, deferred, img, point, px,
+    Anchor, AnyElement, App, Bounds, Context, Div, Focusable as _, FontWeight, Pixels, Task,
+    Window, anchored, canvas, deferred, img, point, px,
 };
 use marley_rail::Row;
+use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::Settings as _;
-use ui::{IconButton, IconName, IconSize, Label, LabelSize, Tab, Tooltip, prelude::*};
+use ui::{IconButton, IconName, IconSize, Label, LabelSize, PopoverMenu, Tab, Tooltip, prelude::*};
 use util::ResultExt as _;
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 
@@ -315,8 +316,46 @@ impl Rail {
                     .gap_2()
                     .children(tiles),
             )
+            .child(self.render_strip_add_project(cx))
             .children(self.render_strip_flyout(cx))
             .children(self.render_strip_search(cx))
+    }
+
+    /// The strip's `+` at its foot (#911, D7): the rail header's Add Project popover, opening
+    /// upward.
+    fn render_strip_add_project(&self, cx: &Context<Self>) -> impl IntoElement {
+        let multi_workspace = self.multi_workspace.clone();
+        let focus_handle = self.focus_handle.clone();
+        h_flex()
+            .debug_selector(|| "marley-rail-strip-add-project".into())
+            .w_full()
+            .flex_none()
+            .justify_center()
+            .py_2()
+            .border_t_1()
+            .border_color(cx.theme().colors().border)
+            .child(
+                PopoverMenu::new("marley-rail-strip-add-project")
+                    .trigger(
+                        IconButton::new("marley-rail-strip-plus", IconName::Plus)
+                            .icon_size(IconSize::Small)
+                            .tooltip(Tooltip::text("Add Project")),
+                    )
+                    .menu(move |window, cx| {
+                        let multi_workspace = multi_workspace.upgrade()?.read(cx);
+                        let workspace = multi_workspace.workspace().downgrade();
+                        let groups = multi_workspace.project_group_keys();
+                        Some(SidebarRecentProjects::popover(
+                            workspace,
+                            groups,
+                            focus_handle.clone(),
+                            window,
+                            cx,
+                        ))
+                    })
+                    .with_handle(self.strip_add_project_menu.clone())
+                    .anchor(Anchor::BottomLeft),
+            )
     }
 
     fn render_strip_tiles(&self, cx: &Context<Self>) -> Vec<AnyElement> {

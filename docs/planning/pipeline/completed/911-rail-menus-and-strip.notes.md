@@ -50,6 +50,12 @@
 - **Decisions:** D1–D8 in the spec. Fold is added to the group menus too, because the board's
   Default and named groups fold like projects.
 
+- **Promoted 2026-10-25:** seams re-read after #910: `project_context_menu`, `group_context_menu`,
+  `terminal_context_menu` (its `moves` tuple), `deploy_empty_menu`, `HeaderMenu`, `Rail::fold`,
+  `toggle_turns`, `new_group` (the modal `groups::prompt`), `render_strip`, `render_add_project`,
+  `groups::make`, `Pane::split` with `SplitMode::ClonePane`, `ContextMenu::custom_entry`;
+  `groups::DEFAULT` is `pub(crate)` since #910.
+
 ### Design
 - A free function `danger_entry(menu, label, handler) -> ContextMenu` in `rail.rs` adds a
   `custom_entry` whose render is `Label::new(label).color(Color::Error)`. Close Project and the
@@ -109,7 +115,34 @@
   set-up rather than write a new one.
 
 ## Phase 2 — Code
+- **Built:** as scoped, all in `rail.rs` and `rail_strip.rs`; no Zed path.
+- **Deviations:** `saved_rail_state` came out of `Rail::new` and `send_block_entry` out of the
+  terminal menu, to keep both under clippy's length; the new-group field's placeholder reads
+  "Group name" under the "New group" label.
+- **Review:** the red entries sit in Zed's own list; Split Right and New Group's make defer or
+  run outside the rail's update where they touch panes and windows. Google style:
+  `TerminalMenu` replaces a tuple.
+- **Gate:** `just gate-diff` 17/17 green after `too_many_lines` (twice), `redundant_clone` and
+  `needless_pass_by_ref_mut`.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/911-rail-menus-and-strip.sh` (sway): `a` with a shell that ran `echo
+  hello` and a stand-in Claude Code whose one turn writes notes.md (so the rail lists it) and that
+  echoes what it is sent. Coordinates from a probe run of each menu.
+- `911-01-project-menu`: Fold, then Close Project in red, last (REQ-001, REQ-002).
+- `911-02-folded`: `a` folded, reading "quiet" (REQ-001).
+- `911-03-row-menu`: Rename, Open Agent Here…, Review Last Reply, Send Block to Agent, Split
+  Right, Move to Project, Close in red (the shell has no turns) (REQ-003).
+- `911-04-turns`: Turns (1) on the agent's row: "Tidy the imports · 1 file" listed (REQ-004).
+- `911-05-sent`: the stand-in printed the block: `$ echo hello`, `hello`, `exit 0` (REQ-005).
+- `911-06-split`: a new shell pane at the right (REQ-006).
+- `911-07-empty-menu`: "New Terminal in Default", "New Browser Tab in Default" (REQ-007).
+- `911-08-group-field`: "New group", the field, "Enter", on an accent border (REQ-008).
+- `911-09-group-made`: the Docs group under `a`, the field gone (REQ-008).
+- `911-10-strip-plus`: the strip's D, A, D tiles and the `+` at its foot (REQ-009).
+- `911-11-strip-popover`: Add Project's popover open upward from the `+` (REQ-009).
+- `911-12-day`: the row menu in Marley Day, Close in red (REQ-003).
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`. No Zed path.
+- Knowledge: nothing new; the run found no bug.

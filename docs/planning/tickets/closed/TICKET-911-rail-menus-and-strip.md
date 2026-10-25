@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #911 (feature, the Marley look, the rail)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [911-rail-menus-and-strip.spec.md](../../pipeline/queued/911-rail-menus-and-strip.spec.md)
+- **Pipeline doc:** [911-rail-menus-and-strip.spec.md](../../pipeline/completed/911-rail-menus-and-strip.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/B-rail-chrome.md, boards RailMenus and RailStates)
 - **Boards:** RailMenus, RailStates
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -2268,6 +2268,16 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **The rail's menus and strip (#911).** `red_entry` (a `ContextMenu::custom_entry` with an
+  error-coloured label) closes the project and terminal menus. `HeaderMenu` gains `index` and
+  `open`, and `fold_entry` adds Fold or Unfold to project and group menus (`group_context_menu`
+  now takes the `HeaderMenu`). `TerminalMenu { id, targets, turns }` replaces the menu's tuple;
+  Turns (N) calls `toggle_turns`, `send_block_entry` sends `block_to_send` (the selected block,
+  else the newest) with `Request::Bare`, Split Right calls `split_terminal_right` (the terminal to
+  the front, then `Pane::split(Right, ClonePane)`, deferred). The empty-space menu names
+  `groups::DEFAULT`. New Group… is `Rail::new_group`'s field (`render_new_group`,
+  `make_new_group` through `groups::make`; Escape or a blur closes it). `rail_strip.rs`
+  `render_strip_add_project` puts the Add Project popover at the strip's foot with its own handle.
 - **Rail rows say what is going on (#910).** `live_statuses` returns `LiveThreads { statuses,
   words, active }`, the words (`ThreadWords { doing, model }`) from `thread_activity` and
   `marley_session_facts`; `ThreadEntry.words` and `Snapshot.thread_words` (compared so a change of
