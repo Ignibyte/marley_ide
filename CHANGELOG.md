@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Threads page as the board draws it** (#919, 2026-10-25). The header counts the
+  conversations and the open ones and offers New Agent. The search has a magnifier and shorter
+  words. Each WHO row has its agent's tile and a count. Each conversation is a card: a 32 px
+  tile with its state's dot from the rail (a waiting one pink), the title and time on one line,
+  and the agent and folder as pills. The preview says the state under the title ("Needs you ·
+  Permission for Bash: make") and shows Folder, Files changed, Started and Mode in a grid.
+
 - **A block map, a build's own progress, and the package hint** (#918, 2026-10-25). Down a
   terminal's right edge, a mark per block at its place in the scrollback, in its state's colour,
   the bookmarked or selected one in the accent. A build that draws cargo's bar or a leading

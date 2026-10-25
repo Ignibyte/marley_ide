@@ -15,12 +15,12 @@
 //! click reopens it with its CLI's resume, or brings forward the terminal running it. A session
 //! Zed's store already holds, by its session id, is listed once, as Zed's.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use agent_ui::AgentPanel;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
+use agent_ui::{AgentPanel, ConversationView};
 use chrono::{DateTime, Utc};
 use editor::{Editor, EditorEvent};
 use fuzzy::{StringMatch, StringMatchCandidate};
@@ -44,6 +44,8 @@ use workspace::{ModalView, MultiWorkspace, Workspace};
 
 use crate::agents::{self, AgentIcon};
 use crate::home_page::muted;
+use crate::item_kind::{self, AgentMark, ItemKind, ItemState};
+use crate::rail::{ConversationState, ConversationStates, Rail};
 
 actions!(
     marley,
@@ -212,6 +214,8 @@ pub struct ThreadsPage {
     folder: Option<String>,
     /// The row the preview shows, by its key (#836).
     selected: Option<String>,
+    /// The window's rail, observed so the cards' states follow it (#919).
+    rail: Option<(WeakEntity<Rail>, Subscription)>,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -293,7 +297,29 @@ struct Sections {
     rows: Vec<Row>,
     archived: Vec<Row>,
     chips: Vec<Chip>,
+    /// How many listed conversations each chip keeps, beside `chips`, whatever chip is chosen
+    /// (#919).
+    counts: Vec<usize>,
     folders: Vec<String>,
+}
+
+impl Sections {
+    /// Offers `chip` when it is new.
+    fn offer(&mut self, chip: &Chip) {
+        if !self.chips.contains(chip) {
+            self.chips.push(chip.clone());
+            self.counts.push(0);
+        }
+    }
+
+    /// Counts a listed conversation for `chip`.
+    fn count(&mut self, chip: &Chip) {
+        if let Some(index) = self.chips.iter().position(|offered| offered == chip)
+            && let Some(count) = self.counts.get_mut(index)
+        {
+            *count += 1;
+        }
+    }
 }
 
 /// The day heading a row goes under, by when it last changed (#836).
@@ -312,11 +338,7 @@ impl ThreadsPage {
     fn new(workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let search = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text(
-                "Search conversations by title or folder, and CLI sessions by their prompts…",
-                window,
-                cx,
-            );
+            editor.set_placeholder_text("Search titles, folders, and what you asked", window, cx);
             editor
         });
         let mut subscriptions = vec![cx.subscribe(&search, |_, _, event: &EditorEvent, cx| {
@@ -339,6 +361,7 @@ impl ThreadsPage {
             archived_open: false,
             folder: None,
             selected: None,
+            rail: None,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         }
@@ -351,6 +374,7 @@ impl ThreadsPage {
             rows: Vec::new(),
             archived: Vec::new(),
             chips: Vec::new(),
+            counts: Vec::new(),
             folders: Vec::new(),
         };
         // The store's entries hold the archived conversations too, each once.
@@ -366,19 +390,18 @@ impl ThreadsPage {
         records.sort_by_key(|record| std::cmp::Reverse(record.updated_at));
         for record in records {
             let chip = Chip::Agent(record.agent_id.clone());
-            if !sections.chips.contains(&chip) {
-                sections.chips.push(chip.clone());
-            }
+            sections.offer(&chip);
             let row = row_of(record);
             if let Some(folder) = &row.folder
                 && !sections.folders.contains(folder)
             {
                 sections.folders.push(folder.clone());
             }
-            if self.agent.as_ref().is_some_and(|agent| *agent != chip)
-                || !matches(record, &query)
-                || !self.folder_keeps(&row)
-            {
+            let kept = matches(record, &query) && self.folder_keeps(&row);
+            if kept && !record.archived {
+                sections.count(&chip);
+            }
+            if !kept || self.agent.as_ref().is_some_and(|agent| *agent != chip) {
                 continue;
             }
             if record.archived {
@@ -391,19 +414,17 @@ impl ThreadsPage {
         let search = CliSearch::Prompts(redactor.as_deref());
         for (mut row, session) in cli_rows(cx) {
             let chip = Chip::Cli(session.agent);
-            if !sections.chips.contains(&chip) {
-                sections.chips.push(chip.clone());
-            }
+            sections.offer(&chip);
             if let Some(folder) = &row.folder
                 && !sections.folders.contains(folder)
             {
                 sections.folders.push(folder.clone());
             }
-            if self.agent.as_ref().is_none_or(|agent| *agent == chip)
-                && self.folder_keeps(&row)
-                && matches_cli(&mut row, &session, &query, &search)
-            {
-                sections.rows.push(row);
+            if self.folder_keeps(&row) && matches_cli(&mut row, &session, &query, &search) {
+                sections.count(&chip);
+                if self.agent.as_ref().is_none_or(|agent| *agent == chip) {
+                    sections.rows.push(row);
+                }
             }
         }
         sections
@@ -419,21 +440,30 @@ impl ThreadsPage {
             .is_none_or(|folder| row.folder.as_ref() == Some(folder))
     }
 
+    /// WHO: All and each agent, a row with its tile, its name and how many listed conversations
+    /// it keeps (#919); a row is a toggle.
     fn render_chips(
         &self,
         chips: &[Chip],
+        counts: &[usize],
         project: &Entity<Project>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
-        let all = Button::new("marley-threads-chip-all", "All")
-            .style(ButtonStyle::Subtle)
-            .toggle_state(self.agent.is_none())
-            .on_click(cx.listener(|page, _, _, cx| {
-                page.agent = None;
-                cx.notify();
-            }));
+        let total: usize = counts.iter().sum();
+        let all = who_row(
+            SharedString::new_static("marley-threads-chip-all"),
+            item_kind::tile(ItemKind::Page, SharedString::new_static("*"), px(22.), cx),
+            SharedString::new_static("All"),
+            total,
+            self.agent.is_none(),
+            cx,
+        )
+        .on_click(cx.listener(|page, _, _, cx| {
+            page.agent = None;
+            cx.notify();
+        }));
         v_flex()
-            .items_start()
+            .w_full()
             .gap_0p5()
             .child(
                 Label::new("WHO")
@@ -443,18 +473,53 @@ impl ThreadsPage {
             .child(all)
             .children(chips.iter().enumerate().map(|(index, chip)| {
                 let chosen = chip.clone();
-                let name: SharedString = match chip {
-                    Chip::Agent(agent) => agents::thread_agent_name(agent, project, cx),
-                    Chip::Cli(agent) => cli_name(*agent).into(),
+                let (name, kind, mark): (SharedString, ItemKind, AgentMark) = match chip {
+                    Chip::Agent(agent) => {
+                        let mark = AgentMark::from_agent_id(agent);
+                        (
+                            agents::thread_agent_name(agent, project, cx),
+                            ItemKind::Thread(mark),
+                            mark,
+                        )
+                    }
+                    Chip::Cli(agent) => {
+                        let mark = AgentMark::from_cli(*agent);
+                        (cli_name(*agent).into(), ItemKind::AgentTerminal(mark), mark)
+                    }
                 };
-                Button::new(("marley-threads-chip", index), name)
-                    .style(ButtonStyle::Subtle)
-                    .toggle_state(self.agent.as_ref() == Some(chip))
-                    .on_click(cx.listener(move |page, _, _, cx| {
-                        page.agent = Some(chosen.clone());
-                        cx.notify();
-                    }))
+                who_row(
+                    SharedString::from(format!("marley-threads-chip-{index}")),
+                    item_kind::tile(kind, mark.glyph(), px(22.), cx),
+                    name,
+                    counts.get(index).copied().unwrap_or_default(),
+                    self.agent.as_ref() == Some(chip),
+                    cx,
+                )
+                .on_click(cx.listener(move |page, _, _, cx| {
+                    page.agent = Some(chosen.clone());
+                    cx.notify();
+                }))
             }))
+    }
+
+    /// The window's rail, observed while it is the window's, as Home follows it (#713, #919).
+    fn rail(&mut self, window: &Window, cx: &mut Context<Self>) -> Option<Entity<Rail>> {
+        let multi_workspace = window.root::<MultiWorkspace>().flatten()?;
+        let rail = multi_workspace
+            .read(cx)
+            .sidebar()?
+            .to_any()
+            .downcast::<Rail>()
+            .ok()?;
+        let followed = self
+            .rail
+            .as_ref()
+            .is_some_and(|(followed, _)| followed.entity_id() == rail.entity_id());
+        if !followed {
+            let subscription = cx.observe(&rail, |_, _, cx| cx.notify());
+            self.rail = Some((rail.downgrade(), subscription));
+        }
+        Some(rail)
     }
 
     /// FOLDER: All and each folder the listed conversations ran in (#836).
@@ -500,12 +565,15 @@ impl ThreadsPage {
     fn render_preview(
         &self,
         row: Option<&Row>,
+        live: &Live,
         project: &Entity<Project>,
         cx: &Context<Self>,
     ) -> AnyElement {
         let Some(row) = row else {
             return muted("Pick a conversation to see it here.");
         };
+        let state = live.state_of(row, cx);
+        let facts = live.facts_of(row, state.as_ref(), cx);
         let workspace = self.workspace.clone();
         let (open_target, split_target) = (row.target.clone(), row.target.clone());
         let split_workspace = self.workspace.clone();
@@ -534,11 +602,21 @@ impl ThreadsPage {
                     ),
             )
             .child(Headline::new(row.title.clone()).size(HeadlineSize::XSmall))
-            .child(
-                Label::new(format!("Last changed {}", row.when))
+            // The state in its colour, in place of the last change, which the card keeps (D5).
+            .children(state.map(|state| {
+                let words = match (state.state, state.ask) {
+                    (ItemState::NeedsYou, Some(ask)) => format!("Needs you \u{b7} {ask}"),
+                    (ItemState::NeedsYou, None) => "Needs you".to_string(),
+                    (ItemState::Working, _) => "Working".to_string(),
+                    (ItemState::Done, _) => "Done".to_string(),
+                    (ItemState::Failed, _) => "Failed".to_string(),
+                    (ItemState::Idle, _) => "Idle".to_string(),
+                };
+                Label::new(words)
                     .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
+                    .color(state.state.line(cx))
+            }))
+            .child(facts_grid(&facts, cx))
             .children(row.snippet.clone().map(|snippet| {
                 Label::new(snippet)
                     .size(LabelSize::Small)
@@ -626,6 +704,7 @@ impl ThreadsPage {
         &self,
         heading: &'static str,
         rows: Vec<Row>,
+        live: &Live,
         project: &Entity<Project>,
         cx: &Context<Self>,
     ) -> AnyElement {
@@ -634,7 +713,7 @@ impl ThreadsPage {
         }
         v_flex()
             .w_full()
-            .gap_0p5()
+            .gap_1p5()
             .child(
                 Label::new(heading)
                     .size(LabelSize::XSmall)
@@ -642,14 +721,40 @@ impl ThreadsPage {
             )
             .children(
                 rows.into_iter()
-                    .map(|row| self.render_row(row, project, cx)),
+                    .map(|row| self.render_row(row, live, project, cx)),
             )
             .into_any_element()
     }
 
-    fn render_row(&self, row: Row, project: &Entity<Project>, cx: &Context<Self>) -> AnyElement {
-        let icon = row.icon(project, cx);
-        let detail = row.detail(project, cx);
+    /// A conversation as the board's card (#919): its agent's tile with the state's dot, its title
+    /// and time on one line, the search's snippet, and its agent and folder as pills.
+    fn render_row(
+        &self,
+        row: Row,
+        live: &Live,
+        project: &Entity<Project>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors();
+        let state = live.state_of(&row, cx).map(|state| state.state);
+        let (kind, mark, agent): (ItemKind, AgentMark, SharedString) = match &row.target {
+            Target::Thread { agent, .. } => {
+                let mark = AgentMark::from_agent_id(agent);
+                (
+                    ItemKind::Thread(mark),
+                    mark,
+                    agents::thread_agent_name(agent, project, cx),
+                )
+            }
+            Target::Cli(session) => {
+                let mark = AgentMark::from_cli(session.agent);
+                (
+                    ItemKind::AgentTerminal(mark),
+                    mark,
+                    cli_name(session.agent).into(),
+                )
+            }
+        };
         // A plain closure over a weak handle: opening a conversation updates the workspace, which
         // reads its items, this page among them (PR-claude-701).
         let workspace = self.workspace.clone();
@@ -657,51 +762,73 @@ impl ThreadsPage {
         let key = row.key();
         let selected = self.selected.as_ref() == Some(&key);
         let page = cx.weak_entity();
-        ListItem::new(SharedString::from(format!(
-            "marley-threads-row-{}",
-            row.key()
-        )))
-        .spacing(ListItemSpacing::Sparse)
-        .start_slot(icon.color(Color::Muted))
-        .child(
-            v_flex()
-                .min_w_0()
-                .child(Label::new(row.title).truncate())
-                .child(
-                    Label::new(detail)
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
-                        .truncate(),
-                )
-                .when_some(row.snippet, |lines, snippet| {
-                    lines.child(
+        h_flex()
+            .id(SharedString::from(format!("marley-threads-row-{key}")))
+            .w_full()
+            .items_start()
+            .gap_2p5()
+            .p_2p5()
+            .rounded(px(12.))
+            .border_1()
+            .cursor_pointer()
+            .map(|card| {
+                if selected {
+                    card.bg(colors.element_selected)
+                        .border_color(colors.border_focused)
+                } else {
+                    card.border_color(colors.border_variant)
+                        .hover(|style| style.bg(colors.ghost_element_hover))
+                }
+            })
+            .child(card_tile(kind, mark.glyph(), state, cx))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(Label::new(row.title).truncate()),
+                            )
+                            .child(
+                                Label::new(row.when)
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            ),
+                    )
+                    .children(row.snippet.map(|snippet| {
                         Label::new(snippet)
                             .size(LabelSize::Small)
                             .color(Color::Muted)
                             .italic()
-                            .truncate(),
-                    )
-                }),
-        )
-        .end_slot(
-            Label::new(row.when)
-                .size(LabelSize::Small)
-                .color(Color::Muted),
-        )
-        .toggle_state(selected)
-        // A click selects for the preview; a double-click opens, as Open does (#836).
-        .on_click(move |event, window, cx| {
-            if event.click_count() >= 2 {
-                open_row(&workspace, &target, window, cx);
-            } else {
-                page.update(cx, |page, cx| {
-                    page.selected = Some(key.clone());
-                    cx.notify();
-                })
-                .log_err();
-            }
-        })
-        .into_any_element()
+                            .truncate()
+                    }))
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .child(card_pill(agent, cx))
+                            .children(row.folder.map(|folder| card_pill(folder.into(), cx))),
+                    ),
+            )
+            // A click selects for the preview; a double-click opens, as Open does (#836).
+            .on_click(move |event, window, cx| {
+                if event.click_count() >= 2 {
+                    open_row(&workspace, &target, window, cx);
+                } else {
+                    page.update(cx, |page, cx| {
+                        page.selected = Some(key.clone());
+                        cx.notify();
+                    })
+                    .log_err();
+                }
+            })
+            .into_any_element()
     }
 }
 
@@ -811,6 +938,24 @@ pub(crate) fn open_thread(
 }
 
 impl ThreadsPage {
+    /// The search field, with its magnifier (#919).
+    fn render_search(&self, cx: &App) -> impl IntoElement {
+        h_flex()
+            .w_full()
+            .gap_2()
+            .px_2()
+            .py_1()
+            .border_1()
+            .border_color(cx.theme().colors().border)
+            .rounded_md()
+            .child(
+                Icon::new(IconName::MagnifyingGlass)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(div().flex_1().min_w_0().child(self.search.clone()))
+    }
+
     /// The rows under their day's heading, newest first, and the archived ones behind their toggle
     /// (#836).
     fn render_list(
@@ -818,6 +963,7 @@ impl ThreadsPage {
         rows: Vec<Row>,
         archived_rows: Vec<Row>,
         empty: bool,
+        live: &Live,
         project: &Entity<Project>,
         cx: &Context<Self>,
     ) -> AnyElement {
@@ -832,7 +978,7 @@ impl ThreadsPage {
             }
         }
         let archived = if archived_open {
-            self.render_section("ARCHIVED", archived_rows, project, cx)
+            self.render_section("ARCHIVED", archived_rows, live, project, cx)
         } else {
             Empty.into_any_element()
         };
@@ -851,7 +997,7 @@ impl ThreadsPage {
             .when(empty, |list| list.child(self.render_empty(cx)))
             .children(
                 days.into_iter()
-                    .map(|(day, rows)| self.render_section(day, rows, project, cx)),
+                    .map(|(day, rows)| self.render_section(day, rows, live, project, cx)),
             )
             .when(archived_count > 0, |list| {
                 let label = if archived_open {
@@ -874,8 +1020,7 @@ impl ThreadsPage {
 }
 
 impl Render for ThreadsPage {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(project) = self
             .workspace
             .upgrade()
@@ -883,7 +1028,20 @@ impl Render for ThreadsPage {
         else {
             return div().into_any_element();
         };
+        let live = Live {
+            states: self
+                .rail(window, cx)
+                .map(|rail| rail.read(cx).conversation_states()),
+            loaded: loaded_conversations(window, cx),
+        };
+        let colors = cx.theme().colors();
         let sections = self.sections(cx);
+        let open = sections
+            .rows
+            .iter()
+            .filter(|row| live.is_open(row, cx))
+            .count();
+        let listed = sections.rows.len();
         let empty = sections.rows.is_empty() && sections.archived.is_empty();
         let selected = self.selected.as_ref().and_then(|key| {
             sections
@@ -892,7 +1050,7 @@ impl Render for ThreadsPage {
                 .chain(sections.archived.iter())
                 .find(|row| row.key() == *key)
         });
-        let preview = self.render_preview(selected, &project, cx);
+        let preview = self.render_preview(selected, &live, &project, cx);
         // The board's columns (#906): each flexes from its basis, and the row wraps, so in a narrow
         // pane the preview drops under the list rather than squeezing it.
         let filters = v_flex()
@@ -902,9 +1060,9 @@ impl Render for ThreadsPage {
             .min_w(px(200.))
             .overflow_hidden()
             .gap_4()
-            .child(self.render_chips(&sections.chips, &project, cx))
+            .child(self.render_chips(&sections.chips, &sections.counts, &project, cx))
             .child(self.render_folders(&sections.folders, cx));
-        let list = self.render_list(sections.rows, sections.archived, empty, &project, cx);
+        let list = self.render_list(sections.rows, sections.archived, empty, &live, &project, cx);
         v_flex()
             .id("marley-threads")
             .debug_selector(|| "marley-threads".into())
@@ -913,17 +1071,8 @@ impl Render for ThreadsPage {
             .p_4()
             .gap_3()
             .bg(colors.editor_background)
-            .child(Headline::new("Threads").size(HeadlineSize::Small))
-            .child(
-                div()
-                    .w_full()
-                    .px_2()
-                    .py_1()
-                    .border_1()
-                    .border_color(colors.border)
-                    .rounded_md()
-                    .child(self.search.clone()),
-            )
+            .child(render_header(listed, open, cx))
+            .child(self.render_search(cx))
             .child(
                 h_flex()
                     .id("marley-threads-columns")
@@ -952,6 +1101,258 @@ impl Render for ThreadsPage {
             )
             .into_any_element()
     }
+}
+
+/// The page's header (#919): "Threads", the count of conversations listed and of those open in
+/// the window, and New Agent.
+fn render_header(listed: usize, open: usize, cx: &App) -> impl IntoElement {
+    h_flex()
+        .w_full()
+        .items_end()
+        .gap_3()
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .child(Headline::new("Threads").size(HeadlineSize::Small))
+                .child(
+                    Label::new(format!(
+                        "{listed} conversation{} \u{b7} {open} open",
+                        if listed == 1 { "" } else { "s" }
+                    ))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+                ),
+        )
+        .child(
+            crate::prompts::render_button(0, "New Agent", crate::prompts::Role::Primary, false, cx)
+                .on_click(|_, window, cx| {
+                    window.dispatch_action(Box::new(agents::NewAgent { folder: None }), cx);
+                }),
+        )
+}
+
+/// What the window knows of the conversations live: the rail's states, and the conversations
+/// loaded in its tabs and panels by thread key (#919, D1, D6).
+struct Live {
+    states: Option<ConversationStates>,
+    loaded: HashMap<String, Entity<ConversationView>>,
+}
+
+/// The preview's facts; "—" for one the window does not have (D6).
+struct Facts {
+    folder: String,
+    files: String,
+    started: String,
+    mode: String,
+}
+
+impl Live {
+    /// `row`'s state: a thread's from the rail by its key, a CLI session's from the terminal that
+    /// runs it; idle when the rail does not show it, none without a rail.
+    fn state_of(&self, row: &Row, cx: &App) -> Option<ConversationState> {
+        let states = self.states.as_ref()?;
+        let found = match &row.target {
+            Target::Thread { .. } => states.threads.get(&row.key()),
+            Target::Cli(session) => {
+                crate::agent_events::view_running(session.agent, &session.id, cx)
+                    .and_then(|view| states.terminals.get(&view.as_u64()))
+            }
+        };
+        Some(found.cloned().unwrap_or(ConversationState {
+            state: ItemState::Idle,
+            ask: None,
+            bypass: false,
+        }))
+    }
+
+    /// Whether `row` is loaded in this window: a thread in a tab or a panel, a CLI session running
+    /// in a terminal (D2).
+    fn is_open(&self, row: &Row, cx: &App) -> bool {
+        match &row.target {
+            Target::Thread { .. } => self.loaded.contains_key(&row.key()),
+            Target::Cli(session) => {
+                crate::agent_events::view_running(session.agent, &session.id, cx).is_some()
+            }
+        }
+    }
+
+    /// The preview's facts for `row`: its folder and start from the store, its changed files and
+    /// mode from its loaded conversation, or a CLI's bypass from its terminal (D6).
+    fn facts_of(&self, row: &Row, state: Option<&ConversationState>, cx: &App) -> Facts {
+        let none = || "\u{2014}".to_string();
+        let started = match &row.target {
+            Target::Thread { thread_id, .. } => ThreadMetadataStore::try_global(cx)
+                .and_then(|store| store.read(cx).entry(*thread_id)?.created_at)
+                .map(when),
+            Target::Cli(_) => None,
+        };
+        let view = self
+            .loaded
+            .get(&row.key())
+            .and_then(|conversation| conversation.read(cx).root_thread_view());
+        let files = view.as_ref().map(|view| {
+            let changed = crate::thread_tab::changed_files(view.read(cx).thread.read(cx), cx);
+            let added: u32 = changed.iter().map(|file| file.added).sum();
+            let removed: u32 = changed.iter().map(|file| file.removed).sum();
+            format!("{} \u{b7} +{added} \u{2212}{removed}", changed.len())
+        });
+        let mode = view
+            .as_ref()
+            .and_then(|view| view.read(cx).marley_session_facts(cx).mode)
+            .map(String::from)
+            .or_else(|| {
+                state
+                    .filter(|state| state.bypass)
+                    .map(|_| "bypass".to_string())
+            });
+        Facts {
+            folder: row.folder.clone().unwrap_or_else(none),
+            files: files.unwrap_or_else(none),
+            started: started.unwrap_or_else(none),
+            mode: mode.unwrap_or_else(none),
+        }
+    }
+}
+
+/// The conversations loaded in the window's workspaces, by thread key (#919, D2).
+fn loaded_conversations(window: &Window, cx: &App) -> HashMap<String, Entity<ConversationView>> {
+    let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
+        return HashMap::default();
+    };
+    let mut loaded = HashMap::default();
+    for workspace in multi_workspace.read(cx).workspaces() {
+        for conversation in crate::thread_tab::conversations_of(workspace.read(cx), cx) {
+            let key = conversation.read(cx).parent_id().to_key_string();
+            loaded.insert(key, conversation);
+        }
+    }
+    loaded
+}
+
+/// The preview's facts in a 2×2 grid, a muted label over each value (#919).
+fn facts_grid(facts: &Facts, cx: &App) -> AnyElement {
+    let cell = |label: &'static str, value: &str| {
+        v_flex()
+            .flex_1()
+            .min_w_0()
+            .p_2()
+            .rounded_md()
+            .bg(cx.theme().colors().element_background)
+            .child(
+                Label::new(label)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(
+                Label::new(value.to_string())
+                    .size(LabelSize::Small)
+                    .truncate(),
+            )
+    };
+    v_flex()
+        .w_full()
+        .gap_1p5()
+        .child(
+            h_flex()
+                .gap_1p5()
+                .child(cell("Folder", &facts.folder))
+                .child(cell("Files changed", &facts.files)),
+        )
+        .child(
+            h_flex()
+                .gap_1p5()
+                .child(cell("Started", &facts.started))
+                .child(cell("Mode", &facts.mode)),
+        )
+        .into_any_element()
+}
+
+/// A WHO row: its tile, its name, and its count at the right; filled while chosen (#919).
+fn who_row(
+    id: SharedString,
+    tile: Div,
+    name: SharedString,
+    count: usize,
+    chosen: bool,
+    cx: &App,
+) -> gpui::Stateful<Div> {
+    let colors = cx.theme().colors();
+    h_flex()
+        .id(id)
+        .w_full()
+        .gap_2()
+        .px_1p5()
+        .py_1()
+        .rounded_md()
+        .cursor_pointer()
+        .map(|row| {
+            if chosen {
+                row.bg(colors.element_selected)
+            } else {
+                row.hover(|style| style.bg(colors.ghost_element_hover))
+            }
+        })
+        .child(tile)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .child(Label::new(name).size(LabelSize::Small).truncate()),
+        )
+        .child(
+            Label::new(count.to_string())
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+}
+
+/// A card's agent tile, 32 px, its state's dot at the corner (#919, D4).
+fn card_tile(kind: ItemKind, glyph: SharedString, state: Option<ItemState>, cx: &App) -> Div {
+    let colors = cx.theme().colors();
+    div()
+        .relative()
+        .flex_none()
+        .size(px(32.))
+        .rounded(px(8.))
+        .bg(kind.tint(cx))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Label::new(glyph)
+                .size(LabelSize::Small)
+                .buffer_font(cx)
+                .color(Color::Custom(kind.ink(cx))),
+        )
+        .children(state.map(|state| {
+            div()
+                .absolute()
+                .right(px(-2.))
+                .bottom(px(-2.))
+                .size(px(10.))
+                .rounded_full()
+                .border_2()
+                .border_color(colors.editor_background)
+                .bg(state.dot(cx))
+        }))
+}
+
+/// A card's pill: an agent's name or a folder.
+fn card_pill(text: SharedString, cx: &App) -> Div {
+    h_flex()
+        .h(px(20.))
+        .px_2()
+        .min_w_0()
+        .rounded_full()
+        .border_1()
+        .border_color(cx.theme().colors().border_variant)
+        .child(
+            Label::new(text)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted)
+                .truncate(),
+        )
 }
 
 impl Focusable for ThreadsPage {

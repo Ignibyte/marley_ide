@@ -2924,6 +2924,19 @@ alike.
 
 ## The Threads page (`src/threads_page.rs`, #737)
 
+- **As the board draws it (#919).** `render` finds the window's rail as Home does (`rail`,
+  observed) and builds a `Live`: the rail's `conversation_states` (each listed thread's
+  `ItemState` by key through `thread_row_state`, each agent CLI terminal's by view id, the
+  inbox's ask beside each, and #532's bypass mark) and `loaded_conversations` (the window's
+  `conversations_of`, by thread key). `Live::state_of` gives a card's state (a CLI session's
+  through `agent_events::view_running`; idle when the rail does not show it, none without a
+  rail), `is_open` the header's "M open", `facts_of` the preview's Folder, Started (the store's
+  `created_at`), Files changed (`thread_tab::changed_files` of a loaded conversation) and Mode
+  (`marley_session_facts`, or "bypass"), "—" for what the window does not have. `render_header`,
+  `render_search` (magnifier), `who_row` (an `item_kind::tile`, the name, the count from
+  `Sections::counts`), `render_row` as a card (`card_tile` with the dot, `card_pill`s) and
+  `facts_grid`.
+
 - `OpenThreads` (`marley: open threads`) brings the workspace's `ThreadsPage` forward or adds one to
   its center. The page observes Zed's `ThreadMetadataStore` and its search editor, and redraws on
   either.

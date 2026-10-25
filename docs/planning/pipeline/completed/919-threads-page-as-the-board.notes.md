@@ -85,7 +85,38 @@
   lands; the scenario runs the page in a whole-width pane.
 
 ## Phase 2 — Code
+- **Built:** `rail.rs` `ConversationState`, `ConversationStates`, `Rail::conversation_states`;
+  `threads_page.rs` the header, search, WHO rows with counts (`Sections::offer`/`count`), cards,
+  the preview's state line and facts grid, `Live`, `Facts`, `loaded_conversations`.
+- **Deviations:**
+  - The tiles are `item_kind`'s palette (#905: `tile` for the WHO rows, `ItemKind::tint`/`ink`
+    for the card's 32 px tile), not Home's #903 `glyph_tile`/`state_tile`: #905 made the
+    palette the one look for an agent's tile, so Home's helpers stay private. D4's aim holds.
+  - `RowState` became #905's `ItemState`, already `pub(crate)`; nothing in `rail.rs` needed
+    opening but the accessor.
+  - The header's New Agent is #903's primary button (`prompts::render_button`), not a `ui::Button`.
+  - The count line reads the rows listed after the search and filters ("N conversations").
+- **Review:** the page reads the rail and the window's workspaces in its render; neither is being
+  updated then (Home does the same). Handlers stay plain closures over weak handles.
+- **Gate:** `just gate-diff` 17/17 green after the dylint fix (`SharedString::new_static`).
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/919-threads-page-as-the-board.sh`, sway, 5 shots, each read.
+  - `919-01-night` (first probe run): "Threads", "3 conversations · 1 open", New Agent; the
+    magnifier and "Search titles, folders, and what you asked"; WHO: All 3, Marley 1, Claude Code
+    CLI 2, each with its tile; cards with tiles and dots, title and time on one line, pills.
+    REQ-001, REQ-003, REQ-004, REQ-005 met.
+  - `919-02-preview`: after the resume, "2 open"; the tokenizer card's dot pink; "Needs you ·
+    Permission for Bash: make" in pink; Folder, Files changed "—", Started "—", Mode "—".
+    REQ-006, REQ-007 met.
+  - `919-03-preview-thread` / `919-05-day`: the Marley conversation: "Working", Folder, "0 · +0
+    −0", Started "Oct 25, 14:55", Mode "Default"; Day legible.
+  - `919-04-new-agent`: the New Agent picker over the page. REQ-002 met.
+- **Fixes in Test:** the probe's clicks hit the wrong card; coordinates set from its shot.
+- Pre-existing, not in scope: the bottom row's Threads case still counts its own "1 open"
+  (the bottom-row ticket in the build order).
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's W2.3 row. No Zed crate.
+- Knowledge: nothing new; the page follows L-claude-713's rail-reading shape.
+- Brain: decision recorded.

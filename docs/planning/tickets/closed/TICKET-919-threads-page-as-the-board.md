@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #919 (feature, the Marley look, Threads)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [919-threads-page-as-the-board.spec.md](../../pipeline/queued/919-threads-page-as-the-board.spec.md)
+- **Pipeline doc:** [919-threads-page-as-the-board.spec.md](../../pipeline/completed/919-threads-page-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/C-threads.md, board Threads), build order line 7.
 - **Boards:** Threads
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -269,6 +269,24 @@ pub(crate) struct AtWork {
     pub(crate) row: Selection,
 }
 
+/// A conversation's state as the rail shows it, with the inbox's ask while it needs the user
+/// (#919, D1).
+#[derive(Clone)]
+pub(crate) struct ConversationState {
+    pub(crate) state: ItemState,
+    pub(crate) ask: Option<SharedString>,
+    /// Whether an agent CLI runs without its permission prompts (#532).
+    pub(crate) bypass: bool,
+}
+
+/// The rail's conversations' states: each listed thread's by its key and each agent CLI's
+/// terminal's by its view id (#919, D1).
+#[derive(Default)]
+pub(crate) struct ConversationStates {
+    pub(crate) threads: HashMap<String, ConversationState>,
+    pub(crate) terminals: HashMap<u64, ConversationState>,
+}
+
 /// When the window may make its Default group (#700), and the Rusty groups of an earlier build it
 /// is closing (#743).
 struct StartupGroups {
@@ -1651,6 +1669,54 @@ impl Rail {
                 threads.chain(terminals).collect::<Vec<_>>()
             })
             .collect()
+    }
+
+    /// Each listed thread's state by its key and each agent CLI's terminal's by its view id, with
+    /// the inbox's ask for one that needs the user, for the Threads page (#919, D1).
+    pub(crate) fn conversation_states(&self) -> ConversationStates {
+        let mut states = ConversationStates::default();
+        for project in &self.snapshot.rail.projects {
+            for thread in &project.threads {
+                states.threads.insert(
+                    thread.key.clone(),
+                    ConversationState {
+                        state: thread_row_state(thread.status, thread.attention),
+                        ask: None,
+                        bypass: false,
+                    },
+                );
+            }
+            for terminal in &project.terminals {
+                let Some(agent) = &terminal.agent else {
+                    continue;
+                };
+                let state = match agent.status {
+                    AgentStatus::Waiting => ItemState::NeedsYou,
+                    AgentStatus::Working => ItemState::Working,
+                    AgentStatus::Failed => ItemState::Failed,
+                    AgentStatus::Idle => ItemState::Idle,
+                };
+                states.terminals.insert(
+                    terminal.id,
+                    ConversationState {
+                        state,
+                        ask: None,
+                        bypass: agent.mark.is_some(),
+                    },
+                );
+            }
+        }
+        for entry in &self.snapshot.rail.inbox {
+            let conversation = match self.snapshot.inbox.get(&entry.key) {
+                Some(InboxTarget::Thread { thread_key, .. }) => states.threads.get_mut(thread_key),
+                Some(InboxTarget::Terminal(id)) => states.terminals.get_mut(id),
+                _ => None,
+            };
+            if let Some(conversation) = conversation {
+                conversation.ask = Some(entry.ask.clone().into());
+            }
+        }
+        states
     }
 
     /// Opens `row` as a click on it does (#701).

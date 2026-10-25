@@ -1,7 +1,7 @@
 ---
 pipeline_id: 2f997f81-278c-4226-982d-c99daec23f0d
 ticket: docs/planning/tickets/open/TICKET-919-threads-page-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The Threads page as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
