@@ -8,7 +8,7 @@
 
 use std::time::SystemTime;
 
-use gpui::{AnyElement, App, Entity, Window};
+use gpui::{AnyElement, App, Div, Entity, FontWeight, Stateful, Window};
 use marley_agent::AgentKind;
 use marley_terminal::BlockState;
 use terminal::Terminal;
@@ -185,10 +185,6 @@ fn send_now(
     }
 }
 
-/// The chip for each block starting on screen, part of the element's `MarleyBlockChip` hook
-/// (`bookmarks`): Ask the agent for the newest block when it failed, the shell waits at its prompt
-/// with no agent in front, and another terminal of the window runs an agent; or, for a request
-/// the shell could not run (127), with its words, whatever runs (#557).
 /// The newest live block's index when it failed, the shell waits at its prompt and no agent runs
 /// in the terminal: when the block header and the rail's row offer Ask an agent (#826, #910, D4).
 /// A block from before a restart is history, which no agent is asked about (#764).
@@ -200,6 +196,9 @@ pub(crate) fn asks_fix(terminal: &Terminal) -> Option<usize> {
     (failed && anchored.at_prompt() && agent_in(terminal).is_none()).then_some(block.index)
 }
 
+/// The chip for each block starting on screen, part of the element's `MarleyBlockChip` hook
+/// (`bookmarks`): for a request the shell could not run (127), Ask the agent with its words,
+/// whatever runs (#557). A failed block's other asks are the footer's row (#916).
 pub(crate) fn chip(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -207,54 +206,63 @@ pub(crate) fn chip(
     cx: &App,
 ) -> Option<AnyElement> {
     let terminal = terminal.read(cx);
-    // A request the shell could not run (127) asks the agent with its own words, even with no
-    // agent running (#557).
-    if agent_in(terminal).is_none()
-        && let Some(command) = crate::english::asks_on_127(terminal, index, cx)
-    {
-        let view = view.clone();
-        return Some(
-            Button::new(("marley-ask-agent", index), "Ask the agent")
-                .style(ButtonStyle::Tinted(TintColor::Accent))
-                .label_size(LabelSize::XSmall)
-                .on_click(move |_, window, cx| {
-                    cx.stop_propagation();
-                    crate::english::ask_later(&view, command.clone(), window, cx);
-                })
-                .into_any_element(),
-        );
-    }
-    if asks_fix(terminal) != Some(index) {
+    if agent_in(terminal).is_some() {
         return None;
     }
-    // Ask an agent to fix it, or to explain it; with no agent running, Claude Code starts with it
-    // (#826). Or ask Marley's own agent beside the terminal (#865).
+    let command = crate::english::asks_on_127(terminal, index, cx)?;
+    let view = view.clone();
+    Some(
+        Button::new(("marley-ask-agent", index), "Ask the agent")
+            .style(ButtonStyle::Tinted(TintColor::Accent))
+            .label_size(LabelSize::XSmall)
+            .on_click(move |_, window, cx| {
+                cx.stop_propagation();
+                crate::english::ask_later(&view, command.clone(), window, cx);
+            })
+            .into_any_element(),
+    )
+}
+
+/// The `MarleyBlockFooter` hook: under the newest block when it failed at the prompt with no agent
+/// in front, a row of labelled buttons (#916). Ask an agent to fix it, or Explain, where Claude
+/// Code starts with it when no agent runs (#826); Ask Marley opens Marley's own agent beside the
+/// terminal (#865). A 127 the shell could not run keeps its own ask in the header (#557).
+pub(crate) fn footer(
+    view: &Entity<TerminalView>,
+    terminal: &Entity<Terminal>,
+    index: usize,
+    cx: &App,
+) -> Option<AnyElement> {
+    let terminal_ref = terminal.read(cx);
+    if asks_fix(terminal_ref) != Some(index)
+        || crate::english::asks_on_127(terminal_ref, index, cx).is_some()
+    {
+        return None;
+    }
     let (fix_view, explain_view, beside_view) = (view.clone(), view.clone(), view.clone());
     Some(
         h_flex()
-            .gap_1()
+            .size_full()
+            .items_center()
+            .gap_1p5()
             .child(
-                Button::new(("marley-ask-agent", index), "Ask an agent")
-                    .style(ButtonStyle::Tinted(TintColor::Accent))
-                    .label_size(LabelSize::XSmall)
-                    .on_click(move |_, window, cx| {
+                footer_button("marley-ask-agent", index, "Ask an agent", true, cx).on_click(
+                    move |_, window, cx| {
                         cx.stop_propagation();
                         send(&fix_view, index, Request::Fix, window, cx);
-                    }),
+                    },
+                ),
             )
             .child(
-                Button::new(("marley-explain-block", index), "Explain")
-                    .style(ButtonStyle::Subtle)
-                    .label_size(LabelSize::XSmall)
-                    .on_click(move |_, window, cx| {
+                footer_button("marley-explain-block", index, "Explain", false, cx).on_click(
+                    move |_, window, cx| {
                         cx.stop_propagation();
                         send(&explain_view, index, Request::Explain, window, cx);
-                    }),
+                    },
+                ),
             )
             .child(
-                Button::new(("marley-ask-beside", index), "Ask Marley")
-                    .style(ButtonStyle::Subtle)
-                    .label_size(LabelSize::XSmall)
+                footer_button("marley-ask-beside", index, "Ask Marley", false, cx)
                     .tooltip(ui::Tooltip::text(
                         "Open Marley's agent beside this terminal with the block",
                     ))
@@ -265,6 +273,47 @@ pub(crate) fn chip(
             )
             .into_any_element(),
     )
+}
+
+/// A labelled button of the footer's row: filled in the accent with dark ink when `primary`, else
+/// outlined (#916).
+fn footer_button(
+    id: &'static str,
+    index: usize,
+    label: &'static str,
+    primary: bool,
+    cx: &App,
+) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    let fill = crate::prompts::primary_fill(cx);
+    h_flex()
+        .id((id, index))
+        .h(px(24.))
+        .px_2p5()
+        .rounded(px(7.))
+        .border_1()
+        .cursor_pointer()
+        .map(|button| {
+            if primary {
+                button
+                    .bg(fill)
+                    .border_color(fill)
+                    .hover(|style| style.opacity(0.9))
+            } else {
+                button
+                    .border_color(colors.border)
+                    .hover(|style| style.bg(colors.ghost_element_hover))
+            }
+        })
+        .child(
+            Label::new(label)
+                .size(LabelSize::XSmall)
+                .when(primary, |label| {
+                    label
+                        .weight(FontWeight::SEMIBOLD)
+                        .color(Color::Custom(colors.background))
+                }),
+        )
 }
 
 /// Opens Marley's own agent beside `view` with the block at `index` and "Fix it" in its message box,
@@ -303,20 +352,36 @@ fn ask_beside(view: &Entity<TerminalView>, index: usize, window: &Window, cx: &m
     });
 }
 
-/// How long the block at `index` took, once it finished (#826).
+/// How long the block at `index` took, once it finished (#826), or "running · <time so far>" in
+/// the running colour while it runs (#916), which the view's ticking repaint moves on.
 pub(crate) fn duration(terminal: &Entity<Terminal>, index: usize, cx: &App) -> Option<AnyElement> {
     let anchored = terminal.read(cx).marley_anchored();
-    let block = anchored
-        .live()
-        .iter()
-        .find(|block| block.index == index)
-        .filter(|block| block.state == BlockState::Finished)?;
+    let block = anchored.live().iter().find(|block| block.index == index)?;
     let times = anchored.times(block.index)?;
-    let took = times.finished?.duration_since(times.started).ok()?;
-    Some(
-        Label::new(marley_terminal::duration_label(took))
-            .size(LabelSize::XSmall)
-            .color(Color::Muted)
-            .into_any_element(),
-    )
+    match block.state {
+        BlockState::Finished => {
+            let took = times.finished?.duration_since(times.started).ok()?;
+            Some(
+                Label::new(marley_terminal::duration_label(took))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted)
+                    .into_any_element(),
+            )
+        }
+        BlockState::Running => {
+            let so_far = SystemTime::now()
+                .duration_since(times.started)
+                .unwrap_or_default();
+            Some(
+                Label::new(format!(
+                    "running \u{b7} {}",
+                    marley_terminal::duration_label(so_far)
+                ))
+                .size(LabelSize::XSmall)
+                .color(Color::Warning)
+                .into_any_element(),
+            )
+        }
+        BlockState::Pending => None,
+    }
 }

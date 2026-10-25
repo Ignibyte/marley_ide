@@ -15,7 +15,7 @@
 //! blocks and gives a one-row prompt's header a second row, which the element inserts above the
 //! prompt; compact keeps every row where the grid puts it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path};
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +27,7 @@ use gpui::{
 use marley_terminal::BlockState;
 use settings::{MarleyBlockDensity, Settings as _, SettingsStore};
 use terminal::Terminal;
-use terminal_view::{MarleyBlockHeader, MarleyBlockSpacing, TerminalView};
+use terminal_view::{MarleyBlockHeader, MarleyBlockProgress, MarleyBlockSpacing, TerminalView};
 use ui::prelude::*;
 
 use crate::{BlockHeaders, MarleySettings};
@@ -39,10 +39,20 @@ struct Branches(HashMap<(EntityId, usize), Option<SharedString>>);
 
 impl Global for Branches {}
 
+/// The terminal views whose running block's time ticks, one loop each (#916, D4).
+#[derive(Default)]
+struct Ticking(HashSet<EntityId>);
+
+impl Global for Ticking {}
+
 /// Sets the header's hook and records the blocks' branches; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyBlockHeader(Arc::new(header)));
+    cx.set_global(MarleyBlockProgress(Arc::new(|index, cx| {
+        Some(progress_line(index, cx))
+    })));
     cx.set_global(Branches::default());
+    cx.set_global(Ticking::default());
     cx.set_global(spacing(cx));
     cx.observe_global::<SettingsStore>(|cx| {
         let spacing = spacing(cx);
@@ -58,6 +68,7 @@ pub fn init(cx: &mut App) {
             // A block's start notifies the terminal.
             cx.observe(&terminal, |view, terminal, cx| {
                 record_branches(view, &terminal, cx);
+                tick_while_running(view, cx);
             })
             .detach();
             let terminal_id = terminal.entity_id();
@@ -78,13 +89,63 @@ pub fn init(cx: &mut App) {
 /// `marley.block_density` (#631). The element gives a header its second row only when the header
 /// hook draws one, so the headers' own setting still decides.
 fn spacing(cx: &App) -> MarleyBlockSpacing {
-    match MarleySettings::get_global(cx).block_density {
+    let settings = MarleySettings::get_global(cx);
+    // The gutter widens for the headers' state dot (#916).
+    let wide_gutter = settings.block_headers == BlockHeaders::Native;
+    match settings.block_density {
         MarleyBlockDensity::Comfortable => MarleyBlockSpacing {
             gap_rows: 0.5,
             tall_headers: true,
+            wide_gutter,
         },
-        MarleyBlockDensity::Compact => MarleyBlockSpacing::default(),
+        MarleyBlockDensity::Compact => MarleyBlockSpacing {
+            wide_gutter,
+            ..MarleyBlockSpacing::default()
+        },
     }
+}
+
+/// Repaints `view` once a second while one of its terminal's live blocks runs, so the running
+/// time in the block's header moves; one loop per view, which ends when no block runs (#916, D4).
+fn tick_while_running(view: &TerminalView, cx: &mut Context<TerminalView>) {
+    let id = cx.entity_id();
+    if !runs(view.terminal(), cx) || cx.global::<Ticking>().0.contains(&id) {
+        return;
+    }
+    cx.global_mut::<Ticking>().0.insert(id);
+    cx.spawn(async move |this, cx| {
+        loop {
+            cx.background_executor().timer(Duration::from_secs(1)).await;
+            let running = this
+                .update(cx, |view, cx| {
+                    let running = runs(view.terminal(), cx);
+                    if running {
+                        cx.notify();
+                    }
+                    running
+                })
+                .unwrap_or(false);
+            if !running {
+                break;
+            }
+        }
+        cx.update(|cx| {
+            if cx.has_global::<Ticking>() {
+                cx.global_mut::<Ticking>().0.remove(&id);
+            }
+        });
+    })
+    .detach();
+}
+
+/// Whether one of `terminal`'s live blocks runs.
+fn runs(terminal: &Entity<Terminal>, cx: &App) -> bool {
+    terminal
+        .read(cx)
+        .marley_anchored()
+        .live()
+        .iter()
+        .any(|block| block.state == BlockState::Running)
 }
 
 /// Records the branch of each started block of `terminal` that has none recorded yet, from the
@@ -180,13 +241,11 @@ fn header(
         v_flex().child(row().child(command).children(place))
     };
     let focus_handle = view.focus_handle(cx);
-    let running = block.state == BlockState::Running;
     Some(
         header
             .id(("marley-block-header", index))
             .relative()
             .size_full()
-            .when(running, |header| header.child(progress_line(index, cx)))
             // The header stands for the prompt's text, which is not there to select: a press on
             // it and its release are the header's, so the terminal under it starts no selection
             // and reports no click to its program. The press still focuses the terminal, as one
@@ -200,24 +259,25 @@ fn header(
     )
 }
 
-/// The thin line along a running block's top (#865, D3): a 30% bar sliding across, or still and
-/// full width under reduced motion.
+/// The `MarleyBlockProgress` hook's element: the line along a running block's bottom edge (#865, D3; the
+/// edge and the honey since #916), a 30% bar sliding across, or still and full width under
+/// reduced motion. It stays indeterminate until a command's own progress is read (#916, D5).
 fn progress_line(index: usize, cx: &App) -> AnyElement {
-    let color = cx.theme().colors().text_accent;
+    let color = cx.theme().status().warning;
     if cx.reduce_motion() {
         return div()
             .absolute()
-            .top_0()
+            .bottom_0()
             .left_0()
-            .h(px(2.))
+            .h(px(3.))
             .w_full()
             .bg(color.opacity(0.5))
             .into_any_element();
     }
     div()
         .absolute()
-        .top_0()
-        .h(px(2.))
+        .bottom_0()
+        .h(px(3.))
         .w(relative(0.3))
         .rounded_full()
         .bg(color)

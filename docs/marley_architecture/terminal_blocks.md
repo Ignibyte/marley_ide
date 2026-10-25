@@ -448,6 +448,20 @@ grid row's top (a rounded row height drifted), columns from the widest cell (3 t
 shrunk in proportion to the terminal's width, and a row holding one of `Terminal::matches`
 (grid lines from the live screen's top) in the search color.
 
+**Since #916.** Blocks read as the Terminal board's cards. `RowMap` inserts may carry a `Foot`
+(`RowMap::new_with_foot`): a row drawn above the live prompt, before the gap, as part of the block
+above it; `foot_top` and `foot_height` place it. The element asks `MarleyBlockFooter` for the block
+that ends at the live prompt and lays its element over that foot; a press there focuses the
+terminal and stops. While `MarleyBlockSpacing::wide_gutter` is set (native headers on) the gutter
+is two cells, the bar is left out, and a state dot is painted in the gutter on the header's command
+row. The frame is a rounded 1 px border (12 px, at most half its height) in `border`, `error` or
+`warning`, taking in the footer row; the wash covers a header's rows only, with the frame's top
+corners. Running is `warning` throughout, and the pill leaves the running state to the workbench
+while `MarleyBlockProgress` is set, whose element `marley_block` draws along a running block's
+bottom edge. The workbench side: `send_block::footer` (Ask an agent, Explain, Ask Marley) and
+`duration`'s "running · N s"; `block_headers::progress_line` and `tick_while_running`, one
+once-a-second repaint per view while a block runs.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

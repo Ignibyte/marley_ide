@@ -57,6 +57,10 @@ pub struct LayoutState {
     marley_suggestion: Option<SharedString>,
     // Marley: where each viewport row is drawn once blocks stand apart (#631).
     marley_row_map: marley_terminal::RowMap,
+    // Marley: each native header's rows, the band a failed or running block's wash covers, and
+    // the block the footer row belongs to, whose frame takes it in (#916).
+    marley_bands: Vec<std::ops::Range<usize>>,
+    marley_footer_block: Option<usize>,
 }
 
 /// Helper struct for converting terminal cursor points to displayed cursor points.
@@ -1343,7 +1347,16 @@ impl Element for TerminalElement {
                         .advance(font_id, font_pixels, 'm')
                         .unwrap()
                         .width;
-                    gutter = cell_width;
+                    // Marley: two cells while Marley's native headers are on, so a block's
+                    // state dot sits in the gutter before its command (#916).
+                    gutter = if cx
+                        .try_global::<crate::MarleyBlockSpacing>()
+                        .is_some_and(|spacing| spacing.wide_gutter)
+                    {
+                        cell_width * 2.0
+                    } else {
+                        cell_width
+                    };
 
                     let mut size = bounds.size;
                     size.width -= gutter;
@@ -1620,6 +1633,7 @@ impl Element for TerminalElement {
                         }
                     }
                 }
+                let mut marley_footer = None;
                 let marley_row_map = if marley_maps_rows {
                     let line_height = f32::from(dimensions.line_height());
                     // The prompt the shell waits at stands apart too: it starts the next block.
@@ -1627,6 +1641,19 @@ impl Element for TerminalElement {
                         let terminal = self.terminal.read(cx);
                         marley_live_prompt_row(terminal.last_content(), terminal.marley_anchored())
                     };
+                    // Marley: the row the footer hook gives the block that ends at the live
+                    // prompt, inserted above that prompt (#916).
+                    let mut foot = None;
+                    if let Some(row) = live_prompt
+                        && let Some(span) = marley_spans.last().filter(|span| span.rows.end <= row)
+                        && let Some(hook) = cx.try_global::<crate::MarleyBlockFooter>().cloned()
+                        && let Some(element) =
+                            (hook.0)(&self.terminal_view, &self.terminal, span.index, cx)
+                    {
+                        let height = line_height + 12.0;
+                        foot = Some(marley_terminal::Foot { row, height });
+                        marley_footer = Some((span.index, row, height, element));
+                    }
                     let starts: Vec<usize> = marley_spans
                         .iter()
                         .filter(|span| span.starts_in_view)
@@ -1638,9 +1665,10 @@ impl Element for TerminalElement {
                         .filter(|(_, tall, _)| *tall)
                         .map(|(rows, _, _)| rows.start)
                         .collect();
-                    marley_terminal::RowMap::new(
+                    marley_terminal::RowMap::new_with_foot(
                         &starts,
                         &tall,
+                        foot,
                         marley_density.gap_rows * line_height,
                         line_height,
                         if display_offset == 0 {
@@ -1753,6 +1781,10 @@ impl Element for TerminalElement {
                 // the display-row map inserts above (#628, #631).
                 let mut marley_headers: Vec<AnyElement> = Vec::new();
                 let mut marley_hidden_rows: Vec<std::ops::Range<usize>> = Vec::new();
+                let marley_bands: Vec<std::ops::Range<usize>> = marley_header_layouts
+                    .iter()
+                    .map(|(rows, _, _)| rows.clone())
+                    .collect();
                 for (rows, _, mut element) in marley_header_layouts {
                     let line_height = dimensions.line_height();
                     let (top, height) = marley_rows_extent(&rows, &marley_row_map, line_height);
@@ -1917,6 +1949,35 @@ impl Element for TerminalElement {
                     });
                     marley_blocks.push(element);
                 }
+                // Marley: the footer row laid over the space the display-row map inserts above the
+                // live prompt. A press in it focuses the terminal and goes no further, so it starts
+                // no selection in the grid (#916).
+                let mut marley_footer_block = None;
+                if let Some((index, row, height, element)) = marley_footer
+                    && let Some(top) =
+                        marley_row_map.foot_top(row, f32::from(dimensions.line_height()))
+                {
+                    let focus = self.focus.clone();
+                    let mut element = div()
+                        .size_full()
+                        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                            window.focus(&focus, cx);
+                            cx.stop_propagation();
+                        })
+                        .child(element)
+                        .into_any_element();
+                    let origin = dimensions.bounds.origin + point(px(0.), px(top))
+                        - point(px(0.), scroll_top);
+                    let available_space = size(
+                        AvailableSpace::Definite(dimensions.width()),
+                        AvailableSpace::Definite(px(height)),
+                    );
+                    window.with_rem_size(rem_size, |window| {
+                        element.prepaint_as_root(origin, available_space, window, cx);
+                    });
+                    marley_blocks.push(element);
+                    marley_footer_block = Some(index);
+                }
                 // Marley: the command of the block the top row lies in, pinned over that row while
                 // the view is scrolled back and the block started above it; painted last of the
                 // block elements (#529).
@@ -1966,6 +2027,8 @@ impl Element for TerminalElement {
                     marley_blocks,
                     marley_suggestion,
                     marley_row_map,
+                    marley_bands,
+                    marley_footer_block,
                 }
             },
         )
@@ -2055,10 +2118,27 @@ impl Element for TerminalElement {
                         rect.paint(origin, &layout.dimensions, window);
                     }
 
-                    // Marley: the wash over a running or failed block's rows (#470).
+                    // Marley: the wash over a running or failed block's rows (#470); over its header's
+                    // rows only when it has one, as the board's band, its top corners the frame's
+                    // (#916).
                     for span in &layout.marley_spans {
                         if let Some(color) = marley_wash(span, cx.theme().status()) {
+                            let band = layout
+                                .marley_bands
+                                .iter()
+                                .find(|band| band.start == span.rows.start);
+                            let washed = band.unwrap_or(&span.rows);
                             let rows = marley_mapped_bounds(
+                                marley_rows_bounds(
+                                    washed,
+                                    bounds.origin.x,
+                                    origin,
+                                    &layout.dimensions,
+                                ),
+                                washed,
+                                marley_map,
+                            );
+                            let block_height = marley_mapped_bounds(
                                 marley_rows_bounds(
                                     &span.rows,
                                     bounds.origin.x,
@@ -2067,8 +2147,16 @@ impl Element for TerminalElement {
                                 ),
                                 &span.rows,
                                 marley_map,
-                            );
-                            window.paint_quad(fill(rows, color));
+                            )
+                            .size
+                            .height;
+                            let radius = marley_frame_radius(block_height);
+                            window.paint_quad(fill(rows, color).corner_radii(gpui::Corners {
+                                top_left: radius,
+                                top_right: radius,
+                                bottom_left: if band.is_some() { px(0.) } else { radius },
+                                bottom_right: if band.is_some() { px(0.) } else { radius },
+                            }));
                         }
                     }
 
@@ -2119,23 +2207,30 @@ impl Element for TerminalElement {
                     let text_paint_time = text_paint_start.elapsed();
 
                     // Marley: each block's gutter bar, and the blocks' pills and actions (#470,
-                    // #474).
+                    // #474). With the wide gutter a native header's state dot stands in for the
+                    // bar (#916).
+                    let marley_wide_gutter = cx
+                        .try_global::<crate::MarleyBlockSpacing>()
+                        .is_some_and(|spacing| spacing.wide_gutter);
                     for span in &layout.marley_spans {
-                        let bar = marley_mapped_bounds(
-                            marley_gutter_bounds(
-                                &span.rows,
-                                bounds.origin.x,
-                                origin,
-                                &layout.dimensions,
-                            ),
-                            &span.rows,
-                            marley_map,
-                        );
                         let color =
                             marley_bar_color(span, cx.theme().status(), cx.theme().colors().border);
-                        window.paint_quad(fill(bar, color));
-                        // Marley: the block framed in its state's color (#826).
-                        let rows = marley_mapped_bounds(
+                        if !marley_wide_gutter {
+                            let bar = marley_mapped_bounds(
+                                marley_gutter_bounds(
+                                    &span.rows,
+                                    bounds.origin.x,
+                                    origin,
+                                    &layout.dimensions,
+                                ),
+                                &span.rows,
+                                marley_map,
+                            );
+                            window.paint_quad(fill(bar, color));
+                        }
+                        // Marley: the block framed in its state's color (#826), rounded, and taking
+                        // in the footer row under it (#916).
+                        let mut rows = marley_mapped_bounds(
                             marley_rows_bounds(
                                 &span.rows,
                                 bounds.origin.x,
@@ -2145,11 +2240,65 @@ impl Element for TerminalElement {
                             &span.rows,
                             marley_map,
                         );
-                        window.paint_quad(gpui::outline(
+                        if layout.marley_footer_block == Some(span.index)
+                            && let Some(foot) = marley_map.foot_height()
+                        {
+                            rows.size.height += px(foot);
+                        }
+                        window.paint_quad(gpui::quad(
                             rows,
-                            color.opacity(0.35),
+                            marley_frame_radius(rows.size.height),
+                            gpui::transparent_black(),
+                            px(1.),
+                            marley_frame_color(
+                                span,
+                                cx.theme().status(),
+                                cx.theme().colors().border,
+                            ),
                             gpui::BorderStyle::Solid,
                         ));
+                        // Marley: the state dot in the gutter, on the header's command row: its
+                        // second over two rows or more, else its only one (#916).
+                        if marley_wide_gutter
+                            && let Some(band) = layout
+                                .marley_bands
+                                .iter()
+                                .find(|band| band.start == span.rows.start)
+                        {
+                            let band_bounds = marley_mapped_bounds(
+                                marley_rows_bounds(
+                                    band,
+                                    bounds.origin.x,
+                                    origin,
+                                    &layout.dimensions,
+                                ),
+                                band,
+                                marley_map,
+                            );
+                            let diameter = px(8.);
+                            let center = point(
+                                bounds.origin.x + (origin.x - bounds.origin.x) / 2.,
+                                band_bounds.top()
+                                    + layout.dimensions.line_height()
+                                        * if band_bounds.size.height
+                                            >= layout.dimensions.line_height() * 2.
+                                        {
+                                            1.5
+                                        } else {
+                                            0.5
+                                        },
+                            );
+                            window.paint_quad(
+                                fill(
+                                    Bounds::new(
+                                        center - point(diameter / 2., diameter / 2.),
+                                        size(diameter, diameter),
+                                    ),
+                                    color,
+                                )
+                                .corner_radii(diameter / 2.),
+                            );
+                        }
                     }
                     for block in &mut marley_blocks {
                         block.paint(window, cx);
@@ -2781,43 +2930,69 @@ fn marley_split_range(
     parts
 }
 
-// Marley: the wash over a block's rows: a faint `info` while it runs, a faint `error` after a
-// failure, none otherwise (#470).
+// Marley: the wash over a block's rows: a faint `warning` while it runs (`info` before #916), a
+// faint `error` after a failure, none otherwise (#470).
 fn marley_wash(span: &marley_terminal::BlockSpan, status: &theme::StatusColors) -> Option<Hsla> {
     match (span.state, span.exit_code.0) {
-        (marley_terminal::BlockState::Running, _) => Some(status.info.opacity(0.06)),
+        (marley_terminal::BlockState::Running, _) => Some(status.warning.opacity(0.08)),
         (_, Some(code)) if code != 0 => Some(status.error.opacity(0.08)),
         _ => None,
     }
 }
 
-// Marley: a block's gutter bar color: `info` while it runs, `success` for exit 0, `error` for
-// another exit code, and `border` without one (#470).
+// Marley: a block's gutter bar and state dot color: `warning` while it runs, the boards' honey
+// (`info` before #916), `success` for exit 0, `error` for another exit code, and `border` without
+// one (#470).
 fn marley_bar_color(
     span: &marley_terminal::BlockSpan,
     status: &theme::StatusColors,
     border: Hsla,
 ) -> Hsla {
     match (span.state, span.exit_code.0) {
-        (marley_terminal::BlockState::Running, _) => status.info,
+        (marley_terminal::BlockState::Running, _) => status.warning,
         (_, Some(0)) => status.success,
         (_, Some(_)) => status.error,
         (_, None) => border,
     }
 }
 
+// Marley: a block's frame color: `warning` while it runs, `error` after a failure, the neutral
+// `border` otherwise (#916).
+fn marley_frame_color(
+    span: &marley_terminal::BlockSpan,
+    status: &theme::StatusColors,
+    border: Hsla,
+) -> Hsla {
+    match (span.state, span.exit_code.0) {
+        (marley_terminal::BlockState::Running, _) => status.warning,
+        (_, Some(code)) if code != 0 => status.error,
+        _ => border,
+    }
+}
+
+// Marley: the frame's corner radius, the boards' 12 px, at most half the frame's height (#916).
+fn marley_frame_radius(height: Pixels) -> Pixels {
+    px(12.).min(height / 2.)
+}
+
 // Marley: a block's status pill: a check for exit 0, the exit code for another, `running` while
-// it runs, and none without an exit code (#470).
+// it runs, and none without an exit code (#470). While Marley's workbench draws a running block's
+// progress it shows the running state with the time, so the pill leaves it (#916).
 fn marley_pill(span: &marley_terminal::BlockSpan, cx: &App) -> Option<AnyElement> {
     let theme = cx.theme();
     let status = theme.status();
     let (content, border) = match (span.state, span.exit_code.0) {
+        (marley_terminal::BlockState::Running, _)
+            if cx.has_global::<crate::MarleyBlockProgress>() =>
+        {
+            return None;
+        }
         (marley_terminal::BlockState::Running, _) => (
             ui::Label::new("running")
                 .size(ui::LabelSize::XSmall)
-                .color(ui::Color::Info)
+                .color(ui::Color::Warning)
                 .into_any_element(),
-            status.info,
+            status.warning,
         ),
         (_, Some(0)) => (
             ui::Icon::new(ui::IconName::Check)
@@ -2942,10 +3117,17 @@ fn marley_block(
                 .tooltip(Tooltip::text("Filter Output"))
                 .on_click(move |_, window, cx| (hook.0)(&view, index, window, cx))
         });
+    // Marley: a running block's progress along its bottom edge (#916).
+    let progress = (span.state == marley_terminal::BlockState::Running)
+        .then(|| cx.try_global::<crate::MarleyBlockProgress>().cloned())
+        .flatten()
+        .and_then(|hook| (hook.0)(index, cx));
     div()
         .id(("marley-block", index))
         .group(group.clone())
+        .relative()
         .size_full()
+        .children(progress)
         .child(
             ui::h_flex()
                 .w_full()
@@ -3065,7 +3247,12 @@ mod tests {
         let status = theme::StatusColors::dark();
         let border = Hsla::white();
         let cases = [
-            (Running, None, Some(status.info.opacity(0.06)), status.info),
+            (
+                Running,
+                None,
+                Some(status.warning.opacity(0.08)),
+                status.warning,
+            ),
             (Finished, Some(0), None, status.success),
             (
                 Finished,

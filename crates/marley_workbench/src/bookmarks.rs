@@ -17,7 +17,9 @@ use std::sync::Arc;
 use gpui::{AnyElement, App, Context, Entity, Focusable as _, Window};
 use marley_terminal::AnchoredBlock;
 use terminal::Terminal;
-use terminal_view::{MarleyBlockChip, MarleyBlockExtras, MarleyBlockMarks, TerminalView};
+use terminal_view::{
+    MarleyBlockChip, MarleyBlockExtras, MarleyBlockFooter, MarleyBlockMarks, TerminalView,
+};
 use ui::{IconButton, IconName, IconSize, Tooltip, prelude::*};
 use workspace::{Workspace, searchable::SearchEvent};
 
@@ -29,6 +31,7 @@ use crate::{FindInBlock, NextBookmark, PreviousBookmark, ToggleBookmark};
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyBlockMarks::default());
     cx.set_global(MarleyBlockChip(Arc::new(chip)));
+    cx.set_global(MarleyBlockFooter(Arc::new(crate::send_block::footer)));
     cx.set_global(MarleyBlockExtras(Arc::new(block_buttons)));
     // A terminal's marks go with it, so a task's rerun in a new terminal starts with none.
     cx.observe_new(|_: &mut Terminal, _, cx: &mut Context<Terminal>| {

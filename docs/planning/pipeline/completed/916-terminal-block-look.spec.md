@@ -1,7 +1,7 @@
 ---
 pipeline_id: a42d7cfc-5d32-4bf2-962f-68bfc26a1dc2
 ticket: docs/planning/tickets/open/TICKET-916-terminal-block-look.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Terminal blocks as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

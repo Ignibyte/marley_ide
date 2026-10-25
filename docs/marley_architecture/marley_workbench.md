@@ -1372,6 +1372,14 @@ alike.
   time to `bookmarks::chip`. The frame is a `// Marley:` outline in `terminal_element.rs` in the
   gutter bar's color at 35 %; `agent_bar::footer_without_agent` puts the folder and branch chips
   (`place_chip`) under an open prompt editor.
+- **The footer row and the running time** (#916): `footer`, the `MarleyBlockFooter` hook
+  `bookmarks` sets, gives the newest failed live block at the prompt with no agent in front (and
+  no 127 ask) a row of `footer_button`s: Ask an agent filled in `prompts::primary_fill`, Explain
+  and Ask Marley outlined. `chip` keeps only #557's 127 ask. `duration` shows a running block as
+  "running · N s" in the warning colour. `block_headers` sets `MarleyBlockProgress`
+  (`progress_line`, 3 px along the bottom edge in the warning colour), puts `wide_gutter` into
+  `MarleyBlockSpacing` while headers are `Native`, and `tick_while_running` repaints a view once
+  a second while one of its live blocks runs, one loop per view kept in the `Ticking` global.
 
 ## Marley as Claude Code's IDE (`src/claude_ide.rs`, #653)
 

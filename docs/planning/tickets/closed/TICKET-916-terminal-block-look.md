@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #916 (feature, the Marley look, terminal blocks)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [916-terminal-block-look.spec.md](../../pipeline/queued/916-terminal-block-look.spec.md)
+- **Pipeline doc:** [916-terminal-block-look.spec.md](../../pipeline/completed/916-terminal-block-look.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/A-core.md, boards Terminal and TerminalSession: "Block
   frames", "Block header", "Failed block's action row", "Running block time", "Progress bar")
 - **Boards:** Terminal, TerminalSession
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

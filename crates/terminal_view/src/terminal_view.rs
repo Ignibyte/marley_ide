@@ -265,9 +265,29 @@ pub struct MarleyBlockSpacing {
     pub gap_rows: f32,
     /// Whether a header over a one-row prompt takes a second row.
     pub tall_headers: bool,
+    /// Whether the gutter is two cells wide, for the state dot before a native header's command;
+    /// the gutter bar is not drawn then (#916).
+    pub wide_gutter: bool,
 }
 
 impl gpui::Global for MarleyBlockSpacing {}
+
+// Marley: a row under the newest block's output, above the prompt the shell waits at, such as a
+// failed command's actions, given the block's index, or none; Marley's workbench sets it (#916).
+#[derive(Clone)]
+pub struct MarleyBlockFooter(
+    pub Arc<dyn Fn(&Entity<TerminalView>, &Entity<Terminal>, usize, &App) -> Option<AnyElement>>,
+);
+
+impl gpui::Global for MarleyBlockFooter {}
+
+// Marley: an element along a running block's bottom edge, such as its progress line, given the
+// block's index, or none. While it is set, the block's pill leaves the running state to the
+// workbench, which shows it with the time (#916).
+#[derive(Clone)]
+pub struct MarleyBlockProgress(pub Arc<dyn Fn(usize, &App) -> Option<AnyElement>>);
+
+impl gpui::Global for MarleyBlockProgress {}
 
 // Marley: an element drawn over the terminal's grid, such as a block's filter, or none; Marley's
 // workbench sets it (#528).

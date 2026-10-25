@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Terminal blocks as the board draws them** (#916, 2026-10-25). Each block sits in a rounded
+  frame with a gap to the next and a state dot before its command, in a gutter two cells wide.
+  A passed block's frame is neutral; a failed one is red with a tinted header band; a running one
+  is honey, its time ticking as "running · 4 s" and its progress line along the bottom edge. A
+  failed block at the prompt offers Ask an agent, Explain and Ask Marley as labelled buttons in a
+  row under its output, where the header's chip carried them before.
+
 - **The thread's composer and details panel** (#915, 2026-10-25). Each file or symbol the draft
   mentions shows as a chip above the composer's text. An agent that offers a plan mode gets a
   Plan / Act switch beside its mode menu, for Claude Code too, which reports its modes as a

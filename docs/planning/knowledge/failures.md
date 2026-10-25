@@ -4572,3 +4572,13 @@ run looked right. Fixed: `MarleyModeControl` reads and sets the mode through the
 through the config option (`ConfigOptionsView::value_ids_of`, `value_of`, `set_value_of`), and the
 scenario's second thread is given its modes as a config option.
 
+## F-claude-916-the-state-dot-took-the-headers-last-row-001
+*found: 2026-10-25 · while: testing #916 · severity: low*
+
+The block's state dot was placed on the last row of the header's band, which is the command's row
+for a one-row prompt with its inserted line and for a two-row prompt. A prompt taller than two rows
+(the multi-line command Ask an agent types for the stand-in) draws the place on the first row, the
+command on the second and nothing below, so the dot sat beside empty rows. Fixed: the dot goes on
+the band's second row when the band is two rows or more, else on its only row, as `header` lays
+the command out.
+
