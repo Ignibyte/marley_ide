@@ -123,6 +123,17 @@ fn plain(text: &str) -> String {
     text.replace('`', "")
 }
 
+/// A primary button's fill (#906, D3): the coat (`icon.accent`) in a dark theme, under dark ink;
+/// `text.accent` in a light one, where the coat under light ink falls short of AA contrast.
+pub(crate) fn primary_fill(cx: &App) -> gpui::Hsla {
+    let colors = cx.theme().colors();
+    if cx.theme().appearance().is_light() {
+        colors.text_accent
+    } else {
+        colors.icon_accent
+    }
+}
+
 /// A button as the board draws its role: quiet on nothing, plain filled with a border, primary and
 /// danger solid in the accent or the error colour with dark ink. A chosen button (the arrow keys')
 /// has a focus border.
@@ -141,11 +152,10 @@ pub(crate) fn render_button(
             Some(colors.border),
             Color::Default,
         ),
-        Role::Primary => (
-            Some(colors.text_accent),
-            Some(colors.text_accent),
-            Color::Custom(colors.background),
-        ),
+        Role::Primary => {
+            let fill = primary_fill(cx);
+            (Some(fill), Some(fill), Color::Custom(colors.background))
+        }
         Role::Danger => {
             let error = cx.theme().status().error;
             (Some(error), Some(error), Color::Custom(colors.background))

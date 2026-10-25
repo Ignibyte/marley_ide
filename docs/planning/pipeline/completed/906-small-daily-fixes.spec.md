@@ -1,7 +1,7 @@
 ---
 pipeline_id: 1a89b855-4132-401c-beff-55f206b57050
 ticket: docs/planning/tickets/open/TICKET-906-small-daily-fixes.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Small daily fixes from the design review
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

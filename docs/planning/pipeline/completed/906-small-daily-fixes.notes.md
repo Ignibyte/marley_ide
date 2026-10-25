@@ -34,6 +34,9 @@
     `rail_rows` (`:1809`).
   - `crates/marley_workbench/src/rail.rs`: `project_name` (`:10764`) and its caller (`:5824`).
 - **Decisions:** D1 to D4 in the spec.
+- **Promoted 2026-10-25:** every cited seam re-read after #904; `threads_page.rs`,
+  `panel_tabs.rs`, `panel_group.rs`, `prompts.rs`, `marley_rail.rs` and `rail.rs` match. Home's
+  Start moved inside `render_prompt` with #904 and still fills with `text_accent`.
 
 ### Design
 - Threads: in `render`, the columns' row gets `flex_wrap`; filters `flex_basis(px(230.))`,
@@ -82,7 +85,37 @@
   common case; the diff review checks the other callers.
 
 ## Phase 2 — Code
+- **Built:** the four fixes as designed: `threads_page.rs` (flex columns that wrap),
+  `panel_group::board_label` and `PanelTab::new`, `prompts::primary_fill` (used by
+  `render_button` and Home's Start), `marley_rail::GroupSummary` and `rail.rs` `project_name`.
+- **Deviations:** the columns' row also scrolls and the list takes `max_h_full` in place of
+  `h_full`, after the first narrow shot lost the preview below the row
+  (F-claude-906-a-wrapped-column-fell-below-a-row-that-did-not-scroll-001). The preview keeps its
+  left border when wrapped; it reads as its own block in the narrow shots, so no top border.
+- **Review:** no entity read in its own update; no Zed hunk; Google style: `GroupSummary` has
+  named fields in place of a string and a separate flag; `board_label` returns `Option<&str>`.
+  `role`'s other callers (Threads' New Agent, Sessions, Settings' Apply, the agent prompts) take
+  the coat through `render_button` too.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/906-small-daily-fixes.sh` (sway): #836's two CLI sessions, #827's
+  stand-in Claude Code on the terminals' PATH through `.bashrc`, on a private bus.
+- `906-01-open-summary`: the open `repo` header reads "1 waiting" in pink (REQ-004).
+- `906-02-threads-full`: filters, list and preview side by side, a card selected (REQ-001).
+- `906-03-threads-half`: the output narrowed to 930 px, the page about as wide as half the
+  center: filters on the first line, the list under them with whole titles, the preview under
+  the list (REQ-001). `pane: split right` did not split the page (it cannot split), so the
+  output was narrowed instead.
+- `906-04-panel-tabs`: tabs "Changes" and "Outline", their rail rows named the same (REQ-002).
+- `906-05-primary`: Save in the coat with dark ink (REQ-003).
+- `906-06-home-start`: Home's Start in the coat (REQ-003).
+- `906-07-day`: Marley Day, narrow: the columns stacked, "Pick a conversation" under the list,
+  the open header's "1 waiting" in pink (REQ-001, REQ-004).
+- `906-08-day-primary`: Marley Day: Save in `text.accent` (#a94a0c) with light ink (REQ-005).
+- The first narrow run lost the preview below the row (fixed, above).
 
 ## Phase 4 — Complete
+- CHANGELOG (Fixed), `docs/marley_architecture/marley_workbench.md`. No Zed path, so no ledger
+  row.
+- Knowledge: F-claude-906-a-wrapped-column-fell-below-a-row-that-did-not-scroll-001.

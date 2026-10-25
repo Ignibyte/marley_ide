@@ -102,6 +102,11 @@ const BOARD: [(&str, &str); 10] = [
     ("TerminalPanel", "Terminal"),
 ];
 
+/// The board's name for the panel `persistent_name`, which its tab takes too (#906, D2).
+pub(crate) fn board_label(persistent_name: &str) -> Option<&'static str> {
+    board_place(persistent_name).map(|(_, label)| label)
+}
+
 /// The board's place and name for the panel `persistent_name`; a panel the board does not name
 /// comes after, under its tooltip.
 fn board_place(persistent_name: &str) -> Option<(usize, &'static str)> {

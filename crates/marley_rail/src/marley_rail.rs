@@ -690,9 +690,17 @@ pub struct ProjectRow {
     pub attention: bool,
     /// The byte offsets of the characters the filter matched, to highlight.
     pub highlight: Vec<usize>,
-    /// For a collapsed project, its agents by state, most needing the user first: `1 waiting, 2
-    /// working` (#542); `None` with nothing to count.
-    pub summary: Option<String>,
+    /// The project's agents by state (#542), open or folded (#906); `None` with nothing to count.
+    pub summary: Option<GroupSummary>,
+}
+
+/// A project header's summary of its agents (#542, #906).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupSummary {
+    /// The agents by state, most needing the user first: `1 waiting, 2 working`.
+    pub words: String,
+    /// Whether an agent waits on the user or a row under the group needs them.
+    pub needs_you: bool,
 }
 
 /// A terminal row under its project.
@@ -1339,9 +1347,9 @@ pub fn movable_rows(project: &ProjectSnapshot) -> Vec<Selection> {
     rows
 }
 
-/// A collapsed project's agents by state, most needing the user first: `1 waiting, 2 working`;
-/// shells and idle agents are not counted.
-fn summary(project: &ProjectSnapshot) -> Option<String> {
+/// A project's agents by state, most needing the user first: `1 waiting, 2 working`; shells and
+/// idle agents are not counted.
+fn summary(project: &ProjectSnapshot) -> Option<GroupSummary> {
     const WORDS: [&str; 5] = ["waiting", "failed", "done", "working", "not reporting"];
     let mut counts = [0usize; 5];
     let terminals = project.terminals.iter().filter_map(|terminal| {
@@ -1377,7 +1385,11 @@ fn summary(project: &ProjectSnapshot) -> Option<String> {
         .filter(|(count, _)| **count > 0)
         .map(|(count, word)| format!("{count} {word}"))
         .collect();
-    (!parts.is_empty()).then(|| parts.join(", "))
+    let waiting = counts.first().is_some_and(|count| *count > 0);
+    (!parts.is_empty()).then(|| GroupSummary {
+        words: parts.join(", "),
+        needs_you: waiting || project_needs_the_user(project),
+    })
 }
 
 /// Every row the rail shows, in its order: each shown project's header, then Home's page (#782),
@@ -1806,7 +1818,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 selected: selected == Selection::Project(index),
                 attention: hidden_rows_need_the_user(snapshot, project),
                 highlight: highlight(project.matched.as_deref()),
-                summary: (!project.expanded).then(|| summary(project)).flatten(),
+                summary: summary(project),
             }),
             Shown::Terminal(index, terminal) => Row::Terminal(TerminalRow {
                 project: index,

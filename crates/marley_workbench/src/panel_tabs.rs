@@ -401,8 +401,9 @@ impl PanelTab {
         window: &Window,
         cx: &App,
     ) -> Self {
-        let name = panel
-            .icon_tooltip(window, cx)
+        // The board's name, as the status-bar button reads (#906): "Changes", not "Git Panel".
+        let name = crate::panel_group::board_label(panel.persistent_name())
+            .or_else(|| panel.icon_tooltip(window, cx))
             .unwrap_or_else(|| panel.persistent_name());
         let icon = panel.icon(window, cx);
         let focus = panel.panel_focus_handle(cx);

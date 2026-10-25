@@ -2053,6 +2053,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Small daily fixes** (#906, 2026-10-25). The Threads page's filters, list and preview flex
+  and wrap as the board lays them out, so in a half-width pane the titles stay readable and the
+  preview drops under the list. The Git and Outline panels' tabs say "Changes" and "Outline", as
+  their status-bar buttons do. Primary buttons (the prompt card's first action, Home's Start)
+  fill with the coat in Marley Night; Marley Day keeps its darker accent for contrast. An open
+  project's header shows its agents' summary ("1 waiting"), in pink when one needs you, as a
+  folded one does.
+
 - **Home's terminals after a conversation** (#904, 2026-10-25). With a Marley or Rusty
   conversation open in Home, Home's project chip read "config" and an agent CLI or terminal
   started there ran in Marley's settings folder. They start in the home folder again.

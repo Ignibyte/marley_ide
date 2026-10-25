@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #906 (feature, the Marley look, the Threads page, side panels, theme and rail)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [906-small-daily-fixes.spec.md](../../pipeline/queued/906-small-daily-fixes.spec.md)
+- **Pipeline doc:** [906-small-daily-fixes.spec.md](../../pipeline/completed/906-small-daily-fixes.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/C-threads.md,
   D-panels-editor.md, B-rail-chrome.md; boards Threads, SidePanels, Theme, Rail, RailStates)
 - **Boards:** Threads, SidePanels, Theme, Rail, RailStates
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

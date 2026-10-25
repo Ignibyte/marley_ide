@@ -2268,6 +2268,15 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Small daily fixes (#906).** `threads_page.rs`: the columns' row wraps and scrolls
+  (`marley-threads-columns`); filters `flex-basis 230px`, `min-width 200px`; the list
+  `flex-basis 480px` and `flex-grow 999`, at most the row's height (`max_h_full`); the preview
+  `flex-basis 380px`, `min-width 300px`. `panel_tabs.rs`: `PanelTab::new` names a tab by
+  `panel_group::board_label` before the panel's tooltip. `prompts.rs`: `primary_fill` is
+  `icon.accent` in a dark theme and `text.accent` in a light one, used by `render_button`'s
+  `Role::Primary` and Home's Start. The rail: `marley_rail::GroupSummary { words, needs_you }`
+  fills every header, open or folded; `rail.rs` `project_name` colours it conflict when
+  `needs_you` or the folded group's `attention` holds.
 - **Marley and Rusty as chips (#904).** `picked` is a `Pick` (`Marley`, `Cli(AgentKind)`,
   `Rusty`); `picks` lists Marley while `assistant::marley_present`, the installed CLIs, then Rusty
   while `assistant::rusty_present`, and `current_pick` keeps a pick only while it is offered,

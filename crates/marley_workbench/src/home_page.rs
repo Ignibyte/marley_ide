@@ -435,7 +435,6 @@ impl MarleyHome {
         let picks = Self::picks(cx);
         let picked = self.current_pick(&picks);
         let colors = cx.theme().colors();
-        let accent = colors.text_accent;
         let chips = picks.into_iter().enumerate().map(|(index, pick)| {
             let (tile, name) = match pick {
                 Pick::Marley => (icon_tile(IconName::MarleyCat, cx), "Marley"),
@@ -458,7 +457,7 @@ impl MarleyHome {
             .flex_none()
             .size(px(34.))
             .rounded(px(10.))
-            .bg(accent)
+            .bg(crate::prompts::primary_fill(cx))
             .flex()
             .items_center()
             .justify_center()

@@ -4512,3 +4512,13 @@ folder then; every Marley caller of `default_working_directory` goes through it.
 The first cut hid Home's project chip while Marley or Rusty was picked. Every chip after it moved
 left by the chip's width, so the scenario's next click, and a user's, landed beside the chip it
 aimed at. Fixed: the chip stays in place, greyed and closed, with a tooltip.
+
+## F-claude-906-a-wrapped-column-fell-below-a-row-that-did-not-scroll-001
+*found: 2026-10-25 · while: testing #906 · severity: medium*
+
+#906 let the Threads page's three columns wrap, as the board's `flex-wrap` does. In a narrow pane
+the filters took the first line, the list the second, and the preview a third, below the bottom of
+the row, which did not scroll; the list's `h_full` also made its line as tall as the row. The
+preview was out of reach. Fixed: the row scrolls as one, and the list caps its height at the
+row's (`max_h_full`) instead of taking all of it, so the preview sits right under it. A gpui row
+that wraps needs a scroll of its own, and no child of it should claim the row's full height.

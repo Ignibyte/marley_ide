@@ -838,9 +838,14 @@ impl ThreadsPage {
         };
         v_flex()
             .id("marley-threads-list")
-            .flex_1()
+            // The board's `flex: 999 1 480px`: the list takes the room the other two leave.
+            .flex_basis(px(480.))
+            .flex_grow(999.)
+            .flex_shrink_1()
             .min_w_0()
-            .h_full()
+            // At most the row's height, not all of it: wrapped, the preview sits right under the
+            // list rather than a screen below.
+            .max_h_full()
             .overflow_y_scroll()
             .gap_3()
             .when(empty, |list| list.child(self.render_empty(cx)))
@@ -888,9 +893,13 @@ impl Render for ThreadsPage {
                 .find(|row| row.key() == *key)
         });
         let preview = self.render_preview(selected, &project, cx);
+        // The board's columns (#906): each flexes from its basis, and the row wraps, so in a narrow
+        // pane the preview drops under the list rather than squeezing it.
         let filters = v_flex()
-            .w(px(200.))
-            .flex_none()
+            .flex_basis(px(230.))
+            .flex_grow_0()
+            .flex_shrink_1()
+            .min_w(px(200.))
             .overflow_hidden()
             .gap_4()
             .child(self.render_chips(&sections.chips, &project, cx))
@@ -917,17 +926,23 @@ impl Render for ThreadsPage {
             )
             .child(
                 h_flex()
+                    .id("marley-threads-columns")
                     .flex_1()
                     .min_h_0()
                     .w_full()
+                    .flex_wrap()
+                    // Wrapped in a narrow pane, the columns stack and scroll as one.
+                    .overflow_y_scroll()
                     .items_start()
                     .gap_4()
                     .child(filters)
                     .child(list)
                     .child(
                         div()
-                            .w(px(320.))
-                            .flex_none()
+                            .flex_basis(px(380.))
+                            .flex_grow_0()
+                            .flex_shrink_1()
+                            .min_w(px(300.))
                             .overflow_hidden()
                             .pl_4()
                             .border_l_1()

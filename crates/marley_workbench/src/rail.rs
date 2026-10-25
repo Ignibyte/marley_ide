@@ -37,11 +37,11 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, FilesRow, Focus, InboxAnswer,
-    InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow,
-    ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TabKind,
-    TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
-    ThreadStatus, TurnSnapshot, Usage, WorktreeRow, WorktreeSnapshot,
+    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, FilesRow, Focus, GroupSummary,
+    InboxAnswer, InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot,
+    ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection,
+    SwitcherRow, TabKind, TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot,
+    ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, Usage, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -10765,7 +10765,7 @@ fn project_name(
     name: String,
     highlight: Vec<usize>,
     color: Color,
-    summary: Option<String>,
+    summary: Option<GroupSummary>,
     attention: bool,
 ) -> impl IntoElement {
     h_flex()
@@ -10775,14 +10775,15 @@ fn project_name(
         .child(div().min_w_0().child(row_label(name, highlight, color)))
         .children(summary.map(|summary| {
             div().flex_none().child(
-                // A folded project's summary says in color that something under it needs you (#827).
-                Label::new(summary)
-                    .size(LabelSize::XSmall)
-                    .color(if attention {
+                // The summary says in color that something under the project needs you (#827),
+                // folded or open (#906).
+                Label::new(summary.words).size(LabelSize::XSmall).color(
+                    if attention || summary.needs_you {
                         Color::Conflict
                     } else {
                         Color::Muted
-                    }),
+                    },
+                ),
             )
         }))
 }
