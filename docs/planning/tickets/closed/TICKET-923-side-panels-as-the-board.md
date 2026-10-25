@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #923 (feature, the Marley look, the side panels)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [923-side-panels-as-the-board.spec.md](../../pipeline/queued/923-side-panels-as-the-board.spec.md)
+- **Pipeline doc:** [923-side-panels-as-the-board.spec.md](../../pipeline/completed/923-side-panels-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/D-panels-editor.md, boards SidePanels), build order line 10
 - **Boards:** SidePanels (the tab bar's Inspector button, the Inspector's switcher, the Files column)
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

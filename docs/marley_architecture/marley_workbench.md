@@ -3316,6 +3316,16 @@ screen opens Home after `rusty_unavailable`.
 
 ## The Inspector (`src/inspector.rs`, `src/panel_tabs.rs`, #837)
 
+- **As the board draws it (#923).** The switcher is a segmented track of equal segments, the chosen
+  one on `element_selected`; Changes reads "Changes N" from the active repository's
+  `status_summary().count`, the Inspector holding the workspace's project and repainting on its
+  `GitStoreEvent`s (`follow_git`, `changes`). `inspector::init` sets `workspace::MarleyTabBarButtons`
+  to `tab_bar_button`: in the Marley layout an Inspector button, lit while `side_inspector` is on;
+  a click runs `toggle_inspector` (now `pub(crate)`) and, turning it on, `show`s the Inspector on
+  Changes. `init` also sets `project_panel::MarleyFilesFilter(marley_layout)`, the Find a file
+  field, and `apply_defaults` gives the Marley layout the project panel's `git_status_indicator`
+  on and a `default_width` of 320, Zed's values back in Zed's layout.
+
 - `marley.side_inspector` (`MarleySettings.side_panels`, `SidePanels { Tabs, Inspector }`), on the
   Marley page's Layout section and flipped by `ToggleInspector`, sends the Project, Git and Outline
   panels (`INSPECTED`) to one `Inspector` item in place of a `PanelTab` each: `dock_changed` asks

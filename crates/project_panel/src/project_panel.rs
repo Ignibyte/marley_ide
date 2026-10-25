@@ -136,7 +136,17 @@ impl State {
     }
 }
 
+// Marley: whether the panel draws a Find a file field over its tree, asked when it is made and when
+// it draws; Marley's workbench sets it (#923).
+#[derive(Clone, Copy)]
+pub struct MarleyFilesFilter(pub fn(&App) -> bool);
+
+impl gpui::Global for MarleyFilesFilter {}
+
 pub struct ProjectPanel {
+    // Marley: the Find a file field and its text, lowercased (#923).
+    marley_filter: Option<Entity<Editor>>,
+    marley_filter_text: String,
     project: Entity<Project>,
     fs: Arc<dyn Fs>,
     focus_handle: FocusHandle,
@@ -811,6 +821,23 @@ impl ProjectPanel {
 
             let filename_editor = cx.new(|cx| Editor::single_line(window, cx));
 
+            // Marley: the Find a file field while Marley's hook is set (#923).
+            let marley_filter = cx.has_global::<MarleyFilesFilter>().then(|| {
+                let editor = cx.new(|cx| {
+                    let mut editor = Editor::single_line(window, cx);
+                    editor.set_placeholder_text("Find a file", window, cx);
+                    editor
+                });
+                cx.subscribe_in(&editor, window, |panel, editor, event, window, cx| {
+                    if matches!(event, EditorEvent::BufferEdited) {
+                        panel.marley_filter_text = editor.read(cx).text(cx).trim().to_lowercase();
+                        panel.update_visible_entries(None, false, false, window, cx);
+                    }
+                })
+                .detach();
+                editor
+            });
+
             cx.subscribe_in(
                 &filename_editor,
                 window,
@@ -885,6 +912,8 @@ impl ProjectPanel {
             let scroll_handle = UniformListScrollHandle::new();
             let weak_project_panel = cx.weak_entity();
             let mut this = Self {
+                marley_filter,
+                marley_filter_text: String::new(),
                 project: project.clone(),
                 hover_scroll_task: None,
                 fs: workspace.app_state().fs.clone(),
@@ -4602,6 +4631,42 @@ impl ProjectPanel {
         }
     }
 
+    // Marley: the Find a file field while Marley's hook answers; Escape in it empties it (#923).
+    fn marley_filter_field(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let editor = self.marley_filter.as_ref()?;
+        cx.try_global::<MarleyFilesFilter>()
+            .filter(|marley| (marley.0)(cx))?;
+        let colors = cx.theme().colors();
+        Some(
+            h_flex()
+                .flex_none()
+                .m_1p5()
+                .px_2()
+                .py_1()
+                .gap_2()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .capture_action(
+                    cx.listener(|panel, _: &editor::actions::Cancel, window, cx| {
+                        if let Some(editor) = panel.marley_filter.clone()
+                            && !panel.marley_filter_text.is_empty()
+                        {
+                            editor.update(cx, |editor, cx| editor.set_text("", window, cx));
+                            cx.stop_propagation();
+                        }
+                    }),
+                )
+                .child(
+                    Icon::new(IconName::MagnifyingGlass)
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(div().flex_1().min_w_0().child(editor.clone()))
+                .into_any_element(),
+        )
+    }
+
     fn update_visible_entries(
         &mut self,
         new_selected_entry: Option<(WorktreeId, ProjectEntryId)>,
@@ -4635,6 +4700,9 @@ impl ProjectPanel {
             .collect();
         let hide_root = settings.hide_root && visible_worktrees.len() == 1;
         let hide_hidden = settings.hide_hidden;
+        // Marley: the Find a file field's text, which keeps only the files it names (#923).
+        let marley_filter =
+            (!self.marley_filter_text.is_empty()).then(|| self.marley_filter_text.clone());
 
         let visible_entries_task = cx.spawn_in(window, async move |this, cx| {
             let new_state = cx
@@ -4657,11 +4725,45 @@ impl ProjectPanel {
                         }
 
                         let mut visible_worktree_entries = Vec::new();
+                        // Marley: with a filter, each file whose path holds it and its folders
+                        // (#923).
+                        let marley_keep: Option<HashSet<String>> =
+                            marley_filter.as_ref().map(|filter| {
+                                let mut keep = HashSet::default();
+                                for entry in worktree_snapshot.entries(true, 0) {
+                                    let shown = (!hide_gitignore || !entry.is_ignored)
+                                        && (!hide_hidden || !entry.is_hidden);
+                                    if shown
+                                        && entry.is_file()
+                                        && entry
+                                            .path
+                                            .as_unix_str()
+                                            .to_lowercase()
+                                            .contains(filter.as_str())
+                                    {
+                                        for ancestor in entry.path.ancestors() {
+                                            keep.insert(ancestor.as_unix_str().to_string());
+                                        }
+                                    }
+                                }
+                                keep
+                            });
                         let mut entry_iter =
                             GitTraversal::new(&repo_snapshots, worktree_snapshot.entries(true, 0));
                         let mut auto_folded_ancestors = vec![];
                         let worktree_abs_path = worktree_snapshot.abs_path();
                         while let Some(entry) = entry_iter.entry() {
+                            // Marley: a path the filter does not keep goes, with its folder's
+                            // whole subtree (#923).
+                            if let Some(keep) = &marley_keep
+                                && !keep.contains(entry.path.as_unix_str())
+                            {
+                                if entry.is_dir() && entry_iter.advance_to_sibling() {
+                                    continue;
+                                }
+                                entry_iter.advance();
+                                continue;
+                            }
                             if hide_root && Some(entry.entry) == worktree_snapshot.root_entry() {
                                 if new_entry_parent_id == Some(entry.id) {
                                     visible_worktree_entries.push(Self::create_new_git_entry(
@@ -4841,7 +4943,9 @@ impl ProjectPanel {
                                     }
                                 };
 
-                            if expanded_dir_ids.binary_search(&entry.id).is_err()
+                            // Marley: with a filter every kept folder is open (#923).
+                            if marley_keep.is_none()
+                                && expanded_dir_ids.binary_search(&entry.id).is_err()
                                 && entry_iter.advance_to_sibling()
                             {
                                 continue;
@@ -7717,6 +7821,8 @@ impl Render for ProjectPanel {
                 .track_focus(&self.focus_handle(cx))
                 .child(
                     v_flex()
+                        // Marley: Find a file over the tree (#923).
+                        .children(self.marley_filter_field(cx))
                         .child(
                             uniform_list("entries", item_count, {
                                 cx.processor(|this, range: Range<usize>, window, cx| {

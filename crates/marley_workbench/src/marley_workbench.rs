@@ -1080,6 +1080,10 @@ struct LayoutState {
     zed_project_panel_dock: Option<settings::DockSide>,
     /// Whether the project panel opens with a new project, which a pop-out tree does not (#868).
     zed_project_panel_starts_open: Option<bool>,
+    /// The project panel's git letters and its first width, which the Marley layout sets to the
+    /// board's (#923).
+    zed_project_panel_git_letters: Option<bool>,
+    zed_project_panel_width: Option<settings::PixelSetting>,
     /// Per workspace, the panel the Agent Panel took over in each dock, in `Workspace::all_docks`
     /// order, when a switch moved it there; the switch that moves it away gives the panel back.
     displaced: HashMap<EntityId, [Option<DockShown>; 3]>,
@@ -1108,6 +1112,14 @@ impl LayoutState {
                 .project_panel
                 .as_ref()
                 .and_then(|project_panel| project_panel.starts_open),
+            zed_project_panel_git_letters: defaults
+                .project_panel
+                .as_ref()
+                .and_then(|project_panel| project_panel.git_status_indicator),
+            zed_project_panel_width: defaults
+                .project_panel
+                .as_ref()
+                .and_then(|project_panel| project_panel.default_width),
             displaced: HashMap::default(),
         }
     }
@@ -1171,6 +1183,8 @@ pub fn init(cx: &mut App) {
     bookmarks::init(cx);
     failures::init(cx);
     sticky_header::init(cx);
+    inspector::init(cx);
+    cx.set_global(project_panel::MarleyFilesFilter(marley_layout));
     block_headers::init(cx);
     session_chips::init(cx);
     build_progress::init(cx);
@@ -1451,7 +1465,7 @@ fn toggle_rail_strip(cx: &App) {
 
 /// `marley: toggle inspector`: writes the opposite of `marley.side_inspector` to the user's
 /// settings, which every window's panels follow (#837).
-fn toggle_inspector(cx: &App) {
+pub(crate) fn toggle_inspector(cx: &App) {
     let inspector = MarleySettings::get_global(cx).side_panels != SidePanels::Inspector;
     settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
         content.marley.get_or_insert_default().side_inspector = Some(inspector);
@@ -1605,6 +1619,14 @@ fn apply_defaults(layout: MarleyLayout, cx: &mut App) {
             state.zed_project_panel_starts_open,
         ),
     };
+    // Files shows each changed file's letter and opens as wide as the Inspector (#923, D7, D8).
+    let (files_letters, files_width) = match layout {
+        MarleyLayout::Marley => (Some(true), Some(settings::PixelSetting(320.))),
+        MarleyLayout::Zed => (
+            state.zed_project_panel_git_letters,
+            state.zed_project_panel_width,
+        ),
+    };
     SettingsStore::update_global(cx, |store, cx| {
         store.update_default_settings(cx, |defaults| {
             defaults.terminal.get_or_insert_default().button = terminal_button;
@@ -1613,6 +1635,8 @@ fn apply_defaults(layout: MarleyLayout, cx: &mut App) {
             let project_panel = defaults.project_panel.get_or_insert_default();
             project_panel.dock = files_dock;
             project_panel.starts_open = files_start_open;
+            project_panel.git_status_indicator = files_letters;
+            project_panel.default_width = files_width;
         });
     });
 }

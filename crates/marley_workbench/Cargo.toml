@@ -71,6 +71,7 @@ picker.workspace = true
 picker_preview.workspace = true
 platform_title_bar.workspace = true
 project.workspace = true
+project_panel.workspace = true
 rand.workspace = true
 recent_projects.workspace = true
 regex.workspace = true

@@ -10880,6 +10880,7 @@ dependencies = [
  "picker_preview",
  "platform_title_bar",
  "project",
+ "project_panel",
  "prompt_store",
  "rand 0.9.4",
  "recent_projects",

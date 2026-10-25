@@ -1,7 +1,7 @@
 ---
 pipeline_id: b351be7f-67f0-40f4-bebe-bf6fffb696b5
 ticket: docs/planning/tickets/open/TICKET-923-side-panels-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The Inspector and Files as the SidePanels board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -109,7 +109,7 @@ the review's tour. No agent CLI is needed.
   segmented switcher with Changes chosen and reading "Changes 2" (REQ-001, REQ-002, REQ-003).
 - `923-03-count`: `src/board.rs` changed on disk: "Changes 3" (REQ-003).
 - `923-04-off`: the lit button clicked: the Inspector gone, the button unlit (REQ-004).
-- `923-05-files`: the rail's Files button: the tree about 320 px wide, the "Find a file" field at
+- `923-05-files`: `project panel: toggle focus`: the tree about 320 px wide, the "Find a file" field at
   its top, "M" at the right of `main.rs` and `README.md` (REQ-005, REQ-006).
 - `923-06-filtered`: "board" typed in the field: only `src` and `board.rs` (REQ-007).
 - `923-07-cleared`: Escape in the field: the full tree as before (REQ-007).

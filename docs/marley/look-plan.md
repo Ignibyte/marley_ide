@@ -131,7 +131,7 @@ cards by day, a preview with Open and Open in a Split.
 
 ## Wave 3: panels, drawers, pickers, notices
 
-**W3.1 Side panels as one inspector.** *Done (#837, 2026-10-21; a choice beside #747's tabs).* *L.* Board: SidePanels.
+**W3.1 Side panels as one inspector.** *Done (#837, 2026-10-21; a choice beside #747's tabs; the segmented switcher, its count, the tab bar's button, Files' filter, letters and width, #923, 2026-10-25).* *L.* Board: SidePanels.
 Files, Changes and Outline in one column beside the pane, with a switcher at its top, instead of
 a full-width tab each. This changes #747's panel tabs (`panel_tabs.rs`), so it needs Chad's call
 first (see the open decisions).

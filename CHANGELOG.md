@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Inspector and Files as the board draws them** (#923, 2026-10-25). The Inspector's switcher
+  is a segmented track, and its Changes segment counts the changed files ("Changes 3"), following
+  the disk. An Inspector button at the right of the focused pane's tab bar lights while the
+  Inspector is on; a click turns it off, or on and shows Changes. Files opens 320 px wide with a
+  "Find a file" field that narrows the tree to the files it names (Escape gives the tree back),
+  and each changed file shows its letter.
+
 - **The bottom drawer as the board draws it** (#922, 2026-10-25). Problems is now a list: a filter
   field and a row per error or warning with its dot, message, place and an Ask an agent to fix
   pill; a click opens the file at the line. The Problems tab carries its count in a pill, red

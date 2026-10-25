@@ -4369,6 +4369,15 @@ pub struct MarleyTabLook(pub fn(&dyn ItemHandle, &mut Window, &mut App) -> Optio
 
 impl gpui::Global for MarleyTabLook {}
 
+// Marley: a button the focused pane's tab bar draws before its + button, given the pane's
+// workspace, which a Marley crate gives, such as the Inspector's; none leaves Zed's buttons (#923).
+#[derive(Clone, Copy)]
+pub struct MarleyTabBarButtons(
+    pub fn(&WeakEntity<Workspace>, &mut Window, &mut App) -> Option<AnyElement>,
+);
+
+impl gpui::Global for MarleyTabBarButtons {}
+
 // Marley: an element the tab bar draws before its end buttons for the pane's active item, which a
 // Marley crate gives, such as a terminal's session; none leaves the bar as Zed draws it (#917).
 #[derive(Clone, Copy)]
@@ -4501,6 +4510,11 @@ fn default_render_tab_bar_buttons(
     let workspace = pane.workspace.clone();
     // Marley: the split menu's actions go to this pane (#785).
     let pane_focus = pane.focus_handle(cx);
+    // Marley: a Marley crate's button before +, such as the Inspector's (#923).
+    let marley_buttons = cx
+        .try_global::<MarleyTabBarButtons>()
+        .copied()
+        .and_then(|hook| (hook.0)(&workspace, window, cx));
     let (can_clone, can_split_move) = match pane.active_item() {
         Some(active_item) if active_item.can_split(cx) => (true, false),
         Some(_) => (false, pane.items_len() > 1),
@@ -4511,6 +4525,7 @@ fn default_render_tab_bar_buttons(
     let right_children = h_flex()
         // Instead we need to replicate the spacing from the [TabBar]'s `end_slot` here.
         .gap(DynamicSpacing::Base04.rems(cx))
+        .children(marley_buttons)
         .child(
             PopoverMenu::new("pane-tab-bar-popover-menu")
                 .trigger_with_tooltip(

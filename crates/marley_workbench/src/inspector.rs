@@ -8,14 +8,17 @@
 use std::sync::Arc;
 
 use gpui::{
-    App, Axis, Context, EntityId, EventEmitter, FocusHandle, Focusable, Render, SharedString,
-    WeakEntity, Window, px,
+    AnyElement, App, Axis, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable, Render,
+    SharedString, Subscription, WeakEntity, Window, px,
 };
+use project::Project;
+use project::git_store::GitStoreEvent;
 use settings::Settings as _;
 use ui::{ButtonStyle, prelude::*};
+use util::ResultExt as _;
 use workspace::dock::PanelHandle;
 use workspace::item::{Item, ItemEvent};
-use workspace::{DraggedTab, SplitDirection, Workspace};
+use workspace::{DraggedTab, MarleyTabBarButtons, SplitDirection, Workspace};
 
 use crate::panel_tabs;
 use crate::{MarleySettings, SidePanels};
@@ -25,6 +28,47 @@ const INSPECTED: [(&str, &str); 2] = [("GitPanel", "Changes"), ("Outline Panel",
 
 /// The column's width when it opens, as the board draws it.
 const WIDTH: f32 = 320.;
+
+/// Sets the tab bar's Inspector button; [`crate::init`] calls it once (#923).
+pub fn init(cx: &mut App) {
+    cx.set_global(MarleyTabBarButtons(tab_bar_button));
+}
+
+/// The focused pane's Inspector button in the Marley layout (#923, D4, D5): lit while the
+/// Inspector is on; a click turns it off, or on and shows it on Changes.
+fn tab_bar_button(
+    workspace: &WeakEntity<Workspace>,
+    _window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    if !crate::marley_layout(cx) {
+        return None;
+    }
+    let on = MarleySettings::get_global(cx).side_panels == SidePanels::Inspector;
+    let workspace = workspace.clone();
+    Some(
+        Button::new("marley-inspector-button", "Inspector")
+            .start_icon(Icon::new(IconName::ListTree).size(IconSize::Small))
+            .style(ButtonStyle::Subtle)
+            .label_size(LabelSize::Small)
+            .toggle_state(on)
+            .on_click(move |_, window, cx| {
+                crate::toggle_inspector(cx);
+                if on {
+                    return;
+                }
+                workspace
+                    .update(cx, |workspace, cx| {
+                        if let Some(panel) = panel_tabs::workspace_panel(workspace, "GitPanel", cx)
+                        {
+                            show(workspace, &panel, window, cx);
+                        }
+                    })
+                    .log_err();
+            })
+            .into_any_element(),
+    )
+}
 
 /// Whether the panel named `name` is one the Inspector holds.
 pub(crate) fn inspects(name: &str) -> bool {
@@ -56,7 +100,11 @@ pub(crate) fn show(
     let Some(inspector) = Inspector::new(workspace, panel.panel_id(), cx) else {
         return;
     };
-    let inspector = cx.new(|_| inspector);
+    let inspector = cx.new(|cx| {
+        let mut inspector = inspector;
+        inspector.follow_git(cx);
+        inspector
+    });
     let pane = workspace.active_pane().clone();
     let right = workspace.split_pane(pane, SplitDirection::Right, window, cx);
     right.update(cx, |pane, cx| {
@@ -101,6 +149,9 @@ pub struct Inspector {
     panels: Vec<Shown>,
     current: usize,
     workspace: WeakEntity<Workspace>,
+    /// The workspace's project, whose changed files the switcher counts (#923, D3).
+    project: Entity<Project>,
+    git_subscription: Option<Subscription>,
     /// Whether the Inspector is its pane's front item, as its panel was last told.
     front: bool,
     /// Whether the column has been narrowed since it opened.
@@ -140,9 +191,29 @@ impl Inspector {
             panels,
             current,
             workspace: workspace.weak_handle(),
+            project: workspace.project().clone(),
+            git_subscription: None,
             front: false,
             sized: false,
         })
+    }
+
+    /// Repaints the switcher when the project's repositories change, for its count (#923, D3).
+    fn follow_git(&mut self, cx: &mut Context<Self>) {
+        let git_store = self.project.read(cx).git_store().clone();
+        self.git_subscription =
+            Some(cx.subscribe(&git_store, |_, _, _: &GitStoreEvent, cx| cx.notify()));
+    }
+
+    /// The active repository's changed files, none without a repository (#923).
+    fn changes(&self, cx: &App) -> Option<usize> {
+        let repository = self
+            .project
+            .read(cx)
+            .git_store()
+            .read(cx)
+            .active_repository()?;
+        Some(repository.read(cx).status_summary().count)
     }
 
     /// Shows the panel `id`, telling the one it showed that it is inactive.
@@ -244,19 +315,45 @@ impl Render for Inspector {
         let split = pane
             .as_ref()
             .and_then(|pane| pane.read(cx).drag_split_direction());
-        let switcher = h_flex()
-            .p_1()
-            .gap_1()
+        // A segmented track of equal segments, the chosen one filled (#923, D2); Changes counts
+        // the active repository's changed files (D3).
+        let changes = self.changes(cx).filter(|count| *count > 0);
+        let switcher = div()
+            .p_1p5()
             .border_b_1()
             .border_color(colors.border)
-            .children(self.panels.iter().enumerate().map(|(index, shown)| {
-                Button::new(("marley-inspector-switch", index), shown.label)
-                    .style(ButtonStyle::Subtle)
-                    .toggle_state(index == self.current)
-                    .on_click(cx.listener(move |inspector, _, window, cx| {
-                        inspector.show_index(index, window, cx);
-                    }))
-            }));
+            .child(
+                h_flex()
+                    .w_full()
+                    .p_0p5()
+                    .gap_0p5()
+                    .rounded_md()
+                    .bg(colors.element_background)
+                    .children(self.panels.iter().enumerate().map(|(index, shown)| {
+                        let chosen = index == self.current;
+                        let label: SharedString = match (shown.label, changes) {
+                            ("Changes", Some(count)) => format!("Changes {count}").into(),
+                            (label, _) => SharedString::new_static(label),
+                        };
+                        div()
+                            .id(("marley-inspector-switch", index))
+                            .flex_1()
+                            .py_0p5()
+                            .flex()
+                            .justify_center()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .when(chosen, |segment| segment.bg(colors.element_selected))
+                            .child(Label::new(label).size(LabelSize::Small).color(if chosen {
+                                Color::Default
+                            } else {
+                                Color::Muted
+                            }))
+                            .on_click(cx.listener(move |inspector, _, window, cx| {
+                                inspector.show_index(index, window, cx);
+                            }))
+                    })),
+            );
         v_flex()
             .debug_selector(|| "marley-inspector".into())
             .size_full()

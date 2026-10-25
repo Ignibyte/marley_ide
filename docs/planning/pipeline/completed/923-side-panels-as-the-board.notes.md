@@ -120,7 +120,38 @@
   panels in the run.
 
 ## Phase 2 — Code
+- **Built:** `pane.rs` `MarleyTabBarButtons` asked in `default_render_tab_bar_buttons`;
+  `project_panel.rs` `MarleyFilesFilter`, `marley_filter`/`marley_filter_text`, the keep set and
+  its two checks in `update_visible_entries`, `marley_filter_field` with Escape; `inspector.rs`
+  `init`, `tab_bar_button`, the project and its subscription, `follow_git`, `changes`, the
+  segmented switcher; `marley_workbench.rs` the two project-panel defaults in `LayoutState` and
+  `apply_defaults`, `toggle_inspector` made `pub(crate)`, the two globals set in `init`;
+  `project_panel` added to `marley_workbench`'s dependencies.
+- **Deviations:** `MarleyTabBarButtons` is a new hook beside #917's `MarleyTabBarEnd`, because
+  the button shows on the focused pane only (D4) and #917's chips show on every pane. The
+  first-open width: with `default_width` 320 the run opened Files at 320 px on the copied
+  profile, so no stored size had to be cleared.
+- **Review:** the Inspector reads its own project, never the workspace, in `render` (D3); the
+  filter leaves `expanded_dir_ids` alone (D6); without the globals both Zed panels are Zed's.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/923-side-panels-as-the-board.sh`, sway, 9 shots, each read.
+  - `923-01-button`: "Inspector" before + on the focused editor pane, unlit. REQ-001.
+  - `923-02-inspector`: the Inspector at the right, its button lit, the track "Changes 2 |
+    Outline" with Changes filled. REQ-001, REQ-002, REQ-003.
+  - `923-03-count`: after board.rs changed on disk, "Changes 3". REQ-003.
+  - `923-04-off`: the Inspector gone, the button unlit. REQ-004.
+  - `923-05-files`: Files 320 px wide (x 260 to 580), "Find a file", M on board.rs, main.rs and
+    README.md. REQ-005, REQ-006.
+  - `923-06-filtered`: "board": repo, src, board.rs only; `923-07-cleared`: the whole tree. REQ-007.
+  - `923-08-zed`: Zed's layout: +, split, zoom; Files at the right with no field and no letters.
+    REQ-008. `923-09-day`: Marley Day, the Inspector and Files.
+- **Fixes in Test:** coordinates only (the Inspector pane takes the focus, so it is clicked before
+  its button; Files opens from the palette).
 
 ## Phase 4 — Complete
+- CHANGELOG, `marley_workbench.md`, the look plan's W3.1 row, ledger rows for `pane.rs` and
+  `project_panel.rs`.
+- Knowledge: nothing new.
+- Brain: decision recorded.
