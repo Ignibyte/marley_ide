@@ -61,7 +61,31 @@
   between gets the after-prompt result, as today.
 
 ## Phase 2 — Code
+- **Built:** `worktree_git::MergeReady { base, ahead, checks }` from `merge_checks`, which adds the
+  read-only `merge-tree --write-tree` check (a conflict refuses with the files; a git too old
+  skips it); `ready_to_merge` returns it. `branch_fate` and `BranchFate` run `end_branch`'s proof
+  without deleting. `rail.rs`: `merge_worktree` writes the detail with a "✓ " line per check;
+  `remove_worktree` reads `RemoveFacts` through `remove_facts` and words the detail with
+  `remove_detail`. `prompts.rs`: `details` draws "✓ " lines as check rows.
+- **Deviations:** `remove_facts` and `RemoveFacts` came out of `remove_worktree` to keep it under
+  the line limit. A branch whose proof finds it in `HEAD` is said to be in "the main checkout".
+  `branch_fate` leaves out `git branch -d`'s upstream rule, which `end_branch` tries first; a
+  worktree branch Marley makes tracks nothing, so the words match.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/926-worktree-prompts-as-the-board.sh` (sway), full run green.
+- `926-01-merge`: "Merge 2 commits into main?", "agent/aqua-lotus goes into main in <repo> with a
+  merge commit. Nothing is pushed.", then four rows each with a green tick tile. REQ-001.
+- `926-04-day`: the same in Marley Day, the ticks on a pale green tile. REQ-001.
+- `926-02-remove-stays`: "Remove calm-ivy?" / "It has 3 changes not committed. They go with the
+  folder. The branch stays: main does not have its commits." with Remove Anyway. REQ-002.
+- `926-03-remove-goes`: after the merge, "Remove aqua-lotus?" / "The branch goes: main has its
+  commits." with Remove. REQ-002.
+- Found while writing the scenario: Remove refuses a worktree Zed did not make (L-claude-926), so
+  the worktrees come from New Agent in Worktree with a stand-in `claude`.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `docs/marley_architecture/marley_workbench.md` (the merge checks, the prompts'
+  detail, Remove's words, `details`); the look plan's Worktrees row. No Zed path touched.
+- Knowledge: L-claude-926.

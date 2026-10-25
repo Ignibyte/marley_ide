@@ -1,7 +1,7 @@
 ---
 pipeline_id: 493ee9c6-3f92-4b49-805d-b40414a7a426
 ticket: docs/planning/tickets/open/TICKET-926-worktree-prompts-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The worktree merge and remove prompts as the board words them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

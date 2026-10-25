@@ -6521,3 +6521,15 @@ shot of the current build: the review may have been taken against an older one.
   pushed for those turns; without the report the same turns pushed.
 - **Lesson:** a stand-in that drives turns through `event.py` frames does not also report through
   `marley report`. `marley approve` asks a plan without a report first.
+
+## L-claude-926-remove-acts-only-on-a-worktree-zed-made-001
+
+- **Ticket:** #926, 2026-10-25.
+- **What happened:** the scenario first made its worktrees with `git worktree add`, as #511's does
+  for Merge, and opened them as projects through a second launch. Remove refused each: "Marley
+  removes a worktree Zed made while a project has it open". `build_root_plan` needs the worktree
+  under Zed's worktrees directory and Zed's creation record, which only New Agent in Worktree
+  writes.
+- **Lesson:** a scenario that removes a worktree makes it with New Agent in Worktree (#589's,
+  #851's clicks). The worktree's name is chosen at random and the rail sorts by name, so the rows
+  are placed by sorting the names in the scenario.

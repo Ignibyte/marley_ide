@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-926](open/TICKET-926-worktree-prompts-as-the-board.md) | feature | The worktree merge and remove prompts as the board words them (design review 2026-10-23) |
 | [TICKET-927](open/TICKET-927-thread-states-as-the-board.md) | feature | Thread states as the board draws them (design review 2026-10-23) |
 | [TICKET-928](open/TICKET-928-agent-terminal-as-the-board.md) | feature | An agent CLI's terminal as the board draws it (design review 2026-10-23) |
 | [TICKET-929](open/TICKET-929-terminal-more-as-the-board.md) | feature | Table tabs, restored blocks, dropped links and the mic as the board draws them (design review 2026-10-23) |

@@ -808,7 +808,10 @@ alike.
   recorded base or a base that is a commit, then runs `merge_checks` in the spec's D3 order
   (`symbolic-ref --quiet --short HEAD` on the base; `status --porcelain --untracked-files=no`
   empty in the main checkout, then in the worktree; `rev-list --count
-  refs/heads/<base>..refs/heads/<branch>` above zero) and gives the base and the count.
+  refs/heads/<base>..refs/heads/<branch>` above zero; since #926 `merge-tree --write-tree
+  --name-only -z --no-messages refs/heads/<base> refs/heads/<branch>` exits 0, or the merge would
+  stop on the files it names, and a git too old for it skips the check) and gives a `MergeReady`:
+  the base, the count, and the checks passed in the board's words.
   `merge(main, branch, base)` runs `merge --no-ff --no-edit -m "Merge branch '<branch>' into
   <base>" refs/heads/<branch>` (the full ref, so a tag of the same name is never merged; the title,
   since git's own would quote the ref) and gives `rev-parse --short HEAD`; a failure lists `diff
@@ -834,15 +837,20 @@ alike.
 - `merge_worktree`: `merge_target` (the branch, the main checkout, Zed's trust, and `unsaved_in`,
   the window's dirty buffers inside the main checkout and outside its listed worktrees),
   `ready_to_merge` in the background, `window.prompt` ("Merge N commits into <base>?", the branch
-  and the main checkout in its detail; Merge, Cancel), both again with the base and the count
+  and the main checkout in its detail, then each check on a line led by "✓ " (#926); Merge,
+  Cancel), both again with the base and the count
   compared to the prompt's, then `merge`; a toast in the displayed workspace (`WorktreeMerge`), or
   `detach_and_prompt_err` "Could not merge <name>".
 - Remove (#589): `RemoveLine` from `remove_line` (Remove, or in a `MergeOwner::Workflow`
   repository with commits ahead a note), after a separator. `remove_worktree`: `remove_target` on
   the UI thread (the entry and `agent_ui::thread_worktree_archive::build_root_plan` over the
   window's workspaces, which needs a project holding the worktree and Zed's creation record);
-  `worktree_git::uncommitted` (`status --porcelain --untracked-files=normal`); a warning prompt,
-  Remove or Remove Anyway; `MultiWorkspace::remove([member], KeepProject)` through the
+  `remove_facts` in the background: `worktree_git::uncommitted` (`status --porcelain
+  --untracked-files=normal`) and, since #926, `worktree_git::branch_fate`, `end_branch`'s proof
+  without the delete (`BranchFate::Goes(target)` or `Stays(base)`); a warning prompt "Remove
+  <name>?" whose detail `remove_detail` words (the changes that go with the folder, then "The
+  branch goes: <target> has its commits." or "The branch stays: <base> does not have its
+  commits.", `HEAD` named as the main checkout), Remove or Remove Anyway; `MultiWorkspace::remove([member], KeepProject)` through the
   `MultiWorkspace` handle, `false` ending it; `thread_worktree_archive::remove_root`, which
   verifies the record, releases the folder, runs `git worktree remove --force` and rolls back on
   failure; then `worktree_git::end_branch(main, branch, recorded base)`: `branch -d`, else the oid,
@@ -3235,6 +3243,9 @@ screen opens Home after `rusty_unavailable`.
   runs backwards, the main button at the right; `render_button` draws each role as a solid,
   filled or bare `Stateful<Div>`, with `border_focused` on an arrow-chosen button other than the
   first. `plain` drops Zed's backticks.
+- `details` (#926): a detail with a line led by "✓ " draws line by line, those lines as check rows
+  (a 16 px round tile in the success colour at 15% with `IconName::Check`, then the words), the
+  rest muted; any other detail stays one muted label.
 
 ## Toasts (`src/toasts.rs`, Zed's `notifications.rs`, #869)
 

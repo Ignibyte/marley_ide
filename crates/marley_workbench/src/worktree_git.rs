@@ -199,10 +199,18 @@ pub(crate) async fn merge_owner(main: &Path, fs: &dyn Fs) -> anyhow::Result<Merg
     })
 }
 
+/// A merge Marley may run (#511): the base it goes into, the commits it brings, and the checks it
+/// passed in the Worktrees board's words, for the Merge prompt to list (#926).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MergeReady {
+    pub(crate) base: String,
+    pub(crate) ahead: u32,
+    pub(crate) checks: Vec<String>,
+}
+
 /// Whether Marley merges `branch` of the repository whose main checkout is `main`, and into what
 /// (#511): the workflow does not merge the repository, the branch records its base as #510 writes
-/// it, a branch rather than a commit, and [`merge_checks`] pass. Gives the base and the count of
-/// commits to merge.
+/// it, a branch rather than a commit, and [`merge_checks`] pass.
 ///
 /// # Errors
 ///
@@ -212,7 +220,7 @@ pub(crate) async fn ready_to_merge(
     worktree: &Path,
     branch: &str,
     fs: &dyn Fs,
-) -> anyhow::Result<(String, u32)> {
+) -> anyhow::Result<MergeReady> {
     anyhow::ensure!(
         merge_owner(main, fs).await? == MergeOwner::Marley,
         "the Rustal workflow merges this repository's branches, so Marley leaves {branch} to it"
@@ -226,8 +234,7 @@ pub(crate) async fn ready_to_merge(
          into",
         base.chars().take(7).collect::<String>()
     );
-    let ahead = merge_checks(main, worktree, branch, &base).await?;
-    Ok((base, ahead))
+    merge_checks(main, worktree, branch, &base).await
 }
 
 /// Whether `name` is a full commit id, SHA-1 or SHA-256.
@@ -236,8 +243,9 @@ pub(crate) fn is_commit(name: &str) -> bool {
 }
 
 /// Checks, in order, that `branch` can be merged into `base` in the main checkout `main`: the main
-/// checkout is on `base`, neither it nor `worktree` has a tracked change not committed, and the
-/// branch has commits the base lacks, whose count it gives. Each check changes nothing.
+/// checkout is on `base`, neither it nor `worktree` has a tracked change not committed, the
+/// branch has commits the base lacks, and no file would stop the merge (#926). Each check changes
+/// nothing: the last is `git merge-tree --write-tree`, which writes only objects.
 ///
 /// # Errors
 ///
@@ -247,7 +255,7 @@ pub(crate) async fn merge_checks(
     worktree: &Path,
     branch: &str,
     base: &str,
-) -> anyhow::Result<u32> {
+) -> anyhow::Result<MergeReady> {
     let head = git(main, &["symbolic-ref", "--quiet", "--short", "HEAD"]).await?;
     anyhow::ensure!(
         head.status.success(),
@@ -289,7 +297,51 @@ pub(crate) async fn merge_checks(
         .parse()
         .context("git rev-list gave no count")?;
     anyhow::ensure!(ahead > 0, "{branch} has nothing to merge into {base}");
-    Ok(ahead)
+    let mut checks = vec![
+        format!("The main checkout is on {base}"),
+        "Nothing uncommitted in the main checkout".to_string(),
+        "Nothing uncommitted in the worktree".to_string(),
+    ];
+    let base_reference = format!("refs/heads/{base}");
+    let branch_reference = format!("refs/heads/{branch}");
+    let merged = git(
+        main,
+        &[
+            "merge-tree",
+            "--write-tree",
+            "--name-only",
+            "-z",
+            "--no-messages",
+            &base_reference,
+            &branch_reference,
+        ],
+    )
+    .await?;
+    match merged.status.code() {
+        Some(0) => checks.push("No file would stop the merge".to_string()),
+        // The merged tree's id, then each file the merge would stop on, each ended by a NUL.
+        Some(1) => {
+            let files: Vec<String> = merged
+                .stdout
+                .split(|byte| *byte == 0)
+                .skip(1)
+                .filter(|path| !path.is_empty())
+                .map(|path| String::from_utf8_lossy(path).into_owned())
+                .collect();
+            anyhow::bail!(
+                "merging {branch} into {base} would stop on {}; settle them in the worktree first",
+                files.join(", ")
+            );
+        }
+        // An older git cannot tell beforehand; `merge` aborts a merge that stops.
+        _ if refused_write_tree(&merged) => {}
+        _ => anyhow::bail!("git merge-tree refused: {}", text(&merged.stderr)),
+    }
+    Ok(MergeReady {
+        base: base.to_string(),
+        ahead,
+        checks,
+    })
 }
 
 /// Merges `branch` into `base`, the branch the main checkout `main` is on, with a merge commit,
@@ -556,6 +608,44 @@ pub(crate) enum BranchEnd {
     Deleted,
     /// Kept, and why.
     Kept(String),
+}
+
+/// What Remove does with a worktree's branch (#926), from the proof [`end_branch`] runs after it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum BranchFate {
+    /// It goes: the target named has its commits.
+    Goes(String),
+    /// It stays: the target named does not have its commits.
+    Stays(String),
+}
+
+/// Whether removing the worktree on `branch` deletes the branch, by the proof [`end_branch`] runs
+/// against `base`, `origin/HEAD` and the main checkout's `HEAD`, without deleting anything (#926,
+/// D3).
+///
+/// # Errors
+///
+/// When `git` cannot run.
+pub(crate) async fn branch_fate(
+    main: &Path,
+    branch: &str,
+    base: Option<&str>,
+) -> anyhow::Result<BranchFate> {
+    let reference = format!("refs/heads/{branch}");
+    let commit = git(main, &["rev-parse", "--verify", "--quiet", &reference]).await?;
+    let fallback = base.unwrap_or("HEAD").to_string();
+    if !commit.status.success() {
+        return Ok(BranchFate::Stays(fallback));
+    }
+    let commit = text(&commit.stdout);
+    let mut targets: Vec<&str> = base.into_iter().collect();
+    targets.extend(["origin/HEAD", "HEAD"]);
+    for target in targets {
+        if merged_into(main, &commit, target).await? {
+            return Ok(BranchFate::Goes(target.to_string()));
+        }
+    }
+    Ok(BranchFate::Stays(fallback))
 }
 
 /// Deletes `branch` of the repository whose main checkout is `main` when its commits are in a

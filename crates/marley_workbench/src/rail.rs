@@ -4035,28 +4035,16 @@ impl Rail {
                 member,
                 plan,
             } = target;
-            let changes = cx
-                .background_spawn({
-                    let folder = folder.clone();
-                    async move { worktree_git::uncommitted(&folder).await }
-                })
+            let facts = cx
+                .background_spawn(remove_facts(folder.clone(), main.clone(), branch.clone()))
                 .await?;
-            let (question, confirm) = if changes == 0 {
-                (format!("Remove {name}?"), "Remove")
+            let question = format!("Remove {name}?");
+            let confirm = if facts.changes == 0 {
+                "Remove"
             } else {
-                (
-                    format!(
-                        "Remove {name} and its {changes} uncommitted {}?",
-                        if changes == 1 { "change" } else { "changes" }
-                    ),
-                    "Remove Anyway",
-                )
+                "Remove Anyway"
             };
-            let detail = format!(
-                "Marley closes its terminals and deletes {}. Its branch goes too once its commits \
-                 are in its base; otherwise it stays.",
-                folder.display()
-            );
+            let detail = remove_detail(&facts);
             let answer = cx.update(|window, cx| {
                 window.prompt(
                     PromptLevel::Warning,
@@ -4286,7 +4274,7 @@ impl Rail {
         cx.spawn_in(window, async move |rail, cx| {
             let (main, worktree, branch) =
                 rail.read_with(cx, |rail, cx| rail.merge_target(&path, cx))??;
-            let (base, ahead) = cx
+            let ready = cx
                 .background_spawn({
                     let (main, worktree, branch, fs) =
                         (main.clone(), worktree.clone(), branch.clone(), Arc::clone(&fs));
@@ -4295,11 +4283,17 @@ impl Rail {
                     }
                 })
                 .await?;
+            let (base, ahead) = (ready.base.clone(), ready.ahead);
             let question = format!("Merge {} into {base}?", commits(ahead));
-            let detail = format!(
-                "Marley merges {branch} into {base} with a merge commit in {}. Nothing is pushed.",
+            // The checks it ran, each a ticked row in the prompt's card (#926, D4).
+            let mut detail = format!(
+                "{branch} goes into {base} in {} with a merge commit. Nothing is pushed.\n",
                 main.display()
             );
+            for check in &ready.checks {
+                detail.push_str("\n\u{2713} ");
+                detail.push_str(check);
+            }
             let answer = cx.update(|window, cx| {
                 window.prompt(
                     PromptLevel::Info,
@@ -4315,10 +4309,10 @@ impl Rail {
             rail.read_with(cx, |rail, cx| rail.merge_target(&path, cx))??;
             let merged = cx
                 .background_spawn(async move {
-                    let (base_now, ahead_now) =
+                    let now =
                         worktree_git::ready_to_merge(&main, &worktree, &branch, fs.as_ref()).await?;
                     anyhow::ensure!(
-                        base_now == base && ahead_now == ahead,
+                        now.base == base && now.ahead == ahead,
                         "{branch} or {base} moved while Marley asked, so nothing was merged; choose \
                          Merge again to see what it merges"
                     );
@@ -10823,6 +10817,64 @@ fn github_repository(repository: &Entity<Repository>, cx: &App) -> Option<String
 /// A commit's first seven characters, as git abbreviates one.
 fn short_commit(sha: &str) -> String {
     sha.chars().take(7).collect()
+}
+
+/// What the Remove prompt says of a worktree (#926): its changes not committed, and what becomes
+/// of its branch, when it is on one.
+struct RemoveFacts {
+    changes: usize,
+    fate: Option<worktree_git::BranchFate>,
+}
+
+/// Reads [`RemoveFacts`] off the main thread: the changes in `folder`, and `branch`'s fate by the
+/// proof that ends it, against the base recorded in `main`.
+async fn remove_facts(
+    folder: PathBuf,
+    main: Option<PathBuf>,
+    branch: Option<String>,
+) -> anyhow::Result<RemoveFacts> {
+    let changes = worktree_git::uncommitted(&folder).await?;
+    let fate = match (main, branch) {
+        (Some(main), Some(branch)) => {
+            let base = worktree_git::recorded_base(&main, &branch)
+                .await
+                .log_err()
+                .flatten();
+            Some(worktree_git::branch_fate(&main, &branch, base.as_deref()).await?)
+        }
+        _ => None,
+    };
+    Ok(RemoveFacts { changes, fate })
+}
+
+/// The Remove prompt's words as the Worktrees board says them (#926): the changes that go with the
+/// folder, then whether the branch stays or goes and why; nothing of a branch for a worktree on
+/// none.
+fn remove_detail(facts: &RemoveFacts) -> String {
+    let mut words = Vec::new();
+    match facts.changes {
+        0 => {}
+        1 => words.push("It has 1 change not committed. It goes with the folder.".to_string()),
+        count => words.push(format!(
+            "It has {count} changes not committed. They go with the folder."
+        )),
+    }
+    let target_words = |target: &str| match target {
+        "HEAD" => "the main checkout".to_string(),
+        target => target.to_string(),
+    };
+    match &facts.fate {
+        Some(worktree_git::BranchFate::Goes(target)) => words.push(format!(
+            "The branch goes: {} has its commits.",
+            target_words(target)
+        )),
+        Some(worktree_git::BranchFate::Stays(target)) => words.push(format!(
+            "The branch stays: {} does not have its commits.",
+            target_words(target)
+        )),
+        None => {}
+    }
+    words.join(" ")
 }
 
 /// `1 commit`, or `N commits`.

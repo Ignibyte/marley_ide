@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The worktree Merge and Remove prompts as the board words them** (#926, 2026-10-25). Merge says
+  where the branch goes and lists the checks it ran, each ticked: the main checkout on the base,
+  nothing uncommitted in either checkout, and no file that would stop the merge, a new check that
+  refuses with the files before anything changes. Remove says how many changes go with the folder
+  and whether the branch stays or goes, and why, from the same proof that ends the branch.
+
 - **Notices worded and coloured as the board draws them** (#925, 2026-10-25). A toast's dot says
   what it is: yellow for a warning (a working agent's close), green for a thing done (the plugin
   connected, a page captured), red for a failure, the accent for a question, grey for the rest. A

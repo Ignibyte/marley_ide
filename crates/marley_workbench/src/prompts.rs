@@ -11,6 +11,9 @@ use gpui::{AnyElement, App, Div, FontWeight, Global, Hsla, Stateful, Window, px}
 use ui::prelude::*;
 use ui_prompt::{MarleyPrompt, MarleyPromptLook};
 
+/// A detail line's lead that draws it as a check row (#926).
+const CHECK: &str = "\u{2713} ";
+
 /// The labels that cancel, drawn quiet whether or not the prompt marks them as its cancel.
 const QUIET: [&str; 3] = ["Cancel", "Dismiss", "Not Now"];
 
@@ -117,11 +120,7 @@ fn card(prompt: &MarleyPrompt<'_>, _window: &mut Window, cx: &mut App) -> Option
         .shadow_lg()
         .child(title(prompt.message, cx))
         .when_some(prompt.detail, |card, detail| {
-            card.child(
-                Label::new(plain(detail))
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
+            card.child(details(detail, cx))
         })
         .child(
             h_flex()
@@ -132,6 +131,52 @@ fn card(prompt: &MarleyPrompt<'_>, _window: &mut Window, cx: &mut App) -> Option
                 .children(buttons),
         );
     Some(card.into_any_element())
+}
+
+/// The prompt's detail: one muted label, or, when a line starts with "✓ ", each line in turn with
+/// those lines as check rows, a tick on a round success tile (#926, D4).
+fn details(detail: &str, cx: &App) -> AnyElement {
+    let text = plain(detail);
+    if !text.lines().any(|line| line.starts_with(CHECK)) {
+        return Label::new(text)
+            .size(LabelSize::Small)
+            .color(Color::Muted)
+            .into_any_element();
+    }
+    let success = cx.theme().status().success;
+    let mut rows = v_flex().gap_1();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        rows = match line.strip_prefix(CHECK) {
+            Some(check) => rows.child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_none()
+                            .size(px(16.))
+                            .rounded_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .bg(success.opacity(0.15))
+                            .child(
+                                Icon::new(IconName::Check)
+                                    .size(IconSize::XSmall)
+                                    .color(Color::Success),
+                            ),
+                    )
+                    .child(Label::new(check.to_string()).size(LabelSize::Small)),
+            ),
+            None => rows.child(
+                div().pb_1().child(
+                    Label::new(line.to_string())
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                ),
+            ),
+        };
+    }
+    rows.into_any_element()
 }
 
 /// The weight of action `index`: a cancel is quiet; the first is danger for a destructive verb
