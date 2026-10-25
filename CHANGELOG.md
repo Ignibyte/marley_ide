@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rail rows say what is going on** (#910, 2026-10-25). A thread row's second line says what its
+  agent does ("Edit notes.md") or asks ("Allow Edit README.md?"), what a turn finished unseen left
+  ("1 file changed"), else its model and "idle", in its state's colour. A shell row says its
+  command first ("done in 45 s"), then its folder, its project's root too; a failed command ends
+  in Ask an agent, the block header's own button. Group headers show their agents as pills ("1
+  needs you" in pink, the working count in amber, "1 done"), "N rows" when open with nothing to
+  count and "quiet" folded, and the Default group's home glyph sits on a tile.
+
 - **The bottom row for Marley's own screens** (#909, 2026-10-25). The row now says what is in
   front on the Threads page (conversations, open tabs), a Browser tab (title, address, console
   errors in red, picks ready, the recorded minute), MCP Servers (each agent CLI not on the PATH,
@@ -2081,6 +2089,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **A thread finished in front no longer reads as unseen** (#910, 2026-10-25). In the Marley
+  layout, a thread tab in front counts as shown, so a run that ends there leaves no attention
+  dot.
 
 - **Small daily fixes** (#906, 2026-10-25). The Threads page's filters, list and preview flex
   and wrap as the board lays them out, so in a half-width pane the titles stay readable and the

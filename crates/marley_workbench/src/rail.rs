@@ -37,11 +37,11 @@ use marley_browser::consequence::Class;
 use marley_browser::ports::{Service, Stopped};
 use marley_mcp::redact::Redactor;
 use marley_rail::{
-    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, FilesRow, Focus, GroupSummary,
-    InboxAnswer, InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot,
-    ProjectRow, ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection,
-    SwitcherRow, TabKind, TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot,
-    ThreadRow, ThreadSnapshot, ThreadStatus, TurnSnapshot, Usage, WorktreeRow, WorktreeSnapshot,
+    BrowserRow, BrowserSnapshot, CommandSnapshot, DriftSnapshot, FilesRow, Focus, InboxAnswer,
+    InboxEntry, InboxKind, PortContainer, PortRow, PortService, PortSnapshot, ProjectRow,
+    ProjectSnapshot, RailSnapshot, Reporting, Row, RunningError, Selection, SwitcherRow, TabKind,
+    TabRow, TabSnapshot, TerminalAgent, TerminalRow, TerminalSnapshot, ThreadRow, ThreadSnapshot,
+    ThreadStatus, TurnSnapshot, Usage, WorktreeRow, WorktreeSnapshot,
 };
 use marley_system_one::reading::{Reading, Signal};
 use marley_system_one::{INBOX_RISK, QUESTION_ROUTE};
@@ -682,10 +682,23 @@ fn header_icon(
     cx: &App,
 ) -> Option<AnyElement> {
     if projectless {
+        // On a tile, the Default group's the home glyph (#910, D7).
+        let glyph = if name == groups::DEFAULT {
+            IconName::MarleyHome
+        } else {
+            IconName::ListTree
+        };
         return Some(
-            Icon::new(IconName::ListTree)
-                .size(IconSize::Small)
-                .color(Color::Muted)
+            div()
+                .debug_selector(move || format!("marley-rail-project-icon-{index}"))
+                .flex_none()
+                .size(px(20.))
+                .rounded_md()
+                .bg(raised(cx))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Icon::new(glyph).size(IconSize::XSmall).color(Color::Muted))
                 .into_any_element(),
         );
     }
@@ -745,6 +758,13 @@ struct TabEntry {
     icon: Option<Icon>,
 }
 
+/// What a live thread does or asks, and its model, for its row's line (#910).
+#[derive(Clone, PartialEq, Eq)]
+struct ThreadWords {
+    doing: SharedString,
+    model: Option<SharedString>,
+}
+
 /// What a thread row opens, and the icon it draws.
 struct ThreadEntry {
     workspace: WeakEntity<Workspace>,
@@ -755,6 +775,8 @@ struct ThreadEntry {
     icon: AgentIcon,
     /// The agent's name, for the row's second line.
     agent_name: SharedString,
+    /// What the live thread does, when its conversation is loaded (#910).
+    words: Option<ThreadWords>,
     /// The project's key while the window holds no workspace of it (#617): `workspace` is then an
     /// invalid handle, and opening the thread opens the project first.
     closed: Option<ProjectGroupKey>,
@@ -774,6 +796,8 @@ struct Snapshot {
     /// The terminal views an agent CLI is running in.
     agent_terminals: HashSet<EntityId>,
     threads: HashMap<String, ThreadEntry>,
+    /// What each live thread does, by its id, so a change of words redraws the rail (#910).
+    thread_words: HashMap<ThreadId, ThreadWords>,
     /// The thread the displayed workspace's visible Agent Panel shows, which is seen by now.
     shown_thread: Option<String>,
     /// What each inbox entry acts on, by its key (#508).
@@ -1431,7 +1455,14 @@ impl Rail {
         if self.focus_handle.contains_focused(window, cx) {
             snapshot.rail.focus.cursor.clone_from(&self.cursor);
         }
-        if snapshot.rail != self.snapshot.rail {
+        snapshot.thread_words = snapshot
+            .threads
+            .values()
+            .filter_map(|thread| Some((thread.thread_id, thread.words.clone()?)))
+            .collect();
+        if snapshot.rail != self.snapshot.rail
+            || snapshot.thread_words != self.snapshot.thread_words
+        {
             cx.notify();
         }
         self.snapshot = snapshot;
@@ -5023,7 +5054,7 @@ impl Rail {
                         )
                     })
                     .child(self.render_project_row(
-                        row,
+                        &row,
                         group,
                         icon,
                         search_path.clone(),
@@ -5740,7 +5771,7 @@ impl Rail {
 
     fn render_project_row(
         &self,
-        row: ProjectRow,
+        row: &ProjectRow,
         group: &GroupEntry,
         icon: Option<AnyElement>,
         agent_search_path: Option<OsString>,
@@ -5823,13 +5854,7 @@ impl Rail {
                         icon
                     }
                 }))
-                .child(project_name(
-                    row.name,
-                    row.highlight,
-                    name_color,
-                    row.summary,
-                    row.attention,
-                ))
+                .child(project_name(row, name_color, cx))
                 .child(Self::render_header_end(
                     index,
                     id,
@@ -6465,7 +6490,7 @@ impl Rail {
             state,
         );
         let subtitle = RowLine {
-            text: thread_subtitle(&thread.agent_name, row.status),
+            text: thread_row_line(&row, thread),
             state: None,
             color: state.line(cx),
             cut: Cut::End,
@@ -6637,9 +6662,11 @@ impl Rail {
         let kind = row.agent.as_ref().map_or(ItemKind::Shell, |agent| {
             ItemKind::AgentTerminal(AgentMark::from_cli(agent.kind))
         });
-        let mut lines: Vec<CardLine> = row
-            .subtitle
-            .map(|subtitle| {
+        let shell = row.agent.is_none();
+        let first = shell_command_line(&row, terminal, cx);
+        let mut lines: Vec<CardLine> = first
+            .into_iter()
+            .chain(row.subtitle.map(|subtitle| {
                 // A limited agent's line reads as a warning, not a failure (#715).
                 if limited {
                     RowLine {
@@ -6651,31 +6678,27 @@ impl Rail {
                 } else {
                     RowLine::muted(subtitle)
                 }
-            })
-            .into_iter()
-            .chain(row.activity.map(RowLine::muted))
-            .chain(quota)
-            .chain(row.command.map(command_line))
-            .chain(row.running_error.map(|error| RowLine {
-                text: error.line,
-                state: None,
-                color: Color::Error,
-                cut: Cut::End,
+                .into()
             }))
-            .map(CardLine::from)
+            .chain(row.activity.map(|activity| RowLine::muted(activity).into()))
+            .chain(quota.into_iter().map(CardLine::from))
+            .chain(
+                row.command
+                    .filter(|_| !shell)
+                    .map(|command| command_line(command).into()),
+            )
+            .chain(row.running_error.map(|error| {
+                RowLine {
+                    text: error.line,
+                    state: None,
+                    color: Color::Error,
+                    cut: Cut::End,
+                }
+                .into()
+            }))
             .chain(interrupted.map(|chip| CardLine::Element(chip.into_any_element())))
             .collect();
-        // The first line says the row's state by its color, unless it says something of its own
-        // (a limit, an error) (#827).
-        if let Some(CardLine::Text(first)) = lines.first_mut()
-            && first.color == Color::Muted
-        {
-            first.color = state.line(cx);
-        }
-        // Blank lines make up two, so a command's or an agent's activity line that comes and goes
-        // moves neither the title nor the rows under it (#796).
-        let blanks = 2usize.saturating_sub(lines.len());
-        lines.extend((0..blanks).map(|_| CardLine::from(String::new())));
+        finish_lines(&mut lines, state, cx);
         let item = row_card(
             ("marley-rail-terminal", id),
             format!("marley-rail-terminal-icon-{id}"),
@@ -9366,13 +9389,17 @@ pub(crate) fn live_threads(workspace: &Workspace, cx: &App) -> Vec<Entity<AcpThr
         .collect()
 }
 
-/// The status of every thread the workspaces' panels hold, by thread id, and the thread each
-/// panel shows.
-fn live_statuses(
-    workspaces: &[Entity<Workspace>],
-    cx: &App,
-) -> (HashMap<ThreadId, ThreadStatus>, HashSet<ThreadId>) {
+/// The threads the workspaces hold, by thread id (#910): each loaded one's status and words, and
+/// the thread each panel shows.
+struct LiveThreads {
+    statuses: HashMap<ThreadId, ThreadStatus>,
+    words: HashMap<ThreadId, ThreadWords>,
+    active: HashSet<ThreadId>,
+}
+
+fn live_statuses(workspaces: &[Entity<Workspace>], cx: &App) -> LiveThreads {
     let mut statuses = HashMap::default();
+    let mut words = HashMap::default();
     let mut active = HashSet::default();
     for workspace in workspaces {
         let workspace = workspace.read(cx);
@@ -9380,26 +9407,30 @@ fn live_statuses(
             active.extend(panel.read(cx).active_thread_id(cx));
         }
         // A conversation still connecting has no thread yet, and nothing to report.
-        let loaded = crate::thread_tab::conversations_of(workspace, cx)
-            .into_iter()
-            .filter_map(|conversation| {
-                let view = conversation.read(cx).root_thread_view()?;
-                Some((conversation, view))
-            });
-        for (conversation, view) in loaded {
-            let conversation = conversation.read(cx);
-            let thread = view.read(cx).thread.read(cx);
-            statuses.insert(
-                conversation.parent_id(),
-                marley_rail::thread_status(
-                    conversation.root_thread_has_pending_tool_call(cx),
-                    thread.had_error(),
-                    thread.status() == acp_thread::ThreadStatus::Generating,
-                ),
+        for conversation in crate::thread_tab::conversations_of(workspace, cx) {
+            let Some(activity) = crate::thread_activity::thread_activity(&conversation, cx) else {
+                continue;
+            };
+            let conversation_view = conversation.read(cx);
+            let model = conversation_view
+                .root_thread_view()
+                .and_then(|view| view.read(cx).marley_session_facts(cx).model);
+            let thread_id = conversation_view.parent_id();
+            statuses.insert(thread_id, activity.status());
+            words.insert(
+                thread_id,
+                ThreadWords {
+                    doing: activity.doing().clone(),
+                    model,
+                },
             );
         }
     }
-    (statuses, active)
+    LiveThreads {
+        statuses,
+        words,
+        active,
+    }
 }
 
 /// A group's threads, newest first. The metadata store files a thread under the main worktree
@@ -9439,7 +9470,11 @@ fn group_threads(
                 .find(|member| member.entity_id() == *holder),
         )
     };
-    let (statuses, active) = live_statuses(&group.workspaces, cx);
+    let LiveThreads {
+        statuses,
+        words,
+        active,
+    } = live_statuses(&group.workspaces, cx);
     let mut seen: HashSet<ThreadId> = HashSet::default();
     let mut rows: Vec<&ThreadMetadata> = if group.key.path_list().paths().is_empty() {
         Vec::new()
@@ -9507,6 +9542,7 @@ fn group_threads(
                     title: row.title(),
                     icon: agents::thread_icon(&row.agent_id, project, cx),
                     agent_name: agents::thread_agent_name(&row.agent_id, project, cx),
+                    words: words.get(&row.thread_id).cloned(),
                     closed: listed.is_none().then(|| group.key.clone()),
                 },
             )
@@ -9557,11 +9593,7 @@ fn terminal_snapshot(
         || {
             (
                 terminal_view.tab_content_text(0, cx).to_string(),
-                marley_rail::working_directory_label(
-                    terminal.read(cx).working_directory().as_deref(),
-                    root,
-                    Some(home),
-                ),
+                shell_folder(terminal.read(cx).working_directory().as_deref(), root, home),
             )
         },
         |agent| {
@@ -9690,7 +9722,92 @@ pub(crate) fn command_snapshot(terminal: &Terminal) -> Option<CommandSnapshot> {
         exit_code: (!running).then_some(block.exit_code.0).flatten(),
         duration,
         password: running && terminal.marley_foreground_reads_password(),
+        index: block.index,
     })
+}
+
+/// A shell's folder for its row (#910, D3): under its project's root as the rail words it, and the
+/// root itself in the block header's short form, so an idle shell says where it is.
+fn shell_folder(folder: Option<&Path>, root: Option<&Path>, home: &Path) -> Option<String> {
+    marley_rail::working_directory_label(folder, root, Some(home)).or_else(|| {
+        folder.map(|folder| crate::block_headers::folder_label(&folder.to_string_lossy()))
+    })
+}
+
+/// A terminal row's lines made ready: the first says the row's state by its color, unless it says
+/// something of its own (a limit, an error) (#827); blank lines make up two, so a command's or an
+/// agent's activity line that comes and goes moves neither the title nor the rows under it (#796).
+fn finish_lines(lines: &mut Vec<CardLine>, state: ItemState, cx: &App) {
+    if let Some(CardLine::Text(first)) = lines.first_mut()
+        && first.color == Color::Muted
+    {
+        first.color = state.line(cx);
+    }
+    let blanks = 2usize.saturating_sub(lines.len());
+    lines.extend((0..blanks).map(|_| CardLine::from(String::new())));
+}
+
+/// A shell row's first line (#910, D3): its command, which ends in Ask an agent when it failed
+/// and the block header would offer it; none for an agent's row.
+fn shell_command_line(row: &TerminalRow, terminal: &TerminalEntry, cx: &App) -> Option<CardLine> {
+    if row.agent.is_some() {
+        return None;
+    }
+    let command = row.command.clone()?;
+    let asks = terminal
+        .view
+        .upgrade()
+        .filter(|view| crate::send_block::asks_fix(view.read(cx).terminal().read(cx)).is_some());
+    // `asks_fix` and the command both read the newest live block.
+    Some(match asks {
+        Some(view) => CardLine::Element(failed_line(command, view)),
+        None => CardLine::from(command_line(command)),
+    })
+}
+
+/// A failed command's line under a shell's row, with Ask an agent at its end (#910, D4): the
+/// block header's own button.
+fn failed_line(command: CommandSnapshot, view: Entity<TerminalView>) -> AnyElement {
+    let index = command.index;
+    let RowLine {
+        text, state, color, ..
+    } = command_line(command);
+    h_flex()
+        .min_w_0()
+        .gap_1()
+        .child(
+            div().min_w_0().child(
+                Label::new(text)
+                    .size(LabelSize::XSmall)
+                    .color(color)
+                    .truncate(),
+            ),
+        )
+        .children(state.map(|state| {
+            div()
+                .flex_none()
+                .child(Label::new(state).size(LabelSize::XSmall).color(color))
+        }))
+        .child(
+            div().flex_none().child(
+                Button::new(("marley-rail-ask-agent", view.entity_id()), "Ask an agent")
+                    .style(ButtonStyle::Transparent)
+                    .color(Color::Accent)
+                    .label_size(LabelSize::XSmall)
+                    .on_click(move |_, window, cx| {
+                        // The row under the link would take the selection.
+                        cx.stop_propagation();
+                        crate::send_block::send(
+                            &view,
+                            index,
+                            crate::send_block::Request::Fix,
+                            window,
+                            cx,
+                        );
+                    }),
+            ),
+        )
+        .into_any_element()
 }
 
 /// A command's line under its terminal's row: `cargo build · running`, `· done · 45 s`,
@@ -9702,15 +9819,23 @@ fn command_line(command: CommandSnapshot) -> RowLine {
         exit_code,
         duration,
         password,
+        index: _,
     } = command;
     let took = duration
+        .as_ref()
         .map(|duration| format!(" · {duration}"))
         .unwrap_or_default();
     let (state, color) = match (running, password, exit_code) {
         (true, true, _) => (" · waiting for a password".to_string(), Color::Muted),
         (true, false, _) => (" · running".to_string(), Color::Muted),
         (false, _, Some(code)) if code != 0 => (format!(" · exit {code}{took}"), Color::Error),
-        (false, _, _) => (format!(" · done{took}"), Color::Muted),
+        (false, _, _) => (
+            duration.map_or_else(
+                || " · done".to_string(),
+                |duration| format!(" · done in {duration}"),
+            ),
+            Color::Muted,
+        ),
     };
     RowLine {
         text,
@@ -10123,9 +10248,17 @@ fn note_focus(
         .as_ref()
         .and_then(|panel| panel.read(cx).active_thread_id(cx))
         .map(|thread_id| thread_id.to_key_string());
-    snapshot.shown_thread = panel_thread
-        .clone()
-        .filter(|_| AgentPanel::is_visible(displayed, cx));
+    // A thread tab in front is shown too (#910): in the Marley layout a thread never shows in the
+    // panel (#772), so a run that ended in front of the user would read as unseen.
+    let tab_thread = displayed
+        .read(cx)
+        .active_item_as::<crate::thread_tab::ThreadTab>(cx)
+        .map(|tab| tab.read(cx).thread_key(cx));
+    snapshot.shown_thread = tab_thread.or_else(|| {
+        panel_thread
+            .clone()
+            .filter(|_| AgentPanel::is_visible(displayed, cx))
+    });
     let (terminal, terminal_focused, browser, tab) = active_rows(displayed, window, cx);
     snapshot.rail.focus = Focus {
         cursor: None,
@@ -10765,31 +10898,105 @@ fn terminal_match(filter: &str, terminal: &TerminalSnapshot) -> Option<Vec<usize
 }
 
 /// A project header's name, and after it a collapsed project's agents by state (#542).
-fn project_name(
-    name: String,
-    highlight: Vec<usize>,
-    color: Color,
-    summary: Option<GroupSummary>,
-    attention: bool,
-) -> impl IntoElement {
+fn project_name(row: &ProjectRow, color: Color, cx: &App) -> impl IntoElement {
+    let name = row.name.clone();
+    let summary = row.summary.as_ref();
+    let attention = row.attention;
+    let listed = if row.expanded {
+        Listed::Open(row.rows)
+    } else {
+        Listed::Folded
+    };
+    let counts = summary
+        .as_ref()
+        .map(|summary| summary.counts)
+        .unwrap_or_default();
+    let has_counts = counts.needs_you + counts.working + counts.done > 0;
+    let status = cx.theme().status();
+    let accent = cx.theme().colors().text_accent;
+    // Pills by state at the header's right (#910, D5), the summary's words their tooltip; a
+    // folded group with something hidden that needs you keeps the pink one.
+    let needs_you = if counts.needs_you == 0 && attention {
+        1
+    } else {
+        counts.needs_you
+    };
+    let pills = (has_counts || attention).then(|| {
+        let words =
+            summary.map_or_else(|| "needs you".to_string(), |summary| summary.words.clone());
+        h_flex()
+            .id(SharedString::from(format!("marley-rail-pills-{name}")))
+            .flex_none()
+            .gap_1()
+            .when(needs_you > 0, |pills| {
+                pills.child(summary_pill(
+                    format!("{needs_you} needs you"),
+                    status.conflict,
+                    status.conflict_background,
+                ))
+            })
+            .when(counts.working > 0, |pills| {
+                pills.child(summary_pill(
+                    counts.working.to_string(),
+                    status.warning,
+                    status.warning_background,
+                ))
+            })
+            .when(counts.done > 0, |pills| {
+                pills.child(summary_pill(
+                    format!("{} done", counts.done),
+                    accent,
+                    accent.opacity(0.15),
+                ))
+            })
+            .tooltip(Tooltip::text(words))
+    });
+    // Nothing to count: how many rows the open group lists, or "quiet" folded (#910, D6).
+    let quiet = pills.is_none().then(|| match listed {
+        Listed::Open(0) => None,
+        Listed::Open(1) => Some("1 row".to_string()),
+        Listed::Open(rows) => Some(format!("{rows} rows")),
+        Listed::Folded => Some("quiet".to_string()),
+    });
     h_flex()
         .min_w_0()
         .flex_1()
         .gap_1p5()
-        .child(div().min_w_0().child(row_label(name, highlight, color)))
-        .children(summary.map(|summary| {
+        .child(
+            div()
+                .min_w_0()
+                .flex_1()
+                .child(row_label(name, row.highlight.clone(), color)),
+        )
+        .children(pills)
+        .children(quiet.flatten().map(|quiet| {
             div().flex_none().child(
-                // The summary says in color that something under the project needs you (#827),
-                // folded or open (#906).
-                Label::new(summary.words).size(LabelSize::XSmall).color(
-                    if attention || summary.needs_you {
-                        Color::Conflict
-                    } else {
-                        Color::Muted
-                    },
-                ),
+                Label::new(quiet)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
             )
         }))
+}
+
+/// Whether a header's group lists its rows, and how many (#910).
+#[derive(Clone, Copy)]
+enum Listed {
+    Open(usize),
+    Folded,
+}
+
+/// One of a header's summary pills (#910): its words in `ink` on `background`.
+fn summary_pill(text: String, ink: Hsla, background: Hsla) -> Div {
+    div()
+        .flex_none()
+        .px_1p5()
+        .rounded_full()
+        .bg(background)
+        .child(
+            Label::new(text)
+                .size(LabelSize::XSmall)
+                .color(Color::Custom(ink)),
+        )
 }
 
 /// A row's name or title, with the characters the filter matched highlighted.
@@ -11240,8 +11447,43 @@ const fn thread_row_state(status: ThreadStatus, attention: bool) -> ItemState {
     })
 }
 
-fn thread_subtitle(agent_name: &str, status: ThreadStatus) -> String {
-    format!("{agent_name} · {}", status.label())
+/// `row`'s second line, from its thread's words.
+fn thread_row_line(row: &ThreadRow, thread: &ThreadEntry) -> String {
+    thread_line(
+        row.status,
+        row.attention,
+        thread.words.as_ref(),
+        &thread.agent_name,
+    )
+}
+
+/// A thread row's second line, in words that match its state (#910, D1): what the agent does,
+/// what it asks, what a turn finished unseen left, else its model (or agent) idle.
+fn thread_line(
+    status: ThreadStatus,
+    attention: bool,
+    words: Option<&ThreadWords>,
+    agent_name: &str,
+) -> String {
+    let doing = words.map(|words| words.doing.as_ref());
+    match (status, attention) {
+        (ThreadStatus::Running, _) => doing.unwrap_or("thinking").to_string(),
+        (ThreadStatus::Waiting, _) => doing.map_or_else(
+            || "Waiting on you".to_string(),
+            |ask| format!("Allow {ask}?"),
+        ),
+        (ThreadStatus::Error, true) => "Failed".to_string(),
+        (ThreadStatus::Done, true) => match doing {
+            Some(left) if left != "idle" => left.to_string(),
+            _ => "Finished".to_string(),
+        },
+        (ThreadStatus::Error | ThreadStatus::Done, false) => {
+            let who = words
+                .and_then(|words| words.model.as_ref())
+                .map_or(agent_name, |model| model.as_ref());
+            format!("{who} \u{b7} idle")
+        }
+    }
 }
 
 /// What a thread row shows at its end, as Zed's thread row shows it: a spinner while the thread

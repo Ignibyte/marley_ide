@@ -222,6 +222,8 @@ pub struct CommandSnapshot {
     pub duration: Option<String>,
     /// Whether it reads a password now, with the PTY's echo off.
     pub password: bool,
+    /// The block's index, which an Ask an agent on its row sends (#910).
+    pub index: usize,
 }
 
 /// A failure a running command printed and kept running after, for its row's mark (#572).
@@ -692,15 +694,33 @@ pub struct ProjectRow {
     pub highlight: Vec<usize>,
     /// The project's agents by state (#542), open or folded (#906); `None` with nothing to count.
     pub summary: Option<GroupSummary>,
+    /// The rows listed under the project while it is open, for a header with nothing to count
+    /// (#910, D6).
+    pub rows: usize,
 }
 
 /// A project header's summary of its agents (#542, #906).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupSummary {
-    /// The agents by state, most needing the user first: `1 waiting, 2 working`.
+    /// The agents by state, most needing the user first: `1 needs you, 2 working`; the pills'
+    /// tooltip (#910).
     pub words: String,
     /// Whether an agent waits on the user or a row under the group needs them.
     pub needs_you: bool,
+    /// The agents by the row states the header's pills draw (#910).
+    pub counts: SummaryCounts,
+}
+
+/// A header's agents by state, as its pills count them (#910, D5): a failed agent with the
+/// user's attention needs them, one that stopped reporting still works.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SummaryCounts {
+    /// Agents that wait on the user, or failed with their attention.
+    pub needs_you: usize,
+    /// Agents that work, or stopped reporting while working.
+    pub working: usize,
+    /// Agents that finished while unseen.
+    pub done: usize,
 }
 
 /// A terminal row under its project.
@@ -1350,7 +1370,7 @@ pub fn movable_rows(project: &ProjectSnapshot) -> Vec<Selection> {
 /// A project's agents by state, most needing the user first: `1 waiting, 2 working`; shells and
 /// idle agents are not counted.
 fn summary(project: &ProjectSnapshot) -> Option<GroupSummary> {
-    const WORDS: [&str; 5] = ["waiting", "failed", "done", "working", "not reporting"];
+    const WORDS: [&str; 5] = ["needs you", "failed", "done", "working", "not reporting"];
     let mut counts = [0usize; 5];
     let terminals = project.terminals.iter().filter_map(|terminal| {
         let status = terminal.agent?.status;
@@ -1386,9 +1406,15 @@ fn summary(project: &ProjectSnapshot) -> Option<GroupSummary> {
         .map(|(count, word)| format!("{count} {word}"))
         .collect();
     let waiting = counts.first().is_some_and(|count| *count > 0);
+    let [waiting_count, failed, done, working, not_reporting] = counts;
     (!parts.is_empty()).then(|| GroupSummary {
         words: parts.join(", "),
         needs_you: waiting || project_needs_the_user(project),
+        counts: SummaryCounts {
+            needs_you: waiting_count + failed,
+            working: working + not_reporting,
+            done,
+        },
     })
 }
 
@@ -1808,7 +1834,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
             .map(<[usize]>::to_vec)
             .unwrap_or_default()
     };
-    walk(snapshot)
+    let mut rows: Vec<Row> = walk(snapshot)
         .into_iter()
         .map(|row| match row {
             Shown::Project(index, project) => Row::Project(ProjectRow {
@@ -1819,6 +1845,7 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 attention: hidden_rows_need_the_user(snapshot, project),
                 highlight: highlight(project.matched.as_deref()),
                 summary: summary(project),
+                rows: 0,
             }),
             Shown::Terminal(index, terminal) => Row::Terminal(TerminalRow {
                 project: index,
@@ -1892,7 +1919,25 @@ pub fn rail_rows(snapshot: &RailSnapshot) -> Vec<Row> {
                 highlight: highlight(worktree.matched.as_deref()),
             }),
         })
-        .collect()
+        .collect();
+    count_header_rows(&mut rows);
+    rows
+}
+
+/// Each header's count of the rows listed under it, until the next header (#910, D6).
+fn count_header_rows(rows: &mut [Row]) {
+    let mut header: Option<usize> = None;
+    for index in 0..rows.len() {
+        match rows.get(index) {
+            Some(Row::Project(_)) => header = Some(index),
+            Some(_) => {
+                if let Some(Some(Row::Project(project))) = header.map(|at| rows.get_mut(at)) {
+                    project.rows += 1;
+                }
+            }
+            None => {}
+        }
+    }
 }
 
 /// The terminal or thread row that holds the window's focus, the one the user is working in.
@@ -2216,6 +2261,7 @@ mod tests {
                     attention: false,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -2261,6 +2307,7 @@ mod tests {
                     attention: false,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -2298,6 +2345,7 @@ mod tests {
                     attention: true,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Project(ProjectRow {
                     index: 1,
@@ -2307,6 +2355,7 @@ mod tests {
                     attention: false,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,
@@ -2344,6 +2393,7 @@ mod tests {
                 attention: false,
                 highlight: Vec::new(),
                 summary: None,
+                rows: 0,
             })]
         );
     }
@@ -2461,6 +2511,7 @@ mod tests {
                     attention: false,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 0,
@@ -2506,6 +2557,7 @@ mod tests {
                     attention: false,
                     highlight: Vec::new(),
                     summary: None,
+                    rows: 0,
                 }),
                 Row::Terminal(TerminalRow {
                     project: 1,

@@ -1612,14 +1612,22 @@ fn a_thread_row_marks_each_status_at_its_end(cx: &TestAppContext) {
 }
 
 #[test]
-fn a_thread_rows_second_line_names_its_agent_and_what_it_does() {
+fn a_thread_rows_second_line_says_what_it_does_in_its_states_words() {
+    let words = ThreadWords {
+        doing: SharedString::new_static("Edit notes.md"),
+        model: Some(SharedString::new_static("Opus 5.5")),
+    };
     assert_eq!(
-        thread_subtitle("Zed Agent", ThreadStatus::Running),
-        "Zed Agent · working"
+        thread_line(ThreadStatus::Running, false, Some(&words), "Claude Agent"),
+        "Edit notes.md"
     );
     assert_eq!(
-        thread_subtitle("Claude Agent", ThreadStatus::Waiting),
-        "Claude Agent · waiting"
+        thread_line(ThreadStatus::Waiting, false, Some(&words), "Claude Agent"),
+        "Allow Edit notes.md?"
+    );
+    assert_eq!(
+        thread_line(ThreadStatus::Done, false, None, "Zed Agent"),
+        "Zed Agent \u{b7} idle"
     );
 }
 

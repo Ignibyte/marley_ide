@@ -38,6 +38,14 @@
 - **Decisions:** D1–D7 in the spec. Progress and a ticking elapsed time on a running shell row go
   Out to the follow-up for A-core's "Determinate build progress".
 
+- **Promoted 2026-10-25:** seams re-read after #905 to #909: `rail.rs` `render_thread_row`
+  :6447 (still `thread_subtitle`), `live_statuses` :9371 (one caller, :9442), the thread
+  snapshot build, `terminal_snapshot` :9519 (a shell's subtitle from
+  `working_directory_label`), `command_snapshot` :9659, `command_line` :9698,
+  `render_terminal_row` :6615, `header_icon` :677, `project_name` :10768; `marley_rail`'s
+  `GroupSummary { words, needs_you }` (#906) and `CommandSnapshot`; `send_block::chip`'s failed
+  test; `groups::DEFAULT` (private); `thread_activity` (#907) and `item_kind` (#905).
+
 ### Design
 - Thread row: `live_statuses` returns, per live thread, its status and `thread_activity(…)`
   (#907, `crate::thread_activity`). The state colors come from #905's `item_kind.rs`. `ThreadEntry` gains the activity (or a `RowWords` struct holding the text); the line is
@@ -96,7 +104,36 @@
   `script/e2e/827-*.sh` and `542`'s expectations before the regression (L-claude-877).
 
 ## Phase 2 — Code
+- **Built:** as designed in `rail.rs`, `send_block.rs` (`asks_fix`), `marley_rail.rs`
+  (`SummaryCounts`, `ProjectRow.rows`, `CommandSnapshot.index`), `groups::DEFAULT` made
+  `pub(crate)`; `rail_tests.rs`'s second-line test rewritten against `thread_line`.
+- **Deviations:** `note_focus` counts a thread tab in front as shown
+  (F-claude-910-a-thread-tab-in-front-was-never-shown-001). The pink pill also shows on a header
+  whose hidden rows need the user without an agent count (`attention`). Shell rows' needs-you
+  state does not join the header's counts, which count agents (D5).
+- **Review:** the Ask an agent link stops the click reaching the row; `send` defers. No Zed path.
+  Google style: `ThreadWords`, `LiveThreads`, `SummaryCounts` named-field structs; `Listed`
+  enum, not a bool.
+- **Gate:** `just gate-diff` 17/17 green after `too_many_lines` (three helpers out),
+  `needless_pass_by_value`, `missing_docs` and dylint's `SharedString` literal rule in the test.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/910-rail-rows-say-whats-going-on.sh` (sway): #827's stand-ins and bus,
+  #907's scripted agent holding each "start" on its own release file.
+- `910-01-working`: "Edit notes.md" in amber; the failed shell "false · exit 1 · 0 s Ask an agent"
+  in red over its folder; the idle shell's folder; `a`'s amber "1" pill; Default's home tile
+  (REQ-001, REQ-005, REQ-006, REQ-008, REQ-010).
+- `910-04-idle`: the turn ended in front: "Opus 5.5 · idle", muted; `a` reads "3 rows" (REQ-004,
+  REQ-009).
+- `910-03-done`: a second turn ended unseen: "1 file changed" in the done colour, green dot, "1
+  done" pill (REQ-003, REQ-008).
+- `910-02-asks`: "Allow Edit README.md?" in pink, "1 needs you" (REQ-002, REQ-008).
+- `910-06-asked`: Ask an agent clicked: a stand-in Claude Code started with "This command failed.
+  Fix it:" and the block; the click did not select the failed row (REQ-007).
+- `910-07-headers`: Default folded "quiet", `c` "1 row", `b` "1 needs you" (REQ-008 to REQ-010).
+- `910-08-day`: Marley Day.
+- Earlier runs: the idle shot kept the attention dot (fixed, above).
 
 ## Phase 4 — Complete
+- CHANGELOG (Added and Fixed), `docs/marley_architecture/marley_workbench.md`. No Zed path.
+- Knowledge: F-claude-910-a-thread-tab-in-front-was-never-shown-001.

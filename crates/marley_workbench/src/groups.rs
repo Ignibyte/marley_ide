@@ -30,7 +30,7 @@ use crate::MakeGroup;
 
 /// The name of the window's Home group, the one for what the rail's empty space makes. It is no
 /// longer "Home" since #743, which kept that name for the Home page the status bar opens.
-const DEFAULT: &str = "Default";
+pub(crate) const DEFAULT: &str = "Default";
 
 /// The name a Rusty group keeps when its close is cancelled (#743).
 const RUSTY: &str = "Rusty";

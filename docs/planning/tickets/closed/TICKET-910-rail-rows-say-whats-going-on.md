@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #910 (feature, the Marley look, the rail)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [910-rail-rows-say-whats-going-on.spec.md](../../pipeline/queued/910-rail-rows-say-whats-going-on.spec.md)
+- **Pipeline doc:** [910-rail-rows-say-whats-going-on.spec.md](../../pipeline/completed/910-rail-rows-say-whats-going-on.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/B-rail-chrome.md, boards Rail and RailStates)
 - **Boards:** Rail, RailStates
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

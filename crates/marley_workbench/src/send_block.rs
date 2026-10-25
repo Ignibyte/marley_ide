@@ -189,6 +189,17 @@ fn send_now(
 /// (`bookmarks`): Ask the agent for the newest block when it failed, the shell waits at its prompt
 /// with no agent in front, and another terminal of the window runs an agent; or, for a request
 /// the shell could not run (127), with its words, whatever runs (#557).
+/// The newest live block's index when it failed, the shell waits at its prompt and no agent runs
+/// in the terminal: when the block header and the rail's row offer Ask an agent (#826, #910, D4).
+/// A block from before a restart is history, which no agent is asked about (#764).
+pub(crate) fn asks_fix(terminal: &Terminal) -> Option<usize> {
+    let anchored = terminal.marley_anchored();
+    let block = anchored.live().last()?;
+    let failed =
+        block.state == BlockState::Finished && block.exit_code.0.is_some_and(|code| code != 0);
+    (failed && anchored.at_prompt() && agent_in(terminal).is_none()).then_some(block.index)
+}
+
 pub(crate) fn chip(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -213,15 +224,7 @@ pub(crate) fn chip(
                 .into_any_element(),
         );
     }
-    let anchored = terminal.marley_anchored();
-    // A block from before a restart is history, which no agent is asked about (#764).
-    let block = anchored
-        .live()
-        .last()
-        .filter(|block| block.index == index)?;
-    let failed =
-        block.state == BlockState::Finished && block.exit_code.0.is_some_and(|code| code != 0);
-    if !failed || !anchored.at_prompt() || agent_in(terminal).is_some() {
+    if asks_fix(terminal) != Some(index) {
         return None;
     }
     // Ask an agent to fix it, or to explain it; with no agent running, Claude Code starts with it

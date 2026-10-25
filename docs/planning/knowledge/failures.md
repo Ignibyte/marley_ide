@@ -4551,3 +4551,12 @@ Zed's items at the right of the status bar: the tmux chip read "tmux: 3 · 2 de"
 bookmark it fell off altogether. Fixed: tighter caps (title 100 px, folder 110 px, failed command
 90 px) and "no command running" left out while the failed chip shows, which says the same. A row
 that adds parts is checked at 1600 pixels with the rail open, its last part fully visible.
+
+## F-claude-910-a-thread-tab-in-front-was-never-shown-001
+*found: 2026-10-25 · while: testing #910 · severity: medium*
+
+The rail lights a thread's attention dot when its run ends while the thread is not shown, and
+`note_focus` counted only the Agent Panel's thread as shown. In the Marley layout a thread never
+shows in the panel (#772), so every run that ended in a thread tab right in front of the user
+left the dot lit and the row read "done, unseen" until something else cleared it. Fixed: the
+displayed workspace's active thread tab is the shown thread, before the panel's.

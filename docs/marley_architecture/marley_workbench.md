@@ -2268,6 +2268,18 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Rail rows say what is going on (#910).** `live_statuses` returns `LiveThreads { statuses,
+  words, active }`, the words (`ThreadWords { doing, model }`) from `thread_activity` and
+  `marley_session_facts`; `ThreadEntry.words` and `Snapshot.thread_words` (compared so a change of
+  words redraws). `thread_line` words a row by state. `shell_folder` names a shell's folder at
+  its project's root too; `shell_command_line` puts a shell's command first, `failed_line` ends a
+  failed one in Ask an agent (`send_block::asks_fix`, the test the block header's chip uses too,
+  then `send(.., Request::Fix, ..)`); `finish_lines` colours the first line and pads to two.
+  `command_line` says "done in 45 s". Headers: `marley_rail::GroupSummary.counts`
+  (`SummaryCounts`) and `ProjectRow.rows` (`count_header_rows`); `project_name` draws
+  `summary_pill`s or "N rows"/"quiet" (`Listed`); `header_icon` puts a projectless group's icon on
+  a tile, `IconName::MarleyHome` for `groups::DEFAULT`. `note_focus` counts the displayed
+  workspace's active thread tab as the shown thread.
 - **The bottom row for Marley's own screens (#909).** `focus_screens.rs`: `Screen` (Threads,
   Browser, MCP Servers, Components, Tasks, Graph, Brain, Page, each holding its entity), `of`
   (downcasts the active item), `observe` (the Browser's hub, else the screen itself) and `render`

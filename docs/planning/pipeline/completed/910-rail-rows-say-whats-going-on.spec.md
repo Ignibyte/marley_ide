@@ -1,7 +1,7 @@
 ---
 pipeline_id: 28519898-cf10-4a00-87dd-ee6ee86fad71
 ticket: docs/planning/tickets/open/TICKET-910-rail-rows-say-whats-going-on.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Rail rows say what is going on
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
