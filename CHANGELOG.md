@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A block map, a build's own progress, and the package hint** (#918, 2026-10-25). Down a
+  terminal's right edge, a mark per block at its place in the scrollback, in its state's colour,
+  the bookmarked or selected one in the accent. A build that draws cargo's bar or a leading
+  `[N/M]` shows "24 of 40" in its chip and fills its bottom line to the share. A failed
+  `dpkg -l libfoo` on this Arch box offers "This box runs Arch. Try `pacman -Qs libfoo`", which a
+  click types at the prompt without running, beside Ask an agent.
+
 - **The terminal prompt as a card, the sticky header's words, session chips** (#917, 2026-10-25).
   The shell's prompt editor sits in a card: the folder, the branch, "2 changed" and "last: exit
   1" over the line, `❯` before it, "→ to accept" while a suggestion shows, and under it the keys

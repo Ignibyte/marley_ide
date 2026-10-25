@@ -199,9 +199,15 @@ fn chip(
             .size(IconSize::XSmall)
             .color(Color::Accent)
     });
-    // How long the block took, beside its exit (#826).
+    // How long the block took, beside its exit (#826), after a running build's count (#918).
+    let count = crate::build_progress::chip(terminal, index, cx);
     let took = crate::send_block::duration(terminal, index, cx);
-    if agent.is_none() && bookmark.is_none() && jump.is_none() && table.is_none() && took.is_none()
+    if agent.is_none()
+        && bookmark.is_none()
+        && jump.is_none()
+        && table.is_none()
+        && count.is_none()
+        && took.is_none()
     {
         return ask;
     }
@@ -213,6 +219,7 @@ fn chip(
             .children(jump)
             .children(ask)
             .children(table)
+            .children(count)
             .children(took)
             .into_any_element(),
     )

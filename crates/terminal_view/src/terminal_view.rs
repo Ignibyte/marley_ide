@@ -285,7 +285,9 @@ impl gpui::Global for MarleyBlockFooter {}
 // block's index, or none. While it is set, the block's pill leaves the running state to the
 // workbench, which shows it with the time (#916).
 #[derive(Clone)]
-pub struct MarleyBlockProgress(pub Arc<dyn Fn(usize, &App) -> Option<AnyElement>>);
+pub struct MarleyBlockProgress(
+    pub Arc<dyn Fn(&Entity<Terminal>, usize, &App) -> Option<AnyElement>>,
+);
 
 impl gpui::Global for MarleyBlockProgress {}
 

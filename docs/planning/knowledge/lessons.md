@@ -6495,3 +6495,11 @@ through `ConfigOptionsView`, with `mode_selector` left `None`). Claude Code's ad
 second. A Marley feature over a thread's mode, model or effort reads both, and its scenario's
 scripted agent offers each shape at least once.
 
+
+## L-claude-918-a-pipelines-status-is-its-last-commands-001
+*learned: 2026-10-25 · while: testing #918*
+
+A block's exit code is the shell's `$?`, which for a pipeline is its last command's: `dpkg -l |
+grep libfoo` on a box without dpkg ends with grep's 1, not 127. A feature keyed on 127 (the
+package hint, #557's English ask) sees only a lone command or one whose last stage is missing; a
+scenario that wants 127 runs the missing program alone.

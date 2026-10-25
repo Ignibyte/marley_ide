@@ -1022,6 +1022,79 @@ pub fn scrollback_fraction(
     (place < total).then(|| f64::from(place) / f64::from(total))
 }
 
+/// A block's state as the block map colours it (#918).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkState {
+    /// The block runs.
+    Running,
+    /// The block ended with an exit code other than 0.
+    Failed,
+    /// The block ended with exit 0.
+    Done,
+    /// The block ended with no exit code.
+    Unknown,
+}
+
+/// A block's mark on the block map (#918): where its first line sits among the kept lines and how
+/// many of them it covers, both as shares of the map's height.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapMark {
+    /// The block's place among the terminal's blocks.
+    pub index: usize,
+    /// The share of the kept lines above the block's first line.
+    pub top: f64,
+    /// The share of the kept lines the block covers, cut at the map's end.
+    pub height: f64,
+    /// The block's state.
+    pub state: MarkState,
+}
+
+/// The block map's marks for `blocks`, one for each started block still kept (#918).
+///
+/// The numbers are [`scrollback_fraction`]'s; a running block ends at `cursor_line`. A mark's
+/// least height on screen is the painter's to set.
+#[must_use]
+pub fn block_map(
+    blocks: &[AnchoredBlock],
+    screen_top: u64,
+    total_lines: usize,
+    screen_lines: usize,
+    cursor_line: u64,
+) -> Vec<MapMark> {
+    let Some(total) = u32::try_from(total_lines).ok().filter(|total| *total > 0) else {
+        return Vec::new();
+    };
+    let mut marks = Vec::new();
+    for block in blocks {
+        let state = match (block.state, block.exit_code.0) {
+            (BlockState::Pending, _) => continue,
+            (BlockState::Running, _) => MarkState::Running,
+            (BlockState::Finished, Some(0)) => MarkState::Done,
+            (BlockState::Finished, Some(_)) => MarkState::Failed,
+            (BlockState::Finished, None) => MarkState::Unknown,
+        };
+        let first = block.prompt_line.unwrap_or(block.output_start);
+        let Some(top) = scrollback_fraction(first, screen_top, total_lines, screen_lines) else {
+            continue;
+        };
+        let end = block
+            .output_end
+            .unwrap_or_else(|| cursor_line.saturating_add(1))
+            .max(first.saturating_add(1));
+        let Ok(lines) = u32::try_from(end - first) else {
+            continue;
+        };
+        let height = (f64::from(lines) / f64::from(total)).min(1.0 - top);
+        marks.push(MapMark {
+            index: block.index,
+            top,
+            height,
+            state,
+        });
+    }
+    marks
+}
+
 /// How many rows down to draw a viewport, so the live screen's last used row sits on the bottom
 /// edge.
 ///

@@ -2350,15 +2350,30 @@ impl Element for TerminalElement {
                             gpui::BorderStyle::Solid,
                         ));
                     }
-                    for share in marley_bookmark_ticks(&self.terminal, cx) {
-                        let tick = Bounds::new(
-                            point(
-                                bounds.right() - px(8.),
-                                bounds.origin.y + bounds.size.height * share,
-                            ),
-                            size(px(8.), px(2.)),
-                        );
-                        window.paint_quad(fill(tick, cx.theme().colors().text_accent));
+                    // Marley: the block map: a mark at the right edge for each block, in its state's
+                    // colour, the bookmarked and selected ones in the accent over the rest (#918).
+                    let marley_marks = marley_block_map(&self.terminal, cx);
+                    let marley_ordered = marley_marks
+                        .iter()
+                        .filter(|(_, accent)| !accent)
+                        .chain(marley_marks.iter().filter(|(_, accent)| *accent));
+                    for (mark, accent) in marley_ordered {
+                        let theme = cx.theme();
+                        let color = if *accent {
+                            theme.colors().text_accent
+                        } else {
+                            match mark.state {
+                                marley_terminal::MarkState::Running => theme.status().warning,
+                                marley_terminal::MarkState::Failed => theme.status().error,
+                                marley_terminal::MarkState::Done => theme.colors().text_muted,
+                                marley_terminal::MarkState::Unknown => theme.colors().border,
+                            }
+                        };
+                        let top = bounds.origin.y + bounds.size.height * mark.top as f32;
+                        let height = (bounds.size.height * mark.height as f32).max(px(2.));
+                        let rect =
+                            Bounds::new(point(bounds.right() - px(8.), top), size(px(8.), height));
+                        window.paint_quad(fill(rect, color));
                     }
 
                     // Marley: the autosuggestion from the cursor on, dimmed (#484).
@@ -2788,28 +2803,44 @@ pub(crate) fn marley_block_at(terminal: &Terminal, position: GpuiPoint<Pixels>) 
         .map(|span| span.index)
 }
 
-// Marley: where each bookmarked block's first line sits among the lines the terminal can scroll
-// to, as a share of the element's height; none on the alternate screen (#559).
-fn marley_bookmark_ticks(terminal: &Entity<Terminal>, cx: &App) -> Vec<f32> {
+// Marley: the block map's marks, each with whether its block is bookmarked or selected, which
+// draws it in the accent (#559's ticks, #918); none on the alternate screen.
+fn marley_block_map(
+    terminal: &Entity<Terminal>,
+    cx: &App,
+) -> Vec<(marley_terminal::MapMark, bool)> {
     let marked = crate::MarleyBlockMarks::bookmarked(terminal, cx);
+    let selected = crate::MarleyBlockSelection::selected(terminal, cx);
     let terminal = terminal.read(cx);
     let content = terminal.last_content();
-    if marked.is_empty() || content.mode.contains(Modes::ALT_SCREEN) {
+    if content.mode.contains(Modes::ALT_SCREEN) {
         return Vec::new();
     }
-    marked
-        .into_iter()
-        .filter_map(|index| {
-            let block = terminal.blocks().get(index)?;
-            let share = marley_terminal::scrollback_fraction(
-                block.prompt_line.unwrap_or(block.output_start),
-                content.marley_screen_top,
-                content.total_lines,
-                content.screen_lines,
-            )?;
-            Some(share as f32)
-        })
-        .collect()
+    let cursor_line =
+        content.marley_screen_top + u64::try_from(content.cursor.point.line).unwrap_or_default();
+    // The live screen's empty rows are drawn above its content (#476), so the marks move down by
+    // them, as the blocks do.
+    let shift = marley_terminal::bottom_shift(
+        content.marley_empty_bottom_rows,
+        content.display_offset,
+        false,
+    );
+    let lift = shift as f64 / content.total_lines.max(1) as f64;
+    marley_terminal::block_map(
+        terminal.blocks(),
+        content.marley_screen_top,
+        content.total_lines,
+        content.screen_lines,
+        cursor_line,
+    )
+    .into_iter()
+    .map(|mut mark| {
+        mark.top = (mark.top + lift).min(1.0);
+        mark.height = mark.height.min(1.0 - mark.top);
+        let accent = marked.contains(&mark.index) || selected == Some(mark.index);
+        (mark, accent)
+    })
+    .collect()
 }
 
 // Marley: the pixel bounds of a block's viewport rows, from the element's left edge, over the
@@ -3121,7 +3152,7 @@ fn marley_block(
     let progress = (span.state == marley_terminal::BlockState::Running)
         .then(|| cx.try_global::<crate::MarleyBlockProgress>().cloned())
         .flatten()
-        .and_then(|hook| (hook.0)(index, cx));
+        .and_then(|hook| (hook.0)(terminal, index, cx));
     div()
         .id(("marley-block", index))
         .group(group.clone())
@@ -3134,7 +3165,8 @@ fn marley_block(
                 .h(line_height)
                 .justify_end()
                 .gap_1()
-                .pr_1()
+                // Marley: clear of the block map along the right edge (#918).
+                .pr_3()
                 .child(
                     ui::h_flex()
                         .id(("marley-block-actions", index))

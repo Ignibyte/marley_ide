@@ -119,7 +119,42 @@
 - A translated package name can be wrong for this distro (D6): the hint only types.
 
 ## Phase 2 — Code
+- **Built:** `anchored::{MarkState, MapMark, block_map}`; `progress.rs` and `package_hint.rs`
+  (new, `marley_terminal`); `Terminal::marley_cursor_line`; the element's `marley_block_map` in
+  the ticks' place, the chip row's right padding; `MarleyBlockProgress` given the terminal;
+  `build_progress.rs` (new); `progress_line` filled to a `Progress`; the count in
+  `bookmarks::chip`; the hint row in `send_block::footer` with `package_hint`, `type_command`,
+  `command_button`.
+- **Deviations (from #916 landing first, as #916's spec says):**
+  - The bar fills the bottom-edge line #916 made, not the header's top (D4 superseded).
+  - The hint is a row of the footer under the block's output (#916's), not a header chip.
+  - "N of M" stands before "running · N s", since #916 took the running pill.
+  - Running is `warning` (honey) for the mark, as #916's D1 made every running mark.
+- **Other deviations:** the scenario runs `dpkg -l libfoo`: in `dpkg -l | grep libfoo` the
+  pipeline's status is grep's 1, not 127. The marks move down by the live screen's empty rows,
+  as the blocks do (#476); they are proportional to lines, so the gaps and header rows that the
+  row map inserts make them drift a little from the drawn blocks. The chip row's right padding
+  grew so the map does not cover a block's chip.
+- **Review:** REQ-004: `progress_line` keeps the slide when `build_progress::progress` is none.
+  REQ-007: `package_hint` returns none for `remote::is_remote` and a project that is not local
+  (`system_one::project_of`). The alternate screen gives no marks.
+- **Gate:** `just gate-diff` 17/17 green after the last change.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/918-block-map-and-build-progress.sh`, sway, 6 shots, each read.
+  - `918-04-hint`: under `dpkg -l libfoo`'s "command not found": "This box runs Arch. Try",
+    `pacman -Qs libfoo` in the buffer font, Ask an agent. REQ-005 met.
+  - `918-05-typed`: `pacman -Qs libfoo` in the prompt editor, no new block. REQ-006 met.
+  - `918-02-bookmarked`: the newest block bookmarked: its mark in the accent at the right edge.
+  - `918-03-progress` / `918-01-map`: "24 of 40 running · 7 s" in the build's chip, its bottom
+    line filled to about 60 %; marks down the right edge: muted for `git status`, red for the
+    failures, the accent for the bookmarked one, honey for the build. REQ-001 to REQ-003 met.
+  - `918-06-day`: the same in Marley Day at 36 of 40.
+- **Fixes found in Test:** the marks sat at the top while the blocks drew at the bottom; they now
+  move down by the empty rows. The map covered the chip's end; the chip row clears it.
 
 ## Phase 4 — Complete
+- CHANGELOG, `terminal_blocks.md`, `marley_workbench.md`, the look plan's TICKET-826 row, the
+  ledger rows for `terminal_element.rs`, `terminal_view.rs` and `terminal.rs`.
+- Knowledge appended: L-claude-918-a-pipelines-status-is-its-last-commands-001.
+- Brain: decision recorded.

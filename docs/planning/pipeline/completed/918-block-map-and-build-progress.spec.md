@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4f0a5415-1036-47cb-b91d-fb3958979ac2
 ticket: docs/planning/tickets/open/TICKET-918-block-map-and-build-progress.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A block map by state, build progress, and the exit-127 hint
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

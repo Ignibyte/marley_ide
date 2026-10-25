@@ -462,6 +462,15 @@ bottom edge. The workbench side: `send_block::footer` (Ask an agent, Explain, As
 `duration`'s "running · N s"; `block_headers::progress_line` and `tick_while_running`, one
 once-a-second repaint per view while a block runs.
 
+**Since #918.** `anchored::block_map` gives a `MapMark` (index, top and height as shares of the
+kept lines, a `MarkState`) for each started block; the element's `marley_block_map` moves them
+down by the live screen's empty rows and paints 8 px marks at the right edge in place of #559's
+bookmark ticks, the bookmarked and selected ones in the accent last. `progress::parse_progress`
+reads cargo's `Building [..] N/M` and a leading `[N/M]` into a `Progress`, and
+`Terminal::marley_cursor_line` gives the line build tools redraw. `package_hint::Family`
+(`from_os_release`: `ID`, then `ID_LIKE`) and `translate` write another family's install, remove,
+search or list-installed command as this family's.
+
 **Since #447.** The shim is a child module of `session`, the one module that calls it:
 `#[path = "pty_os.rs"]` keeps the file where gate:4's exclude and these notes name it, and its
 items are `pub(super)`. The reap signal logs any failure except ESRCH, the child having

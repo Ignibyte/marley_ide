@@ -8,9 +8,12 @@
 
 use std::time::SystemTime;
 
-use gpui::{AnyElement, App, Div, Entity, FontWeight, Stateful, Window};
+use std::sync::LazyLock;
+
+use gpui::{AnyElement, App, Div, Entity, Focusable as _, FontWeight, Stateful, Window};
 use marley_agent::AgentKind;
 use marley_terminal::BlockState;
+use marley_terminal::package_hint::{self, Family};
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use ui::{Button, ButtonStyle, LabelSize, TintColor, prelude::*};
@@ -234,9 +237,41 @@ pub(crate) fn footer(
     cx: &App,
 ) -> Option<AnyElement> {
     let terminal_ref = terminal.read(cx);
-    if asks_fix(terminal_ref) != Some(index)
-        || crate::english::asks_on_127(terminal_ref, index, cx).is_some()
-    {
+    if asks_fix(terminal_ref) != Some(index) {
+        return None;
+    }
+    // Another distro's package-manager command gets this box's, with Ask an agent (#918, D7).
+    if let Some(hint) = package_hint(view, terminal_ref, index, cx) {
+        let (type_view, fix_view) = (view.clone(), view.clone());
+        let typed = hint.command.clone();
+        return Some(
+            h_flex()
+                .size_full()
+                .items_center()
+                .gap_1p5()
+                .child(
+                    Label::new(format!("This box runs {}. Try", hint.family.name()))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(
+                    command_button(index, hint.command, cx).on_click(move |_, window, cx| {
+                        cx.stop_propagation();
+                        type_command(&type_view, &typed, window, cx);
+                    }),
+                )
+                .child(
+                    footer_button("marley-ask-agent", index, "Ask an agent", true, cx).on_click(
+                        move |_, window, cx| {
+                            cx.stop_propagation();
+                            send(&fix_view, index, Request::Fix, window, cx);
+                        },
+                    ),
+                )
+                .into_any_element(),
+        );
+    }
+    if crate::english::asks_on_127(terminal_ref, index, cx).is_some() {
         return None;
     }
     let (fix_view, explain_view, beside_view) = (view.clone(), view.clone(), view.clone());
@@ -273,6 +308,89 @@ pub(crate) fn footer(
             )
             .into_any_element(),
     )
+}
+
+/// This box's package family, read once from `/etc/os-release`, or a Mac's (#918, D5).
+static FAMILY: LazyLock<Option<Family>> = LazyLock::new(|| {
+    if cfg!(target_os = "macos") {
+        return Some(Family::MacOs);
+    }
+    let content = std::fs::read_to_string("/etc/os-release").ok()?;
+    Family::from_os_release(&content)
+});
+
+/// A package hint: this box's family and the command written for it (#918).
+struct PackageHint {
+    family: Family,
+    command: String,
+}
+
+/// The hint for the newest block at `index` of a local terminal (#918): it ended with 127, or with
+/// sudo's "command not found", its command is verified, and it is another family's package-manager
+/// command. None for a remote terminal or a remote project's (D8).
+fn package_hint(
+    view: &Entity<TerminalView>,
+    terminal: &Terminal,
+    index: usize,
+    cx: &App,
+) -> Option<PackageHint> {
+    let family = (*FAMILY)?;
+    if crate::remote::is_remote(terminal) {
+        return None;
+    }
+    let workspace = view.read(cx).marley_workspace().upgrade()?;
+    let (_, local) = crate::system_one::project_of(workspace.read(cx), cx);
+    if !local {
+        return None;
+    }
+    let block = terminal
+        .marley_anchored()
+        .live()
+        .last()
+        .filter(|block| block.index == index && block.command_verified)?;
+    let code = block.exit_code.0?;
+    let command = block.command.trim();
+    let not_found = code == 127
+        || (code != 0
+            && command.starts_with("sudo ")
+            && terminal
+                .block_output(block)
+                .is_some_and(|output| output.contains("command not found")));
+    if !not_found {
+        return None;
+    }
+    Some(PackageHint {
+        family,
+        command: package_hint::translate(command, family)?,
+    })
+}
+
+/// Types `command` at `view`'s prompt without running it (#918, D6): into the prompt editor while
+/// it is open, else onto the shell's line.
+fn type_command(view: &Entity<TerminalView>, command: &str, window: &mut Window, cx: &mut App) {
+    if crate::rich_input::is_open(view, cx) {
+        crate::rich_input::insert(view, command, window, cx);
+        return;
+    }
+    let terminal = view.read(cx).terminal().clone();
+    let bytes = command.as_bytes().to_vec();
+    terminal.update(cx, |terminal, _| terminal.input(bytes));
+    window.focus(&view.focus_handle(cx), cx);
+}
+
+/// The hint's command as an outlined button in the buffer font (#918).
+fn command_button(index: usize, command: String, cx: &App) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    h_flex()
+        .id(("marley-package-hint", index))
+        .h(px(24.))
+        .px_2p5()
+        .rounded(px(7.))
+        .border_1()
+        .border_color(colors.border)
+        .cursor_pointer()
+        .hover(|style| style.bg(colors.ghost_element_hover))
+        .child(Label::new(command).size(LabelSize::XSmall).buffer_font(cx))
 }
 
 /// A labelled button of the footer's row: filled in the accent with dark ink when `primary`, else

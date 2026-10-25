@@ -59,8 +59,10 @@ pub mod identity;
 pub mod keys;
 pub mod links;
 pub mod mouse;
+pub mod package_hint;
 pub mod paste;
 pub mod ports;
+pub mod progress;
 pub mod running_errors;
 pub mod session;
 pub mod shell_integration;
@@ -72,9 +74,9 @@ pub mod workflow;
 mod session_id;
 
 pub use anchored::{
-    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, OutputRows, PromptShell, Restoring,
-    RowsView, block_lines, block_scroll, bottom_shift, duration_label, output_rows, prompt_rows,
-    scrollback_fraction, sticky_block, visible_spans,
+    AnchoredBlock, AnchoredBlocks, BlockSpan, BlockTimes, MapMark, MarkState, OutputRows,
+    PromptShell, Restoring, RowsView, block_lines, block_map, block_scroll, bottom_shift,
+    duration_label, output_rows, prompt_rows, scrollback_fraction, sticky_block, visible_spans,
 };
 pub use block::{
     Block, BlockCopy, BlockId, BlockIndex, BlockList, BlockState, ExitCode, PromptInfo,

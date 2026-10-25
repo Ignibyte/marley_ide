@@ -2205,6 +2205,18 @@ impl Terminal {
         Some((text, cursor))
     }
 
+    // Marley: a running build's progress, which build tools redraw on the cursor's line (#918).
+    /// The text of the cursor's line on the main screen; `None` on the alternate screen.
+    pub fn marley_cursor_line(&self) -> Option<String> {
+        let term = self.term.lock();
+        let position = alacritty_terminal::marley_hooks::HookPosition::of(&term);
+        if position.alt_screen {
+            return None;
+        }
+        let cursor = position.absolute_line();
+        crate::alacritty::absolute_lines_text(&term, cursor, Some(cursor + 1))
+    }
+
     // Marley: the MCP server's `terminal_blocks` (#491).
     /// Whether a block's output is still in the scrollback: its first line has not been evicted.
     pub fn block_output_kept(&self, block: &marley_terminal::AnchoredBlock) -> bool {

@@ -48,6 +48,7 @@ pub mod browser;
 pub mod browser_actions;
 pub mod browser_pages;
 pub mod browser_tools;
+pub mod build_progress;
 pub mod claude_ide;
 pub mod claude_plugin;
 pub mod cli_sessions;
@@ -1171,6 +1172,7 @@ pub fn init(cx: &mut App) {
     sticky_header::init(cx);
     block_headers::init(cx);
     session_chips::init(cx);
+    build_progress::init(cx);
     harness::init(cx);
     home_page::init(cx);
     rusty::init(cx);

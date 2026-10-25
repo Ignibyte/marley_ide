@@ -48,8 +48,8 @@ impl Global for Ticking {}
 /// Sets the header's hook and records the blocks' branches; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {
     cx.set_global(MarleyBlockHeader(Arc::new(header)));
-    cx.set_global(MarleyBlockProgress(Arc::new(|index, cx| {
-        Some(progress_line(index, cx))
+    cx.set_global(MarleyBlockProgress(Arc::new(|terminal, index, cx| {
+        Some(progress_line(terminal, index, cx))
     })));
     cx.set_global(Branches::default());
     cx.set_global(Ticking::default());
@@ -284,11 +284,24 @@ fn header(
     )
 }
 
-/// The `MarleyBlockProgress` hook's element: the line along a running block's bottom edge (#865, D3; the
+/// The `MarleyBlockProgress` hook's element: filled to a build's own progress while it shows one
+/// (#918), else the line along a running block's bottom edge (#865, D3; the
 /// edge and the honey since #916), a 30% bar sliding across, or still and full width under
 /// reduced motion. It stays indeterminate until a command's own progress is read (#916, D5).
-fn progress_line(index: usize, cx: &App) -> AnyElement {
+fn progress_line(terminal: &Entity<Terminal>, index: usize, cx: &App) -> AnyElement {
     let color = cx.theme().status().warning;
+    // A build that shows its own progress fills the line to it (#918).
+    if let Some(progress) = crate::build_progress::progress(terminal, index, cx) {
+        return div()
+            .absolute()
+            .bottom_0()
+            .left_0()
+            .h(px(3.))
+            .w_full()
+            .bg(color.opacity(0.25))
+            .child(div().h_full().w(relative(progress.share())).bg(color))
+            .into_any_element();
+    }
     if cx.reduce_motion() {
         return div()
             .absolute()

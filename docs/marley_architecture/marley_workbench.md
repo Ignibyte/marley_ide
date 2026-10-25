@@ -1328,6 +1328,21 @@ alike.
   terminal. `block_headers::header` offers Tell me when done (Will tell you once marked) after a
   running block's command.
 
+## A build's progress and the package hint (#918)
+
+- `build_progress.rs`: on a terminal's `Wakeup`, at most every 500 ms, the newest running block's
+  `marley_cursor_line` goes through `parse_progress` (agent CLIs' and SSH clients' terminals left
+  out); the `Progresses` global keeps the last value by terminal and block, nothing observes it,
+  and the view is notified when it moves. `progress` feeds `block_headers::progress_line`, which
+  fills the bottom line to `Progress::share`, and `chip` gives "N of M" before the running time in
+  `bookmarks::chip`.
+- `send_block::footer` puts `package_hint` first: the newest verified block of a local terminal
+  in a local project that ended with 127, or with sudo's "command not found", whose command
+  `package_hint::translate` writes for this box's family (`FAMILY`, read once from
+  `/etc/os-release`, macOS on a Mac). The row is "This box runs <family>. Try", the command as an
+  outlined button in the buffer font, and Ask an agent; `type_command` types it into the prompt
+  editor while it is open, else onto the shell's line, never with a Return.
+
 ## The sticky command header (`src/sticky_header.rs`, #529)
 
 - The terminal element picks the block, `marley_terminal::sticky_block` over its spans: the top
