@@ -2268,6 +2268,19 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Marley and Rusty as chips (#904).** `picked` is a `Pick` (`Marley`, `Cli(AgentKind)`,
+  `Rusty`); `picks` lists Marley while `assistant::marley_present`, the installed CLIs, then Rusty
+  while `assistant::rusty_present`, and `current_pick` keeps a pick only while it is offered,
+  else the first CLI, else the first pick. Start with Marley or Rusty calls
+  `assistant::start_with_task`, which runs `talk_to`'s fresh path with an
+  `AgentInitialContent::ContentBlock { auto_submit: true }` (none for an empty box) through
+  `thread_tab::start_thread`'s new `initial`. `render_project_chip` takes the picked entry's name
+  and draws the chip disabled, with a tooltip, rather than hiding it, so the row does not move.
+- **Where terminals start (#904).** `agents::start_directory` is Zed's
+  `default_working_directory` unless that lies in a hidden worktree (a conversation's own folder,
+  #780), and the home folder then (none for a remote project). Every Marley caller of
+  `default_working_directory` uses it (`agents`, `home_page`, `routing`, `rail`,
+  `harness_seat`, `assistant`, `playwright_scripts`).
 - **The prompt** (#835): `MarleyHome.prompt` (a single-line `Editor`, made at the first `render`,
   since `new` gets a read-only window) and `picked` (the chip lit; the first installed CLI until
   one is picked). `render_prompt` draws the box (`menu::Confirm`, from the global `enter`

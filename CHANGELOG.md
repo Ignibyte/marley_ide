@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Ask Marley or Rusty from Home** (#904, 2026-10-25). Home's prompt offers Marley's agent as
+  its first chip and Rusty's as its last, while each is on. Start with one picked opens a new
+  conversation with it in a tab, the box's text sent as the first message. The project chip greys
+  out while they are picked, since both work in their own folders.
+
 - **Home as the design draws it** (#903, 2026-10-23). Home opens on "What are we working on?" over
   a two-line prompt, with the project chip first, the agent CLIs as pills and a round Start; the
   start actions as pills under it; then its cards in a grid that wraps, each with its link
@@ -2047,6 +2052,10 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   standalone.
 
 ### Fixed
+
+- **Home's terminals after a conversation** (#904, 2026-10-25). With a Marley or Rusty
+  conversation open in Home, Home's project chip read "config" and an agent CLI or terminal
+  started there ran in Marley's settings folder. They start in the home folder again.
 
 - **The rail header's icons sit together on the left** (#902, 2026-10-23). Files, Add Project and
   Shrink follow Projects, Threads and Sessions instead of sitting at the header's right end.

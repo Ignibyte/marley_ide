@@ -363,7 +363,7 @@ pub(crate) fn open_form(
     let Some(slot) = slots.first().cloned() else {
         return;
     };
-    let folder = terminal_view::default_working_directory(workspace, cx);
+    let folder = crate::agents::start_directory(workspace, cx);
     let handle = workspace.weak_handle();
     workspace.toggle_modal(window, cx, |window, cx| {
         NewSeatModal::new(handle, folder, slots, slot, window, cx)
@@ -613,7 +613,7 @@ pub(crate) fn start_agent_on(
                 };
                 let input = format!("{line}\n").into_bytes();
                 // The link's local end works in the project's folder, as a new terminal would.
-                let folder = terminal_view::default_working_directory(workspace, cx);
+                let folder = crate::agents::start_directory(workspace, cx);
                 crate::agents::start_in_terminal(
                     workspace,
                     folder,

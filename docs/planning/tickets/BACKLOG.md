@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-904](open/TICKET-904-home-prompt-asks-marley-or-rusty.md) | feature | Home's prompt asks Marley or Rusty (W2.2, from #903) |
 | [TICKET-906](open/TICKET-906-small-daily-fixes.md) | feature | Small daily fixes from the design review (design review 2026-10-23) |
 | [TICKET-905](open/TICKET-905-tabs-and-switcher-tinted-by-kind.md) | feature | Tabs and the Ctrl Tab switcher tinted by kind (design review 2026-10-23) |
 | [TICKET-907](open/TICKET-907-bottom-row-for-a-thread.md) | feature | The bottom row for a thread (design review 2026-10-23) |

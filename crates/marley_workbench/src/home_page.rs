@@ -161,6 +161,28 @@ struct Recent {
 /// A project the prompt's chip offers, by its name and folders (#867).
 type ProjectChoice = (SharedString, Vec<PathBuf>);
 
+/// Who the prompt's Start hands the task to (#904).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pick {
+    /// Marley's own agent, in its own folder.
+    Marley,
+    /// An agent CLI, in the project the chip names.
+    Cli(AgentKind),
+    /// Rusty's agent, in its own folder.
+    Rusty,
+}
+
+impl Pick {
+    /// The assistant entry's name, for Marley's and Rusty's picks.
+    const fn entry_name(self) -> Option<&'static str> {
+        match self {
+            Self::Marley => Some("Marley"),
+            Self::Rusty => Some("Rusty"),
+            Self::Cli(_) => None,
+        }
+    }
+}
+
 /// Home's page.
 pub(crate) struct MarleyHome {
     workspace: WeakEntity<Workspace>,
@@ -173,8 +195,8 @@ pub(crate) struct MarleyHome {
     /// The prompt box: what the picked agent starts with (#835), made at the first draw, where a
     /// window can be written.
     prompt: Option<Entity<editor::Editor>>,
-    /// The agent the prompt starts; the first installed CLI until one is picked.
-    picked: Option<AgentKind>,
+    /// Who the prompt starts; the first installed CLI until one is picked.
+    picked: Option<Pick>,
     /// The project the prompt starts in, by its name and folders; none for Home's own (#867, D1).
     target: Option<ProjectChoice>,
     /// The rail the page lists the agents at work from, held weakly and observed, so a rail a
@@ -379,22 +401,57 @@ impl MarleyHome {
             }))
     }
 
-    /// The prompt (#835), as the Home board draws it (#903): a box two lines tall, then the
-    /// project chip (#867), the agent CLIs as pills, and a round Start.
-    fn render_prompt(&self, cx: &Context<Self>) -> AnyElement {
+    /// The picks the prompt offers (#904): Marley's agent while its entry is on, the installed
+    /// agent CLIs, then Rusty's agent while its entry is on.
+    fn picks(cx: &App) -> Vec<Pick> {
         let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
-        let picked = self.picked.or_else(|| kinds.first().copied());
+        let mut picks: Vec<Pick> = Vec::with_capacity(kinds.len() + 2);
+        if crate::assistant::marley_present(cx) {
+            picks.push(Pick::Marley);
+        }
+        picks.extend(kinds.into_iter().map(Pick::Cli));
+        if crate::assistant::rusty_present(cx) {
+            picks.push(Pick::Rusty);
+        }
+        picks
+    }
+
+    /// The pick Start uses: the one picked while it is still offered, else the first agent CLI,
+    /// else the first offered (#904, D1).
+    fn current_pick(&self, picks: &[Pick]) -> Option<Pick> {
+        let first_cli = picks
+            .iter()
+            .copied()
+            .find(|pick| matches!(pick, Pick::Cli(_)));
+        self.picked
+            .filter(|picked| picks.contains(picked))
+            .or(first_cli)
+            .or_else(|| picks.first().copied())
+    }
+
+    /// The prompt (#835), as the Home board draws it (#903): a box two lines tall, then the
+    /// project chip (#867), Marley, the agent CLIs and Rusty as pills (#904), and a round Start.
+    fn render_prompt(&self, cx: &Context<Self>) -> AnyElement {
+        let picks = Self::picks(cx);
+        let picked = self.current_pick(&picks);
         let colors = cx.theme().colors();
         let accent = colors.text_accent;
-        let chips = kinds.into_iter().enumerate().map(|(index, kind)| {
-            pill(("marley-home-agent", index), picked == Some(kind), cx)
-                .child(glyph_tile(cli_glyph(kind), cx))
-                .child(Label::new(kind.display_name()).size(LabelSize::Small))
+        let chips = picks.into_iter().enumerate().map(|(index, pick)| {
+            let (tile, name) = match pick {
+                Pick::Marley => (icon_tile(IconName::MarleyCat, cx), "Marley"),
+                Pick::Cli(kind) => (glyph_tile(cli_glyph(kind), cx), kind.display_name()),
+                Pick::Rusty => (icon_tile(IconName::RustyButler, cx), "Rusty"),
+            };
+            pill(("marley-home-agent", index), picked == Some(pick), cx)
+                .child(tile)
+                .child(Label::new(name).size(LabelSize::Small))
                 .on_click(cx.listener(move |home, _, _, cx| {
-                    home.picked = Some(kind);
+                    home.picked = Some(pick);
                     cx.notify();
                 }))
         });
+        // Marley and Rusty work in their own folders, not in a project (#904, D2).
+        let own_folder = picked.and_then(Pick::entry_name);
         let start = div()
             .id("marley-home-start-agent")
             .debug_selector(|| "marley-home-start-agent".into())
@@ -442,7 +499,7 @@ impl MarleyHome {
                     .w_full()
                     .gap_1p5()
                     .flex_wrap()
-                    .child(self.render_project_chip(cx))
+                    .child(self.render_project_chip(own_folder, cx))
                     .children(chips)
                     .child(div().flex_1())
                     .child(start),
@@ -452,7 +509,9 @@ impl MarleyHome {
 
     /// The project chip (#867): where the prompt's agent starts, and a menu of Home, the window's
     /// open projects and the recent ones.
-    fn render_project_chip(&self, cx: &Context<Self>) -> impl IntoElement {
+    /// While Marley or Rusty is picked (`own_folder` names it), the chip stays in its place, so the
+    /// chips beside it do not move, but greyed and closed (#904, D2).
+    fn render_project_chip(&self, own_folder: Option<&str>, cx: &Context<Self>) -> AnyElement {
         let name = self.target.as_ref().map_or_else(
             || {
                 self.workspace.upgrade().map_or_else(
@@ -460,7 +519,7 @@ impl MarleyHome {
                     |workspace| {
                         // The folder's name, as the board's chip reads (#903); the home folder is
                         // Home.
-                        terminal_view::default_working_directory(workspace.read(cx), cx)
+                        agents::start_directory(workspace.read(cx), cx)
                             .filter(|folder| folder != paths::home_dir())
                             .and_then(|folder| {
                                 folder
@@ -473,16 +532,23 @@ impl MarleyHome {
             },
             |(name, _)| name.to_string(),
         );
+        let chip = Button::new("marley-home-project-chip", name)
+            .start_icon(Icon::new(IconName::Folder).size(IconSize::Small))
+            .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall))
+            .style(ButtonStyle::Filled)
+            .label_size(LabelSize::Small);
+        if let Some(entry) = own_folder {
+            return chip
+                .disabled(true)
+                .tooltip(Tooltip::text(format!(
+                    "{entry} works in its own folder, not in a project"
+                )))
+                .into_any_element();
+        }
         let home = cx.entity().downgrade();
         let projects = self.project_choices(cx);
         PopoverMenu::new("marley-home-project")
-            .trigger(
-                Button::new("marley-home-project-chip", name)
-                    .start_icon(Icon::new(IconName::Folder).size(IconSize::Small))
-                    .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall))
-                    .style(ButtonStyle::Filled)
-                    .label_size(LabelSize::Small),
-            )
+            .trigger(chip)
             .menu(move |window, cx| {
                 let home = home.clone();
                 let projects = projects.clone();
@@ -517,6 +583,7 @@ impl MarleyHome {
                     })
                 }))
             })
+            .into_any_element()
     }
 
     /// The projects the chip offers (#867): the window's open ones but Home's own, then the recent
@@ -569,11 +636,9 @@ impl MarleyHome {
         vec![("Open in this window", open), ("Recent", recent)]
     }
 
-    /// New Agent…, the picker that asks which agent and where (#735), and Threads (#745), as links.
     /// Starts the picked agent with the prompt's task in Home's workspace, and empties the box.
     fn start_prompt(&self, window: &mut Window, cx: &mut Context<Self>) {
-        let kinds = agents::installed_clis(agents::launcher(cx).search_path.as_deref());
-        let Some(kind) = self.picked.or_else(|| kinds.first().copied()) else {
+        let Some(pick) = self.current_pick(&Self::picks(cx)) else {
             return;
         };
         let task = self
@@ -584,13 +649,22 @@ impl MarleyHome {
         let Some(workspace) = self.workspace.upgrade() else {
             return;
         };
-        match self.target.clone() {
-            None => workspace.update(cx, |workspace, cx| {
+        match (pick, self.target.clone()) {
+            // Marley and Rusty in their own folders (#904); the conversation opens from a
+            // spawned task, so nothing reads Home here.
+            (Pick::Marley | Pick::Rusty, _) => {
+                if let Some(name) = pick.entry_name() {
+                    workspace.update(cx, |workspace, cx| {
+                        crate::assistant::start_with_task(name, &task, workspace, window, cx);
+                    });
+                }
+            }
+            (Pick::Cli(kind), None) => workspace.update(cx, |workspace, cx| {
                 start_in(workspace, kind, &task, window, cx);
             }),
             // The picked project, opened or brought forward first (#867). The open runs once
             // this update ends: it asks every item, this page too, whether it is dirty.
-            Some((_, paths)) => {
+            (Pick::Cli(kind), Some((_, paths))) => {
                 cx.spawn_in(window, async move |_, cx| {
                     let opening = workspace.update_in(cx, |workspace, window, cx| {
                         workspace.open_workspace_for_paths(OpenMode::Activate, paths, window, cx)
@@ -931,6 +1005,19 @@ const fn cli_glyph(kind: AgentKind) -> &'static str {
     }
 }
 
+/// A chip's small tile with an assistant's mark (#904).
+fn icon_tile(icon: IconName, cx: &App) -> Div {
+    div()
+        .flex_none()
+        .size(px(18.))
+        .rounded(px(5.))
+        .bg(cx.theme().colors().element_background)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(Icon::new(icon).size(IconSize::XSmall).color(Color::Accent))
+}
+
 /// A chip's small tile with its letters (#903).
 fn glyph_tile(glyph: &'static str, cx: &App) -> Div {
     div()
@@ -1010,7 +1097,7 @@ fn new_terminal(workspace: &WeakEntity<Workspace>, window: &mut Window, cx: &mut
     let factory = agents::launcher(cx).terminal_factory;
     workspace
         .update(cx, |workspace, cx| {
-            let directory = terminal_view::default_working_directory(workspace, cx);
+            let directory = agents::start_directory(workspace, cx);
             TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
                 factory(project, directory, collections::HashMap::default(), cx)
             })

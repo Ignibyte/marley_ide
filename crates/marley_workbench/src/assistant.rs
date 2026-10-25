@@ -329,16 +329,16 @@ pub(crate) fn init(cx: &mut App) {
             open_in_terminal(workspace, window, cx);
         });
         workspace.register_action(|workspace, _: &TalkToMarley, window, cx| {
-            talk_to(Entry::Marley, false, workspace, window, cx);
+            talk_to(Entry::Marley, false, None, workspace, window, cx);
         });
         workspace.register_action(|workspace, _: &TalkToRusty, window, cx| {
-            talk_to(Entry::Rusty, false, workspace, window, cx);
+            talk_to(Entry::Rusty, false, None, workspace, window, cx);
         });
         workspace.register_action(|workspace, _: &NewMarleyConversation, window, cx| {
-            talk_to(Entry::Marley, true, workspace, window, cx);
+            talk_to(Entry::Marley, true, None, workspace, window, cx);
         });
         workspace.register_action(|workspace, _: &NewRustyConversation, window, cx| {
-            talk_to(Entry::Rusty, true, workspace, window, cx);
+            talk_to(Entry::Rusty, true, None, workspace, window, cx);
         });
         cx.defer(|cx| {
             filter_palette(cx.global::<Assistant>().applied.marley_in_terminal(), cx);
@@ -1035,11 +1035,13 @@ fn filter_talk(entries: &Entries, cx: &mut App) {
 
 /// `marley: talk to marley` and its kin (#738). Unless `fresh`, the entry's latest conversation
 /// comes forward where it is, or opens in a tab of `workspace`; otherwise, or with none, a new one
-/// starts there in the entry's folder (#780). On Zed's agent every thread carries the Zed Agent's
-/// id, so its conversations cannot be told apart and each talk starts a new one, with the profile.
+/// starts there in the entry's folder (#780), with `initial` in its message box (#904). On Zed's
+/// agent every thread carries the Zed Agent's id, so its conversations cannot be told apart and
+/// each talk starts a new one, with the profile.
 fn talk_to(
     entry: Entry,
     fresh: bool,
+    initial: Option<agent_ui::AgentInitialContent>,
     workspace: &mut Workspace,
     window: &Window,
     cx: &mut gpui::Context<Workspace>,
@@ -1080,7 +1082,28 @@ fn talk_to(
         }
     };
     let (agent, profile) = thread_agent_of(entry, on_zed);
-    crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+    crate::thread_tab::start_thread(workspace, agent, folder, profile, initial, window, cx);
+}
+
+/// Starts a new conversation with the entry named `name` (`Marley` or `Rusty`) in a tab of
+/// `workspace`, `task` sent as its first message; with an empty `task`, nothing is sent (#904).
+pub(crate) fn start_with_task(
+    name: &str,
+    task: &str,
+    workspace: &mut Workspace,
+    window: &Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let Some(entry) = Entry::ALL.into_iter().find(|entry| entry.name() == name) else {
+        return;
+    };
+    let initial = (!task.is_empty()).then(|| agent_ui::AgentInitialContent::ContentBlock {
+        blocks: vec![agent_client_protocol::schema::v2::ContentBlock::Text(
+            agent_client_protocol::schema::v2::TextContent::new(task.to_string()),
+        )],
+        auto_submit: true,
+    });
+    talk_to(entry, true, initial, workspace, window, cx);
 }
 
 /// Opens Marley's own agent in the pane right of the active one, working in `folder`, with `text`
@@ -1150,10 +1173,10 @@ pub(crate) fn talk_by_name(
         return false;
     };
     match folder {
-        None => talk_to(entry, false, workspace, window, cx),
+        None => talk_to(entry, false, None, workspace, window, cx),
         Some(folder) => {
             let (agent, profile) = thread_agent_of(entry, agent == MarleyAssistantAgent::Zed);
-            crate::thread_tab::start_thread(workspace, agent, folder, profile, window, cx);
+            crate::thread_tab::start_thread(workspace, agent, folder, profile, None, window, cx);
         }
     }
     true
@@ -1196,7 +1219,7 @@ pub(crate) fn talk_to_rusty(
     window: &Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
-    talk_to(Entry::Rusty, false, workspace, window, cx);
+    talk_to(Entry::Rusty, false, None, workspace, window, cx);
 }
 
 /// `marley: talk to marley` from outside an action, as the status bar's Marley button runs it
@@ -1206,7 +1229,7 @@ pub(crate) fn talk_to_marley(
     window: &Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
-    talk_to(Entry::Marley, false, workspace, window, cx);
+    talk_to(Entry::Marley, false, None, workspace, window, cx);
 }
 
 /// The entry's newest conversation that is not archived, by the id its threads carry.
@@ -1297,7 +1320,7 @@ fn open_in_terminal(workspace: &Workspace, window: &Window, cx: &gpui::Context<W
         }
         Some(MarleyAssistantAgent::Zed | MarleyAssistantAgent::Auto) | None => return,
     };
-    let directory = terminal_view::default_working_directory(workspace, cx);
+    let directory = crate::agents::start_directory(workspace, cx);
     cx.spawn_in(window, async move |workspace, cx| {
         if let Some(written) = written {
             written.await?;

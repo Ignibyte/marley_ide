@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #904 (feature, the Marley look, W2.2)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** (not planned yet)
+- **Pipeline doc:** [904-home-prompt-asks-marley-or-rusty.spec.md](../../pipeline/completed/904-home-prompt-asks-marley-or-rusty.spec.md)
 - **Source ticket:** split from TICKET-903 while planning it (2026-10-23): the Home board's agent
   chips begin with Marley and end with Rusty, and its box reads "Ask Marley, or describe a task
   and pick who does it". Starting Marley's or Rusty's agent with the prompt is new behaviour.
 - **Boards:** Home
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

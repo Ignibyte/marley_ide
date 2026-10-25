@@ -334,6 +334,29 @@ fn sync_thread_modes(cx: &mut App) {
     });
 }
 
+/// Where a terminal or an agent CLI of `workspace` starts: Zed's `terminal.working_directory`
+/// choice, but never a hidden worktree's folder (#904).
+///
+/// A thread tab working in its own folder joins it to the project hidden (#780); in a group with
+/// no folder of its own, Zed would pick that folder, and Home's terminals would start in Marley's
+/// settings folder. The home folder takes its place there, as a group with no folder starts its
+/// agent CLIs (#600).
+#[must_use]
+pub fn start_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {
+    let directory = terminal_view::default_working_directory(workspace, cx);
+    let project = workspace.project().read(cx);
+    let in_hidden = directory.as_deref().is_some_and(|directory| {
+        project.worktrees(cx).any(|worktree| {
+            let worktree = worktree.read(cx);
+            !worktree.is_visible() && directory.starts_with(worktree.abs_path())
+        })
+    });
+    if !in_hidden {
+        return directory;
+    }
+    (!project.is_remote()).then(|| paths::home_dir().clone())
+}
+
 /// Starts `kind` in a new center terminal of `workspace`, where New Terminal would start one.
 ///
 /// The command goes in once the shell says it is ready, as Zed's terminal threads start theirs:
@@ -359,7 +382,7 @@ pub fn start_cli_with_prompt(
 ) -> Task<Option<WeakEntity<Terminal>>> {
     // `marley agent-cli` without `--provider` starts this CLI next (#749).
     crate::commands::remember_cli(kind, cx);
-    let directory = terminal_view::default_working_directory(workspace, cx);
+    let directory = start_directory(workspace, cx);
     let (input, joining) = agent_line(
         workspace,
         kind,

@@ -4494,3 +4494,21 @@ the prompt, so the terminal ran the box's real Claude Code (in the run's scratch
 its first-run theme screen; nothing sent). Fixed: the `.bashrc` puts the stand-ins first on the
 PATH. A scenario whose terminals start an agent puts its stand-ins on the terminals' PATH through
 the `.bashrc` it hands `terminal_env HOME`, as PR-687 asks.
+
+## F-claude-904-a-hidden-worktree-took-homes-terminal-folder-001
+*found: 2026-10-25 · while: testing #904 · severity: medium*
+
+A Marley or Rusty conversation opened in Home joins its own folder to Home's project as a hidden
+worktree (#780), and the tab keeps it while it is open. Zed's `default_working_directory` walks
+every worktree, hidden ones too, so in a group with no folder of its own it chose the
+conversation's folder: Home's project chip read "config", and Claude Code started from Home ran
+in Marley's settings folder. The same held for every Marley terminal start in that group. Fixed:
+`agents::start_directory` gives Zed's choice unless it lies in a hidden worktree, and the home
+folder then; every Marley caller of `default_working_directory` goes through it.
+
+## F-claude-904-a-chip-hidden-on-pick-moved-the-row-001
+*found: 2026-10-25 · while: testing #904 · severity: low*
+
+The first cut hid Home's project chip while Marley or Rusty was picked. Every chip after it moved
+left by the chip's width, so the scenario's next click, and a user's, landed beside the chip it
+aimed at. Fixed: the chip stays in place, greyed and closed, with a tooltip.

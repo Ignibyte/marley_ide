@@ -240,7 +240,7 @@ fn new_terminal(
 ) {
     if marley_layout(cx) {
         cx.stop_propagation();
-        let directory = terminal_view::default_working_directory(workspace, cx);
+        let directory = crate::agents::start_directory(workspace, cx);
         open_center_terminal(workspace, action.local, directory, window, cx);
     }
 }
@@ -307,7 +307,7 @@ fn toggle_terminal(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
     } else if let Some(terminal) = workspace.recent_active_item_by_type::<TerminalView>(cx) {
         workspace.activate_item(&terminal, true, true, window, cx);
     } else {
-        let directory = terminal_view::default_working_directory(workspace, cx);
+        let directory = crate::agents::start_directory(workspace, cx);
         open_center_terminal(workspace, false, directory, window, cx);
     }
 }

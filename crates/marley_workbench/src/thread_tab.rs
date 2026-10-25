@@ -1407,17 +1407,18 @@ pub(crate) fn start(
         return;
     }
     let folder = folder.unwrap_or_else(|| default_folder(workspace, cx));
-    start_thread(workspace, agent, folder, None, window, cx);
+    start_thread(workspace, agent, folder, None, None, window, cx);
 }
 
 /// Starts a thread of `agent` in a center tab of `workspace`, working in `folder`, which joins the
 /// project as a hidden worktree first when it needs one; on Zed's own agent, with `profile` once
-/// its thread exists (#738).
+/// its thread exists (#738); with `initial` in its message box, sent when it says so (#904).
 pub(crate) fn start_thread(
     workspace: &Workspace,
     agent: Agent,
     folder: PathBuf,
     profile: Option<AgentProfileId>,
+    initial: Option<AgentInitialContent>,
     window: &Window,
     cx: &Context<Workspace>,
 ) {
@@ -1470,7 +1471,7 @@ pub(crate) fn start_thread(
                     own_folders: true,
                     profile,
                     session: None,
-                    initial: None,
+                    initial,
                 };
                 open_thread(workspace, thread, hidden, fs, window, cx);
             })

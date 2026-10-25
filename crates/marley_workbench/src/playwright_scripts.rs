@@ -393,7 +393,7 @@ async fn open_terminal(
     let opened = window.update(cx, |_, window, cx| {
         let factory = agents::launcher(cx).terminal_factory;
         workspace.update(cx, |workspace, cx| {
-            let directory = terminal_view::default_working_directory(workspace, cx);
+            let directory = agents::start_directory(workspace, cx);
             TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
                 factory(project, directory, collections::HashMap::default(), cx)
             })

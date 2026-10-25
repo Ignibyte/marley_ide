@@ -32,4 +32,9 @@ ignore = [
   # off it is sqlx 0.9. The id also covers the 1.x copy, so drop this line when sqlx moves.
   # Listed 2026-10-20 with the rustls-webpki, webpki-root-certs and webpki-roots 1.x bumps.
   "RUSTSEC-2026-0381", # webpki-roots 0.26.11 — distrusted emSign roots; a shim over the fixed 1.0.10
+  # crypto-bigint 0.4.9 and 0.5.5 come in through aws-sigv4's sigv4a feature (Zed's AWS SDK for
+  # Bedrock), 0.4.9 by way of its p256 0.11. The fix is 0.7.6; the newest aws-sigv4, 1.6.3, still
+  # asks for `^0.5.4`, so no version in range is fixed. Upstream main 56934ec056 (2026-10-17) locks
+  # the same two. Listed 2026-10-25, the advisory's second day.
+  "RUSTSEC-2026-0387", # crypto-bigint 0.4.9/0.5.5 — timing variability in constant-time ops; upstream tree
 ]
