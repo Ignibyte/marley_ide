@@ -37,7 +37,7 @@ const SCOPE: &str = "marley-omarchy-theme";
 const KEPT: &str = "replaced-theme";
 
 /// Whether the user turned the setting on.
-fn wanted(cx: &App) -> bool {
+pub(crate) fn wanted(cx: &App) -> bool {
     cx.global::<SettingsStore>()
         .merged_settings()
         .marley
@@ -187,6 +187,11 @@ struct OmarchyTheme {
 }
 
 impl Global for OmarchyTheme {}
+
+/// Whether Omarchy's config folder is there, without which the setting does nothing (#912, D4).
+pub(crate) fn installed() -> bool {
+    OmarchyPaths::from_env().config().is_dir()
+}
 
 /// Follows the setting from start; [`crate::init`] calls it once.
 pub fn init(cx: &mut App) {

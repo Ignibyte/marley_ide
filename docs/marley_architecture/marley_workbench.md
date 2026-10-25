@@ -2268,6 +2268,15 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Welcome to Marley (#912).** `welcome_page.rs`: `show_first_run(app_state, first_open, cx)`,
+  which `crates/zed/src/main.rs` calls in place of `show_onboarding_view` (it opens a window, adds
+  `MarleyWelcome` to the center and writes the `first_open` key as Zed's page does), and
+  `open_here` for `marley: show welcome` (`ShowWelcome`). Rows are `WelcomeRow { title, options }`
+  of `WelcomeOption { name, about, on, choose }`, read at each render: the layout
+  (`crate::write_layout`), `ThemeChoice` (Night or Day by name with `omarchy_theme` off, or
+  Omarchy on; Omarchy only when `omarchy_theme::installed`), the agents
+  (`agent_versions::found`) with Connect the plugin (`claude_plugin::install`), and Rusty
+  (`marley.rusty.enabled`). The tab is not serialized. `script/e2e.sh` gains `first_run`.
 - **The rail's menus and strip (#911).** `red_entry` (a `ContextMenu::custom_entry` with an
   error-coloured label) closes the project and terminal menus. `HeaderMenu` gains `index` and
   `open`, and `fold_entry` adds Fold or Unfold to project and group menus (`group_context_menu`

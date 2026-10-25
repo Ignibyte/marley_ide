@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Welcome to Marley** (#912, 2026-10-25). A first start shows Marley's own welcome in place of
+  Zed's onboarding: the cat, "Welcome to Marley", and four rows of choices (Layout, Theme with
+  Follow Omarchy where Omarchy is, Agents with what Marley found and Connect the plugin, Rusty),
+  each written to the settings at once, then Open a Folder and Go to Home. `marley: show welcome`
+  opens it again.
+
 - **The rail's menus and strip** (#911, 2026-10-25). A header's menu gains Fold (Unfold while
   folded) and ends with Close Project in red. A terminal row's menu gains Turns (N), Send Block to
   Agent and Split Right, and ends with Close in red. The empty space offers "New Terminal in

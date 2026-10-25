@@ -2,14 +2,14 @@
 
 - **Ticket:** LOCAL #912 (feature, the Marley look, first run)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [912-welcome-to-marley.spec.md](../../pipeline/queued/912-welcome-to-marley.spec.md)
+- **Pipeline doc:** [912-welcome-to-marley.spec.md](../../pipeline/completed/912-welcome-to-marley.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/G-system.md, board Dialogs: "First-run screen";
   D-panels-editor.md, board Theme: "No mark on Home or a first-run screen"). #870 and #872 left
   the first-run screen out for a ticket of its own.
 - **Boards:** Dialogs, Theme
 - **Size:** L
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

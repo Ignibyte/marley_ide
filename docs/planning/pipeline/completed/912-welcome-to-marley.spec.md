@@ -1,7 +1,7 @@
 ---
 pipeline_id: 501de5be-02dd-466c-adc5-3a5dfee31042
 ticket: docs/planning/tickets/open/TICKET-912-welcome-to-marley.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Welcome to Marley on first run
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

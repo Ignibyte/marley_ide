@@ -162,6 +162,7 @@ pub mod turns;
 pub mod typed_line;
 pub mod viewed_marks;
 pub mod voice;
+pub mod welcome_page;
 pub mod workflows;
 pub mod worktree_agents;
 pub mod worktree_git;
@@ -256,6 +257,9 @@ actions!(
         /// Runs the workflow with the values the prompt holds.
         #[derive(Eq)]
         RunWorkflow,
+        /// Shows Welcome to Marley, what a first start shows: the layout, theme, agents and Rusty.
+        #[derive(Eq)]
+        ShowWelcome,
         /// Bookmarks the focused terminal's selected block, or its newest block in view, for the
         /// session; again, removes the bookmark.
         #[derive(Eq)]
@@ -1250,6 +1254,9 @@ fn observe_workspaces(cx: &App) {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.capture_action(cx.listener(layout_preset::<UseClassicLayout>))
                 .capture_action(cx.listener(layout_preset::<UseAgenticLayout>))
+        });
+        workspace.register_action(|workspace, _: &ShowWelcome, window, cx| {
+            welcome_page::open_here(workspace, window, cx);
         });
         // Through the window, as the Agent Panel opens its page: an app-level dispatch from inside
         // the palette's own dispatch finds no window.

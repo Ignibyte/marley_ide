@@ -24,6 +24,9 @@
 # on the user's shell), and may prepend to PATH (fakes that Marley and its terminals find first).
 # It may define `teardown`, run however the run ends and before Marley stops, for anything it
 # started outside Marley. OPEN in the environment names the path when the scenario names none.
+# `first_run`, at the top level, starts Marley as a first start (#912): the profile copy gets
+# none of the user's database or threads, so nothing restores and `first_open` is unset, and the
+# launch names no folder.
 # `binary <path>`, at the top level or in `setup`, runs that build instead of the debug one (the
 # installed release build, #502). From `steps` on, E2E_MARLEY names the binary the run starts,
 # E2E_CLASS its windows' class and E2E_LOG the log its output goes to (#513).
@@ -65,6 +68,7 @@ name=$(basename "$scenario" .sh)
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 
 open_path() { OPEN=$1; }
+first_run() { FIRST_RUN=1; }
 
 # E2E_BINARY in the environment names the build for every scenario (script/regress, #517); a
 # scenario's own `binary` still wins.
@@ -84,6 +88,7 @@ TERMINAL_ENV=()
 terminal_env() { TERMINAL_ENV+=("$1" "$2"); }
 
 OPEN=${OPEN:-}
+FIRST_RUN=${FIRST_RUN:-}
 COMPOSITOR=${COMPOSITOR:-hyprland}
 SIZE=${SIZE:-1600x1000}
 # shellcheck source=/dev/null
@@ -726,7 +731,10 @@ unset TMUX TMUX_PANE
 # Nor at the user's Omarchy (#759): a run's is empty, and its refresh a program that is not there.
 export MARLEY_OMARCHY_HOME=$E2E_WORK/omarchy-home
 export MARLEY_OMARCHY_REFRESH=$E2E_WORK/no-omarchy-refresh
-cp -r "$data/db" "$E2E_PROFILE/db"
+# A first start's run has no database: nothing restores and `first_open` is unset (#912).
+if [[ -z $FIRST_RUN ]]; then
+  cp -r "$data/db" "$E2E_PROFILE/db"
+fi
 # The user's graph settings stay out of every run: their groups name the user's tags and folders
 # (R-D8), and their sliders would change what a scenario sees (#657).
 for db in "$E2E_PROFILE"/db/*/db.sqlite; do
@@ -734,7 +742,7 @@ for db in "$E2E_PROFILE"/db/*/db.sqlite; do
   sqlite3 "$db" "delete from scoped_kv_store where namespace = 'marley-rusty-graph'" \
     2>/dev/null || true
 done
-if [[ -d $data/threads ]]; then
+if [[ -d $data/threads && -z $FIRST_RUN ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"
 fi
 
@@ -806,7 +814,7 @@ if declare -F setup >/dev/null; then
 fi
 # Without a folder named, Marley restores the copied profile's last session: the user's own
 # projects, and Agent Panel threads that start their agent (#588).
-if [[ -z $OPEN ]]; then
+if [[ -z $OPEN && -z $FIRST_RUN ]]; then
   echo "no folder to open: the scenario's setup names one with open_path" >&2
   exit 1
 fi

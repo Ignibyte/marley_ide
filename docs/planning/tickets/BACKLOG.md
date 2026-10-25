@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-912](open/TICKET-912-welcome-to-marley.md) | feature | Welcome to Marley on first run (design review 2026-10-23) |
 | [TICKET-913](open/TICKET-913-dialogs-wait-and-second-launch.md) | feature | Wait before closing, a second launch says so, the tmux close prompt (design review 2026-10-23) |
 | [TICKET-914](open/TICKET-914-thread-answers-as-the-board.md) | feature | An agent's answers as the board draws them (design review 2026-10-23) |
 | [TICKET-915](open/TICKET-915-thread-composer-and-details.md) | feature | The thread's composer and details panel (design review 2026-10-23) |

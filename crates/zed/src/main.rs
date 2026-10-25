@@ -37,7 +37,7 @@ use gpui_platform;
 
 use gpui_tokio::Tokio;
 use language::LanguageRegistry;
-use onboarding::{FIRST_OPEN, show_onboarding_view};
+use onboarding::FIRST_OPEN;
 use project_panel::ProjectPanel;
 use prompt_store::PromptBuilder;
 use remote::RemoteConnectionOptions;
@@ -1604,7 +1604,9 @@ pub(crate) async fn restore_or_create_workspace(
             .await?;
         }
     } else if matches!(kvp.read_kvp(FIRST_OPEN), Ok(None)) {
-        cx.update(|cx| show_onboarding_view(app_state, cx)).await?;
+        // Marley: a first start shows Welcome to Marley in place of Zed's onboarding page (#912).
+        cx.update(|cx| marley_workbench::welcome_page::show_first_run(app_state, FIRST_OPEN, cx))
+            .await?;
     } else {
         cx.update(|cx| {
             workspace::open_new(

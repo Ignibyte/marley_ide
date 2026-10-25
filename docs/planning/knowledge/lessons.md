@@ -6476,3 +6476,12 @@ A scenario that ran `pane: split right` from the palette while the rail's Sessio
 focus split nothing: the action dispatches from the focused element, and the rail is no pane.
 Click into the pane first. After the split the new pane (holding Home) takes the focus, so a shot
 about the old pane's item clicks back into it.
+
+## L-claude-912-a-scenario-that-touches-the-plugin-sets-marley-claude-001
+*learned: 2026-10-25 · while: testing #912*
+
+Marley's agent version check and its Claude Code plugin find `claude` through `MARLEY_CLAUDE`,
+else the PATH Marley resolved at start, which on this box can be the real one even with a
+stand-in first on the scenario's PATH. A scenario that shows the version or clicks Connect the
+plugin exports `MARLEY_CLAUDE` (the stand-in) and `CLAUDE_CONFIG_DIR` (a scratch folder), so no
+real Claude Code runs and the user's `~/.claude` is never written.
