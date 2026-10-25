@@ -116,7 +116,7 @@ Framed blocks with state colors, the failed block's actions, the running block's
 prompt bar's chips, the block map, the agent bar, the waiting-command card, restored and remote
 states. Block drawing is Marley's code.
 
-**W2.1 The window chrome.** *Done (#834, 2026-10-21: the palette field and agent pills; tabs, the + menu and the split menu done, #866, 2026-10-22).* *M–L.* Board: Chrome.
+**W2.1 The window chrome.** *Done (#834, 2026-10-21: the palette field and agent pills; tabs, the + menu and the split menu done, #866, 2026-10-22; tabs tinted by kind, #905, 2026-10-25).* *M–L.* Board: Chrome.
 - Title bar: project mark and branch, the palette field, agent pills, Rusty and Marley buttons.
 - Tabs as pills that show their kind and state; the + menu with Marley's real shortcuts; the
   split menu drawn as pictures; the tmux close prompt.
@@ -187,7 +187,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Browser tab (toolbar done, #850, 2026-10-21; picks panel #879, console drawer #887, recordings and Send #892, downloads and pick options #896 done, 2026-10-22) and its tools | Browser, BrowserTools |
 | Worktrees (New Agent in Worktree done, #851, 2026-10-21), plan review (cards done, #881), the guide (done, #888), the diff review's header, the guide's Send To, plan review's tabs and turns (done, #893), 2026-10-22 | Worktrees, Review, DiffReview |
 | Workflows (Save and Run done, #852, 2026-10-21), launch configs (approval done, #882), the block filter (done, #889), 2026-10-22 | Workflows, OpenConnect |
-| Splits (focused pane done, #853; switcher done, #883; 2026-10-22), ports, containers, collab (done, #890, 2026-10-22) | Splits |
+| Splits (focused pane done, #853; switcher done, #883; 2026-10-22; tinted by kind with state dots, #905, 2026-10-25), ports, containers, collab (done, #890, 2026-10-22) | Splits |
 | Project search, branches and extensions (done, #891), recent (done, #854), the guide's look (done, #884), 2026-10-22; the guide's Try it (done, #897; history is Zed's git panel's History tab) | SearchMore |
 | New pages: this build, data folders (done, #855), troubleshooting and the rest (done, #885), 2026-10-22 | SystemPages |
 

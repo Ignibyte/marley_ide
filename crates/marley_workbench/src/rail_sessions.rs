@@ -9,7 +9,8 @@ use ui::{
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
 
-use super::{Rail, RowIcon, RowKind, RowLine, row_card};
+use super::{Rail, RowIcon, RowLine, row_card};
+use crate::item_kind::ItemKind;
 use crate::tmux_sessions::{Listing, TmuxHost, TmuxHosts, TmuxSession};
 
 /// Whether the Sessions view shows, in place of the projects' rows or the threads.
@@ -143,7 +144,7 @@ impl Rail {
             SharedString::from(format!("marley-rail-session-{element}")),
             format!("marley-rail-session-icon-{element}"),
             false,
-            RowIcon::new(icon, RowKind::Tmux, None),
+            RowIcon::new(icon, ItemKind::Tmux, None),
             title,
             vec![RowLine::muted(format!("{under} · {state} · {windows}"))],
             cx,

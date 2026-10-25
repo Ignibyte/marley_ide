@@ -36,6 +36,11 @@
   - Read, not changed: `workspace/src/pane.rs` (:2883-2891, :4347-4357),
     `tab_switcher/src/tab_switcher.rs` (:734-746).
 - **Decisions:** D1 to D5 in the spec.
+- **Promoted 2026-10-25:** the seams re-read after #904 and #906: `tab_tiles.rs` unchanged;
+  `rail.rs` `RowState` and `RowKind` now at :10995 and :11036, `thread_row_icon` :11262;
+  `cli_glyph` in `home_page.rs` unchanged; `agents.rs` `CLAUDE_AGENT` at :1203;
+  `terminal_view.rs` `tab_content` at :2067. A thread's state comes from its conversation as
+  `focus_row::render_thread` reads it (`marley_rail::thread_status`).
 
 ### Design
 - Approach.
@@ -100,7 +105,43 @@
   install.
 
 ## Phase 2 — Code
+- **Built:** `item_kind.rs` (`AgentMark`, `ItemKind`, `ItemState`, `TerminalStates`); the rail on
+  it (its own `RowKind` and `RowState` removed; `rail_sessions.rs` too), thread and agent rows on
+  their agent's tint; `tab_tiles.rs` rewritten around `kind_of`, `glyph_of`, `state_of`,
+  `project_of`, `state_words`; Home's chips on `AgentMark::glyph`; `agents.rs`'s two adapter ids
+  `pub(crate)`; the `terminal_view` hunk `MarleyTerminalTabIcon` with its ledger row.
+- **Deviations:** `ItemKind::Page` for tabs that are neither files nor terminals (Home, Threads),
+  drawn as a shell is. A terminal tab takes the rail's published state
+  (F-claude-905-a-tab-read-an-agents-state-from-another-source-than-its-row-001), so a failed
+  shell's dot is the rail's pink "asks for a look", not red; red stays for a thread whose run
+  failed. The switcher's line says "exit N" for a failed shell before "needs you".
+- **Review:** `tab_mark` and `switcher_row` read items and globals, never the pane or the picker
+  (F-claude-865); `project_of` reads the window's workspace from the picker's render, outside a
+  workspace update. Zed hunk additive: with no global, the icon and rerun button draw (REQ-008).
+  Google style: enums with named variants, no tuples in signatures, `map_or_else`.
+- **Gate:** `just gate-diff` 17/17 green after `redundant_pub_crate` and `unreachable_pub`
+  (L-claude-905-a-new-module-is-pub-mod-with-pub-crate-items-001), dylint's `SharedString`
+  literal rule (`new_static`) and `option_if_let_else`.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/905-tabs-and-switcher-tinted-by-kind.sh` (sway): a failed shell, tmux
+  `build` on a private socket attached from the rail, a stand-in Claude Code (Python, named by its
+  script), a Browser tab on a local page, a Marley thread on a scripted ACP agent, `rail.rs`.
+- `905-01-tabs`: `>_` grey with a pink dot; `tx` teal with the idle dot; `CC` amber with a pink
+  dot (its row: waiting); `www` orange with a green dot (loaded); `M` in the coat's light with the
+  idle dot; `rs` orange. Each terminal tab shows one mark (REQ-001 to REQ-004).
+- `905-02-switcher`: tinted tiles with corner dots; lines "repo · crates/rail/rail.rs",
+  "repo · idle", "repo · 127.0.0.1", "repo · needs you", "repo · tmux", "repo · exit 1"
+  (REQ-005, REQ-006).
+- `905-03-rail`: the rows' layout unchanged; Claude Code's tile amber, the Marley thread's in the
+  coat's light (REQ-007).
+- `905-04-day`: Marley Day, the tab bar and the switcher, tints following the theme (REQ-001,
+  REQ-005).
+- The first full run's `CC` dot was amber against a pink row (fixed, above). The dot left of
+  `tx` is Zed's own running-task indicator, unchanged.
+- Not reached: Codex and Rusty threads (`CX`, `R`), checked in the diff review.
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`, the `terminal_view.rs` ledger row.
+- Knowledge: F-claude-905-a-tab-read-an-agents-state-from-another-source-than-its-row-001,
+  L-claude-905-a-new-module-is-pub-mod-with-pub-crate-items-001.

@@ -2268,6 +2268,18 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **Kinds and states in one place (#905).** `item_kind.rs` owns `AgentMark` (from an
+  `AgentKind`, or a thread's `AgentId`: the Claude and Codex ACP adapters, Marley's and Rusty's
+  entries by `assistant_icon`, else the id's first letter), `ItemKind` (`ink`, and `tint` the ink
+  at 15 %, a raised grey for a shell or a page) and `ItemState` (`dot`, `line`, `words`,
+  `from_attention`, `from_thread`). The rail's `RowKind` and `RowState` gave way to them. The
+  rail publishes each shown terminal's row state as the `TerminalStates` global when it rebuilds
+  its snapshot (`publish_terminal_states`). `tab_tiles.rs`: `kind_of`, `glyph_of`, `state_of`
+  (a thread's from its conversation; a terminal waiting on the user, tmux idle, else the rail's
+  word, else its last block; a Browser tab's dialog, loading or loaded), the switcher's tile with
+  a corner dot and its line from `project_of` (the shown workspace's worktree the item lies in)
+  and `state_words`. `terminal_view`'s `MarleyTerminalTabIcon` is set to draw no icon in the
+  Marley layout.
 - **Small daily fixes (#906).** `threads_page.rs`: the columns' row wraps and scrolls
   (`marley-threads-columns`); filters `flex-basis 230px`, `min-width 200px`; the list
   `flex-basis 480px` and `flex-grow 999`, at most the row's height (`max_h_full`); the preview

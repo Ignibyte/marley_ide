@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-905](open/TICKET-905-tabs-and-switcher-tinted-by-kind.md) | feature | Tabs and the Ctrl Tab switcher tinted by kind (design review 2026-10-23) |
 | [TICKET-907](open/TICKET-907-bottom-row-for-a-thread.md) | feature | The bottom row for a thread (design review 2026-10-23) |
 | [TICKET-908](open/TICKET-908-bottom-row-for-a-terminal.md) | feature | The bottom row for a terminal (design review 2026-10-23) |
 | [TICKET-909](open/TICKET-909-bottom-row-for-other-screens.md) | feature | The bottom row for the other screens (design review 2026-10-23) |

@@ -83,6 +83,7 @@ use crate::failed_checks;
 use crate::github::{self, PullRequest, PullRequestState};
 use crate::groups;
 use crate::harness::{Connection, Harness, QuotaWindow, Runtime, Signals, Slot, StateSource};
+use crate::item_kind::{AgentMark, ItemKind, ItemState, TerminalStates};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::rusty::{self};
 use crate::system_one::{self, Asking};
@@ -1434,6 +1435,7 @@ impl Rail {
             cx.notify();
         }
         self.snapshot = snapshot;
+        self.publish_terminal_states(cx);
         self.follow_icons(cx);
         self.follow_risk(window, cx);
         self.follow_route(window, cx);
@@ -6457,7 +6459,11 @@ impl Rail {
             .clone()
             .unwrap_or_else(|| SharedString::new_static("Untitled thread"));
         let state = thread_row_state(row.status, row.attention);
-        let icon = thread_row_icon(&thread.icon, state);
+        let icon = thread_row_icon(
+            &thread.icon,
+            AgentMark::from_agent_id(&thread.agent.id()),
+            state,
+        );
         let subtitle = RowLine {
             text: thread_subtitle(&thread.agent_name, row.status),
             state: None,
@@ -6628,11 +6634,9 @@ impl Rail {
         let limited = row.usage.limit.is_some();
         let (quota, usage_tooltip) = usage_parts(&row);
         let state = terminal_row_state(&row);
-        let kind = if row.agent.is_some() {
-            RowKind::AgentTerminal
-        } else {
-            RowKind::Shell
-        };
+        let kind = row.agent.as_ref().map_or(ItemKind::Shell, |agent| {
+            ItemKind::AgentTerminal(AgentMark::from_cli(agent.kind))
+        });
         let mut lines: Vec<CardLine> = row
             .subtitle
             .map(|subtitle| {
@@ -7202,7 +7206,7 @@ impl Rail {
             ("marley-rail-browser", id),
             format!("marley-rail-browser-icon-{id}"),
             row.selected,
-            RowIcon::new(icon, RowKind::Browser, None),
+            RowIcon::new(icon, ItemKind::Browser, None),
             row_label(row.title, row.highlight, Color::Default),
             row.host.into_iter().collect(),
             cx,
@@ -7491,7 +7495,7 @@ impl Rail {
             ("marley-rail-port", key),
             format!("marley-rail-port-icon-{port}"),
             row.selected,
-            RowIcon::new(tile, RowKind::Port, None),
+            RowIcon::new(tile, ItemKind::Port, None),
             row_label(row.title, row.highlight, Color::Accent),
             // A service's unit, with its state (#615), gets a line of its own: beside what serves
             // the port it would squeeze it out. A unit's name too long for the rail loses its
@@ -8293,7 +8297,7 @@ fn tmux_row(
         SharedString::from(format!("marley-rail-tmux-{element}")),
         format!("marley-rail-tmux-icon-{element}"),
         false,
-        RowIcon::new(icon, RowKind::Tmux, None),
+        RowIcon::new(icon, ItemKind::Tmux, None),
         title,
         vec![RowLine::muted(crate::tmux_sessions::session_words(session))],
         cx,
@@ -10990,82 +10994,14 @@ impl RowLine {
     }
 }
 
-/// What a row's state is, as its tile's dot and its first line's color say it (#827).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RowState {
-    Working,
-    NeedsYou,
-    Done,
-    Idle,
-}
-
-impl RowState {
-    /// The rail's own reading of how much a row needs the user; one that stopped reporting still
-    /// reads as working.
-    const fn from_attention(attention: marley_rail::Attention) -> Self {
-        match attention {
-            marley_rail::Attention::NeedsYou => Self::NeedsYou,
-            marley_rail::Attention::DoneUnseen => Self::Done,
-            marley_rail::Attention::Working | marley_rail::Attention::NotReporting => Self::Working,
-            marley_rail::Attention::Idle => Self::Idle,
-        }
-    }
-
-    fn dot(self, cx: &App) -> Hsla {
-        let status = cx.theme().status();
-        match self {
-            Self::Working => status.warning,
-            Self::NeedsYou => status.conflict,
-            Self::Done => status.success,
-            Self::Idle => cx.theme().colors().text_muted.opacity(0.5),
-        }
-    }
-
-    fn line(self, cx: &App) -> Color {
-        match self {
-            Self::Working => Color::Warning,
-            Self::NeedsYou => Color::Conflict,
-            Self::Done => Color::Custom(cx.theme().colors().text_accent),
-            Self::Idle => Color::Muted,
-        }
-    }
-}
-
-/// What kind of row a tile is tinted for (#827).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RowKind {
-    Thread,
-    AgentTerminal,
-    Shell,
-    Browser,
-    Tmux,
-    /// A port's row (#890), whose tile holds the port and so takes the port's width.
-    Port,
-}
-
-impl RowKind {
-    fn tint(self, cx: &App) -> Hsla {
-        let status = cx.theme().status();
-        match self {
-            Self::Thread => status.warning_background,
-            Self::AgentTerminal => status.info_background,
-            Self::Shell => raised(cx),
-            Self::Browser => cx.theme().colors().text_accent.opacity(0.15),
-            Self::Tmux => status.hint_background,
-            // The Splits board's teal, the theme's cyan.
-            Self::Port => cx.theme().colors().terminal_ansi_cyan.opacity(0.15),
-        }
-    }
-}
-
 /// A row's icon, and the kind and state it is drawn with, when it has them.
 struct RowIcon {
     element: AnyElement,
-    look: Option<(RowKind, Option<RowState>)>,
+    look: Option<(ItemKind, Option<ItemState>)>,
 }
 
 impl RowIcon {
-    const fn new(element: AnyElement, kind: RowKind, state: Option<RowState>) -> Self {
+    const fn new(element: AnyElement, kind: ItemKind, state: Option<ItemState>) -> Self {
         Self {
             element,
             look: Some((kind, state)),
@@ -11176,7 +11112,7 @@ fn row_card(
     let slot = match look {
         Some((kind, state)) => slot
             // Wide enough for ":65535", one width for every port so their URLs line up.
-            .when(kind == RowKind::Port, |slot| slot.w(rems(2.75)))
+            .when(kind == ItemKind::Port, |slot| slot.w(rems(2.75)))
             .relative()
             .rounded_md()
             .bg(kind.tint(cx))
@@ -11191,7 +11127,7 @@ fn row_card(
                     .border_2()
                     .border_color(cx.theme().colors().panel_background)
                     .bg(state.dot(cx));
-                if state == RowState::NeedsYou {
+                if state == ItemState::NeedsYou {
                     pulse(dot, pulse_id.clone(), state.dot(cx))
                 } else {
                     dot.into_any_element()
@@ -11240,26 +11176,46 @@ fn row_card(
 
 /// A thread row's second line: the agent, then what it is doing, as an agent CLI's terminal row
 /// reads (`marley_agent::status_line`).
-/// A terminal row's state (#827): its agent's, else a bell's, a running or failed command's, else
-/// idle.
-fn terminal_row_state(row: &TerminalRow) -> RowState {
-    let command = row.command.as_ref();
-    match row.agent.map(|agent| agent.status) {
-        Some(AgentStatus::Waiting) => RowState::NeedsYou,
-        Some(AgentStatus::Failed) if row.bell => RowState::NeedsYou,
-        Some(AgentStatus::Working) => RowState::Working,
-        None if command.is_some_and(|command| command.running) => RowState::Working,
-        // A shell whose last command failed asks for a look, as the board's `exit 101` row does.
-        None if command.is_some_and(|command| command.exit_code.is_some_and(|code| code != 0)) => {
-            RowState::NeedsYou
+impl Rail {
+    /// Each shown terminal's state as its row shows it, for its tab and its switcher row (#905).
+    fn publish_terminal_states(&self, cx: &mut App) {
+        let states: HashMap<EntityId, ItemState> = marley_rail::rail_rows(&self.snapshot.rail)
+            .into_iter()
+            .filter_map(|row| match row {
+                Row::Terminal(row) => {
+                    let view = self.snapshot.terminals.get(&row.id)?.view.entity_id();
+                    Some((view, terminal_row_state(&row)))
+                }
+                _ => None,
+            })
+            .collect();
+        let states = TerminalStates(states);
+        if cx.try_global::<TerminalStates>() != Some(&states) {
+            cx.set_global(states);
         }
-        _ if row.bell => RowState::Done,
-        _ => RowState::Idle,
     }
 }
 
-/// A thread row's icon, its agent's, on the thread kind's tile with its state (#827).
-fn thread_row_icon(icon: &AgentIcon, state: RowState) -> RowIcon {
+/// A terminal row's state (#827): its agent's, else a bell's, a running or failed command's, else
+/// idle.
+fn terminal_row_state(row: &TerminalRow) -> ItemState {
+    let command = row.command.as_ref();
+    match row.agent.map(|agent| agent.status) {
+        Some(AgentStatus::Waiting) => ItemState::NeedsYou,
+        Some(AgentStatus::Failed) if row.bell => ItemState::NeedsYou,
+        Some(AgentStatus::Working) => ItemState::Working,
+        None if command.is_some_and(|command| command.running) => ItemState::Working,
+        // A shell whose last command failed asks for a look, as the board's `exit 101` row does.
+        None if command.is_some_and(|command| command.exit_code.is_some_and(|code| code != 0)) => {
+            ItemState::NeedsYou
+        }
+        _ if row.bell => ItemState::Done,
+        _ => ItemState::Idle,
+    }
+}
+
+/// A thread row's icon, its agent's, on its agent's tile with its state (#827, #905).
+fn thread_row_icon(icon: &AgentIcon, agent: AgentMark, state: ItemState) -> RowIcon {
     let icon = match icon {
         AgentIcon::Named(icon) => Icon::new(*icon),
         AgentIcon::Svg(path) => Icon::from_external_svg(path.clone()),
@@ -11268,14 +11224,14 @@ fn thread_row_icon(icon: &AgentIcon, state: RowState) -> RowIcon {
         icon.size(IconSize::Small)
             .color(Color::Muted)
             .into_any_element(),
-        RowKind::Thread,
+        ItemKind::Thread(agent),
         Some(state),
     )
 }
 
 /// A thread row's state (#827), as `marley_rail::thread_attention_class` reads it.
-const fn thread_row_state(status: ThreadStatus, attention: bool) -> RowState {
-    RowState::from_attention(match status {
+const fn thread_row_state(status: ThreadStatus, attention: bool) -> ItemState {
+    ItemState::from_attention(match status {
         ThreadStatus::Waiting => marley_rail::Attention::NeedsYou,
         ThreadStatus::Error if attention => marley_rail::Attention::NeedsYou,
         ThreadStatus::Done if attention => marley_rail::Attention::DoneUnseen,

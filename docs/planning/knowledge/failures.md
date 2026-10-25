@@ -4522,3 +4522,13 @@ the row, which did not scroll; the list's `h_full` also made its line as tall as
 preview was out of reach. Fixed: the row scrolls as one, and the list caps its height at the
 row's (`max_h_full`) instead of taking all of it, so the preview sits right under it. A gpui row
 that wraps needs a scroll of its own, and no child of it should claim the row's full height.
+
+## F-claude-905-a-tab-read-an-agents-state-from-another-source-than-its-row-001
+*found: 2026-10-25 · while: testing #905 · severity: low*
+
+#905's tabs first read an agent terminal's state from the hook events alone
+(`agent_events::waiting_agent`), while the rail reads it from those events or, without them,
+from how long the agent's screen has been quiet (`marley_agent::agent_status`). A stand-in Claude
+Code sat quiet: its rail row said "waiting" in pink and its tab's dot was amber. Fixed: the rail
+publishes each shown terminal's row state (`item_kind::TerminalStates`) when it rebuilds its
+snapshot, and the tab and the switcher take that word first.

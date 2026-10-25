@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Tabs and the Ctrl Tab switcher tinted by kind** (#905, 2026-10-25). A tab's tile now says
+  what it holds in the boards' colours: an agent's letters in its own colour (`CC` amber, `CX`
+  violet, `M` for Marley, `R` for Rusty), `tx` in teal for tmux, `www` and a file's extension in
+  orange, `>_` in grey for a shell. A terminal tab shows that one mark, not Zed's icon after it.
+  Thread, Browser and tmux tabs carry a state dot as terminal tabs do, and a tab's dot always
+  matches its rail row. A Ctrl Tab row's tile carries the dot too, and its line reads
+  "project · state" ("repo · needs you", "repo · exit 1"). The rail's thread and agent rows take
+  their agent's colour.
+
 - **Ask Marley or Rusty from Home** (#904, 2026-10-25). Home's prompt offers Marley's agent as
   its first chip and Rusty's as its last, while each is on. Start with one picked opens a new
   conversation with it in a tab, the box's text sent as the first message. The project chip greys

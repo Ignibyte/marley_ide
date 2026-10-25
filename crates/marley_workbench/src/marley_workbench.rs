@@ -86,6 +86,7 @@ pub mod harness_hosts;
 pub mod harness_seat;
 pub mod home_page;
 pub mod inspector;
+pub mod item_kind;
 pub mod last_reply;
 pub mod launch;
 pub mod limits;

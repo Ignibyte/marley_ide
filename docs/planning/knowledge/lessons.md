@@ -6460,3 +6460,11 @@ not listed in the language servers menu, so nothing about a listed server can be
 For a listed server that reports a failure, point `lsp.rust-analyzer.binary.path` at a small
 language server that answers `initialize` and sends `experimental/serverStatus` with
 `health: "error"` and a message (#901's scenario holds one in Python).
+
+## L-claude-905-a-new-module-is-pub-mod-with-pub-crate-items-001
+*learned: 2026-10-25 · while: coding #905*
+
+In `marley_workbench`, a new module declared `mod x;` with `pub(crate)` items fails clippy's
+`redundant_pub_crate`, and the same items made `pub` fail rustc's `unreachable_pub`. The crate's
+convention settles it: declare the module `pub mod x;` and keep its items `pub(crate)`, as
+`home_page`, `agents` and `tab_tiles` are.

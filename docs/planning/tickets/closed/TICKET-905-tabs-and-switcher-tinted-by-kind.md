@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #905 (feature, the Marley look, center tabs and the switcher)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [905-tabs-and-switcher-tinted-by-kind.spec.md](../../pipeline/queued/905-tabs-and-switcher-tinted-by-kind.spec.md)
+- **Pipeline doc:** [905-tabs-and-switcher-tinted-by-kind.spec.md](../../pipeline/completed/905-tabs-and-switcher-tinted-by-kind.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/B-rail-chrome.md, boards Chrome and Splits)
 - **Boards:** Chrome, Splits
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

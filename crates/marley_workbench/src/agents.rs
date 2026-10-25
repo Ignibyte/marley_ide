@@ -280,7 +280,7 @@ impl AgentPermissions {
 }
 
 /// Codex's id in Zed's agent registry, its ACP adapter (#779).
-const CODEX_AGENT: &str = "codex-acp";
+pub(crate) const CODEX_AGENT: &str = "codex-acp";
 
 /// The session mode Codex's ACP adapter calls full access: no sandbox, no approvals (codex-acp
 /// 2.2.2's `agent-full-access`).
@@ -1200,7 +1200,7 @@ struct Choice {
 }
 
 /// Claude Agent's id in Zed's agent registry (`agent_servers::CLAUDE_AGENT_ID`).
-const CLAUDE_AGENT: &str = "claude-acp";
+pub(crate) const CLAUDE_AGENT: &str = "claude-acp";
 
 #[derive(Clone)]
 enum Start {

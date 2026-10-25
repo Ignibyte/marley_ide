@@ -438,7 +438,10 @@ impl MarleyHome {
         let chips = picks.into_iter().enumerate().map(|(index, pick)| {
             let (tile, name) = match pick {
                 Pick::Marley => (icon_tile(IconName::MarleyCat, cx), "Marley"),
-                Pick::Cli(kind) => (glyph_tile(cli_glyph(kind), cx), kind.display_name()),
+                Pick::Cli(kind) => (
+                    glyph_tile(crate::item_kind::AgentMark::from_cli(kind).glyph(), cx),
+                    kind.display_name(),
+                ),
                 Pick::Rusty => (icon_tile(IconName::RustyButler, cx), "Rusty"),
             };
             pill(("marley-home-agent", index), picked == Some(pick), cx)
@@ -994,16 +997,6 @@ fn pill(id: impl Into<ElementId>, pressed: bool, cx: &App) -> Stateful<Div> {
         .hover(move |style| style.bg(hover))
 }
 
-/// An agent CLI's two letters, on its chip's tile (#903).
-const fn cli_glyph(kind: AgentKind) -> &'static str {
-    match kind {
-        AgentKind::Claude => "CC",
-        AgentKind::Codex => "CX",
-        AgentKind::Gemini => "G",
-        AgentKind::OpenCode => "OC",
-    }
-}
-
 /// A chip's small tile with an assistant's mark (#904).
 fn icon_tile(icon: IconName, cx: &App) -> Div {
     div()
@@ -1018,7 +1011,7 @@ fn icon_tile(icon: IconName, cx: &App) -> Div {
 }
 
 /// A chip's small tile with its letters (#903).
-fn glyph_tile(glyph: &'static str, cx: &App) -> Div {
+fn glyph_tile(glyph: SharedString, cx: &App) -> Div {
     div()
         .flex_none()
         .size(px(18.))

@@ -249,6 +249,13 @@ pub struct MarleyBlockHeader(
 
 impl gpui::Global for MarleyBlockHeader {}
 
+/// Marley: whether a terminal tab draws its own icon and a task's rerun button (#905). Marley's
+/// workbench says no in the Marley layout, where the tab's tile is its one mark; with none set,
+/// the icon draws.
+pub struct MarleyTerminalTabIcon(pub fn(&App) -> bool);
+
+impl gpui::Global for MarleyTerminalTabIcon {}
+
 // Marley: how far blocks stand apart and whether a header over a one-row prompt takes a second
 // row, from `marley.block_density`; Marley's workbench sets it, and without it every row is drawn
 // where the grid puts it (#631).
@@ -2098,6 +2105,9 @@ impl Item for TerminalView {
             None => (IconName::Terminal, Color::Muted, None),
         };
 
+        let draws_icon = cx
+            .try_global::<MarleyTerminalTabIcon>()
+            .is_none_or(|ask| (ask.0)(cx));
         let self_handle = self.self_handle.clone();
         h_flex()
             .gap_1()
@@ -2110,25 +2120,28 @@ impl Item for TerminalView {
                     .update(cx, |this, cx| this.rename_terminal(action, window, cx))
                     .ok();
             })
-            .child(
-                h_flex()
-                    .group("term-tab-icon")
-                    .child(
-                        div()
-                            .when(rerun_button.is_some(), |this| {
-                                this.hover(|style| style.invisible().w_0())
-                            })
-                            .child(Icon::new(icon).color(icon_color)),
-                    )
-                    .when_some(rerun_button, |this, rerun_button| {
-                        this.child(
+            // Marley: in the Marley layout the tab's tile is its one mark (#905).
+            .when(draws_icon, |this| {
+                this.child(
+                    h_flex()
+                        .group("term-tab-icon")
+                        .child(
                             div()
-                                .absolute()
-                                .visible_on_hover("term-tab-icon")
-                                .child(rerun_button),
+                                .when(rerun_button.is_some(), |this| {
+                                    this.hover(|style| style.invisible().w_0())
+                                })
+                                .child(Icon::new(icon).color(icon_color)),
                         )
-                    }),
-            )
+                        .when_some(rerun_button, |this, rerun_button| {
+                            this.child(
+                                div()
+                                    .absolute()
+                                    .visible_on_hover("term-tab-icon")
+                                    .child(rerun_button),
+                            )
+                        }),
+                )
+            })
             .child(
                 div()
                     .relative()

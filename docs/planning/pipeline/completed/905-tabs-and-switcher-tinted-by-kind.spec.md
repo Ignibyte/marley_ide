@@ -1,7 +1,7 @@
 ---
 pipeline_id: b70bec50-be1f-46f0-b89d-2009df4a2c95
 ticket: docs/planning/tickets/open/TICKET-905-tabs-and-switcher-tinted-by-kind.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Tabs and the Ctrl Tab switcher tinted by kind
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
