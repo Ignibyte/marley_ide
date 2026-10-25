@@ -2268,6 +2268,16 @@ alike.
   grid, built in its own context (Home observes it): Tasks · Open Tasks with each list as a pill,
   Follow-ups due (how many overdue at the right; a tile, the date and Follow Up per row) with
   Recent pages under a rule, and Rusty's screens as a 4-column grid of tiles over the captures.
+- **The bottom row for a terminal (#908).** `focus_row.rs` `render_terminal` draws two groups:
+  the `>_` chip on the shell tint with the title (capped 100 px), the folder in
+  `block_headers::folder_label`'s short form (110 px), `agent_bar::branch_and_changes` (a
+  `BranchChanges { branch, changed }` from the innermost repository's `status_summary().count`) in
+  `terminal_ansi_magenta`, and `failed_chip` (a `FailedBlock` from the newest live block; its click
+  is `send_block::send(.., Request::Fix, ..)`); then "running: …" or "no command running" (left
+  out while the failed chip shows), `blocks_words`, the grid size from
+  `last_content().terminal_bounds`, and `tmux_chip` (sessions and detached ones from `TmuxHosts`,
+  on `ItemKind::Tmux`'s tint), whose click defers `show_tmux_sessions`: the strip toggled off,
+  the sidebar opened, then `Rail::show_sessions`.
 - **The bottom row for a thread (#907).** `thread_activity.rs`: `ThreadActivity { status, doing,
   since }` from a conversation (the newest tool call still open, "thinking", "N files changed",
   "idle", "failed"; since the turn started while it works or waits) and `elapsed_words`; #910's

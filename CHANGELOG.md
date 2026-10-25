@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The bottom row for a terminal** (#908, 2026-10-25). With a terminal in front, the bottom row
+  names its folder (the project's root too), the branch with its changed count in violet ("main ·
+  1 changed"), and a failed command as a red chip, "false · exit 1 · Ask an agent", that sends the
+  block to an agent as the block header's button does. At the right: the blocks and bookmarks,
+  the terminal's size ("146×42"), and "tmux: 3 · 2 detached" on teal, which opens the rail's
+  Sessions view, opening the rail first when it is shrunk or closed.
+
 - **The bottom row for a thread** (#907, 2026-10-25). With a thread tab in front, the bottom row
   shows the agent's tile and name, the model and its effort ("Opus 5.5 · High"), the mode, what
   the agent does or asks with how long ("Working · Edit notes.md · 14 s", "Needs you · Edit

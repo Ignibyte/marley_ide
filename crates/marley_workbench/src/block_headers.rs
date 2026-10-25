@@ -231,7 +231,7 @@ fn progress_line(index: usize, cx: &App) -> AnyElement {
 
 /// `folder` as the header shows it, short enough to leave the branch room: the home folder as `~`,
 /// and past two folders only the last two, after `…`.
-fn folder_label(folder: &str) -> String {
+pub(crate) fn folder_label(folder: &str) -> String {
     let path = Path::new(folder);
     let (root, rest) = path
         .strip_prefix(paths::home_dir())

@@ -6468,3 +6468,11 @@ In `marley_workbench`, a new module declared `mod x;` with `pub(crate)` items fa
 `redundant_pub_crate`, and the same items made `pub` fail rustc's `unreachable_pub`. The crate's
 convention settles it: declare the module `pub mod x;` and keep its items `pub(crate)`, as
 `home_page`, `agents` and `tab_tiles` are.
+
+## L-claude-908-a-pane-action-from-the-palette-needs-a-pane-focused-001
+*learned: 2026-10-25 · while: testing #908*
+
+A scenario that ran `pane: split right` from the palette while the rail's Sessions view had the
+focus split nothing: the action dispatches from the focused element, and the rail is no pane.
+Click into the pane first. After the split the new pane (holding Home) takes the focus, so a shot
+about the old pane's item clicks back into it.

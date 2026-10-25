@@ -32,8 +32,11 @@ use crate::tmux_sessions::{Listing, TmuxHosts};
 const ASK_MAX: usize = 80;
 /// The widest a terminal's title and a waiting agent's request draw, so the items after the row
 /// keep their places.
-const TITLE_MAX: f32 = 200.;
+const TITLE_MAX: f32 = 100.;
 const ASK_WIDTH: f32 = 320.;
+/// The widest a terminal's folder and its failed command draw (#908).
+const FOLDER_MAX: f32 = 110.;
+const FAILED_MAX: f32 = 90.;
 /// The widest a thread's activity draws (PR-claude-833).
 const ACTIVITY_WIDTH: f32 = 280.;
 
@@ -109,33 +112,28 @@ impl FocusRow {
             h_flex()
                 .debug_selector(|| "marley-focus-file".into())
                 .gap_1()
-                .children(kind.map(|kind| chip(kind, cx)))
+                .children(kind.map(|kind| chip(kind, ItemKind::File, cx)))
                 .child(Label::new(path).size(LabelSize::Small).truncate())
                 .into_any_element(),
         )
     }
 
+    /// A terminal as the `BottomRow` board draws it (#908): its tile and title, folder, branch with
+    /// its changed count and a failed command as Ask an agent; at the right whether a command runs,
+    /// its blocks and bookmarks, its size and the tmux sessions.
     fn render_terminal(
         &self,
         item: &dyn ItemHandle,
         view: &Entity<TerminalView>,
+        rail: Option<&Entity<Rail>>,
         cx: &App,
     ) -> AnyElement {
         let terminal = view.read(cx).terminal().read(cx);
-        let root = self.workspace.upgrade().and_then(|workspace| {
-            workspace
-                .read(cx)
-                .project()
-                .read(cx)
-                .visible_worktrees(cx)
-                .next()
-                .map(|worktree| worktree.read(cx).abs_path().to_path_buf())
+        let folder = terminal.working_directory();
+        let repository = folder.as_ref().and_then(|folder| {
+            let workspace = self.workspace.upgrade()?;
+            crate::agent_bar::branch_and_changes(workspace.read(cx).project(), folder, cx)
         });
-        let folder = marley_rail::working_directory_label(
-            terminal.working_directory().as_deref(),
-            root.as_deref(),
-            Some(paths::home_dir()),
-        );
         let last = crate::rail::command_snapshot(terminal);
         let live = terminal.marley_anchored().live();
         let blocks = live.len();
@@ -144,27 +142,30 @@ impl FocusRow {
             .try_global::<MarleyBlockMarks>()
             .and_then(|marks| marks.bookmarks.get(&terminal_id))
             .map_or(0, collections::BTreeSet::len);
-        let sessions: usize = cx.try_global::<TmuxHosts>().map_or(0, |tmux| {
-            tmux.hosts
-                .iter()
-                .map(|host| match &host.listing {
-                    Listing::Sessions(sessions) => sessions.len(),
-                    Listing::Waiting | Listing::Failed(_) => 0,
-                })
-                .sum()
-        });
-        let (command, running) = match &last {
-            Some(last) if last.running => (None, Some(last.text.clone())),
-            Some(last) => (Some((last.text.clone(), last.exit_code)), None),
-            None => (None, None),
-        };
-        h_flex()
-            .debug_selector(|| "marley-focus-terminal".into())
+        // The failed block the chip asks about: the newest live one, as the block header's Ask an
+        // agent finds it (#826).
+        let failed = last
+            .as_ref()
+            .filter(|last| !last.running && last.exit_code.is_some_and(|code| code != 0))
+            .zip(live.last())
+            .map(|(last, block)| FailedBlock {
+                text: last.text.clone(),
+                exit: last.exit_code.unwrap_or_default(),
+                index: block.index,
+            });
+        let running = last
+            .as_ref()
+            .filter(|last| last.running)
+            .map(|last| last.text.clone());
+        let bounds = terminal.last_content().terminal_bounds;
+        let size = format!("{}\u{d7}{}", bounds.num_columns(), bounds.num_lines());
+        let has_failed = failed.is_some();
+        let left = h_flex()
             .gap_2()
             .child(
                 h_flex()
                     .gap_1()
-                    .child(chip(">_".to_string(), cx))
+                    .child(chip(">_".to_string(), ItemKind::Shell, cx))
                     // A tab's title carries a program's arguments; the row keeps room for the rest.
                     .child(
                         div().max_w(px(TITLE_MAX)).min_w_0().child(
@@ -174,35 +175,55 @@ impl FocusRow {
                         ),
                     ),
             )
-            .children(folder.map(muted))
-            .children(command.map(|(text, exit)| {
-                let failed = exit.is_some_and(|code| code != 0);
-                let words = match exit {
-                    Some(code) => format!("{text} · exit {code}"),
-                    None => text,
+            .children(folder.map(|folder| {
+                let label = crate::block_headers::folder_label(&folder.to_string_lossy());
+                div()
+                    .max_w(px(FOLDER_MAX))
+                    .min_w_0()
+                    .child(
+                        Label::new(label)
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                            .truncate(),
+                    )
+                    .into_any_element()
+            }))
+            .children(repository.map(|repository| {
+                let words = match repository.changed {
+                    0 => repository.branch.to_string(),
+                    count => format!("{} \u{b7} {count} changed", repository.branch),
                 };
                 Label::new(words)
                     .size(LabelSize::Small)
-                    .color(if failed { Color::Error } else { Color::Muted })
+                    .color(Color::Custom(cx.theme().colors().terminal_ansi_magenta))
                     .into_any_element()
             }))
-            .child(running.map_or_else(
-                || muted("no command running".to_string()),
-                |text| {
+            .children(failed.map(|failed| failed_chip(failed, view, cx)));
+        // A failed chip already says nothing runs; its room goes to the tmux chip (#908).
+        let idle_words = (!has_failed).then(|| muted("no command running".to_string()));
+        let right = h_flex()
+            .gap_2()
+            .children(running.map_or(idle_words, |text| {
+                Some(
                     Label::new(format!("running: {text}"))
                         .size(LabelSize::Small)
                         .color(Color::Accent)
-                        .into_any_element()
-                },
-            ))
-            .child(muted(match (blocks, bookmarked) {
-                (1, 0) => "1 block".to_string(),
-                (blocks, 0) => format!("{blocks} blocks"),
-                (blocks, bookmarked) => format!("{blocks} blocks · {bookmarked} bookmarked"),
+                        .into_any_element(),
+                )
             }))
-            .when(sessions > 0, |row| {
-                row.child(muted(format!("tmux {sessions}")))
-            })
+            .child(muted(blocks_words(blocks, bookmarked)))
+            .child(
+                Label::new(size)
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .buffer_font(cx),
+            )
+            .children(tmux_chip(rail, cx));
+        h_flex()
+            .debug_selector(|| "marley-focus-terminal".into())
+            .gap_3()
+            .child(left)
+            .child(right)
             .into_any_element()
     }
 
@@ -413,7 +434,9 @@ impl Render for FocusRow {
         let rail = self.rail(window, cx);
         let focus = match &self.focus {
             Focus::File(item) => Self::render_file(item.as_ref(), cx),
-            Focus::Terminal(item, view) => Some(self.render_terminal(item.as_ref(), view, cx)),
+            Focus::Terminal(item, view) => {
+                Some(self.render_terminal(item.as_ref(), view, rail.as_ref(), cx))
+            }
             // A thread draws below, where the row's own context can follow its thread.
             Focus::None | Focus::Thread(_) => None,
         };
@@ -586,16 +609,140 @@ fn capitalized(word: &str) -> String {
     })
 }
 
-/// A small rounded chip of short text: a file's extension, `>_`.
-fn chip(text: String, cx: &App) -> AnyElement {
+/// "N blocks · M bookmarked", the bookmarks only when there are some.
+fn blocks_words(blocks: usize, bookmarked: usize) -> String {
+    let blocks = if blocks == 1 {
+        "1 block".to_string()
+    } else {
+        format!("{blocks} blocks")
+    };
+    if bookmarked == 0 {
+        blocks
+    } else {
+        format!("{blocks} \u{b7} {bookmarked} bookmarked")
+    }
+}
+
+/// The newest block, when it failed: its one-line command, exit code and index (#908).
+struct FailedBlock {
+    text: String,
+    exit: i32,
+    index: usize,
+}
+
+/// The failed command as a button that asks an agent to fix it (#908, D1): the block header's own
+/// Ask an agent.
+fn failed_chip(failed: FailedBlock, view: &Entity<TerminalView>, cx: &App) -> AnyElement {
+    let status = cx.theme().status();
+    let view = view.clone();
+    let FailedBlock { text, exit, index } = failed;
+    h_flex()
+        .id("marley-focus-ask-agent")
+        .debug_selector(|| "marley-focus-failed".into())
+        .flex_none()
+        .gap_1p5()
+        .px_1p5()
+        .rounded_sm()
+        .bg(status.error_background)
+        .cursor_pointer()
+        .hover(|style| style.opacity(0.85))
+        .child(div().size_1p5().rounded_full().bg(status.error))
+        .child(
+            div().max_w(px(FAILED_MAX)).min_w_0().child(
+                Label::new(text)
+                    .size(LabelSize::Small)
+                    .color(Color::Error)
+                    .truncate(),
+            ),
+        )
+        .child(
+            Label::new(format!("\u{b7} exit {exit} \u{b7} Ask an agent"))
+                .size(LabelSize::Small)
+                .color(Color::Error),
+        )
+        .tooltip(Tooltip::text("Ask an agent to fix it"))
+        .on_click(move |_, window, cx| {
+            crate::send_block::send(&view, index, crate::send_block::Request::Fix, window, cx);
+        })
+        .into_any_element()
+}
+
+/// "tmux: N · M detached" on the tmux tint (#908); a click shows the rail's Sessions view.
+fn tmux_chip(rail: Option<&Entity<Rail>>, cx: &App) -> Option<AnyElement> {
+    let sessions: Vec<bool> = cx.try_global::<TmuxHosts>().map_or_else(Vec::new, |tmux| {
+        tmux.hosts
+            .iter()
+            .flat_map(|host| match &host.listing {
+                Listing::Sessions(sessions) => sessions
+                    .iter()
+                    .map(|session| session.attached)
+                    .collect::<Vec<_>>(),
+                Listing::Waiting | Listing::Failed(_) => Vec::new(),
+            })
+            .collect()
+    });
+    if sessions.is_empty() {
+        return None;
+    }
+    let detached = sessions.iter().filter(|attached| !**attached).count();
+    let words = match detached {
+        0 => format!("tmux: {}", sessions.len()),
+        detached => format!("tmux: {} \u{b7} {detached} detached", sessions.len()),
+    };
+    let rail = rail.map(Entity::downgrade);
+    Some(
+        h_flex()
+            .id("marley-focus-tmux")
+            .debug_selector(|| "marley-focus-tmux".into())
+            .flex_none()
+            .px_1p5()
+            .rounded_sm()
+            .bg(ItemKind::Tmux.tint(cx))
+            .cursor_pointer()
+            .hover(|style| style.opacity(0.85))
+            .child(
+                Label::new(words)
+                    .size(LabelSize::Small)
+                    .color(Color::Custom(ItemKind::Tmux.ink(cx))),
+            )
+            .tooltip(Tooltip::text("Show the tmux sessions"))
+            .on_click(move |_, window, cx| {
+                let Some(rail) = rail.clone() else {
+                    return;
+                };
+                // Deferred: the status bar is being updated, and opening the rail updates the
+                // multi-workspace.
+                window.defer(cx, move |window, cx| show_tmux_sessions(&rail, window, cx));
+            })
+            .into_any_element(),
+    )
+}
+
+/// The rail's Sessions view, the rail opened first when it is shrunk to its strip or closed (#908,
+/// D5), as the strip's Sessions tile does.
+fn show_tmux_sessions(rail: &WeakEntity<Rail>, window: &mut Window, cx: &mut App) {
+    if crate::MarleySettings::get_global(cx).rail_strip == crate::RailStrip::Shrunk {
+        crate::toggle_rail_strip(cx);
+    }
+    if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
+        && !multi_workspace.read(cx).sidebar_open()
+    {
+        multi_workspace.update(cx, MultiWorkspace::open_sidebar);
+    }
+    rail.update(cx, |rail, cx| rail.show_sessions(window, cx))
+        .log_err();
+}
+
+/// A small rounded chip of short text on its kind's tint: a file's extension, `>_`.
+fn chip(text: String, kind: ItemKind, cx: &App) -> AnyElement {
     div()
         .px_1()
         .rounded_sm()
-        .bg(cx.theme().colors().element_background)
+        .bg(kind.tint(cx))
         .child(
             Label::new(text)
                 .size(LabelSize::XSmall)
-                .color(Color::Muted)
+                .color(Color::Custom(kind.ink(cx)))
                 .buffer_font(cx),
         )
         .into_any_element()

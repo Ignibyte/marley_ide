@@ -5428,7 +5428,7 @@ impl Rail {
     }
 
     /// Shows the Sessions view (#832).
-    fn show_sessions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn show_sessions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.sessions.shown() {
             return;
         }

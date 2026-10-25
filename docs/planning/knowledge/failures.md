@@ -4541,3 +4541,13 @@ said twice: the chip read "Needs you · Edit README.md", and the row's needs-you
 the same request after Full width, where the language-server message's room cut it to "Marley i".
 Fixed: `render_waiting` leaves the request out when the oldest one belongs to the thread in front
 (its inbox key starts `thread:<key>:`); a request from anywhere else still shows.
+
+## F-claude-908-the-terminal-row-pushed-its-tmux-chip-under-zeds-items-001
+*found: 2026-10-25 · while: testing #908 · severity: medium*
+
+#908's terminal row grew to the board's full set (title, folder, branch, the failed chip, "no
+command running", blocks, size, tmux) and, in a 1600-pixel window with the rail open, ran under
+Zed's items at the right of the status bar: the tmux chip read "tmux: 3 · 2 de", and with a
+bookmark it fell off altogether. Fixed: tighter caps (title 100 px, folder 110 px, failed command
+90 px) and "no command running" left out while the failed chip shows, which says the same. A row
+that adds parts is checked at 1600 pixels with the rail open, its last part fully visible.

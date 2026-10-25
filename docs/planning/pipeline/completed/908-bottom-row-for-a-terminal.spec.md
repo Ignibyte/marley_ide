@@ -1,7 +1,7 @@
 ---
 pipeline_id: fa2666d8-faf1-432e-a3a5-5b0f5ebf9540
 ticket: docs/planning/tickets/open/TICKET-908-bottom-row-for-a-terminal.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The bottom row for a terminal
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

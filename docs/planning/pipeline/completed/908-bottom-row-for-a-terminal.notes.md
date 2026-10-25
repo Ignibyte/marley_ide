@@ -46,6 +46,13 @@
   terminal block's own Ask an agent (#826), so the row reuses that (D1). #910's failed shell row
   should do the same.
 
+- **Promoted 2026-10-25:** seams re-read after #905 and #907: `render_terminal` unchanged;
+  `block_headers::folder_label` :234 takes a `&str`; `agent_bar::branch_of` :112 and `branch_for`;
+  `send_block::send` :103 takes the anchored block's `usize` index; `Rail::show_sessions` :5431;
+  `crate::toggle_rail_strip` :1431 is reachable as `crate::`; `Repository::status_summary` gives a
+  `GitSummary` with `count`. #905's `item_kind` is in, so the chips take `ItemKind::Shell` and
+  `ItemKind::Tmux` tints directly.
+
 ### Design
 - Approach:
   - `render_terminal` builds two groups. The left group holds the `>_` chip with the title, the
@@ -115,7 +122,40 @@
   brings the project's terminal back before the shot.
 
 ## Phase 2 — Code
+- **Built:** `focus_row.rs` (`render_terminal` in two groups, `FailedBlock`, `failed_chip`,
+  `tmux_chip`, `show_tmux_sessions`, `blocks_words`, `chip` on a kind's tint);
+  `agent_bar.rs` (`BranchChanges`, `branch_and_changes`); `block_headers::folder_label` and
+  `Rail::show_sessions` made `pub(crate)`. No Zed path.
+- **Deviations:** "no command running" is left out while the failed chip shows, and the caps are
+  tighter than planned, so the tmux chip fits a 1600-pixel window with the rail open
+  (F-claude-908-the-terminal-row-pushed-its-tmux-chip-under-zeds-items-001). "1 blocks" with a
+  bookmark (#833's wording) fixed to "1 block".
+- **Review:** the tmux click is deferred, so it updates the multi-workspace outside the status
+  bar's update; the failed chip's send defers as the header's does. Google style:
+  `BranchChanges` and `FailedBlock` have named fields, no tuple.
+- **Gate:** `just gate-diff` 17/17 green after `too_many_lines` (the blocks words moved out),
+  `similar_names` and `redundant_closure_for_method_calls`.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/908-bottom-row-for-a-terminal.sh` (sway): a repository on `main` with
+  README.md changed; tmux `one`, `two` detached and `here` attached from a second terminal on a
+  private socket; a stand-in `claude` on the terminals' PATH.
+- `908-01-root`: `>_ repo — bash`, `…/work.…/repo`, "main · 1 changed" in violet, the red
+  "false · exit 1 · Ask an agent", "1 block", "146×42", "tmux: 3 · 2 detached" (REQ-001, REQ-002,
+  REQ-003, REQ-005, REQ-006, REQ-007).
+- `908-02-bookmarked`: "1 block · 1 bookmarked" (REQ-005).
+- `908-06-day`: Marley Day, the same row (REQ-001, REQ-002, REQ-003, REQ-007).
+- `908-03-asked`: the chip clicked: with no agent running, the stand-in Claude Code started with
+  "This command failed. Fix it:", the block, "exit 1" (REQ-004).
+- `908-04-sessions`: the rail shrunk, the tmux chip clicked: the rail open on its Sessions view,
+  `one` and `two` detached, `here` attached elsewhere (REQ-008).
+- `908-05-resized`: after a split, the narrowed terminal: "71×44" (REQ-006).
+- Earlier runs: the tmux chip cut off (fixed, above); a split from the rail's focus did nothing
+  and the new pane took the focus (L-claude-908-a-pane-action-from-the-palette-needs-a-pane-focused-001).
+- Not reached: #899's idle stand-in as the window's one agent; the send's target choice is
+  `send_block`'s, unchanged, and the no-agent path shows the request reaching Claude Code.
 
 ## Phase 4 — Complete
+- CHANGELOG, `docs/marley_architecture/marley_workbench.md`. No Zed path, so no ledger row.
+- Knowledge: F-claude-908-the-terminal-row-pushed-its-tmux-chip-under-zeds-items-001,
+  L-claude-908-a-pane-action-from-the-palette-needs-a-pane-focused-001.

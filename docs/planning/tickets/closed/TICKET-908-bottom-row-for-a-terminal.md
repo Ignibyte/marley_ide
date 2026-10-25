@@ -2,13 +2,13 @@
 
 - **Ticket:** LOCAL #908 (feature, the Marley look, the bottom row)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [908-bottom-row-for-a-terminal.spec.md](../../pipeline/queued/908-bottom-row-for-a-terminal.spec.md)
+- **Pipeline doc:** [908-bottom-row-for-a-terminal.spec.md](../../pipeline/completed/908-bottom-row-for-a-terminal.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/B-rail-chrome.md
   BottomRow and TmuxSessions; docs/marley/design-review-2026-10-23/A-core.md Terminal and
   TerminalSession), boards BottomRow, TmuxSessions, Terminal
 - **Boards:** BottomRow, TmuxSessions, Terminal
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

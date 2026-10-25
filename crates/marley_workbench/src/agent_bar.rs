@@ -137,6 +137,42 @@ pub(crate) fn branch_of(
     )
 }
 
+/// A repository's branch and how many files changed in it (#908).
+pub(crate) struct BranchChanges {
+    pub(crate) branch: SharedString,
+    /// The repository's changed files, as Zed's title bar counts them.
+    pub(crate) changed: usize,
+}
+
+/// The branch of `project`'s innermost repository that holds `folder`, with its changed count, when
+/// it is on one (#908).
+pub(crate) fn branch_and_changes(
+    project: &Entity<Project>,
+    folder: &Path,
+    cx: &App,
+) -> Option<BranchChanges> {
+    let repository = project
+        .read(cx)
+        .git_store()
+        .read(cx)
+        .repositories()
+        .values()
+        .filter(|repository| folder.starts_with(&repository.read(cx).work_directory_abs_path))
+        .max_by_key(|repository| {
+            repository
+                .read(cx)
+                .work_directory_abs_path
+                .components()
+                .count()
+        })?
+        .read(cx);
+    let branch = repository.branch.as_ref()?.name().to_string().into();
+    Some(BranchChanges {
+        branch,
+        changed: repository.status_summary().count,
+    })
+}
+
 /// The CLI agent in `terminal`'s foreground, if one is.
 pub(crate) fn agent_in(terminal: &Terminal) -> Option<AgentKind> {
     terminal
