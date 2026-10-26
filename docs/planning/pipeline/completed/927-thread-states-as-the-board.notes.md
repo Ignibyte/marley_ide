@@ -98,7 +98,40 @@
   column above the composer.
 
 ## Phase 2 — Code
+- **Built:** `width_label` by `step_label`; `marley_asks_label`, `marley_option_label` and the
+  ASKS branches in `thread_view.rs`; `page_card` and `bare_tool_name` in `component_tools.rs`;
+  `browser_pages::show_tab_of`; `handoff::Block`, `Counts` and `history_line`; `ThreadTab`'s
+  `handoff_notice`, `no_model_card`, `RenameThread` / `ArchiveThread` / `DeleteThread` handlers and
+  `ThreadNamePrompt`; `rail::archive_thread` and `rail::delete_thread` as free functions; the
+  `MarleyThreadName` keymap entry.
+- **Deviations:** Allow and Deny are put first under the look, so a long always-option wraps after
+  them instead of splitting them. The tab's title reads the store's title override: an ACP agent
+  that cannot set a title would otherwise keep its old one in the tab while the rail shows the new
+  one. The menu's thread actions are handled on the tab's element, so they act on the tab the menu
+  was opened from (its focus handle); New Thread with Context… and Review Last Reply keep their
+  workspace handlers, which act on the active thread.
+- **Review:** the rename prompt holds the conversation, not Zed's `ThreadView`, which
+  `agent_ui` does not export.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/927-thread-states-as-the-board.sh` (sway), full run green; details panels
+  off so four panes leave room.
+- `927-01-asks`: width "½"; "ASKS terminal_run" before the call's title; Allow · Deny · Always
+  allow terminal_run in one row. REQ-001, REQ-002.
+- `927-02-page`: the card: www tile, report.html, "The agent's page, open in a Browser tab of this
+  project", Show. `927-03-shown`: the Report Browser tab in front in the left pane. REQ-003.
+- `927-06-menu`: Zed's entries, then Rename, New Thread with Context…, Review Last Reply, Archive,
+  Delete Thread…, then the split entries. REQ-006.
+- `927-07-renamed`: the tab and the rail row read "Release notes". REQ-006.
+- `927-04-handoff`: the new tab's notice "New Thread with Context, in a split to the right" /
+  "Continuing “start” from Marley. What follows is history, not a new request: 1 request, 1
+  answer, 2 tool calls." REQ-004. The new thread stays on Loading because the scripted agent is
+  still blocked on the first thread's permission (L-claude-927), a fixture limit.
+- `927-05-no-model`: the card centred over the empty Zed Agent thread. REQ-005.
+- `927-08-day`: the asking thread and the card in Marley Day. REQ-001 to REQ-005.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `docs/marley_architecture/marley_workbench.md` (Thread states as the board draws
+  them); the look plan's TICKET-825 line; the `thread_view.rs` ledger row.
+- Knowledge: L-claude-927.

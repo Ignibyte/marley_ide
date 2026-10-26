@@ -3588,83 +3588,7 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let answer = window.prompt(
-            PromptLevel::Warning,
-            &format!("Delete the thread “{title}”?"),
-            Some("Its messages are deleted, not archived."),
-            &["Delete Thread", "Cancel"],
-            cx,
-        );
-        let multi_workspace = self.multi_workspace.clone();
-        cx.spawn_in(window, async move |_, cx| {
-            if answer.await.ok() != Some(0) {
-                return anyhow::Ok(());
-            }
-            let found = cx.update(|_, cx| {
-                ThreadMetadataStore::try_global(cx)
-                    .and_then(|store| store.read(cx).entry(thread_id).cloned())
-            })?;
-            let connections = multi_workspace.update_in(cx, |multi_workspace, window, cx| {
-                // Its tabs close too (#777): a tab left open would save the thread again.
-                let members: Vec<Entity<Workspace>> =
-                    multi_workspace.workspaces().cloned().collect();
-                for member in &members {
-                    crate::thread_tab::close_for(member, thread_id, cx);
-                }
-                let panels: Vec<Entity<AgentPanel>> = multi_workspace
-                    .workspaces()
-                    .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
-                    .collect();
-                let mut connections = None;
-                for panel in panels {
-                    panel.update(cx, |panel, cx| {
-                        connections.get_or_insert_with(|| panel.connection_store().clone());
-                        // Without a draft in its place: a delete should not start a thread.
-                        panel.remove_thread_without_activating_draft(thread_id, window, cx);
-                    });
-                }
-                connections
-            })?;
-            cx.update(|_, cx| {
-                if let Some(store) = ThreadMetadataStore::try_global(cx) {
-                    store.update(cx, |store, cx| store.delete(thread_id, cx));
-                }
-            })?;
-            thread_worktree_archive::cleanup_thread_archived_worktrees(thread_id, cx).await;
-            let (Some(found), Some(connections)) = (found, connections) else {
-                return anyhow::Ok(());
-            };
-            let Some(session) = found.session_id else {
-                return anyhow::Ok(());
-            };
-            let agent = Agent::from(found.agent_id);
-            let connecting = cx.update(|_, cx| {
-                let fs = <dyn Fs>::global(cx);
-                connections.update(cx, |connections, cx| {
-                    connections
-                        .request_connection(
-                            agent.clone(),
-                            agent.server(fs, agent::ThreadStore::global(cx)),
-                            cx,
-                        )
-                        .read(cx)
-                        .wait_for_connection()
-                })
-            })?;
-            let connected = connecting.await?;
-            let deleting = cx.update(|_, cx| {
-                connected
-                    .connection
-                    .session_list(cx)
-                    .filter(|sessions| sessions.supports_delete())
-                    .map(|sessions| sessions.delete_session(&session, cx))
-            })?;
-            if let Some(deleting) = deleting {
-                deleting.await?;
-            }
-            anyhow::Ok(())
-        })
-        .detach_and_log_err(cx);
+        delete_thread(self.multi_workspace.clone(), thread_id, title, window, cx);
     }
 
     /// Shows `workspace` and opens the New Agent picker there, asking where unless `folder` says
@@ -6721,7 +6645,7 @@ impl Rail {
         .on_click(move |_, _, cx| {
             // The row under the button would open the thread it archives.
             cx.stop_propagation();
-            Self::archive_thread(thread_id, cx);
+            archive_thread(thread_id, cx);
         });
         let end = h_flex()
             .flex_none()
@@ -6784,7 +6708,7 @@ impl Rail {
                     });
                 })
                 .entry("Archive Thread", None, move |_, cx| {
-                    Self::archive_thread(thread_id, cx);
+                    archive_thread(thread_id, cx);
                 })
                 .entry("Delete Thread…", None, move |window, cx| {
                     rail.update(cx, |rail, cx| {
@@ -6794,15 +6718,6 @@ impl Rail {
                 })
             })
         })
-    }
-
-    /// Archives a thread as Zed's thread history does (#605): the store keeps it archived, and
-    /// the rail, which lists no archived thread, drops its row at the refresh the store's change
-    /// brings.
-    fn archive_thread(thread_id: ThreadId, cx: &mut App) {
-        if let Some(store) = ThreadMetadataStore::try_global(cx) {
-            store.update(cx, |store, cx| store.archive(thread_id, None, cx));
-        }
     }
 
     /// Interrupted · Continue on a resumed agent's row whose turn the restart cut off (#750): a
@@ -12175,5 +12090,103 @@ const fn answer_style(answer: InboxAnswer) -> ButtonStyle {
         }
         InboxAnswer::StopTurn | InboxAnswer::Dismiss | InboxAnswer::Cancel => ButtonStyle::Subtle,
         _ => ButtonStyle::Outlined,
+    }
+}
+
+/// Deletes a thread once the person agrees (#605, #927): its tabs close, the Agent Panels drop it,
+/// the store forgets it and its agent deletes the session where it can. The rail row's and the
+/// thread tab's Delete Thread… both ask here.
+pub(crate) fn delete_thread(
+    multi_workspace: WeakEntity<MultiWorkspace>,
+    thread_id: ThreadId,
+    title: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let answer = window.prompt(
+        PromptLevel::Warning,
+        &format!("Delete the thread “{title}”?"),
+        Some("Its messages are deleted, not archived."),
+        &["Delete Thread", "Cancel"],
+        cx,
+    );
+    window
+        .spawn(cx, async move |cx| {
+            if answer.await.ok() != Some(0) {
+                return anyhow::Ok(());
+            }
+            let found = cx.update(|_, cx| {
+                ThreadMetadataStore::try_global(cx)
+                    .and_then(|store| store.read(cx).entry(thread_id).cloned())
+            })?;
+            let connections = multi_workspace.update_in(cx, |multi_workspace, window, cx| {
+                // Its tabs close too (#777): a tab left open would save the thread again.
+                let members: Vec<Entity<Workspace>> =
+                    multi_workspace.workspaces().cloned().collect();
+                for member in &members {
+                    crate::thread_tab::close_for(member, thread_id, cx);
+                }
+                let panels: Vec<Entity<AgentPanel>> = multi_workspace
+                    .workspaces()
+                    .filter_map(|workspace| workspace.read(cx).panel::<AgentPanel>(cx))
+                    .collect();
+                let mut connections = None;
+                for panel in panels {
+                    panel.update(cx, |panel, cx| {
+                        connections.get_or_insert_with(|| panel.connection_store().clone());
+                        // Without a draft in its place: a delete should not start a thread.
+                        panel.remove_thread_without_activating_draft(thread_id, window, cx);
+                    });
+                }
+                connections
+            })?;
+            cx.update(|_, cx| {
+                if let Some(store) = ThreadMetadataStore::try_global(cx) {
+                    store.update(cx, |store, cx| store.delete(thread_id, cx));
+                }
+            })?;
+            thread_worktree_archive::cleanup_thread_archived_worktrees(thread_id, cx).await;
+            let (Some(found), Some(connections)) = (found, connections) else {
+                return anyhow::Ok(());
+            };
+            let Some(session) = found.session_id else {
+                return anyhow::Ok(());
+            };
+            let agent = Agent::from(found.agent_id);
+            let connecting = cx.update(|_, cx| {
+                let fs = <dyn Fs>::global(cx);
+                connections.update(cx, |connections, cx| {
+                    connections
+                        .request_connection(
+                            agent.clone(),
+                            agent.server(fs, agent::ThreadStore::global(cx)),
+                            cx,
+                        )
+                        .read(cx)
+                        .wait_for_connection()
+                })
+            })?;
+            let connected = connecting.await?;
+            let deleting = cx.update(|_, cx| {
+                connected
+                    .connection
+                    .session_list(cx)
+                    .filter(|sessions| sessions.supports_delete())
+                    .map(|sessions| sessions.delete_session(&session, cx))
+            })?;
+            if let Some(deleting) = deleting {
+                deleting.await?;
+            }
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
+}
+
+/// Archives a thread as Zed's thread history does (#605): the store keeps it archived, and the
+/// rail, which lists no archived thread, drops its row at the refresh the store's change brings.
+/// The thread tab's Archive acts here too (#927).
+pub(crate) fn archive_thread(thread_id: ThreadId, cx: &mut App) {
+    if let Some(store) = ThreadMetadataStore::try_global(cx) {
+        store.update(cx, |store, cx| store.archive(thread_id, None, cx));
     }
 }

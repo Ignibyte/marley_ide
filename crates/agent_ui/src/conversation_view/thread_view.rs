@@ -601,13 +601,16 @@ pub enum AnswerState {
 }
 
 /// Marley: a card's label, filled in its colour (#864, #914): EDIT on the success colour, RUN on
-/// the warning colour.
+/// the warning colour, ASKS in the accent (#927).
 fn marley_card_label(text: &'static str, cx: &App) -> AnyElement {
     let status = cx.theme().status();
-    let (ink, fill) = if text == "EDIT" {
-        (status.success, status.success_background)
-    } else {
-        (status.warning, status.warning_background)
+    let (ink, fill) = match text {
+        "EDIT" => (status.success, status.success_background),
+        "ASKS" => {
+            let accent = cx.theme().colors().text_accent;
+            (accent, accent.opacity(0.15))
+        }
+        _ => (status.warning, status.warning_background),
     };
     div()
         .flex_none()
@@ -621,6 +624,51 @@ fn marley_card_label(text: &'static str, cx: &App) -> AnyElement {
                 .color(Color::Custom(ink)),
         )
         .into_any_element()
+}
+
+/// Marley: a call waiting for permission leads with ASKS and a mono chip of its tool (#927), the
+/// bare name an MCP client reports as `mcp__<server>__<tool>` or `<server>.<tool>`.
+fn marley_asks_label(tool_call: &ToolCall, cx: &App) -> AnyElement {
+    // An ACP agent names its tool in the call's title.
+    let title = tool_call.label.read(cx).source().to_string();
+    let name = tool_call
+        .tool_name
+        .as_ref()
+        .or(tool_call.name.as_ref())
+        .map(|name| name.as_ref())
+        .or_else(|| title.split_whitespace().next())
+        .unwrap_or("tool");
+    let bare = name.rsplit_once("__").map_or(name, |(_, tail)| tail);
+    let bare = bare.rsplit_once('.').map_or(bare, |(_, tail)| tail);
+    h_flex()
+        .flex_none()
+        .gap_1()
+        .child(marley_card_label("ASKS", cx))
+        .child(
+            div()
+                .px_1()
+                .rounded_sm()
+                .bg(cx.theme().colors().element_background)
+                .child(
+                    Label::new(bare.to_string())
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx),
+                ),
+        )
+        .into_any_element()
+}
+
+/// Marley: the board's words for a permission option (#927, D2): Allow and Deny for the once
+/// options, the agent's own words for the rest.
+fn marley_option_label(option: &acp_v2::PermissionOption, cx: &App) -> SharedString {
+    if !cx.has_global::<MarleyThreadLook>() {
+        return SharedString::from(option.name.clone());
+    }
+    match option.kind {
+        acp_v2::PermissionOptionKind::AllowOnce => SharedString::new_static("Allow"),
+        acp_v2::PermissionOptionKind::RejectOnce => SharedString::new_static("Deny"),
+        _ => SharedString::from(option.name.clone()),
+    }
 }
 
 /// Marley: where a thread's mode is set (#915): Zed's mode selector, or the config option of
@@ -9232,9 +9280,15 @@ impl ThreadView {
                                 .color(Color::Custom(ink)),
                         )
                 });
+            // Marley: a command waiting for permission asks (#927).
+            let lead = if matches!(tool_call.status(), ToolCallStatus::WaitingForConfirmation) {
+                marley_asks_label(tool_call, cx)
+            } else {
+                marley_card_label("RUN", cx)
+            };
             h_flex()
                 .gap_2()
-                .child(marley_card_label("RUN", cx))
+                .child(lead)
                 .child(command_element)
                 .children(result)
                 .into_any_element()
@@ -11133,17 +11187,33 @@ impl ThreadView {
         cx: &Context<Self>,
     ) -> Div {
         let mut seen_kinds: ArrayVec<acp_v2::PermissionOptionKind, 3, u8> = ArrayVec::new();
+        // Marley: Allow and Deny lead the row, the agent's other options after (#927).
+        let mut options: Vec<&acp_v2::PermissionOption> = options.iter().collect();
+        if cx.has_global::<MarleyThreadLook>() {
+            options.sort_by_key(|option| match option.kind {
+                acp_v2::PermissionOptionKind::AllowOnce => 0,
+                acp_v2::PermissionOptionKind::RejectOnce => 1,
+                _ => 2,
+            });
+        }
 
         div()
             .p_1()
             .border_t_1()
             .border_color(self.tool_card_border_color(cx))
             .w_full()
-            .v_flex()
+            // Marley: the buttons in one row, as the board stands them (#927).
+            .map(|this| {
+                if cx.has_global::<MarleyThreadLook>() {
+                    this.h_flex().flex_wrap()
+                } else {
+                    this.v_flex()
+                }
+            })
             .gap_0p5()
-            .children(options.iter().map(move |option| {
+            .children(options.into_iter().map(move |option| {
                 let option_id = SharedString::from(option.option_id.0.clone());
-                Button::new((option_id, entry_ix), option.name.clone())
+                Button::new((option_id, entry_ix), marley_option_label(option, cx))
                     .map(|this| {
                         // The sandbox-fallback prompt offers a "Retry" option
                         // that re-attempts creating the sandbox; it isn't an
@@ -11401,10 +11471,18 @@ impl ThreadView {
                     .hover(|s| s.bg(cx.theme().colors().element_hover.opacity(0.5)))
             })
             .overflow_hidden()
-            // Marley: the board's framed EDIT label on an edit's card (#864).
+            // Marley: the board's framed EDIT label on an edit's card (#864), ASKS on a call that
+            // waits for permission (#927).
             .children(
-                (is_edit && cx.has_global::<MarleyThreadLook>())
-                    .then(|| marley_card_label("EDIT", cx)),
+                cx.has_global::<MarleyThreadLook>()
+                    .then(|| {
+                        if matches!(tool_call.status(), ToolCallStatus::WaitingForConfirmation) {
+                            Some(marley_asks_label(tool_call, cx))
+                        } else {
+                            is_edit.then(|| marley_card_label("EDIT", cx))
+                        }
+                    })
+                    .flatten(),
             )
             // Marley: the edit's line counts (#914).
             .children(

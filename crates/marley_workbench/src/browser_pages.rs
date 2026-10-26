@@ -14,14 +14,14 @@ use std::time::Duration;
 
 use fs::Fs;
 use futures::StreamExt as _;
-use gpui::{App, AsyncApp, Entity, Global, Hsla, Rgba, TaskExt as _};
+use gpui::{App, AsyncApp, Entity, Global, Hsla, Rgba, TaskExt as _, Window};
 use marley_browser::address;
 use marley_mcp::ToolAnswer;
 use serde_json::{Value, json};
 use settings::{Settings as _, SettingsStore};
 use theme::{ActiveTheme as _, Appearance};
 use theme_settings::ThemeSettings;
-use workspace::Workspace;
+use workspace::{MultiWorkspace, Workspace};
 
 use crate::browser::{BrowserProject, reload_tabs_on};
 use crate::browser_tools::{declined, open_answer, open_in_workspace};
@@ -160,9 +160,42 @@ pub(crate) async fn show_page(
     open_answer(answer)
 }
 
+/// Brings forward the Browser tab of the window whose page is the file `file_name`, showing its
+/// project first (#927): a page card's Show. Nothing happens when no tab shows it.
+pub(crate) fn show_tab_of(file_name: &str, window: &mut Window, cx: &mut App) {
+    let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
+        return;
+    };
+    let workspaces: Vec<Entity<Workspace>> =
+        multi_workspace.read(cx).workspaces().cloned().collect();
+    for workspace in workspaces {
+        let shown = workspace.update(cx, |workspace, cx| {
+            crate::browser::show_tab_where(
+                workspace,
+                |address| {
+                    address.scheme() == "file"
+                        && address
+                            .path_segments()
+                            .and_then(|mut segments| segments.next_back())
+                            == Some(file_name)
+                },
+                window,
+                cx,
+            )
+            .is_some()
+        });
+        if shown {
+            multi_workspace.update(cx, |multi_workspace, cx| {
+                multi_workspace.activate(workspace, None, window, cx);
+            });
+            return;
+        }
+    }
+}
+
 /// The file name of the page `name`: `<name>.html`, `name` without its own `.html`, of
 /// letters, digits, `-`, `_` and `.`, not starting with a dot.
-fn page_file_name(name: &str) -> Result<String, &'static str> {
+pub(crate) fn page_file_name(name: &str) -> Result<String, &'static str> {
     let name = name.trim();
     let stem = name
         .strip_suffix(".html")

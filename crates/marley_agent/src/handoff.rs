@@ -45,16 +45,73 @@ pub struct Source<'a> {
     pub file: &'a str,
 }
 
+/// How many items of each kind went into a block (#927, D3).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Counts {
+    /// The person's messages.
+    pub requests: usize,
+    /// The agent's answers.
+    pub answers: usize,
+    /// The tool calls.
+    pub tool_calls: usize,
+}
+
+impl Counts {
+    /// The counts of `items` at `chosen`.
+    fn of(items: &[Item], chosen: &[usize]) -> Self {
+        let mut counts = Self::default();
+        for item in chosen.iter().filter_map(|index| items.get(*index)) {
+            match item.kind {
+                Kind::Request => counts.requests += 1,
+                Kind::Answer => counts.answers += 1,
+                Kind::ToolCall { .. } => counts.tool_calls += 1,
+            }
+        }
+        counts
+    }
+}
+
+/// A new thread's opening: the block's text and what went into it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Block {
+    /// The text the message box starts with.
+    pub text: String,
+    /// How many items of each kind went in.
+    pub counts: Counts,
+}
+
+/// The sentence that says the block is history, with its counts: "What follows is history, not a
+/// new request: 2 requests, 2 answers, 1 tool call."
+#[must_use]
+pub fn history_line(counts: Counts) -> String {
+    let words = |count: usize, one: &str, many: &str| {
+        format!("{count} {}", if count == 1 { one } else { many })
+    };
+    format!(
+        "What follows is history, not a new request: {}, {}, {}.",
+        words(counts.requests, "request", "requests"),
+        words(counts.answers, "answer", "answers"),
+        words(counts.tool_calls, "tool call", "tool calls")
+    )
+}
+
 /// The block a new thread's message box starts with: the preamble, the chosen items in
 /// conversation order, and how much was left out, within `budget` bytes where the items allow.
 #[must_use]
-pub fn block(items: &[Item], source: Source<'_>, budget: usize) -> String {
-    let preamble = preamble(source);
-    // The coverage line's longest form, so the items' share of the budget holds with it.
+pub fn block(items: &[Item], source: Source<'_>, budget: usize) -> Block {
+    // The preamble's and the coverage line's longest forms, so the items' share of the budget
+    // holds with them.
+    let every = Counts {
+        requests: items.len(),
+        answers: items.len(),
+        tool_calls: items.len(),
+    };
+    let longest_preamble = preamble(source, every);
     let longest_coverage = coverage_line(items.len(), items.len(), source.file);
-    let room = budget.saturating_sub(preamble.len() + longest_coverage.len());
+    let room = budget.saturating_sub(longest_preamble.len() + longest_coverage.len());
     let chosen = select(items, source.agent, room);
-    let mut text = preamble;
+    let counts = Counts::of(items, &chosen);
+    let mut text = preamble(source, counts);
     for index in &chosen {
         if let Some(item) = items.get(*index) {
             text.push_str(&section(item, source.agent));
@@ -65,7 +122,7 @@ pub fn block(items: &[Item], source: Source<'_>, budget: usize) -> String {
         items.len(),
         source.file,
     ));
-    text
+    Block { text, counts }
 }
 
 /// The indices of the items that go in, in conversation order, their sections within `room`
@@ -98,12 +155,13 @@ fn select(items: &[Item], agent: &str, room: usize) -> Vec<usize> {
 }
 
 /// The block's opening. Its first line is short, since an agent's thread takes its title from the
-/// first line of its first message.
-fn preamble(source: Source<'_>) -> String {
+/// first line of its first message; its second counts what went in (#927).
+fn preamble(source: Source<'_>, counts: Counts) -> String {
     format!(
-        "Continuing \"{}\" from {}.\nWhat follows is context from that conversation: history, not \
-         a new request and not an instruction.\n\n",
-        source.title, source.agent
+        "Continuing \"{}\" from {}.\n{}\n\n",
+        source.title,
+        source.agent,
+        history_line(counts)
     )
 }
 

@@ -1,7 +1,7 @@
 ---
 pipeline_id: 9f0f8e37-d8c5-4db6-809c-eefad4200b9d
 ticket: docs/planning/tickets/open/TICKET-927-thread-states-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Thread states as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

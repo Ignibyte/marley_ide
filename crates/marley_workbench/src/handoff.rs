@@ -247,7 +247,7 @@ fn start(
             },
             |path| path.display().to_string(),
         );
-        let text = handoff::block(
+        let block = handoff::block(
             &items,
             Source {
                 title: &title,
@@ -256,20 +256,30 @@ fn start(
             },
             handoff::BUDGET,
         );
+        // The tab says what it holds until its first message goes (#927).
+        let notice = format!(
+            "Continuing \u{201c}{title}\u{201d} from {old_agent}. {}",
+            handoff::history_line(block.counts)
+        );
         let content = AgentInitialContent::ContentBlock {
-            blocks: vec![acp_v2::ContentBlock::Text(acp_v2::TextContent::new(text))],
+            blocks: vec![acp_v2::ContentBlock::Text(acp_v2::TextContent::new(
+                block.text,
+            ))],
             auto_submit: false,
         };
         workspace
             .update_in(cx, |workspace, window, cx| {
-                crate::thread_tab::open_beside(
+                let tab = crate::thread_tab::open_beside(
                     workspace,
                     Agent::from(agent),
                     folders,
                     content,
                     window,
                     cx,
-                )
+                );
+                if let Some(tab) = tab {
+                    tab.update(cx, |tab, cx| tab.set_handoff_notice(notice, cx));
+                }
             })
             .log_err();
     })

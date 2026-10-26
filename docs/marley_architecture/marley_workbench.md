@@ -4674,6 +4674,35 @@ below describe what #743 retired.
   changed buffer's error and warning diagnostics). `search_looks` sets `agent_ui::MarleyThreadLook`,
   which gives edit and run cards their EDIT and RUN labels and the thread's bottom its reply chips.
 
+## Thread states as the board draws them (`src/thread_tab.rs`, `src/agent_panel_width.rs`, `src/component_tools.rs`, `src/browser_pages.rs`, `src/handoff.rs`, Zed's `thread_view.rs`, #927)
+
+- `width_label` names the step nearest the place's share (`STEPS`, `step_label`): "⅓", "½", "⅔"
+  or "Whole window", which a zoomed place reads too; the steps the action takes are #798's.
+- Under `MarleyThreadLook`, a call waiting for permission leads with ASKS (`marley_card_label` in
+  the accent) and a mono chip of its tool (`marley_asks_label`: `tool_name`, else `name`, else the
+  title's first word, the MCP prefix dropped) in place of EDIT or RUN; the flat permission buttons
+  stand in a wrapping row, AllowOnce and RejectOnce first and worded Allow and Deny
+  (`marley_option_label`), an always-option in the agent's words.
+- `component_tools::tool_call_view` draws a `browser_show_page` call as `page_card` (`bare_tool_name`
+  matches both tools): a www tile, the file name (`browser_pages::page_file_name` for `html` and
+  `name`, the path's file name for `path`), the line and Show, which runs
+  `browser_pages::show_tab_of`: the window's workspaces in turn through `browser::show_tab_where`
+  on a `file:` address ending in that name, then `MultiWorkspace::activate` on the one that has it.
+- `marley_agent::handoff::block` returns a `Block { text, counts }`; `Counts` counts the items that
+  went in, and `history_line` words them for the preamble's second line and the new tab's notice.
+  `handoff::start` sets `ThreadTab::set_handoff_notice`, drawn framed over the conversation while
+  the thread has no `UserMessage`.
+- `no_model_card` replaces #781's callout: a card centred over an empty conversation, above one
+  that has begun.
+- The tab's menu (`tab_extra_context_menu_actions`) adds Rename, New Thread with Context…, Review
+  Last Reply, Archive and Delete Thread… (and Move Thread to Panel first in Zed's layout).
+  `RenameThread`, `ArchiveThread` and `DeleteThread` are handled on the tab's own element, so the
+  menu, dispatched from the tab's focus handle, acts on that tab: Rename opens `ThreadNamePrompt`
+  (key context `MarleyThreadName`, Enter `ConfirmThreadName`), which renames through Zed's
+  `ThreadView::rename`; Archive and Delete call `rail::archive_thread` and `rail::delete_thread`,
+  the rail row's own, now free functions. The tab's title is the store's title override when one is
+  set, so a rename the agent cannot carry still shows, and it follows the store.
+
 ## The panel group (`src/panel_group.rs`, #862)
 
 - `init` sets `workspace::dock::MarleyPanelButtons(marley_layout)`, so Zed's three

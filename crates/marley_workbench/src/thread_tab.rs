@@ -35,7 +35,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use acp_thread::AgentSessionListRequest;
+use acp_thread::{AgentSessionListRequest, AgentThreadEntry};
 use agent::ThreadStore;
 use agent_client_protocol::schema::v2 as acp;
 use agent_settings::AgentProfileId;
@@ -49,10 +49,12 @@ use agent_ui::{
 use anyhow::Context as _;
 use collections::HashMap;
 use command_palette_hooks::CommandPaletteFilter;
+use editor::Editor;
 use fs::Fs;
 use gpui::{
-    Action, App, AppContext as _, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    Global, SharedString, Subscription, Task, WeakEntity, Window, actions,
+    Action, App, AppContext as _, Context, DismissEvent, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, FontWeight, Global, SharedString, Subscription, Task, WeakEntity,
+    Window, actions,
 };
 use language_model::LanguageModelRegistry;
 use project::{AgentId, DisableAiSettings, Project, Worktree};
@@ -60,12 +62,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
 use terminal_view::TerminalView;
-use ui::{Callout, Severity, Tooltip, prelude::*};
+use ui::{Headline, HeadlineSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::NotificationId;
-use workspace::{ItemId, MultiWorkspace, Toast, Workspace, WorkspaceId};
+use workspace::{ItemId, ModalView, MultiWorkspace, Toast, Workspace, WorkspaceId};
 
 use persistence::MarleyThreadTabsDb;
 
@@ -81,7 +83,20 @@ actions!(
         /// Shows or hides the details beside a thread in a tab: its agent, model, context use and
         /// changed files.
         #[derive(Eq)]
-        ToggleThreadDetails
+        ToggleThreadDetails,
+        /// Renames the thread of the tab its menu was opened on.
+        #[derive(Eq)]
+        RenameThread,
+        /// Archives the thread of the tab its menu was opened on, as the rail's Archive Thread
+        /// does.
+        #[derive(Eq)]
+        ArchiveThread,
+        /// Deletes the thread of the tab its menu was opened on, once asked.
+        #[derive(Eq)]
+        DeleteThread,
+        /// Keeps the name typed in a thread's Rename field.
+        #[derive(Eq)]
+        ConfirmThreadName
     ]
 );
 
@@ -151,6 +166,9 @@ pub struct ThreadTab {
     /// The hidden worktree of the thread's folder, when the tab made one (#734): a project holds a
     /// hidden worktree only weakly, so the tab keeps it while it shows the thread.
     _folder: Option<Entity<Worktree>>,
+    /// What New Thread with Context put in the message box (#927), shown until the thread's first
+    /// message goes.
+    handoff_notice: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -268,6 +286,8 @@ impl ThreadTab {
         // An archived thread leaves its tab, as the Agent Panel lets its kept one go (#777):
         // otherwise the rail lists the open tab's thread again at once.
         if let Some(store) = ThreadMetadataStore::try_global(cx) {
+            // A rename lands in the store; the tab's title follows it (#927).
+            subscriptions.push(cx.observe(&store, |_, _, cx| cx.emit(ItemEvent::UpdateTab)));
             subscriptions.push(cx.subscribe(&store, |this, _, event, cx| {
                 let ThreadMetadataStoreEvent::ThreadArchived(thread_id) = event;
                 if *thread_id == this.conversation_view.read(cx).parent_id() {
@@ -281,8 +301,160 @@ impl ThreadTab {
             conversation_view,
             details_thread: None,
             _folder: folder,
+            handoff_notice: None,
             _subscriptions: subscriptions,
         }
+    }
+
+    /// Shows `notice` over the conversation until its first message goes (#927).
+    pub(crate) fn set_handoff_notice(&mut self, notice: String, cx: &mut Context<Self>) {
+        self.handoff_notice = Some(SharedString::from(notice));
+        cx.notify();
+    }
+
+    /// Whether the thread has a message of the person's, or any entry at all with `any_entry`.
+    fn has_entries(&self, kind: Entries, cx: &App) -> bool {
+        let Some(view) = self.conversation_view.read(cx).root_thread_view() else {
+            return false;
+        };
+        let thread = view.read(cx).thread.read(cx);
+        match kind {
+            Entries::Any => !thread.entries().is_empty(),
+            Entries::Requests => thread
+                .entries()
+                .iter()
+                .any(|entry| matches!(entry, AgentThreadEntry::UserMessage(_))),
+        }
+    }
+
+    /// The thread the tab shows, by its id, and its title: a rename the agent cannot carry is the
+    /// store's override, as the rail reads it (#927).
+    fn thread_of_tab(&self, cx: &App) -> (ThreadId, SharedString) {
+        let view = self.conversation_view.read(cx);
+        let thread_id = view.parent_id();
+        let renamed = ThreadMetadataStore::try_global(cx)
+            .and_then(|store| store.read(cx).entry(thread_id)?.title_override.clone());
+        (thread_id, renamed.unwrap_or_else(|| view.title(cx)))
+    }
+
+    fn rename_thread(&mut self, _: &RenameThread, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(workspace) = window
+            .root::<MultiWorkspace>()
+            .flatten()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().clone())
+        else {
+            return;
+        };
+        let title = self.thread_of_tab(cx).1;
+        let conversation = self.conversation_view.downgrade();
+        workspace.update(cx, |workspace, cx| {
+            workspace.toggle_modal(window, cx, |window, cx| {
+                ThreadNamePrompt::new(conversation, &title, window, cx)
+            });
+        });
+    }
+
+    fn archive_thread(&mut self, _: &ArchiveThread, _: &mut Window, cx: &mut Context<Self>) {
+        let thread_id = self.thread_of_tab(cx).0;
+        crate::rail::archive_thread(thread_id, cx);
+    }
+
+    fn delete_thread(&mut self, _: &DeleteThread, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() else {
+            return;
+        };
+        let (thread_id, title) = self.thread_of_tab(cx);
+        crate::rail::delete_thread(multi_workspace.downgrade(), thread_id, &title, window, cx);
+    }
+}
+
+/// Which entries [`ThreadTab::has_entries`] looks for.
+#[derive(Clone, Copy)]
+enum Entries {
+    Any,
+    Requests,
+}
+
+/// A thread's new title, for its tab's Rename (#927): kept on Enter through Zed's own rename, the
+/// path its title editor takes.
+struct ThreadNamePrompt {
+    editor: Entity<Editor>,
+    conversation: WeakEntity<ConversationView>,
+}
+
+impl ThreadNamePrompt {
+    fn new(
+        conversation: WeakEntity<ConversationView>,
+        title: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let editor = cx.new(|cx| {
+            let mut editor = Editor::single_line(window, cx);
+            editor.set_text(title, window, cx);
+            editor.select_all(&editor::actions::SelectAll, window, cx);
+            editor
+        });
+        Self {
+            editor,
+            conversation,
+        }
+    }
+
+    fn confirm(&mut self, _: &ConfirmThreadName, window: &mut Window, cx: &mut Context<Self>) {
+        let title = self.editor.read(cx).text(cx);
+        let title = title.trim();
+        if !title.is_empty() {
+            let title = SharedString::from(title.to_string());
+            let view = self
+                .conversation
+                .upgrade()
+                .and_then(|conversation| conversation.read(cx).root_thread_view());
+            if let Some(view) = view {
+                view.update(cx, |view, cx| view.rename(title, window, cx));
+            }
+        }
+        cx.emit(DismissEvent);
+    }
+}
+
+impl ModalView for ThreadNamePrompt {}
+
+impl EventEmitter<DismissEvent> for ThreadNamePrompt {}
+
+impl Focusable for ThreadNamePrompt {
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.editor.focus_handle(cx)
+    }
+}
+
+impl Render for ThreadNamePrompt {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        v_flex()
+            .key_context("MarleyThreadName")
+            .on_action(cx.listener(Self::confirm))
+            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(DismissEvent)))
+            .w(rems(28.))
+            .elevation_3(cx)
+            .p_3()
+            .gap_2()
+            .child(Headline::new("Rename Thread").size(HeadlineSize::Small))
+            .child(
+                div()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.editor_background)
+                    .child(self.editor.clone()),
+            )
+            .child(
+                Label::new("Enter renames it.")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
     }
 }
 
@@ -296,7 +468,7 @@ impl Item for ThreadTab {
     }
 
     fn tab_content_text(&self, _detail: usize, cx: &App) -> SharedString {
-        self.conversation_view.read(cx).title(cx)
+        self.thread_of_tab(cx).1
     }
 
     fn tab_icon(&self, _window: &Window, cx: &App) -> Option<Icon> {
@@ -324,20 +496,32 @@ impl Item for ThreadTab {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<(SharedString, Box<dyn Action>)> {
-        let with_context: (SharedString, Box<dyn Action>) = (
-            SharedString::new_static("New Thread with Context…"),
-            Box::new(crate::handoff::NewThreadWithContext),
-        );
-        if crate::marley_layout(cx) {
-            return vec![with_context];
-        }
-        vec![
+        // The rail row's thread entries, acting on this tab's thread (#927, D4).
+        let thread_entries: Vec<(SharedString, Box<dyn Action>)> = vec![
+            (SharedString::new_static("Rename"), Box::new(RenameThread)),
             (
-                SharedString::new_static("Move Thread to Panel"),
-                Box::new(MoveThreadToPanel),
+                SharedString::new_static("New Thread with Context\u{2026}"),
+                Box::new(crate::handoff::NewThreadWithContext),
             ),
-            with_context,
-        ]
+            (
+                SharedString::new_static("Review Last Reply"),
+                Box::new(crate::plan_review::ReviewLastReply),
+            ),
+            (SharedString::new_static("Archive"), Box::new(ArchiveThread)),
+            (
+                SharedString::new_static("Delete Thread\u{2026}"),
+                Box::new(DeleteThread),
+            ),
+        ];
+        if crate::marley_layout(cx) {
+            return thread_entries;
+        }
+        let mut entries: Vec<(SharedString, Box<dyn Action>)> = vec![(
+            SharedString::new_static("Move Thread to Panel"),
+            Box::new(MoveThreadToPanel),
+        )];
+        entries.extend(thread_entries);
+        entries
     }
 
     // The rail moves a thread's tab to another group's workspace (#818): the conversation acts
@@ -607,9 +791,9 @@ impl Focusable for ThreadTab {
 }
 
 impl ThreadTab {
-    /// What a Zed Agent thread shows above its conversation while no model is set (#781): the card
-    /// Zed's Agent Panel shows a new user, which a tab has no panel to show.
-    fn no_model_callout(&self, cx: &App) -> Option<Callout> {
+    /// What a Zed Agent thread shows while no model is set (#781, #927): the board's card, a tab
+    /// having no Agent Panel to show Zed's.
+    fn no_model_card(&self, cx: &App) -> Option<AnyElement> {
         let native = self.conversation_view.read(cx).agent_key().id() == Agent::NativeAgent.id();
         if !native
             || LanguageModelRegistry::read_global(cx)
@@ -618,23 +802,88 @@ impl ThreadTab {
         {
             return None;
         }
+        let colors = cx.theme().colors();
         Some(
-            Callout::new()
-                .severity(Severity::Info)
-                .icon(IconName::ZedAssistant)
-                .title("The Zed Agent has no model yet")
-                .description(
-                    "Configure a language model provider, then pick a model under Select a Model.",
+            v_flex()
+                .w_full()
+                .max_w(px(360.))
+                .p_4()
+                .gap_3()
+                .rounded(px(14.))
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.elevated_surface_background)
+                .shadow_lg()
+                .child(
+                    h_flex()
+                        .gap_2p5()
+                        .child(
+                            div()
+                                .flex_none()
+                                .size(px(32.))
+                                .rounded(px(8.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .bg(colors.text_accent.opacity(0.15))
+                                .child(
+                                    Label::new("Z")
+                                        .weight(FontWeight::SEMIBOLD)
+                                        .color(Color::Accent),
+                                ),
+                        )
+                        .child(Label::new("Zed Agent needs a model").weight(FontWeight::SEMIBOLD)),
                 )
-                .actions_slot(
-                    Button::new("marley-configure-providers", "Configure Providers")
-                        .label_size(LabelSize::Small)
-                        .style(ButtonStyle::Filled)
-                        .on_click(|_, window, cx| {
-                            window
-                                .dispatch_action(Box::new(crate::agents::llm_providers_page()), cx);
-                        }),
-                ),
+                .child(
+                    Label::new("Pick a provider and a model, and this thread can start.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(
+                    h_flex().justify_end().child(
+                        Button::new("marley-configure-providers", "Configure Providers")
+                            .label_size(LabelSize::Small)
+                            .style(ButtonStyle::Filled)
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(
+                                    Box::new(crate::agents::llm_providers_page()),
+                                    cx,
+                                );
+                            }),
+                    ),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// The framed notice over a thread New Thread with Context opened (#927).
+    fn handoff_notice(&self, cx: &App) -> Option<AnyElement> {
+        let notice = self.handoff_notice.clone()?;
+        if self.has_entries(Entries::Requests, cx) {
+            return None;
+        }
+        let colors = cx.theme().colors();
+        Some(
+            v_flex()
+                .mx_3()
+                .mt_2()
+                .p_2p5()
+                .gap_1()
+                .rounded(px(10.))
+                .border_1()
+                .border_color(colors.text_accent.opacity(0.4))
+                .bg(colors.text_accent.opacity(0.06))
+                .child(
+                    Label::new("New Thread with Context, in a split to the right")
+                        .size(LabelSize::Small)
+                        .weight(FontWeight::SEMIBOLD),
+                )
+                .child(
+                    Label::new(notice)
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .into_any_element(),
         )
     }
 }
@@ -643,17 +892,40 @@ impl Render for ThreadTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let details = ThreadDetails::get_global(cx).0;
         let panel = details.then(|| self.render_details(cx));
+        // Over an empty conversation the no-model card is centred; above one that has begun.
+        let no_model = self.no_model_card(cx);
+        let empty = !self.has_entries(Entries::Any, cx);
+        let (centred, above) = if empty {
+            (no_model, None)
+        } else {
+            (None, no_model)
+        };
         h_flex()
             .size_full()
             .relative()
             .bg(cx.theme().colors().panel_background)
+            .on_action(cx.listener(Self::rename_thread))
+            .on_action(cx.listener(Self::archive_thread))
+            .on_action(cx.listener(Self::delete_thread))
             .child(
                 v_flex()
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .children(self.no_model_callout(cx))
-                    .child(self.conversation_view.clone()),
+                    .relative()
+                    .children(self.handoff_notice(cx))
+                    .children(above.map(|card| div().p_3().child(card)))
+                    .child(self.conversation_view.clone())
+                    .children(centred.map(|card| {
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .p_3()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(card)
+                    })),
             )
             .children(panel)
             .when(!details, |tab| {
@@ -868,7 +1140,7 @@ struct TerminalPeek {
 
 fn terminal_peek(thread: &acp_thread::AcpThread, cx: &App) -> Option<TerminalPeek> {
     thread.entries().iter().rev().find_map(|entry| {
-        let acp_thread::AgentThreadEntry::ToolCall(call) = entry else {
+        let AgentThreadEntry::ToolCall(call) = entry else {
             return None;
         };
         call.content().iter().find_map(|content| {

@@ -27,14 +27,16 @@ pub(crate) fn init(cx: &mut App) {
 }
 
 /// The thread's drawing of a `component_show` call, from its input: the tree, or why it cannot
-/// be drawn. `None` for any other tool, which the thread draws as Zed does.
+/// be drawn; and of a `browser_show_page` call, the page's card (#927). `None` for any other
+/// tool, which the thread draws as Zed does.
 pub(crate) fn tool_call_view(
     tool_name: &str,
     raw_input: &Value,
     id: SharedString,
     cx: &App,
 ) -> Option<AnyElement> {
-    if !is_component_show(tool_name) {
+    let tool = bare_tool_name(tool_name);
+    if tool != "component_show" && tool != "browser_show_page" {
         return None;
     }
     let parsed;
@@ -46,6 +48,9 @@ pub(crate) fn tool_call_view(
         }
         input => input,
     };
+    if tool == "browser_show_page" {
+        return page_card(input, &id, cx);
+    }
     let component = input.get("component")?;
     Some(
         match parse_with(component, &crate::component_library::templates(cx)) {
@@ -55,14 +60,76 @@ pub(crate) fn tool_call_view(
     )
 }
 
-/// Whether an agent's name for a tool is Marley's `component_show`: Claude Code reports
-/// `mcp__<server>__component_show`, other clients `<server>.component_show` or the bare name.
-fn is_component_show(tool_name: &str) -> bool {
+/// An agent's name for one of Marley's tools, bare: Claude Code reports
+/// `mcp__<server>__<tool>`, other clients `<server>.<tool>` or the bare name.
+fn bare_tool_name(tool_name: &str) -> &str {
     let bare = tool_name
         .rsplit_once("__")
         .map_or(tool_name, |(_, tail)| tail);
-    let bare = bare.rsplit_once('.').map_or(bare, |(_, tail)| tail);
-    bare == "component_show"
+    bare.rsplit_once('.').map_or(bare, |(_, tail)| tail)
+}
+
+/// A `browser_show_page` call as the board draws it (#927, D5): a www tile, the page's file name,
+/// where it opened, and Show, which brings its Browser tab forward. `None` for an input that
+/// names no page.
+fn page_card(input: &Value, id: &SharedString, cx: &App) -> Option<AnyElement> {
+    let text = |name: &str| input.get(name).and_then(Value::as_str);
+    let file_name = match (text("html"), text("name"), text("path")) {
+        (Some(_), Some(name), _) => crate::browser_pages::page_file_name(name).ok()?,
+        (None, _, Some(path)) => std::path::Path::new(path)
+            .file_name()?
+            .to_string_lossy()
+            .into_owned(),
+        _ => return None,
+    };
+    let colors = cx.theme().colors();
+    let shown = file_name.clone();
+    Some(
+        h_flex()
+            .w_full()
+            .p_2()
+            .gap_2p5()
+            .rounded(px(10.))
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .child(
+                div()
+                    .flex_none()
+                    .size(px(32.))
+                    .rounded(px(8.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .bg(colors.text_accent.opacity(0.15))
+                    .child(
+                        Label::new("www")
+                            .size(LabelSize::XSmall)
+                            .buffer_font(cx)
+                            .color(Color::Accent),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(Label::new(file_name).size(LabelSize::Small).truncate())
+                    .child(
+                        Label::new("The agent's page, open in a Browser tab of this project")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+            )
+            .child(
+                Button::new(SharedString::from(format!("marley-page-show-{id}")), "Show")
+                    .label_size(LabelSize::Small)
+                    .style(ButtonStyle::Filled)
+                    .on_click(move |_, window, cx| {
+                        crate::browser_pages::show_tab_of(&shown, window, cx);
+                    }),
+            )
+            .into_any_element(),
+    )
 }
 
 /// Answers a `component_*` call.

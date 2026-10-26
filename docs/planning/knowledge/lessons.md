@@ -6533,3 +6533,14 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** a scenario that removes a worktree makes it with New Agent in Worktree (#589's,
   #851's clicks). The worktree's name is chosen at random and the rail sorts by name, so the rows
   are placed by sorting the names in the scenario.
+
+## L-claude-927-marleys-bridge-acts-only-for-a-program-in-its-terminal-001
+
+- **Ticket:** #927, 2026-10-25.
+- **What happened:** the scenario called `browser_show_page` through the plugin's bridge from its own
+  shell, and Marley refused it: `not_paired`, a program that has not paired may only read. #802's
+  scenario calls it from a function in the project terminal's `.bashrc`, which works.
+- **Lesson:** a scenario that drives an acting MCP tool through the bridge runs the caller in a
+  Marley terminal (a `.bashrc` function typed there), not from the scenario's shell. A scripted
+  ACP agent is one loop on stdin: while it waits on `session/request_permission` it answers no
+  other request, so a second thread on the same agent stays on Loading.

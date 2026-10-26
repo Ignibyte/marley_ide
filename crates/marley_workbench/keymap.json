@@ -108,6 +108,14 @@
     }
   },
   {
+    // A thread's new name, from its tab's Rename (#927): Enter keeps it, Escape closes the field.
+    "context": "MarleyThreadName > Editor",
+    "bindings": {
+      "enter": "marley::ConfirmThreadName",
+      "escape": "menu::Cancel"
+    }
+  },
+  {
     // A projectless group's name (#600): Enter makes or renames the group, Escape closes it.
     "context": "MarleyGroupName > Editor",
     "bindings": {

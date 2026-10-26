@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Thread states as the board draws them** (#927, 2026-10-25). A thread's width button reads ⅓,
+  ½, ⅔ or Whole window. A tool call waiting for permission leads with ASKS and the tool's name, and
+  its buttons read Allow and Deny, in one row. An agent's HTML page shows in the thread as a card
+  with Show, which brings its Browser tab forward. New Thread with Context says how many requests,
+  answers and tool calls it carried, in the message and in a notice over the new thread. A Zed
+  Agent thread with no model shows a card with Configure Providers. A thread tab's menu offers
+  Rename, New Thread with Context…, Review Last Reply, Archive and Delete Thread….
+
 - **The worktree Merge and Remove prompts as the board words them** (#926, 2026-10-25). Merge says
   where the branch goes and lists the checks it ran, each ticked: the main checkout on the base,
   nothing uncommitted in either checkout, and no file that would stop the merge, a new check that

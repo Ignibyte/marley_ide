@@ -1,7 +1,7 @@
-//! An agent thread's width in percent (#798).
+//! An agent thread's width as a step: a third, half, two thirds or the whole window (#798, #927).
 //!
-//! The width button in a thread's message editor (`agent_ui`'s `thread_view.rs`) shows the width
-//! of the thread's place in percent, labelled by `width_label` through
+//! The width button in a thread's message editor (`agent_ui`'s `thread_view.rs`) shows the step
+//! nearest the width of the thread's place, labelled by `width_label` through
 //! `MarleyThreadHost`, and runs [`CycleAgentPanelWidth`] for the thread; the palette runs it for
 //! the thread in front. The place is the Agent Panel's dock, or the pane that holds the thread's
 //! tab, which is where the Marley layout shows threads (#734). Each run steps the place to the next
@@ -75,9 +75,50 @@ pub(crate) fn init(cx: &App) {
     .detach();
 }
 
-/// The width button's label for the thread view `view`: the dock's share of the window, or the
-/// pane's share of its row, in whole percent, "100%" while the place is zoomed, `None` when the button has nothing to step (the thread
-/// is not shown, or its pane is alone in its row).
+/// A width step's share of the window and the button's word for it (#927).
+struct WidthStep {
+    share: f32,
+    label: &'static str,
+}
+
+/// The steps the button names, narrowest first; the whole window is the zoom.
+const STEPS: [WidthStep; 4] = [
+    WidthStep {
+        share: 1.0 / 3.0,
+        label: "\u{2153}",
+    },
+    WidthStep {
+        share: 0.5,
+        label: "\u{bd}",
+    },
+    WidthStep {
+        share: 2.0 / 3.0,
+        label: "\u{2154}",
+    },
+    WidthStep {
+        share: 1.0,
+        label: WHOLE_WINDOW,
+    },
+];
+
+/// The widest step's word, and a zoomed place's.
+const WHOLE_WINDOW: &str = "Whole window";
+
+/// The word of the step nearest `share` (#927, D1): a width dragged to 45% reads "½".
+fn step_label(share: f32) -> &'static str {
+    STEPS
+        .iter()
+        .min_by(|first, second| {
+            (first.share - share)
+                .abs()
+                .total_cmp(&(second.share - share).abs())
+        })
+        .map_or(WHOLE_WINDOW, |step| step.label)
+}
+
+/// The width button's label for the thread view `view`: the step nearest the dock's share of the
+/// window, or the pane's share of its row, "Whole window" while the place is zoomed, `None` when
+/// the button has nothing to step (the thread is not shown, or its pane is alone in its row).
 pub(crate) fn width_label(
     workspace: &Workspace,
     view: EntityId,
@@ -87,21 +128,18 @@ pub(crate) fn width_label(
     let share = match place(workspace, Some(view), window, cx)? {
         Place::Panel(panel, position) => {
             if panel.read(cx).is_zoomed(window, cx) {
-                return Some(SharedString::new_static("100%"));
+                return Some(SharedString::new_static(WHOLE_WINDOW));
             }
             workspace.marley_dock_width_share(position, window, cx)?
         }
         Place::Pane(pane) => {
             if pane.read(cx).is_zoomed() {
-                return Some(SharedString::new_static("100%"));
+                return Some(SharedString::new_static(WHOLE_WINDOW));
             }
             workspace.marley_pane_row_share(&pane)?
         }
     };
-    Some(SharedString::from(format!(
-        "{:.0}%",
-        share.clamp(0.0, 1.0) * 100.0
-    )))
+    Some(SharedString::new_static(step_label(share.clamp(0.0, 1.0))))
 }
 
 /// Where the workspace shows the thread view `view`, or with `None` the thread in front.
