@@ -127,7 +127,6 @@ impl FocusRow {
         &self,
         item: &dyn ItemHandle,
         view: &Entity<TerminalView>,
-        rail: Option<&Entity<Rail>>,
         cx: &App,
     ) -> AnyElement {
         let terminal = view.read(cx).terminal().read(cx);
@@ -220,7 +219,7 @@ impl FocusRow {
                     .color(Color::Muted)
                     .buffer_font(cx),
             )
-            .children(tmux_chip(rail, cx));
+            .children(tmux_chip(cx));
         h_flex()
             .debug_selector(|| "marley-focus-terminal".into())
             .gap_3()
@@ -437,9 +436,7 @@ impl Render for FocusRow {
         let focus = match &self.focus {
             Focus::File(item) => Self::render_file(item.as_ref(), cx),
             Focus::Screen(screen) => Some(screen.render(window, cx)),
-            Focus::Terminal(item, view) => {
-                Some(self.render_terminal(item.as_ref(), view, rail.as_ref(), cx))
-            }
+            Focus::Terminal(item, view) => Some(self.render_terminal(item.as_ref(), view, cx)),
             // A thread draws below, where the row's own context can follow its thread.
             Focus::None | Focus::Thread(_) => None,
         };
@@ -673,8 +670,9 @@ fn failed_chip(failed: FailedBlock, view: &Entity<TerminalView>, cx: &App) -> An
         .into_any_element()
 }
 
-/// "tmux: N · M detached" on the tmux tint (#908); a click shows the rail's Sessions view.
-fn tmux_chip(rail: Option<&Entity<Rail>>, cx: &App) -> Option<AnyElement> {
+/// "tmux: N · M detached" on the tmux tint (#908); a click opens the Sessions page, whether the
+/// rail is open, shrunk or hidden (#930, D5).
+fn tmux_chip(cx: &App) -> Option<AnyElement> {
     let sessions: Vec<bool> = cx.try_global::<TmuxHosts>().map_or_else(Vec::new, |tmux| {
         tmux.hosts
             .iter()
@@ -695,7 +693,6 @@ fn tmux_chip(rail: Option<&Entity<Rail>>, cx: &App) -> Option<AnyElement> {
         0 => format!("tmux: {}", sessions.len()),
         detached => format!("tmux: {} \u{b7} {detached} detached", sessions.len()),
     };
-    let rail = rail.map(Entity::downgrade);
     Some(
         h_flex()
             .id("marley-focus-tmux")
@@ -711,32 +708,15 @@ fn tmux_chip(rail: Option<&Entity<Rail>>, cx: &App) -> Option<AnyElement> {
                     .size(LabelSize::Small)
                     .color(Color::Custom(ItemKind::Tmux.ink(cx))),
             )
-            .tooltip(Tooltip::text("Show the tmux sessions"))
-            .on_click(move |_, window, cx| {
-                let Some(rail) = rail.clone() else {
-                    return;
-                };
-                // Deferred: the status bar is being updated, and opening the rail updates the
-                // multi-workspace.
-                window.defer(cx, move |window, cx| show_tmux_sessions(&rail, window, cx));
+            .tooltip(Tooltip::text("Open the Sessions page"))
+            .on_click(|_, window, cx| {
+                // Deferred: the status bar is being updated, and the page opens in a workspace.
+                window.defer(cx, |window, cx| {
+                    window.dispatch_action(Box::new(crate::sessions_page::OpenSessionsPage), cx);
+                });
             })
             .into_any_element(),
     )
-}
-
-/// The rail's Sessions view, the rail opened first when it is shrunk to its strip or closed (#908,
-/// D5), as the strip's Sessions tile does.
-fn show_tmux_sessions(rail: &WeakEntity<Rail>, window: &mut Window, cx: &mut App) {
-    if crate::MarleySettings::get_global(cx).rail_strip == crate::RailStrip::Shrunk {
-        crate::toggle_rail_strip(cx);
-    }
-    if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten()
-        && !multi_workspace.read(cx).sidebar_open()
-    {
-        multi_workspace.update(cx, MultiWorkspace::open_sidebar);
-    }
-    rail.update(cx, |rail, cx| rail.show_sessions(window, cx))
-        .log_err();
 }
 
 /// A small rounded chip of short text on its kind's tint: a file's extension, `>_`.

@@ -96,7 +96,31 @@
   second keeps this chip.
 
 ## Phase 2 — Code
+- **Built:** `tmux_sessions::{SessionKey, AttachedTab, attached_here, attached_tab}`;
+  `rail::TileFade`, `RowIcon::with_fade`, `Rail::window_workspaces`; `rail_sessions::not_looked_on`
+  in place of the checkbox block; `sessions_page` `SessionState`, `render_columns`, `state_chip`,
+  `show_or_attach`, the summary and the host checkboxes; `focus_row::tmux_chip` opening the page
+  (and `show_tmux_sessions` gone with the rail parameter it needed).
+- **Deviations:** the page's Show reveals the terminal through `browser::reveal_terminal`, which
+  shows its workspace first. "Attached here" now also requires the attach's task to be running in
+  the rail's open (it was required only for the placed rows).
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/930-tmux-sessions-as-the-board.sh` (sway), green.
+- `930-01-rail`: build "attached here" at full strength, deploy "attached elsewhere" and loose
+  "detached" faded; forge "Not looked on yet. Add to tmux hosts"; no checkbox block; the bottom row
+  "tmux: 3 · 2 detached" before the attach, "· 1 detached" after. REQ-001, REQ-002, REQ-008.
+- `930-02-page`: the chip clicked: the page, its column headers, the three chips, Show on build and
+  Attach on the others, "3 on 1 host · 1 attached here · 1 attached elsewhere · 1 detached", the
+  host checkboxes with "looking" and "not listed" and `marley.tmux_hosts`. REQ-003 to REQ-007,
+  REQ-009.
+- `930-03-show`: Show: build's tab in front. REQ-005.
+- `930-04-host-added`: Add to tmux hosts: `['local', 'forge']`, forge's heading with ssh's refusal.
+  REQ-002.
+- `930-05-unticked`, `930-06-day`: forge unticked on the page: `['local']`, "not listed", and
+  forge back as a not-looked-on row in the rail; Marley Day. REQ-007.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `marley_workbench.md` (the Sessions page as the board draws it, the bottom
+  row's chip); the look plan's W1.3. No Zed path.

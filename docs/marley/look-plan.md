@@ -82,7 +82,7 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more.
   switcher, and the project's notifications.
 - Depends on W1.1 for the strip.
 
-**W1.3 A Sessions view for tmux.** *Done (#832, 2026-10-21; the center Sessions page #861).* *M.* Board: TmuxSessions.
+**W1.3 A Sessions view for tmux.** *Done (#832, 2026-10-21; the center Sessions page #861; faded rows, hosts not looked on, the page's columns, chips, Show, summary and host ticks, and the bottom row's chip opening the page, #930, 2026-10-25).* *M.* Board: TmuxSessions.
 - A third choice at the top of the rail: Projects, Threads, Sessions. Every session by host, its
   windows, where it is placed and whether it is attached, with Attach or Show and Close.
 - The hosts list from `ssh_connections`, each toggled into `marley.tmux_hosts` from the view.

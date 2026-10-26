@@ -56,7 +56,7 @@ use project::{
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
 use sidebar::ToggleThreadHistory;
-use terminal::{TaskStatus, Terminal};
+use terminal::Terminal;
 use terminal_view::{RenameTerminal, TerminalView, terminal_panel::TerminalPanel};
 use ui::{
     AgentThreadStatus, CommonAnimationExt as _, ContextMenu, ContextMenuEntry, DiffStat,
@@ -88,7 +88,7 @@ use crate::item_kind::{AgentMark, ItemKind, ItemState, TerminalStates};
 use crate::ports::{self, ContainerStop, Ports, ProjectListener, ServiceAction, Stop};
 use crate::rusty::{self};
 use crate::system_one::{self, Asking};
-use crate::tmux_sessions::{Listing, TmuxHost, TmuxHosts, TmuxSession};
+use crate::tmux_sessions::{Listing, SessionKey, TmuxHost, TmuxHosts, TmuxSession};
 use crate::turns::Turns;
 use crate::worktree_git::{self, BranchEnd, Drift, MergeOwner};
 use crate::{MarleySettings, browser, launch, worktree_agents};
@@ -5289,7 +5289,7 @@ impl Rail {
         let home = groups
             .iter()
             .position(|group| group.group.is_some_and(|id| groups::is_home(id, cx)));
-        let attached = self.tmux_attached_here(tmux, cx);
+        let attached = self.tmux_attached_here(cx);
         for host in &tmux.hosts {
             if let (Some(index), Some(words)) = (home, crate::tmux_sessions::error_words(host)) {
                 placed
@@ -5301,7 +5301,10 @@ impl Rail {
                 continue;
             };
             for session in sessions {
-                if attached.contains(&(host.name.clone(), session.name.clone())) {
+                if attached.contains(&SessionKey {
+                    host: host.name.clone(),
+                    session: session.name.clone(),
+                }) {
                     continue;
                 }
                 let Some(index) = tmux_group(groups, host, &session.folder).or(home) else {
@@ -5317,19 +5320,16 @@ impl Rail {
     }
 
     /// The tmux sessions a Marley tab holds attached, by host and session (#821, #832).
-    fn tmux_attached_here(&self, tmux: &TmuxHosts, cx: &App) -> HashSet<(SharedString, String)> {
-        self.snapshot
-            .terminals
-            .values()
-            .filter_map(|entry| {
-                let view = entry.view.upgrade()?;
-                let terminal = view.read(cx).terminal().read(cx);
-                let task = terminal.task()?;
-                let attach = tmux.attach_of(&task.spawned_task.full_label)?;
-                (task.status == TaskStatus::Running)
-                    .then(|| (attach.host.clone(), attach.session.clone()))
-            })
-            .collect()
+    fn tmux_attached_here(&self, cx: &App) -> HashSet<SessionKey> {
+        crate::tmux_sessions::attached_here(&self.window_workspaces(cx), cx)
+    }
+
+    /// The workspaces of the rail's window.
+    fn window_workspaces(&self, cx: &App) -> Vec<Entity<Workspace>> {
+        self.multi_workspace
+            .upgrade()
+            .map(|multi_workspace| multi_workspace.read(cx).workspaces().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// The group a session's row goes under: its project's, else Home (#821).
@@ -11496,6 +11496,16 @@ impl RowLine {
 struct RowIcon {
     element: AnyElement,
     look: Option<(ItemKind, Option<ItemState>)>,
+    fade: TileFade,
+}
+
+/// Whether a row's tile is drawn at full strength or faded, as a tmux session not attached here
+/// is (#930, D1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum TileFade {
+    #[default]
+    Full,
+    Faded,
 }
 
 impl RowIcon {
@@ -11503,7 +11513,14 @@ impl RowIcon {
         Self {
             element,
             look: Some((kind, state)),
+            fade: TileFade::Full,
         }
+    }
+
+    /// The icon with its tile at `fade`.
+    const fn with_fade(mut self, fade: TileFade) -> Self {
+        self.fade = fade;
+        self
     }
 }
 
@@ -11512,6 +11529,7 @@ impl From<AnyElement> for RowIcon {
         Self {
             element,
             look: None,
+            fade: TileFade::Full,
         }
     }
 }
@@ -11599,6 +11617,7 @@ fn row_card(
     let RowIcon {
         element: icon,
         look,
+        fade,
     } = icon.into();
     let pulse_id = ElementId::Name(format!("{icon_selector}-pulse").into());
     let slot = h_flex()
@@ -11633,6 +11652,7 @@ fn row_card(
             })),
         None => slot.rounded_full().bg(raised(cx)).child(icon),
     };
+    let slot = slot.when(fade == TileFade::Faded, |slot| slot.opacity(0.55));
     row_frame(id, selected, cx)
         .map(|row| match lines.len() {
             0 | 1 => row.h_11(),

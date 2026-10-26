@@ -1,7 +1,7 @@
 ---
 pipeline_id: 658ccf32-c7ff-493c-9153-febaf17582a5
 ticket: docs/planning/tickets/open/TICKET-930-tmux-sessions-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: tmux sessions as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

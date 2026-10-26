@@ -1,17 +1,18 @@
 //! The rail's Sessions view (#832): every tmux session on every host Marley looks on, by host, with
-//! where each is placed and whether it is attached, and the hosts to look on as checkboxes.
+//! where each is placed and whether it is attached; then each host Marley could look on and does
+//! not, with Add to tmux hosts (#930). The ticks live on the Sessions page.
 
 use gpui::{AnyElement, App, Context, PromptLevel, SharedString, Task, Window};
 use ui::{
-    Button, ButtonStyle, Checkbox, ContextMenu, Icon, IconSize, Label, LabelSize, ToggleState,
-    prelude::*, right_click_menu,
+    Button, ButtonStyle, ContextMenu, Icon, IconSize, Label, LabelSize, prelude::*,
+    right_click_menu,
 };
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
 
-use super::{Rail, RowIcon, RowLine, row_card};
+use super::{Rail, RowIcon, RowLine, TileFade, row_card};
 use crate::item_kind::ItemKind;
-use crate::tmux_sessions::{Listing, TmuxHost, TmuxHosts, TmuxSession};
+use crate::tmux_sessions::{HostChoice, Listing, SessionKey, TmuxHost, TmuxHosts, TmuxSession};
 
 /// Whether the Sessions view shows, in place of the projects' rows or the threads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -30,8 +31,9 @@ impl SessionsView {
 impl Rail {
     pub(super) fn render_sessions(&self, cx: &Context<Self>) -> impl IntoElement {
         let mut children: Vec<AnyElement> = Vec::new();
+        let choices = crate::tmux_sessions::host_choices(cx);
         if let Some(tmux) = cx.try_global::<TmuxHosts>() {
-            let attached = self.tmux_attached_here(tmux, cx);
+            let attached = self.tmux_attached_here(cx);
             for host in &tmux.hosts {
                 children.push(host_heading(host, cx));
                 if let Some(words) = crate::tmux_sessions::error_words(host) {
@@ -49,26 +51,37 @@ impl Rail {
                 }
                 if let Listing::Sessions(sessions) = &host.listing {
                     for session in sessions {
-                        let here = attached.contains(&(host.name.clone(), session.name.clone()));
+                        let here = attached.contains(&SessionKey {
+                            host: host.name.clone(),
+                            session: session.name.clone(),
+                        });
                         children.push(self.session_row(host, session, here, cx));
                     }
                 }
             }
-            if tmux.hosts.is_empty() {
+            if tmux.hosts.is_empty() && choices.is_empty() {
                 children.push(
                     div()
                         .px_2()
                         .py_1()
                         .child(
-                            Label::new("No host is looked on. Tick one below.")
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
+                            Label::new(
+                                "No host can be looked on: install tmux, or save an ssh host.",
+                            )
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
                         )
                         .into_any_element(),
                 );
             }
         }
-        children.push(host_choices(cx));
+        // Each host Marley could look on and does not, as a row of the list (#930, D2).
+        children.extend(
+            choices
+                .into_iter()
+                .filter(|choice| !choice.listed)
+                .map(|choice| not_looked_on(choice, cx)),
+        );
         children.push(
             div()
                 .px_2()
@@ -144,7 +157,12 @@ impl Rail {
             SharedString::from(format!("marley-rail-session-{element}")),
             format!("marley-rail-session-icon-{element}"),
             false,
-            RowIcon::new(icon, ItemKind::Tmux, None),
+            // A session not attached here fades (#930, D1).
+            RowIcon::new(icon, ItemKind::Tmux, None).with_fade(if here {
+                TileFade::Full
+            } else {
+                TileFade::Faded
+            }),
             title,
             vec![RowLine::muted(format!("{under} · {state} · {windows}"))],
             cx,
@@ -193,24 +211,21 @@ impl Rail {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let attached =
+            crate::tmux_sessions::attached_tab(&self.window_workspaces(cx), host, session, cx);
+        if let Some(tab) = attached {
+            self.activate_terminal(
+                &tab.workspace.downgrade(),
+                &tab.view.downgrade(),
+                window,
+                cx,
+            )
+            .log_err();
+            return;
+        }
         let Some(tmux) = cx.try_global::<TmuxHosts>() else {
             return;
         };
-        let attached = self.snapshot.terminals.values().find(|entry| {
-            entry.view.upgrade().is_some_and(|view| {
-                let terminal = view.read(cx).terminal().read(cx);
-                terminal.task().is_some_and(|task| {
-                    tmux.attach_of(&task.spawned_task.full_label)
-                        .is_some_and(|attach| attach.host == *host && attach.session == session)
-                })
-            })
-        });
-        if let Some(entry) = attached {
-            let (workspace, view) = (entry.workspace.clone(), entry.view.clone());
-            self.activate_terminal(&workspace, &view, window, cx)
-                .log_err();
-            return;
-        }
         let place = tmux
             .hosts
             .iter()
@@ -258,50 +273,57 @@ fn host_heading(host: &TmuxHost, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-/// HOSTS TO LOOK ON: this machine and each saved ssh host, ticked while Marley looks on it.
-fn host_choices(cx: &App) -> AnyElement {
-    let choices = crate::tmux_sessions::host_choices(cx);
+/// A host Marley could look on and does not (#930): its name by a grey dot, "Not looked on yet."
+/// and Add to tmux hosts, which adds it to `marley.tmux_hosts`.
+fn not_looked_on(choice: HostChoice, cx: &App) -> AnyElement {
+    let name = choice.name.clone();
     v_flex()
-        .debug_selector(|| "marley-rail-session-hosts".into())
-        .pt_4()
-        .gap_1()
-        .child(
-            div().px_2().child(
-                Label::new("HOSTS TO LOOK ON")
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted),
-            ),
-        )
-        .children(choices.into_iter().map(|choice| {
+        .debug_selector({
             let name = choice.name.clone();
-            let state = if choice.listed {
-                ToggleState::Selected
-            } else {
-                ToggleState::Unselected
-            };
+            move || format!("marley-rail-session-host-{name}")
+        })
+        .px_2()
+        .pt_2()
+        .pb_1()
+        .gap_0p5()
+        .child(
             h_flex()
-                .px_2()
-                .gap_2()
+                .gap_1p5()
                 .child(
-                    Checkbox::new(
-                        SharedString::from(format!("marley-rail-tmux-host-{}", choice.name)),
-                        state,
-                    )
-                    .on_click(move |state, _, cx| {
-                        crate::tmux_sessions::set_listed(
-                            &name,
-                            *state == ToggleState::Selected,
-                            cx,
-                        );
-                    }),
+                    div()
+                        .size_1p5()
+                        .flex_none()
+                        .rounded_full()
+                        .bg(cx.theme().colors().text_muted),
                 )
-                .child(Label::new(choice.label).size(LabelSize::Small))
                 .child(
-                    Label::new(choice.from)
+                    Label::new(choice.label)
+                        .size(LabelSize::Small)
+                        .weight(gpui::FontWeight::SEMIBOLD)
+                        .color(Color::Muted),
+                ),
+        )
+        .child(
+            h_flex()
+                .gap_1()
+                .child(
+                    Label::new("Not looked on yet.")
                         .size(LabelSize::XSmall)
                         .color(Color::Muted),
                 )
-        }))
+                .child(
+                    Button::new(
+                        SharedString::from(format!("marley-rail-tmux-add-{}", choice.name)),
+                        "Add to tmux hosts",
+                    )
+                    .label_size(LabelSize::XSmall)
+                    .style(ButtonStyle::Transparent)
+                    .color(Color::Accent)
+                    .on_click(move |_, _, cx| {
+                        crate::tmux_sessions::set_listed(&name, true, cx);
+                    }),
+                ),
+        )
         .into_any_element()
 }
 

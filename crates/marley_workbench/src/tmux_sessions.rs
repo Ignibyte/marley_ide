@@ -9,14 +9,19 @@
 //! project on that host it runs there as the project's own task. Closing an attach's tab asks
 //! whether to end the session or only hide it (`close_guard`).
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-use gpui::{App, AsyncApp, BackgroundExecutor, Context, Global, SharedString, Task, Window};
+use gpui::{
+    App, AsyncApp, BackgroundExecutor, Context, Entity, Global, SharedString, Task, Window,
+};
 use marley_agent::AgentKind;
 use marley_remote::SessionName;
 use settings::SettingsStore;
+use terminal::TaskStatus;
+use terminal_view::TerminalView;
 use workspace::Workspace;
 use workspace::notifications::DetachAndPromptErr as _;
 
@@ -707,6 +712,59 @@ pub(crate) fn report(result: anyhow::Result<()>, window: &Window, cx: &App) {
 }
 
 /// A host the rail's Sessions view offers to look on (#832).
+/// A tmux session by its host's name and its own (#930).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct SessionKey {
+    pub(crate) host: SharedString,
+    pub(crate) session: String,
+}
+
+/// The terminal a session is attached in here, and the workspace that holds it (#930).
+pub(crate) struct AttachedTab {
+    pub(crate) workspace: Entity<Workspace>,
+    pub(crate) view: Entity<TerminalView>,
+}
+
+/// The sessions attached in `workspaces` (#930, D3): a running terminal there whose task is
+/// Marley's attach of the session. The rail and the Sessions page both ask here.
+pub(crate) fn attached_here(workspaces: &[Entity<Workspace>], cx: &App) -> HashSet<SessionKey> {
+    crate::mcp::terminals_of(workspaces.to_vec(), cx)
+        .iter()
+        .filter_map(|terminal| attach_key(&terminal.1, cx))
+        .collect()
+}
+
+/// The tab of `workspaces` the session `session` on `host` is attached in, if one is.
+pub(crate) fn attached_tab(
+    workspaces: &[Entity<Workspace>],
+    host: &str,
+    session: &str,
+    cx: &App,
+) -> Option<AttachedTab> {
+    crate::mcp::terminals_of(workspaces.to_vec(), cx)
+        .into_iter()
+        .find(|terminal| {
+            attach_key(&terminal.1, cx)
+                .is_some_and(|key| key.host == host && key.session == session)
+        })
+        .map(|(workspace, view)| AttachedTab { workspace, view })
+}
+
+/// The session `view`'s running task attaches, when it is Marley's attach.
+fn attach_key(view: &Entity<TerminalView>, cx: &App) -> Option<SessionKey> {
+    let tmux = cx.try_global::<TmuxHosts>()?;
+    let terminal = view.read(cx).terminal().read(cx);
+    let task = terminal.task()?;
+    if task.status != TaskStatus::Running {
+        return None;
+    }
+    let attach = tmux.attach_of(&task.spawned_task.full_label)?;
+    Some(SessionKey {
+        host: attach.host.clone(),
+        session: attach.session.clone(),
+    })
+}
+
 pub(crate) struct HostChoice {
     /// The name `marley.tmux_hosts` gives it.
     pub(crate) name: SharedString,

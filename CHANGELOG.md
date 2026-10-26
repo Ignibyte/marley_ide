@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **tmux sessions as the board draws them** (#930, 2026-10-25). In the rail's Sessions view a
+  session not attached in this window fades, and a host Marley could look on and does not is a
+  row with Add to tmux hosts. The Sessions page heads its table, shows each session's state as a
+  chip (attached here, attached elsewhere, detached), offers Show on a session attached here,
+  counts all three in its header, and lists the hosts to look on as checkboxes. The bottom row's
+  tmux chip opens the page.
+
 - **More of the terminal as the board draws it** (#929, 2026-10-25). A table tab has a header with
   its kind, its name and "N rows · from <command>". A terminal restored after a restart shows
   "Marley started again · HH:MM" between its restored blocks and the live prompt. A remote

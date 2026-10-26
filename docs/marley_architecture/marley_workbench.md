@@ -2430,8 +2430,8 @@ alike.
   is `send_block::send(.., Request::Fix, ..)`); then "running: …" or "no command running" (left
   out while the failed chip shows), `blocks_words`, the grid size from
   `last_content().terminal_bounds`, and `tmux_chip` (sessions and detached ones from `TmuxHosts`,
-  on `ItemKind::Tmux`'s tint), whose click defers `show_tmux_sessions`: the strip toggled off,
-  the sidebar opened, then `Rail::show_sessions`.
+  on `ItemKind::Tmux`'s tint), whose click defers `sessions_page::OpenSessionsPage` (#930, D5;
+  #908 opened the rail's view), so the page opens whether the rail is open, shrunk or hidden.
 - **The bottom row for a thread (#907).** `thread_activity.rs`: `ThreadActivity { status, doing,
   since }` from a conversation (the newest tool call still open, "thinking", "N files changed",
   "idle", "failed"; since the turn started while it works or waits) and `elapsed_words`; #910's
@@ -4762,6 +4762,20 @@ below describe what #743 retired.
   terminal with Show Diff (Zed's `CommitView`), Keep and Undo This Turn… (`turn_undo`).
 
 ## The Sessions page (`src/sessions_page.rs`, #861)
+
+- **As the board draws it (#930).** `tmux_sessions::attached_here(workspaces)` and
+  `attached_tab(workspaces, host, session)` answer "attached here" for the rail and the page
+  alike (`SessionKey`, `AttachedTab`; a running terminal of the window whose task is Marley's
+  attach). The page's `Row.state` is a `SessionState`; `render_columns` heads the table at the
+  rows' widths; `state_chip` draws attached here (success), attached elsewhere (warning) or
+  detached (quiet); a row attached here offers Show (`show_or_attach`, through
+  `browser::reveal_terminal`), the rest Attach. The header counts "N on H hosts · A attached here
+  · E attached elsewhere · D detached", the elsewhere part only when E is not zero. The hosts are
+  `ui::Checkbox`es under HOSTS TO LOOK ON, "looking" or "not listed", with `marley.tmux_hosts` at
+  the foot. In the rail's Sessions view, a session not attached here draws its tile faded
+  (`RowIcon::with_fade(TileFade::Faded)`, 0.55 in `row_card`), and each host `host_choices`
+  offers and Marley does not look on is a row (`not_looked_on`): a grey dot, "Not looked on yet."
+  and Add to tmux hosts; the rail's checkbox block is gone.
 
 - `marley: open sessions page`, or Open as a Page under the rail's Sessions view, opens
   `SessionsPage`, which observes the `TmuxHosts` global the rail's view reads. `rows` flattens
