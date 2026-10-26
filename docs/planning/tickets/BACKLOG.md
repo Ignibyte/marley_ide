@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-934](open/TICKET-934-agent-activity-lists-rustys-calls.md) | feature | Agent Activity lists Rusty's calls (design review 2026-10-23) |
 | [TICKET-935](open/TICKET-935-fleet-as-a-centre-tab.md) | feature | The Fleet tab with the snapshot beside the list (design review 2026-10-23) |
 | [TICKET-936](open/TICKET-936-component-library-as-the-board.md) | feature | The Component Library as the board draws it (design review 2026-10-23) |
 | [TICKET-937](open/TICKET-937-system-one-page.md) | feature | A System One page (design review 2026-10-23) |

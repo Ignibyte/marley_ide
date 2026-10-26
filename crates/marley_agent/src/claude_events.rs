@@ -106,8 +106,11 @@ pub struct HookEvent {
     pub tool_use_id: Option<String>,
     /// The last message, for `Stop`, `StopFailure` and `SubagentStop`.
     pub message: Option<String>,
-    /// The error type, for `StopFailure`.
+    /// The error type, for `StopFailure`; an MCP tool's error's first line, for
+    /// `PostToolUseFailure` (#934).
     pub error: Option<String>,
+    /// An MCP tool's result's first line, for `PostToolUse` (#934).
+    pub result: Option<String>,
     /// Why the session started, for `SessionStart`.
     pub source: Option<String>,
     /// Why the session ended, for `SessionEnd`: `clear`, `resume`, `logout`, `prompt_input_exit`

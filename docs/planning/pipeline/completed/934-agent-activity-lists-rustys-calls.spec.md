@@ -1,7 +1,7 @@
 ---
 pipeline_id: d9425938-58ff-4d71-adbd-ad5980b86cb2
 ticket: docs/planning/tickets/open/TICKET-934-agent-activity-lists-rustys-calls.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Agent Activity lists Rusty's calls
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

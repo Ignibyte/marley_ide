@@ -2696,6 +2696,19 @@ alike.
   `AgentMark::from_client` for a client's `initialize` name: `claude-code` CC, `codex…` CX, any
   other its first letter, as Zed's Z). Every new field has a serde default and is skipped when
   empty, so rows written before still read (D7).
+- **Rusty's calls (#934).** Marley does not carry them, so it reads Claude Code's own reports.
+  `follow_threads` (`observe_new::<AcpThread>`, `subscribe_self` on `NewEntry` and
+  `EntryUpdated`) takes a tool call whose `_meta.claudeCode.toolName` (claude-agent-acp's) is
+  `mcp__rusty__<tool>` (`rusty_tool`, by `rusty::CONTEXT_SERVER`). The `RustyCalls` global keeps,
+  per thread, the ids seen unfinished. A finished call is logged only when its id was there,
+  so a thread loaded from history adds no rows. `on_frame` hands each decoded hook event to
+  `record_rusty_event`, which takes `PostToolUse` (`HookEvent.result`) and
+  `PostToolUseFailure` (`error`). `record_rusty` skips tools that only read (`rusty_lists`:
+  the `RUSTY_READS` endings and `changes_since`) and a `secret_` tool's text. It writes the row
+  with `server: Server::Rusty`; `Outcome::Failed` draws in the error colour, and `tool_words`
+  prefixes `rusty ·` unless Rusty's entry called. The plugin's `event.py` adds `result` and
+  `error` (first line, 120 characters) for `mcp__` tools, dropped before the shown fields when the
+  frame is over its bound.
 - **Home's page (`home_page::ensure`).** After inserting the page at index 0, it activates the tab
   that was active. `Pane::add_item_inner` moves no active index for an item it doesn't activate,
   so the page used to take the front.

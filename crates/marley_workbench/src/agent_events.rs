@@ -311,6 +311,8 @@ pub(crate) fn on_frame(
             return None;
         }
     };
+    // A call to Rusty's tools, which Marley does not carry, listed in Agent Activity (#934).
+    crate::agent_activity::record_rusty_event(&event, cx);
     // The lead's session, which a restart resumes (#540).
     if event.agent_id.is_none() {
         let terminal = view.terminal().clone();

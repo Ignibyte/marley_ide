@@ -180,7 +180,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 |---|---|
 | Settings window and every setting's control (done, #844, 2026-10-21; lists and maps stay in settings.json) | Settings, SettingsAll, Keymap |
 | Rusty: Tasks (done, #845, 2026-10-21), Decisions and Follow Up (done, #874), Brain and pages (done, #875), Memory, Skills, Secrets, Capture, Rusty's Server (done, #876) | Tasks, MoreTabs, BrainPage, RustyTabs, RustyServer, Knowledge |
-| MCP Servers (done, #846, 2026-10-21; the consent and pairing questions #871; the subtitle, agent tiles, pills, chips and Marley's own card, #933, 2026-10-25), Agent Activity (the row cards with each call's result or reason, #933, 2026-10-25), the server form, what agents may do | Tools, MoreForms, AgentAccess |
+| MCP Servers (done, #846, 2026-10-21; the consent and pairing questions #871; the subtitle, agent tiles, pills, chips and Marley's own card, #933, 2026-10-25), Agent Activity (the row cards with each call's result or reason, #933, 2026-10-25; Rusty's calls, #934, 2026-10-25), the server form, what agents may do | Tools, MoreForms, AgentAccess |
 | System One (done, #847, 2026-10-21) | SystemOne |
 | Fleet panel (done, #848, 2026-10-21), the session tab (done, #878), harness sessions in the rail, scheduled runs and the seat form (done, #886), 2026-10-22 | Fleet, MoreTabs, OpenConnect |
 | Component Library (done, #849, 2026-10-21) and Component tabs | Components, MoreTabs |

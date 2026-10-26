@@ -3,21 +3,29 @@
 //! Every call an agent makes to a write-tier tool of Marley's MCP server (typing into and running
 //! in terminals, the browser's clicks and typing, settings and keymap changes, harness seats) is a
 //! row in a day log under Marley's data directory and in the Agent Activity tab: who called, the
-//! tool, what it acted on, and how it ended: its result's line or the refusal's reason (#933). While `marley.agent_control.stopped` is on, those
+//! tool, what it acted on, and how it ended: its result's line or the refusal's reason (#933).
+//!
+//! Calls to Rusty's tools are listed too (#934), though Marley does not carry them: Claude Code
+//! reports each one, in an Agent Panel thread through its adapter's tool calls, and in a Marley
+//! terminal through the plugin's hook events. While `marley.agent_control.stopped` is on, those
 //! tools refuse every agent; the tools that only read keep answering.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use ::fs::Fs;
+use acp_thread::{
+    AcpThread, AcpThreadEvent, AgentThreadEntry, ToolCall, ToolCallContent, ToolCallStatus,
+};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui::{
-    App, AppContext as _, Context, EventEmitter, FocusHandle, Focusable, Global, Render,
+    App, AppContext as _, Context, EntityId, EventEmitter, FocusHandle, Focusable, Global, Render,
     SharedString, Subscription, WeakEntity, Window, actions,
 };
+use marley_agent::claude_events::HookEvent;
 use marley_mcp::redact::Redactor;
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use serde::{Deserialize, Serialize};
@@ -61,8 +69,9 @@ const SUMMARY_CHARS: usize = 160;
 /// How long a call's result or reason may be, in characters (#933, D5).
 const RESULT_CHARS: usize = 120;
 
-/// The arguments a row's summary is taken from, the first one present.
-const SUMMARY_FIELDS: [&str; 7] = [
+/// The arguments a row's summary is taken from, the first one present. `title` and `slug` name
+/// what Rusty's tools act on (#934).
+const SUMMARY_FIELDS: [&str; 9] = [
     "command",
     "text",
     "url",
@@ -70,6 +79,13 @@ const SUMMARY_FIELDS: [&str; 7] = [
     "keystrokes",
     "name",
     "path",
+    "title",
+    "slug",
+];
+
+/// The endings of Rusty's tools that only read, which are not listed (#934, D4).
+const RUSTY_READS: [&str; 9] = [
+    "_list", "_view", "_search", "_read", "_get", "_preview", "_graph", "_due", "_status",
 ];
 
 /// One call of a write-tier tool.
@@ -83,6 +99,9 @@ pub(crate) struct ActivityRow {
     /// name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) agent: Option<AgentMark>,
+    /// Whose tool it was (#934); Marley's in rows written before.
+    #[serde(default)]
+    pub(crate) server: Server,
     pub(crate) tool: String,
     /// What it acted on: a command, a URL, a key, cut to a line and redacted.
     pub(crate) summary: String,
@@ -104,7 +123,43 @@ pub(crate) enum Outcome {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
+    /// It ran and failed (#934): a Rusty call Claude Code reported failed.
+    Failed {
+        /// The error's first line.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
 }
+
+/// The server whose tool a row's call used (#934).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Server {
+    #[default]
+    Marley,
+    Rusty,
+}
+
+/// A call to one of Rusty's tools, as Claude Code reported it (#934).
+pub(crate) struct RustyCall {
+    /// The caller in words.
+    pub(crate) who: String,
+    pub(crate) agent: Option<AgentMark>,
+    /// The tool's own name, without Claude Code's `mcp__rusty__`.
+    pub(crate) tool: String,
+    /// What it acted on, before redaction.
+    pub(crate) summary: String,
+    /// How it ended, its line before redaction.
+    pub(crate) outcome: Outcome,
+}
+
+/// Per Agent Panel thread, the ids of the Rusty calls this run saw unfinished (#934, D3).
+#[derive(Default)]
+struct RustyCalls {
+    open: HashMap<EntityId, HashSet<String>>,
+}
+
+impl Global for RustyCalls {}
 
 /// How [`render_rows`] lays a row out: the tab's card, or Home's compact line (#933, D6).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,6 +208,7 @@ pub fn init(cx: &mut App) {
         }
     })
     .detach();
+    follow_threads(cx);
     cx.observe_new(|workspace: &mut Workspace, _, _: &mut Context<Workspace>| {
         workspace.register_action(|_, _: &StopAgentControl, _, cx| set_stopped(true, cx));
         workspace.register_action(|_, _: &ResumeAgentControl, _, cx| set_stopped(false, cx));
@@ -209,6 +265,7 @@ pub(crate) fn log(call: &mut AppCall, cx: &App) {
                 time: now(),
                 who: caller.words,
                 agent: caller.mark,
+                server: Server::Marley,
                 tool,
                 summary,
                 outcome,
@@ -216,6 +273,219 @@ pub(crate) fn log(call: &mut AppCall, cx: &App) {
             .log_err();
         });
     }
+}
+
+/// Follows every Agent Panel thread for the calls its agent makes to Rusty's tools (#934).
+fn follow_threads(cx: &mut App) {
+    cx.set_global(RustyCalls::default());
+    cx.observe_new(|_: &mut AcpThread, _, cx: &mut Context<AcpThread>| {
+        cx.subscribe_self(|thread: &mut AcpThread, event: &AcpThreadEvent, cx| {
+            let index = match event {
+                AcpThreadEvent::NewEntry => thread.entries().len().checked_sub(1),
+                AcpThreadEvent::EntryUpdated(index) => Some(*index),
+                _ => None,
+            };
+            if let Some(index) = index {
+                on_thread_entry(thread, index, cx);
+            }
+        })
+        .detach();
+        let thread = cx.entity_id();
+        cx.on_release(move |_, cx| {
+            cx.default_global::<RustyCalls>().open.remove(&thread);
+        })
+        .detach();
+    })
+    .detach();
+}
+
+/// Logs the thread's entry at `index` when it is a call to one of Rusty's tools that finished
+/// after this run saw it unfinished, so a thread loaded from history adds no rows (D3).
+fn on_thread_entry(thread: &AcpThread, index: usize, cx: &mut Context<AcpThread>) {
+    let Some(AgentThreadEntry::ToolCall(call)) = thread.entries().get(index) else {
+        return;
+    };
+    let Some(tool) = claude_tool_name(call).and_then(rusty_tool) else {
+        return;
+    };
+    let id = call.id.0.to_string();
+    let thread_id = cx.entity_id();
+    let outcome = match call.status() {
+        ToolCallStatus::Pending
+        | ToolCallStatus::WaitingForConfirmation
+        | ToolCallStatus::InProgress => {
+            cx.default_global::<RustyCalls>()
+                .open
+                .entry(thread_id)
+                .or_default()
+                .insert(id);
+            return;
+        }
+        ToolCallStatus::Completed => Outcome::Done {
+            result: first_text(call, cx),
+        },
+        ToolCallStatus::Failed => Outcome::Failed {
+            error: first_text(call, cx),
+        },
+        ToolCallStatus::Rejected => Outcome::Done {
+            result: Some("you refused".to_string()),
+        },
+        ToolCallStatus::Canceled => Outcome::Done {
+            result: Some("canceled".to_string()),
+        },
+    };
+    let seen = cx
+        .default_global::<RustyCalls>()
+        .open
+        .get_mut(&thread_id)
+        .is_some_and(|calls| calls.remove(&id));
+    if !seen {
+        return;
+    }
+    let agent_id = thread.connection().agent_id();
+    let agent = AgentMark::from_agent_id(&agent_id);
+    let who = match agent {
+        AgentMark::Claude => "Claude Code".to_string(),
+        AgentMark::Codex => "Codex".to_string(),
+        _ => agent_id.0.to_string(),
+    };
+    let summary = call
+        .raw_input
+        .as_ref()
+        .map(picked_argument)
+        .unwrap_or_default();
+    record_rusty(
+        RustyCall {
+            who,
+            agent: Some(agent),
+            tool: tool.to_string(),
+            summary,
+            outcome,
+        },
+        cx,
+    );
+}
+
+/// The Claude Code tool a thread's call ran, which claude-agent-acp puts in the call's
+/// `_meta.claudeCode.toolName`; else the call's title when it is such a name.
+fn claude_tool_name(call: &ToolCall) -> Option<&str> {
+    call.meta
+        .as_ref()
+        .and_then(|meta| meta.get("claudeCode"))
+        .and_then(|claude| claude.get("toolName"))
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| {
+            call.name
+                .as_deref()
+                .filter(|name| name.starts_with("mcp__"))
+        })
+}
+
+/// The first line of a thread's call's text, else of its raw output.
+fn first_text(call: &ToolCall, cx: &App) -> Option<String> {
+    let text: String = call
+        .content()
+        .iter()
+        .filter_map(|content| match content {
+            ToolCallContent::ContentBlock { block, .. } => block.text_content(cx),
+            _ => None,
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    let text = if text.trim().is_empty() {
+        match call.raw_output.as_ref()? {
+            serde_json::Value::String(output) => output.clone(),
+            other => other.to_string(),
+        }
+    } else {
+        text
+    };
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_string)
+}
+
+/// Lists a call to Rusty's tools from a hook event of Claude Code in a Marley terminal (#934):
+/// a `PostToolUse` or `PostToolUseFailure` of an `mcp__rusty__` tool.
+pub(crate) fn record_rusty_event(event: &HookEvent, cx: &App) {
+    let outcome = match event.event.as_str() {
+        "PostToolUse" => Outcome::Done {
+            result: event.result.clone(),
+        },
+        "PostToolUseFailure" => Outcome::Failed {
+            error: event.error.clone(),
+        },
+        _ => return,
+    };
+    let Some(tool) = event.tool.as_deref().and_then(rusty_tool) else {
+        return;
+    };
+    record_rusty(
+        RustyCall {
+            who: "Claude Code".to_string(),
+            agent: Some(AgentMark::Claude),
+            tool: tool.to_string(),
+            summary: event.preview.clone().unwrap_or_default(),
+            outcome,
+        },
+        cx,
+    );
+}
+
+/// A Claude Code tool name's own tool when it is one of Rusty's: `mcp__rusty__<tool>`, by the
+/// name Marley and Rusty's entry give Rusty's server (D2).
+fn rusty_tool(claude_name: &str) -> Option<&str> {
+    claude_name
+        .strip_prefix("mcp__")?
+        .strip_prefix(crate::rusty::CONTEXT_SERVER)?
+        .strip_prefix("__")
+        .filter(|tool| !tool.is_empty())
+}
+
+/// Whether a call to Rusty's `tool` is listed: every tool but those that only read (D4).
+/// `brain_ask` is listed, since it records a consultation.
+fn rusty_lists(tool: &str) -> bool {
+    tool != "changes_since" && !RUSTY_READS.iter().any(|ending| tool.ends_with(ending))
+}
+
+/// Logs `call`, redacted and cut, unless its tool only reads. A secret tool's result text is
+/// never kept (D6).
+pub(crate) fn record_rusty(call: RustyCall, cx: &App) {
+    if !rusty_lists(&call.tool) {
+        return;
+    }
+    let Some(activity) = cx.try_global::<AgentActivity>() else {
+        return;
+    };
+    let redactor = crate::mcp::model_redactor(cx);
+    let secret = call.tool.starts_with("secret_");
+    let line = |line: Option<String>| {
+        line.filter(|_| !secret)
+            .map(|line| shortened(&line, &redactor))
+    };
+    let outcome = match call.outcome {
+        Outcome::Done { result } => Outcome::Done {
+            result: line(result),
+        },
+        Outcome::Failed { error } => Outcome::Failed { error: line(error) },
+        Outcome::Refused { code, reason } => Outcome::Refused {
+            code,
+            reason: line(reason),
+        },
+    };
+    activity
+        .log
+        .unbounded_send(ActivityRow {
+            time: now(),
+            who: call.who,
+            agent: call.agent,
+            server: Server::Rusty,
+            tool: call.tool,
+            summary: summary_line(&call.summary, cx),
+            outcome,
+        })
+        .log_err();
 }
 
 /// The line a row shows for `answer` (#933, D5): a receipt's choice (#367), an exit code, a run
@@ -313,7 +583,12 @@ fn trim(rows: &mut VecDeque<ActivityRow>) {
 /// What a call acts on, in a line: the first of [`SUMMARY_FIELDS`] it carries, else its
 /// arguments, redacted whatever agents' redaction says, and cut to [`SUMMARY_CHARS`].
 fn summary(arguments: &serde_json::Value, cx: &App) -> String {
-    let picked = SUMMARY_FIELDS
+    summary_line(&picked_argument(arguments), cx)
+}
+
+/// The first of [`SUMMARY_FIELDS`] `arguments` carries, else all of them, as text.
+fn picked_argument(arguments: &serde_json::Value) -> String {
+    SUMMARY_FIELDS
         .iter()
         .find_map(|field| arguments.get(*field))
         .map_or_else(
@@ -322,12 +597,26 @@ fn summary(arguments: &serde_json::Value, cx: &App) -> String {
                 serde_json::Value::String(text) => text.clone(),
                 other => other.to_string(),
             },
-        );
-    let line = picked.lines().next().unwrap_or_default();
+        )
+}
+
+/// `text`'s first line, redacted and cut to [`SUMMARY_CHARS`].
+fn summary_line(text: &str, cx: &App) -> String {
+    let line = text.lines().next().unwrap_or_default();
     cut(
         crate::mcp::model_redactor(cx).redact(line).text,
         SUMMARY_CHARS,
     )
+}
+
+/// The tool a row names: a Rusty tool called by any agent but Rusty's entry carries the server,
+/// so it is never in doubt (#934, D5).
+fn tool_words(row: &ActivityRow) -> String {
+    if row.server == Server::Rusty && row.agent != Some(AgentMark::Rusty) {
+        format!("{} \u{b7} {}", crate::rusty::CONTEXT_SERVER, row.tool)
+    } else {
+        row.tool.clone()
+    }
 }
 
 /// The log's folder under Marley's data directory.
@@ -470,7 +759,11 @@ fn minute(row: &ActivityRow) -> String {
 /// Home's line for a row, as the Home board draws it: time, tool, what (#933, D6).
 fn render_line(row: ActivityRow, cx: &App) -> AnyElement {
     let minute = minute(&row);
-    let refused = matches!(row.outcome, Outcome::Refused { .. });
+    let refused = matches!(
+        row.outcome,
+        Outcome::Refused { .. } | Outcome::Failed { .. }
+    );
+    let tool = tool_words(&row);
     h_flex()
         .w_full()
         .gap_2()
@@ -485,7 +778,7 @@ fn render_line(row: ActivityRow, cx: &App) -> AnyElement {
         )
         .child(
             div().w_32().flex_none().child(
-                Label::new(row.tool)
+                Label::new(tool)
                     .size(LabelSize::Small)
                     .buffer_font(cx)
                     .color(if refused { Color::Error } else { Color::Accent })
@@ -516,7 +809,12 @@ fn render_card(row: ActivityRow, cx: &App) -> AnyElement {
             reason.clone().unwrap_or_else(|| format!("refused: {code}")),
             Color::Error,
         ),
+        Outcome::Failed { error } => (
+            error.clone().unwrap_or_else(|| "failed".to_string()),
+            Color::Error,
+        ),
     };
+    let tool = tool_words(&row);
     let tile = row.agent.map_or_else(
         || {
             let first = row
@@ -550,7 +848,7 @@ fn render_card(row: ActivityRow, cx: &App) -> AnyElement {
                         .w_full()
                         .gap_2()
                         .child(
-                            Label::new(row.tool)
+                            Label::new(tool)
                                 .size(LabelSize::Small)
                                 .buffer_font(cx)
                                 .color(Color::Accent),

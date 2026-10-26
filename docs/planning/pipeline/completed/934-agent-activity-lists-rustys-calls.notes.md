@@ -89,7 +89,39 @@
   agent bar offers no update, as #508's does with `SHIPPED`.
 
 ## Phase 2 — Code
+- **Built:** `agent_activity.rs` (`Server`, `Outcome::Failed`, `RustyCall`, `RustyCalls`,
+  `follow_threads`, `on_thread_entry`, `claude_tool_name`, `first_text`, `record_rusty_event`,
+  `rusty_tool`, `rusty_lists`, `record_rusty`, `picked_argument`, `summary_line`, `tool_words`;
+  `title` and `slug` join `SUMMARY_FIELDS`), `agent_events.rs` (`on_frame` calls
+  `record_rusty_event` after decoding), `marley_agent` `claude_events.rs` (`HookEvent.result`),
+  the plugin's `event.py` (`first_line`, `MAX_RESULT`, `result` and `error` for `mcp__` tools,
+  both in the drop order) and its version, 1.7.0 to 1.8.0.
+- **Deviations:** a Rejected call is drawn as done with "you refused" and a Canceled one with
+  "canceled", muted, as #933 draws a receipt's refusal; only a call that ran and failed is red.
+  The tool-call ids are kept as strings. The scenario's thread is Marley's entry (an M tile)
+  rather than a custom agent named Rusty: `MARLEY_ASSISTANT_ADAPTER` runs the stand-in with no
+  agent-server settings, and the row then shows D5's "rusty ·" prefix, which an R tile would hide.
+- **Review:** the thread callback reads only the thread it was handed, inside its own event, and
+  the `RustyCalls` global; no render reads it (F-claude-865). Old rows read: `server` defaults to
+  Marley. A finished call never seen unfinished logs nothing (D3).
+- **Gate:** clippy found a borrow of `cx` held across the global (fixed by taking the global
+  twice, after the outcome is read) and a redundant closure. `just gate-diff`: 17 passed.
+- During #933's install `event.py` was edited before the install had finished; the installed
+  binary was searched and holds the old hook (no `first_line`), so the install is the commit's.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/934-agent-activity-lists-rustys-calls.sh` (sway), run in full; every
+  shot read.
+- `934-01-thread`: two cards with the M tile: `rusty · task_update`, "Write the release notes",
+  "no task 42" in red; `rusty · brain_decide`, "Ship the home page", "page written". No
+  `brain_search` row. REQ-001, REQ-003, REQ-004.
+- `934-02-terminal`: a third card on top, CC tile, `rusty · memory_add`, "Claude Code", "The home
+  page ships on Friday", "memory saved". The day file's three lines carry `"server":"rusty"`,
+  the result, and the failed outcome's error. REQ-002, REQ-005.
+- `934-03-day`: the three cards in Marley Day. REQ-001, REQ-002.
+- REQ-006: the review of the diff (the seen set, `on_release`).
 
 ## Phase 4 — Complete
+- CHANGELOG entry; `docs/marley_architecture/marley_workbench.md` (the Agent activity section);
+  the look-plan row. No Zed path, so no touchpoint row.
+- Brain: the consultation closed with `brain decide`.

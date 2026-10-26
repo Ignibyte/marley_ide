@@ -17,6 +17,8 @@ MAX_SUMMARY = 2900
 MAX_PROMPT = 300
 MAX_MESSAGE = 300
 MAX_PREVIEW = 200
+# An MCP tool's result or error line, for Agent Activity (#934).
+MAX_RESULT = 120
 # An AskUserQuestion's options, which the inbox's question route reads (#570).
 MAX_OPTIONS = 8
 MAX_OPTION = 40
@@ -92,6 +94,20 @@ def options(tool_input):
     return labels[:MAX_OPTIONS] or None
 
 
+def first_line(response):
+    """The first non-empty line of a tool's response: a string, a list of text blocks, or an
+    object holding `content` (#934)."""
+    if isinstance(response, dict):
+        response = response.get("content", response.get("result"))
+    if isinstance(response, list):
+        response = "\n".join(block["text"] for block in response
+                              if isinstance(block, dict) and isinstance(block.get("text"), str))
+    if not isinstance(response, str):
+        return None
+    line = next((line.strip() for line in response.splitlines() if line.strip()), None)
+    return cut(line, MAX_RESULT) if line else None
+
+
 def summary(event):
     name = event.get("hook_event_name")
     out = {"v": 1, "event": name}
@@ -113,6 +129,16 @@ def summary(event):
                     out["options"] = labels
         if isinstance(event.get("tool_use_id"), str):
             out["tool_use_id"] = event["tool_use_id"]
+    # An MCP tool's result or error, for Agent Activity (#934).
+    if str(out.get("tool", "")).startswith("mcp__"):
+        if name == "PostToolUse":
+            line = first_line(event.get("tool_response"))
+            if line:
+                out["result"] = line
+        if name == "PostToolUseFailure" and isinstance(event.get("error"), str):
+            line = first_line(event["error"])
+            if line:
+                out["error"] = line
     if name == "PostToolUseFailure" and event.get("is_interrupt") is True:
         out["is_interrupt"] = True
     if name in ("Stop", "StopFailure", "SubagentStop"):
@@ -126,7 +152,8 @@ def summary(event):
             out[key] = event[key]
     # Bound the frame. Paths are short but have no bound, so an overlong one goes first; then a
     # question's options, which no row shows; then the fields the row shows, longest first.
-    for key in ("transcript_path", "cwd", "options", "message", "preview", "prompt"):
+    for key in ("transcript_path", "cwd", "options", "result", "error", "message", "preview",
+                "prompt"):
         if len(json.dumps(out, separators=(",", ":"))) <= MAX_SUMMARY:
             break
         out.pop(key, None)

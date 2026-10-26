@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Agent Activity lists Rusty's calls** (#934, 2026-10-25). Calls Claude Code makes to Rusty's
+  tools that change something are listed beside Marley's own, though Marley does not carry them:
+  from an Agent Panel thread, read off the adapter's tool calls, and from Claude Code in a Marley
+  terminal, through the plugin's hook. Each row names the server ("rusty · brain_decide") unless
+  Rusty's own agent made the call, and shows the result's first line, or the error in red. Calls
+  that only read are left out, as for Marley's tools, and a secret tool's result is never kept.
+  The plugin moves to 1.8.0: its hook now carries an MCP tool's result or error line.
 - **MCP Servers and Agent Activity as the Tools board draws them** (#933, 2026-10-25). MCP
   Servers says what it is for under its title. Each agent's card opens with its lettered tile, its
   name and version over the program's path, and a pill: ready, missing, version unknown or
