@@ -91,7 +91,7 @@ use workspace::{
     Workspace, WorkspaceId,
 };
 
-use crate::playwright_scripts::{self, RunTarget, Scope, Script};
+use crate::playwright_scripts::{self, LastRun, RunResult, RunTarget, Scope, Script};
 use crate::{
     AllowPausedClick, Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload,
     ClearProjectBrowserData, DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress,
@@ -247,6 +247,12 @@ pub enum BrowserEvent {
     ChooserOpened {
         /// The page.
         target: String,
+    },
+    /// A Playwright script's run on a page of the project `project` ended (#932): its tray reads
+    /// the last runs again.
+    ScriptRan {
+        /// The project's key.
+        project: SharedString,
     },
     /// The user picked an element in a page (#496), staged as the pick `id`.
     PickStaged {
@@ -5116,6 +5122,8 @@ pub struct BrowserView {
     /// The saved recordings as the drawer last read them (#892); none before a read.
     recordings: Option<Vec<RecordingRow>>,
     reading_recordings: Option<Task<()>>,
+    /// The recording open under its row, and its minute once read (#932).
+    expanded: Option<ExpandedRecording>,
     /// Why the drawer's last Send went nowhere (#892).
     drawer_error: Option<SharedString>,
     /// The download whose bar the user closed (#896), by its id.
@@ -5152,10 +5160,134 @@ impl Default for GoesWith {
     }
 }
 
+/// A recording opened under its row in the drawer (#932): its id, its minute once read, and the
+/// read.
+struct ExpandedRecording {
+    id: String,
+    minute: Option<Minute>,
+    _reading: Task<()>,
+}
+
+/// A recording's minute as the drawer draws it (#932): twenty bars, one per three seconds, and the
+/// steps.
+#[derive(Clone, Debug, Default)]
+struct Minute {
+    bars: Vec<MinuteBar>,
+    steps: Vec<MinuteStep>,
+}
+
+/// One three-second bar (#932, D2): how much happened in it, and whether a step did.
+#[derive(Clone, Copy, Debug, Default)]
+struct MinuteBar {
+    entries: usize,
+    step: bool,
+}
+
+/// A step of a recording (#932, D3): how long before the save, and what it did, in words.
+#[derive(Clone, Debug)]
+struct MinuteStep {
+    before: SharedString,
+    words: SharedString,
+}
+
+/// The bars a minute is cut into, and the seconds each spans.
+const MINUTE_BARS: usize = 20;
+const BAR_SECONDS: f64 = 3.0;
+
+impl Minute {
+    /// The minute of `timeline`, as `recorder::read_in` gives it.
+    fn of(timeline: &Value) -> Self {
+        let seconds = timeline
+            .get("seconds")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
+        let mut bars = vec![MinuteBar::default(); MINUTE_BARS];
+        let mut steps = Vec::new();
+        let entries = timeline.get("entries").and_then(Value::as_array);
+        for entry in entries.into_iter().flatten() {
+            let kind = entry
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if matches!(kind, "frame" | "snapshot") {
+                continue;
+            }
+            #[allow(clippy::cast_precision_loss)] // milliseconds within a minute
+            let at = entry.get("at_ms").and_then(Value::as_u64).unwrap_or(0) as f64 / 1000.0;
+            let before = (seconds - at).max(0.0);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped below
+            let from_end = (before / BAR_SECONDS).floor() as usize;
+            let index = MINUTE_BARS - 1 - from_end.min(MINUTE_BARS - 1);
+            let words = step_words(entry);
+            if let Some(bar) = bars.get_mut(index) {
+                bar.entries += 1;
+                bar.step |= words.is_some();
+            }
+            if let Some(words) = words {
+                steps.push(MinuteStep {
+                    before: SharedString::from(before_words(before)),
+                    words: SharedString::from(words),
+                });
+            }
+        }
+        Self { bars, steps }
+    }
+}
+
+/// A recorded entry as a step's words (#932, D3), or none when it is no step: a user action or a
+/// navigation to a new document. An element is named by its first locator that reads as words,
+/// never by a fill's text.
+fn step_words(entry: &Value) -> Option<String> {
+    let text = |key: &str| entry.get(key).and_then(Value::as_str);
+    match text("kind")? {
+        "navigation" if entry.get("within").and_then(Value::as_bool) != Some(true) => {
+            let url = url::Url::parse(text("url")?).ok()?;
+            let host = url.host_str()?.to_string();
+            let port = url
+                .port()
+                .map(|port| format!(":{port}"))
+                .unwrap_or_default();
+            let path = url.path().trim_end_matches('/');
+            Some(format!("Open {host}{port}{path}"))
+        }
+        "action" => {
+            let named = entry
+                .get("locators")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .find(|locator| {
+                    matches!(
+                        locator.get("kind").and_then(Value::as_str),
+                        Some("role" | "label" | "placeholder" | "text" | "test id")
+                    )
+                })
+                .and_then(|locator| locator.get("value").and_then(Value::as_str))
+                .unwrap_or("the element");
+            match text("action")? {
+                "click" => Some(format!("Click {named}")),
+                "fill" => Some(format!("Type in {named}")),
+                "press" => Some(format!("Press {}", text("key").unwrap_or("a key"))),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// How long before the save, as "−0:41".
+fn before_words(seconds: f64) -> String {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // a minute's seconds
+    let whole = seconds.round().max(0.0) as u64;
+    format!("\u{2212}{}:{:02}", whole / 60, whole % 60)
+}
+
 /// A Browser tab's Playwright scripts tray (#523), while it is open.
 struct ScriptsTray {
     /// The scripts it lists, read when it opened and after one was made.
     scripts: Vec<Script>,
+    /// Each script's last run, by its path (#932).
+    runs: HashMap<PathBuf, LastRun>,
     /// Its field that names a new script.
     name: Entity<Editor>,
     /// Why its last read or new script failed.
@@ -5359,6 +5491,7 @@ impl BrowserView {
             drawer: Some(Drawer::Console),
             recordings: None,
             reading_recordings: None,
+            expanded: None,
             drawer_error: None,
             download_closed: None,
             goes_with: GoesWith::default(),
@@ -5521,6 +5654,9 @@ impl BrowserView {
                 self.choose_files(window, cx);
             }
             // The user picked in this tab: the pick's caption takes the focus.
+            BrowserEvent::ScriptRan { project } if *project == self.project => {
+                self.read_scripts(cx);
+            }
             BrowserEvent::PickStaged { target: picked, id } if *picked == target => {
                 let caption = self.caption(*id, window, cx);
                 if self.focus_handle.contains_focused(window, cx) {
@@ -6499,6 +6635,7 @@ impl BrowserView {
             });
             self.scripts_tray = Some(ScriptsTray {
                 scripts: Vec::new(),
+                runs: HashMap::default(),
                 name,
                 error: None,
             });
@@ -6511,15 +6648,20 @@ impl BrowserView {
     /// main thread; a tray closed by then takes nothing.
     fn read_scripts(&self, cx: &Context<Self>) {
         let config = paths::config_dir().clone();
+        let data = paths::data_dir().clone();
         let key = self.project.clone();
         cx.spawn(async move |this, cx| {
-            let read = cx
+            let (read, runs) = cx
                 .background_spawn(futures::future::lazy(move |_| {
-                    playwright_scripts::library_in(&config, &key)
+                    (
+                        playwright_scripts::library_in(&config, &key),
+                        playwright_scripts::runs_in(&data),
+                    )
                 }))
                 .await;
             this.update(cx, |this, cx| {
                 if let Some(tray) = this.scripts_tray.as_mut() {
+                    tray.runs = runs;
                     match read {
                         Ok(scripts) => tray.scripts = scripts,
                         Err(error) => {
@@ -6535,7 +6677,6 @@ impl BrowserView {
         .detach();
     }
 
-    /// `marley::NewPlaywrightScript`, Enter in the tray's field: a new script for this project.
     /// Keeps the named script for every project, the field's Ctrl Enter (#931, D6).
     fn new_global_script(
         &mut self,
@@ -6546,6 +6687,7 @@ impl BrowserView {
         self.create_script(Scope::Global, window, cx);
     }
 
+    /// `marley::NewPlaywrightScript`, Enter in the tray's field: a new script for this project.
     fn new_project_script(
         &mut self,
         _: &NewPlaywrightScript,
@@ -6651,7 +6793,8 @@ impl BrowserView {
         playwright_scripts::run(target, script, window, cx);
     }
 
-    /// Saves the page's last minute as a recording, and says so, or why not, in a toast (#499).
+    /// Saves the page's last minute as a recording, then opens the drawer on it, expanded (#932);
+    /// why it could not shows in the drawer's line.
     fn record_this(&mut self, _: &RecordThis, _: &mut Window, cx: &mut Context<Self>) {
         let Some(target) = self.target.clone() else {
             return;
@@ -6667,23 +6810,24 @@ impl BrowserView {
         let saved = self.hub.update(cx, |hub, cx| {
             hub.record(&target, recordings_dir(), project, cx)
         });
-        let workspace = self.workspace.clone();
-        cx.spawn(async move |_, cx| {
-            let message = match saved.await {
-                Ok(id) => format!(
-                    "Saved this page's last minute as recording {id}; agents read it with \
-                     browser_recording."
-                ),
-                Err(error) => format!("Could not save the recording: {error:#}"),
-            };
-            workspace
-                .update(cx, |workspace, cx| {
-                    workspace.show_toast(
-                        Toast::new(NotificationId::unique::<RecordThis>(), message),
-                        cx,
-                    );
-                })
-                .ok();
+        cx.spawn(async move |this, cx| {
+            let saved = saved.await;
+            this.update(cx, |this, cx| {
+                this.drawer = Some(Drawer::Recordings);
+                match saved {
+                    Ok(id) => {
+                        this.drawer_error = None;
+                        this.read_recordings(cx);
+                        this.expand_recording(id, cx);
+                    }
+                    Err(error) => {
+                        this.drawer_error =
+                            Some(format!("Could not save the recording: {error:#}").into());
+                    }
+                }
+                cx.notify();
+            })
+            .log_err();
         })
         .detach();
     }
@@ -7352,7 +7496,15 @@ impl BrowserView {
                 .iter()
                 .flatten()
                 .enumerate()
-                .map(|(index, recording)| Self::recording_row(index, recording, cx))
+                .flat_map(|(index, recording)| {
+                    let minute = self
+                        .expanded
+                        .as_ref()
+                        .filter(|open| open.id == recording.id)
+                        .and_then(|open| open.minute.as_ref())
+                        .map(|minute| Self::render_minute(index, recording, minute, cx));
+                    std::iter::once(Self::recording_row(index, recording, cx)).chain(minute)
+                })
                 .collect(),
         };
         let empty = rows.is_empty().then(|| {
@@ -7404,13 +7556,189 @@ impl BrowserView {
         }));
     }
 
-    /// A recording as the drawer lists it: its title and address, when, how long, and Send.
+    /// Opens the recording `id` under its row and reads its minute off the main thread, or folds
+    /// it when it is open already (#932).
+    fn expand_recording(&mut self, id: String, cx: &mut Context<Self>) {
+        if self.expanded.as_ref().is_some_and(|open| open.id == id) {
+            self.expanded = None;
+            cx.notify();
+            return;
+        }
+        let dir = recordings_dir();
+        let read_id = id.clone();
+        let reading = cx.spawn(async move |this, cx| {
+            let timeline = cx
+                .background_spawn(futures::future::lazy(move |_| {
+                    recorder::read_in(&dir, &read_id)
+                }))
+                .await;
+            this.update(cx, |this, cx| {
+                match timeline {
+                    Ok(timeline) => {
+                        if let Some(open) = this.expanded.as_mut() {
+                            open.minute = Some(Minute::of(&timeline));
+                        }
+                    }
+                    Err(error) => this.drawer_error = Some(error.to_string().into()),
+                }
+                cx.notify();
+            })
+            .log_err();
+        });
+        self.expanded = Some(ExpandedRecording {
+            id,
+            minute: None,
+            _reading: reading,
+        });
+        cx.notify();
+    }
+
+    /// Draft a test (#932, D4): the draft an agent would get, through the agents' redactor, in a
+    /// new unsaved TypeScript buffer headed by its suggested path and run command. Nothing is
+    /// written; a refusal shows in the drawer's line.
+    fn draft_test(&self, id: String, window: &Window, cx: &Context<Self>) {
+        let redactor = crate::mcp::agent_redactor(cx);
+        let drafting = cx.background_spawn(futures::future::lazy(move |_| {
+            crate::browser_tools::draft_in(&recordings_dir(), &id, redactor.as_deref())
+        }));
+        let workspace = self.workspace.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let draft = match drafting.await {
+                Ok(draft) => draft,
+                Err(why) => {
+                    this.update(cx, |this, cx| {
+                        this.drawer_error = Some(format!("Could not draft a test: {why}").into());
+                        cx.notify();
+                    })
+                    .log_err();
+                    return;
+                }
+            };
+            let text = |key: &str| draft.get(key).and_then(Value::as_str).unwrap_or_default();
+            let contents = format!(
+                "// Drafted from a recording. Save it as {}\n// and run it with: {}\n\n{}",
+                text("path"),
+                text("run"),
+                text("test")
+            );
+            workspace
+                .update_in(cx, |workspace, window, cx| {
+                    open_draft(workspace, &contents, window, cx);
+                })
+                .log_err();
+        })
+        .detach();
+    }
+
+    /// A recording's minute under its row (#932): the bars, the steps at their times, and Draft a
+    /// test and Send to the agent.
+    fn render_minute(
+        index: usize,
+        recording: &RecordingRow,
+        minute: &Minute,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors();
+        let most = minute
+            .bars
+            .iter()
+            .map(|bar| bar.entries)
+            .max()
+            .unwrap_or(0)
+            .max(1);
+        let bars = h_flex()
+            .h(px(28.))
+            .items_end()
+            .gap_0p5()
+            .children(minute.bars.iter().map(|bar| {
+                #[allow(clippy::cast_precision_loss)] // counts within a minute
+                let tall = 24.0_f32.mul_add(bar.entries as f32 / most as f32, 4.0);
+                div()
+                    .w(px(10.))
+                    .h(px(if bar.entries == 0 { 2.0 } else { tall }))
+                    .rounded_sm()
+                    .bg(if bar.step {
+                        colors.text_accent
+                    } else {
+                        colors.border
+                    })
+            }));
+        let steps = minute.steps.iter().map(|step| {
+            h_flex()
+                .gap_3()
+                .child(
+                    div().w(px(44.)).flex_none().child(
+                        Label::new(step.before.clone())
+                            .size(LabelSize::XSmall)
+                            .buffer_font(cx)
+                            .color(Color::Muted),
+                    ),
+                )
+                .child(Label::new(step.words.clone()).size(LabelSize::Small))
+        });
+        let (draft_id, line) = (recording.id.clone(), recording_line(recording));
+        v_flex()
+            .ml(px(152.))
+            .mb_1()
+            .p_2()
+            .gap_1p5()
+            .rounded_md()
+            .bg(colors.elevated_surface_background)
+            // The buttons beside the bars, so a long list of steps never hides them.
+            .child(
+                h_flex()
+                    .gap_1()
+                    .child(bars)
+                    .child(div().flex_1())
+                    .child(
+                        crate::prompts::render_button(
+                            100 + index,
+                            "Draft a test",
+                            crate::prompts::Role::Plain,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| {
+                                this.draft_test(draft_id.clone(), window, cx);
+                            },
+                        )),
+                    )
+                    .child(
+                        crate::prompts::render_button(
+                            200 + index,
+                            "Send to the agent",
+                            crate::prompts::Role::Quiet,
+                            false,
+                            cx,
+                        )
+                        .cursor_pointer()
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| {
+                                this.send_from_drawer(line.clone(), window, cx);
+                            },
+                        )),
+                    ),
+            )
+            .children(steps)
+            .into_any_element()
+    }
+
+    /// A recording as the drawer lists it: its title and address, when, how long, and Send; a
+    /// click opens its minute under it (#932).
     fn recording_row(index: usize, recording: &RecordingRow, cx: &Context<Self>) -> AnyElement {
         let line = recording_line(recording);
+        let open_id = recording.id.clone();
         h_flex()
+            .id(("browser-recording", index))
             .w_full()
             .gap_3()
             .py_0p5()
+            .cursor_pointer()
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.expand_recording(open_id.clone(), cx);
+            }))
             .child(
                 div().flex_none().w(px(140.)).child(
                     Label::new(recording.when.clone())
@@ -7454,6 +7782,35 @@ impl BrowserView {
                 })),
             )
             .into_any_element()
+    }
+
+    /// A script's scope, when it last ran and its result, coloured (#932).
+    fn render_last_run(scope: Scope, last: Option<&LastRun>) -> impl IntoElement + use<> {
+        let (when, result, color) = last.map_or_else(
+            || (String::new(), "not run".to_string(), Color::Muted),
+            |run| {
+                let (result, color) = match run.result {
+                    RunResult::Passed => ("passed".to_string(), Color::Success),
+                    RunResult::Failed { exit_code } => {
+                        (format!("failed \u{b7} exit {exit_code}"), Color::Error)
+                    }
+                    RunResult::Unknown => ("ended".to_string(), Color::Muted),
+                };
+                (
+                    format!(" \u{b7} ran {}", ran_words(run.ran_at)),
+                    result,
+                    color,
+                )
+            },
+        );
+        h_flex()
+            .gap_1()
+            .child(
+                Label::new(format!("{}{when} \u{b7}", scope.label()))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .child(Label::new(result).size(LabelSize::XSmall).color(color))
     }
 
     /// The toolbar's Playwright scripts button (#523), lit while the tray is open.
@@ -7971,7 +8328,9 @@ impl BrowserView {
             .scripts
             .iter()
             .enumerate()
-            .map(|(index, script)| Self::render_script_row(index, script, attached, cx))
+            .map(|(index, script)| {
+                Self::render_script_row(index, script, tray.runs.get(&script.path), attached, cx)
+            })
             .collect();
         let empty = tray.scripts.is_empty().then(|| {
             h_flex().h_9().px_2().child(
@@ -8004,24 +8363,25 @@ impl BrowserView {
         )
     }
 
-    /// A script's row in the tray: its name and scope, Run on the tab's page, and Edit.
+    /// A script's row in the tray: its name over its scope, when it last ran and how (#932), Run
+    /// on the tab's page, and Edit.
     fn render_script_row(
         index: usize,
         script: &Script,
+        last: Option<&LastRun>,
         attached: bool,
         cx: &Context<Self>,
     ) -> impl IntoElement + use<> {
         let (run, path) = (script.clone(), script.path.clone());
         h_flex()
             .w_full()
-            .h_9()
+            .py_1()
             .gap_2()
             .px_2()
-            .child(Label::new(script.name.clone()).size(LabelSize::Small))
             .child(
-                Label::new(format!("for {}", script.scope.label()))
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                v_flex()
+                    .child(Label::new(script.name.clone()).size(LabelSize::Small))
+                    .child(Self::render_last_run(script.scope, last)),
             )
             .child(div().flex_1())
             .child(
@@ -8626,6 +8986,51 @@ fn console_line(target: &str, console: &[ConsoleEntry], url: Option<&str>) -> St
     format!(
         "[browser console: {errors} errors in {total} messages{page}; browser_console tab {target}]"
     )
+}
+
+/// Opens `contents` in a new unsaved TypeScript buffer of `workspace` (#932): a drafted test.
+fn open_draft(
+    workspace: &mut Workspace,
+    contents: &str,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let project = workspace.project().clone();
+    let buffer = project.update(cx, |project, cx| {
+        project.create_local_buffer(contents, None, false, cx)
+    });
+    let languages = Arc::clone(project.read(cx).languages());
+    let typed = buffer.downgrade();
+    cx.spawn(async move |_, cx| {
+        if let Ok(language) = languages.language_for_name("TypeScript").await {
+            typed
+                .update(cx, |buffer, cx| buffer.set_language(Some(language), cx))
+                .log_err();
+        }
+    })
+    .detach();
+    let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
+    workspace.add_item_to_active_pane(Box::new(editor), None, true, window, cx);
+}
+
+/// When a run ended, as a script's row says it: "just now", "4 min ago", "2 h ago", or the day.
+fn ran_words(ran_at: u64) -> String {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    match now.saturating_sub(ran_at) {
+        0..60 => "just now".to_string(),
+        seconds @ 60..3600 => format!("{} min ago", seconds / 60),
+        seconds @ 3600..86_400 => format!("{} h ago", seconds / 3600),
+        _ => i64::try_from(ran_at)
+            .ok()
+            .and_then(|seconds| chrono::DateTime::from_timestamp(seconds, 0))
+            .map_or_else(String::new, |at| {
+                at.with_timezone(&chrono::Local)
+                    .format("%b %-d")
+                    .to_string()
+            }),
+    }
 }
 
 /// The line the drawer's Send types for a recording (#892).

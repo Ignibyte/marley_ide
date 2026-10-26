@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #932 (feature, the Marley look, Browser)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [932-recordings-and-script-runs.spec.md](../../pipeline/queued/932-recordings-and-script-runs.spec.md)
+- **Pipeline doc:** [932-recordings-and-script-runs.spec.md](../../pipeline/completed/932-recordings-and-script-runs.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/F-tools.md, board BrowserTools)
 - **Boards:** BrowserTools
 - **Size:** L
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

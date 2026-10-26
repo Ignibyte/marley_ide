@@ -1,7 +1,7 @@
 ---
 pipeline_id: 5dfb1b3e-e8f2-45c9-8b29-463d29d95a5d
 ticket: docs/planning/tickets/open/TICKET-932-recordings-and-script-runs.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Recordings with a timeline and Draft a Test, and scripts' last run
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

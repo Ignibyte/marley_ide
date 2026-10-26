@@ -740,7 +740,7 @@ async fn draft_test(arguments: &Value, cx: &AsyncApp) -> Result<ToolAnswer, Stri
 /// The test drafted from the recording `id` in `dir`, as `browser_draft_test` answers it: the
 /// test, its suggested path in the recording's project, the variables it reads, what it left
 /// out, where it starts and how to run it.
-fn draft_in(dir: &Path, id: &str, redactor: Option<&Redactor>) -> Result<Value, String> {
+pub(crate) fn draft_in(dir: &Path, id: &str, redactor: Option<&Redactor>) -> Result<Value, String> {
     let timeline = recorder::read_in(dir, id).map_err(|error| error.to_string())?;
     let timeline = timeline_for_agents(timeline, redactor, true);
     let draft = playwright::draft(&timeline).map_err(|error| error.to_string())?;

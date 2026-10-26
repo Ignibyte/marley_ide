@@ -5951,6 +5951,13 @@ below describe what #743 retired.
   with none (`about:blank`, `file://`), as Orca's `browserNavigationLeavesFaviconOrigin` does. A
   read that fails logs at debug and leaves the globe. `agent_ended` sets `agent_unseen` when the
   page has no viewer, and `add_viewer` clears it.
+- **Last runs (#932).** `run_command` keeps each run's end as a `LastRun { ran_at, result }`
+  (`RunResult::Passed`, `Failed { exit_code }`, `Unknown`) in `<data>/playwright/runs.json` by the
+  script's path (`record_run_in`; a terminal closed first records nothing) and emits
+  `BrowserEvent::ScriptRan`, on which an open tray reads again. The tray keeps `runs_in`'s map;
+  `render_script_row` shows the name over "<scope> · ran <when> · <result>" (`ran_words`), the
+  result in the success or error colour, "ended" and "not run" muted. `Scope::label` reads "every
+  project" for the global scope.
 
 ## The Fleet panel (`src/fleet.rs`, #607)
 
@@ -6105,6 +6112,15 @@ One agent of the fleet in full, in the center, read-only and not serialized.
 - Since #892 a Recordings tab (`recorder::list_in`, read when chosen) and Send: `send_line`, the
   pick's terminal half, types `console_line` or `recording_line` into the terminal used last,
   refusing as a pick does (`sendable`).
+- **The minute (#932).** A click on a recording's row runs `expand_recording`: `recorder::read_in`
+  off the main thread into a `Minute` (`Minute::of`): twenty `MinuteBar`s of three seconds each,
+  counting every entry but frames and snapshots, accent when a step falls in one, and the
+  `MinuteStep`s (`step_words`: a user action named by its first wordy locator, or a navigation to
+  a new document; `before_words` "−0:41"). `render_minute` draws the bars with Draft a test and
+  Send to the agent beside them, then the steps. Record This now opens the drawer on Recordings
+  with the new recording expanded, a failure in the drawer's line. Draft a test (`draft_test`)
+  runs `browser_tools::draft_in` through the agents' redactor and `open_draft` puts the draft in a
+  new unsaved TypeScript buffer headed by its suggested path and run command; nothing is written.
 
 ## The Browser's picks panel (`src/browser.rs`, #879)
 

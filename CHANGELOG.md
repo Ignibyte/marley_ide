@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Recordings with their minute, and scripts' last runs** (#932, 2026-10-25). Record This opens
+  the drawer on the new recording, expanded: twenty bars over the minute, the steps at their times
+  in words, Draft a test and Send to the agent. Draft a test opens the drafted Playwright test in a
+  new unsaved tab headed by where to save it, writing nothing. Each script in the Playwright tray
+  says its scope, when it last ran and how: passed, failed with its exit code, or not run.
+
 - **The Browser tab as the board draws it** (#931, 2026-10-25). A picked element keeps an accent
   box on the page with its chip (`div.card · 1`) while its pick waits. The address box shows the
   project as a chip, the drawer opens on Console with its errors counted in red and their rows

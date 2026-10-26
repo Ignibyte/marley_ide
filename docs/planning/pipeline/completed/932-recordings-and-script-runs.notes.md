@@ -99,7 +99,29 @@
 - The 220 px drawer (#887) may be short for the minute and its steps; the rows scroll inside it.
 
 ## Phase 2 — Code
+- **Built:** `Minute`, `MinuteBar`, `MinuteStep`, `step_words`, `before_words`,
+  `ExpandedRecording`, `expand_recording`, `render_minute`, `draft_test`, `open_draft`; Record
+  This opening the drawer; `browser_tools::draft_in` made `pub(crate)`; `LastRun`, `RunResult`,
+  `runs_in`, `record_run_in`, `BrowserEvent::ScriptRan`; the tray's `runs`,
+  `render_last_run`, `ran_words`; `Scope::label` "every project". The doc comment #931 left on
+  `new_global_script` went back to `new_project_script`.
+- **Deviations:** Draft a test and Send to the agent sit beside the bars rather than under the
+  steps, so a long list of steps in the 220 px drawer never hides them. The row's old "for <scope>"
+  label went, the scope now in the line under the name. `RunResult` is tagged `state` in the file.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/932-recordings-and-script-runs.sh` (sway, offline Chromium, #523's
+  loopback npm registry), green.
+- `932-01-minute`: the drawer on Recordings 1, the recording expanded: bars with the steps' in the
+  accent, "−0:14 Open 127.0.0.1:<port>/login.html", "−0:10 Click Name", "−0:09 Type in Name",
+  "−0:08 Click Sign in", Draft a test and Send to the agent. REQ-001, REQ-002.
+- `932-02-draft`: an unsaved TypeScript tab "// Drafted from a recording. Save it as …" with the
+  replayed steps; no `*.spec.ts` in the project. REQ-003.
+- `932-03-scripts`: broken "this project · ran just now · failed · exit 1", log-in "… passed",
+  tidy "every project · not run"; `runs.json` holds both runs. REQ-004, REQ-005.
+- `932-04-day`: the same in Marley Day. REQ-001, REQ-004.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `marley_workbench.md` (the minute, the last runs); the look plan's Browser row.
+  No Zed path.

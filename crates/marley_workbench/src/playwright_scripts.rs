@@ -24,6 +24,7 @@ use marley_terminal::BlockState;
 use terminal::Terminal;
 use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
+use util::ResultExt as _;
 use util::shell::ShellKind;
 use workspace::notifications::NotificationId;
 use workspace::{Pane, SplitDirection, Toast, Workspace};
@@ -67,9 +68,73 @@ impl Scope {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Project => "this project",
-            Self::Global => "all projects",
+            Self::Global => "every project",
         }
     }
+}
+
+/// How a script's last run ended (#932).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum RunResult {
+    /// Its block ended with exit code 0.
+    Passed,
+    /// Its block ended with another exit code.
+    Failed {
+        /// The code.
+        exit_code: i32,
+    },
+    /// Its shell did not say how it ended.
+    Unknown,
+}
+
+/// A script's last run (#932): when it ended, in seconds since 1970, and how.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LastRun {
+    /// When it ended.
+    pub ran_at: u64,
+    /// How it ended.
+    pub result: RunResult,
+}
+
+/// The file the last runs are kept in under the data folder `data` (#932, D5).
+fn runs_file_in(data: &Path) -> PathBuf {
+    data.join("playwright").join("runs.json")
+}
+
+/// Every script's last run kept under the data folder `data`, by the script's path; none for a
+/// missing or unreadable file, which only loses what the rows say.
+#[must_use]
+pub fn runs_in(data: &Path) -> std::collections::HashMap<PathBuf, LastRun> {
+    let Ok(text) = std::fs::read(runs_file_in(data)) else {
+        return std::collections::HashMap::new();
+    };
+    serde_json::from_slice::<std::collections::BTreeMap<String, LastRun>>(&text)
+        .map(|runs| {
+            runs.into_iter()
+                .map(|(path, run)| (PathBuf::from(path), run))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Keeps `last_run` as the last run of the script at `script`, under the data folder `data`.
+///
+/// # Errors
+///
+/// When the folder cannot be made or the file written.
+pub fn record_run_in(data: &Path, script: &Path, last_run: LastRun) -> std::io::Result<()> {
+    let file = runs_file_in(data);
+    let mut runs: std::collections::BTreeMap<String, LastRun> = std::fs::read(&file)
+        .ok()
+        .and_then(|text| serde_json::from_slice(&text).ok())
+        .unwrap_or_default();
+    runs.insert(script.to_string_lossy().into_owned(), last_run);
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let text = serde_json::to_vec_pretty(&runs).map_err(std::io::Error::other)?;
+    std::fs::write(file, text)
 }
 
 /// A saved script.
@@ -339,7 +404,31 @@ async fn run_command(
     target.hub.update(cx, |hub, _| {
         hub.record_script(&target.tab, script.name.clone(), None);
     });
-    match block_end(&terminal, &line, cx).await {
+    let ended = block_end(&terminal, &line, cx).await;
+    // The run's end is kept for the tray, and an open tray reads it again (#932, D6: a terminal
+    // closed first records nothing).
+    if let Some(code) = ended {
+        let result = match code {
+            Some(0) => RunResult::Passed,
+            Some(exit_code) => RunResult::Failed { exit_code },
+            None => RunResult::Unknown,
+        };
+        let ran_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs());
+        let (data, path) = (paths::data_dir().clone(), script.path.clone());
+        cx.background_spawn(futures::future::lazy(move |_| {
+            record_run_in(&data, &path, LastRun { ran_at, result })
+        }))
+        .await
+        .context("keeping the run's result")
+        .log_err();
+        let project = target.project.clone();
+        target.hub.update(cx, |_, cx| {
+            cx.emit(crate::browser::BrowserEvent::ScriptRan { project });
+        });
+    }
+    match ended {
         Some(Some(0)) => {
             target.hub.update(cx, |hub, _| {
                 hub.record_script(&target.tab, script.name.clone(), Some(0));
