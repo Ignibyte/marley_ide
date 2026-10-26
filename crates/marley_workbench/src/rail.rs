@@ -8357,6 +8357,32 @@ fn connection_words(connection: Option<&Connection>) -> (String, Color) {
     }
 }
 
+/// A harness row's marks after its line: where an undeclared state came from, and stale.
+fn row_marks(signals: &Signals, weaker: bool, stale: bool) -> String {
+    signals
+        .source
+        .as_ref()
+        .filter(|_| weaker)
+        .map(|source| {
+            // A state read off the agent's screen says so in words (#929).
+            if matches!(source, StateSource::Detected) {
+                return "read off the screen".to_string();
+            }
+            source
+                .word()
+                .chars()
+                .take(SOURCE_WORD_CHARS)
+                .collect::<String>()
+        })
+        .into_iter()
+        .chain(stale.then(|| "stale".to_string()))
+        .fold(String::new(), |mut marks, mark| {
+            marks.push_str(" · ");
+            marks.push_str(&mark);
+            marks
+        })
+}
+
 /// A harness session's row (#534): its title, then the question it waits on, how long a working
 /// session has been quiet (#547's rule), or its state; muted while the connection is not up. A
 /// state its labels say was not declared is drawn weaker, its source's word at the line's end,
@@ -8391,24 +8417,7 @@ fn harness_row(
         _ => word.to_string(),
     };
     // The marks sit in the line's end slot, so a long question is cut before them.
-    let marks: String = signals
-        .source
-        .as_ref()
-        .filter(|_| weaker)
-        .map(|source| {
-            source
-                .word()
-                .chars()
-                .take(SOURCE_WORD_CHARS)
-                .collect::<String>()
-        })
-        .into_iter()
-        .chain(stale.then(|| "stale".to_string()))
-        .fold(String::new(), |mut marks, mark| {
-            marks.push_str(" · ");
-            marks.push_str(&mark);
-            marks
-        });
+    let marks = row_marks(&signals, weaker, stale);
     let mut lines = vec![RowLine {
         text: line,
         state: (!marks.is_empty()).then_some(marks),

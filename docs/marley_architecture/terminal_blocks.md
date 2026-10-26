@@ -517,3 +517,10 @@ The out-of-process terminal server + SCM_RIGHTS fd passing; the `local_control` 
 - [`warp_architecture/subsystems/03-terminal-session-core.md`](../warp_architecture/subsystems/03-terminal-session-core.md) — the **reference** Marley reimplements clean-room; see its *Marley status @ M15* parity table + *Provenance & licensing* (Block model = `[Warp-derived: AGPL]` design, reimplemented; alacritty byte engine = `[permissive]`; `terminal_blocks` = `[Marley-original]`).
 - [app_shell.md](app_shell.md) — the gpui render: the block/prompt UI, the `marley_app::links` clickable-link composer (#196/#214), and the `color.rs` `Color → Hsla` mapping.
 - [SPEC-terminal-blocks.spec.md](../specs/SPEC-terminal-blocks.spec.md) · the M0 viability spike whose PTY/grid patterns it promotes (the spike crate was deleted once M1 shipped).
+
+## The table tab's header (#929)
+
+`BlockTable` keeps `facts` (the parsed table's `TableKind` and row count, set by `set_table` when
+the parse lands) and `source` (the block's command, or `show <title>` for a table `show` read).
+Its `render` puts a header over Zed's `TableView`: a chip with `kind_word` ("csv", "tsv",
+"table", "json", "jsonl", "md"), the tab's name, and "N rows · from <source>" muted.

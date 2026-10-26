@@ -41,7 +41,7 @@ use task::{RevealStrategy, RevealTarget, SpawnInTerminal, TaskContext, TaskId, T
 use terminal::{TaskStatus, Terminal};
 use terminal_view::MarleyFooterContext;
 use terminal_view::terminal_panel::TerminalPanel;
-use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, prelude::*};
+use ui::{HighlightedLabel, IconName, ListItem, ListItemSpacing, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::shell::ShellKind;
 use workspace::notifications::DetachAndPromptErr as _;
@@ -62,6 +62,21 @@ const LINK_LOST: i32 = 255;
 
 /// How often a down terminal's line is drawn again, for its countdown and its count.
 const TICK: Duration = Duration::from_secs(1);
+
+/// The longest step a backoff's wait sleeps before looking again for Try Now (#929).
+const WAKE_STEP: Duration = Duration::from_millis(250);
+
+/// Try Now (#929, D3): the terminal `key`'s waiting check runs at once; a check under way or a
+/// stopped link is left as it is.
+fn check_now(key: EntityId, cx: &mut App) {
+    if let Some(down) = cx.default_global::<Links>().down.get_mut(&key)
+        && matches!(down.phase, Phase::Waiting { .. })
+    {
+        down.phase = Phase::Waiting {
+            until: Instant::now(),
+        };
+    }
+}
 
 /// Marley's remote terminals and their links (#641).
 #[derive(Default)]
@@ -419,16 +434,23 @@ async fn check_until_up(
     let program = std::env::var("MARLEY_SSH").unwrap_or(ssh);
     let args: Vec<String> = words.collect();
     loop {
-        let waiting = cx.update(|_, cx| match phase_of(key, cx) {
-            Some(Phase::Waiting { until }) => Some(*until),
-            _ => None,
-        });
-        let Ok(Some(until)) = waiting else {
-            return;
-        };
-        let now = Instant::now();
-        if now < until {
-            cx.background_executor().timer(until - now).await;
+        // The wait goes in short steps, so Try Now, which moves the check to now, is seen at
+        // once (#929, D3).
+        loop {
+            let waiting = cx.update(|_, cx| match phase_of(key, cx) {
+                Some(Phase::Waiting { until }) => Some(*until),
+                _ => None,
+            });
+            let Ok(Some(until)) = waiting else {
+                return;
+            };
+            let now = Instant::now();
+            if now >= until {
+                break;
+            }
+            cx.background_executor()
+                .timer((until - now).min(WAKE_STEP))
+                .await;
         }
         set_phase(key, Phase::Checking, &terminal, cx);
         let found = match crate::process::output(&program, &args, None, &[]).await {
@@ -549,19 +571,18 @@ pub(crate) fn link_overlay(context: &MarleyFooterContext, cx: &App) -> Option<An
         .try_global::<Links>()?
         .down
         .get(&context.terminal.entity_id())?;
-    let lost = down.reason.as_ref().map_or_else(
-        || format!("Link to {} lost", down.host),
-        |reason| format!("Link to {} lost: {reason}", down.host),
-    );
+    // The board's words (#929): the host, when it checks again, the keys held back; ssh's reason
+    // in the tooltip.
+    let lost = format!("{} stopped answering", down.host);
     let line = match &down.phase {
         Phase::Waiting { until } => {
             let seconds = until
                 .saturating_duration_since(Instant::now())
                 .as_millis()
                 .div_ceil(1000);
-            format!("{lost} · next check in {seconds} s · Rerun to try now")
+            format!("{lost} \u{b7} checking again in {seconds} s")
         }
-        Phase::Checking => format!("{lost} · checking now · Rerun to try now"),
+        Phase::Checking => format!("{lost} \u{b7} checking now"),
         Phase::Stopped(reason) => {
             // ssh ends its own sentences.
             let reason = reason.trim_end_matches('.');
@@ -576,12 +597,46 @@ pub(crate) fn link_overlay(context: &MarleyFooterContext, cx: &App) -> Option<An
         .read(cx)
         .marley_inputs_refused()
         .unwrap_or(0);
-    let line = if refused > 0 {
-        format!("{line} · {refused} not sent")
-    } else {
-        line
+    let stopped = matches!(down.phase, Phase::Stopped(_));
+    let line = match (refused, stopped) {
+        (0, _) => line,
+        (count, false) => format!(
+            "{line} \u{b7} {count} {} held back",
+            if count == 1 { "key" } else { "keys" }
+        ),
+        (count, true) => format!("{line} \u{b7} {count} not sent"),
     };
+    let reason = down.reason.clone().unwrap_or_default();
+    let key = context.terminal.entity_id();
     let colors = cx.theme().colors();
+    let strip = h_flex()
+        .id("marley-remote-link-line")
+        .w_full()
+        .gap_2()
+        .px_2()
+        .py_1()
+        .bg(colors.elevated_surface_background)
+        .child(
+            Icon::new(IconName::Warning)
+                .size(IconSize::Small)
+                .color(Color::Warning),
+        )
+        .child(Label::new(line).size(LabelSize::Small).truncate())
+        .when(!reason.is_empty(), |strip| {
+            strip.tooltip(Tooltip::text(reason))
+        })
+        .child(div().flex_1())
+        .when(!stopped, |strip| {
+            strip.child(
+                Button::new("marley-remote-try-now", "Try Now")
+                    .label_size(LabelSize::Small)
+                    .style(ButtonStyle::Filled)
+                    .on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        check_now(key, cx);
+                    }),
+            )
+        });
     Some(
         div()
             .id("marley-remote-link-down")
@@ -590,20 +645,28 @@ pub(crate) fn link_overlay(context: &MarleyFooterContext, cx: &App) -> Option<An
             .occlude()
             .bg(colors.editor_background.opacity(0.6))
             .child(
-                h_flex()
+                v_flex()
                     .w_full()
-                    .gap_2()
-                    .px_2()
-                    .py_1()
-                    .bg(colors.elevated_surface_background)
                     .border_b_1()
                     .border_color(colors.border)
-                    .child(
-                        Icon::new(IconName::Warning)
-                            .size(IconSize::Small)
-                            .color(Color::Warning),
-                    )
-                    .child(Label::new(line).size(LabelSize::Small)),
+                    .child(strip)
+                    // Every remote terminal runs in Marley's tmux on the host (D4).
+                    .when(!stopped, |column| {
+                        column.child(
+                            div()
+                                .px_2()
+                                .pb_1()
+                                .bg(colors.elevated_surface_background)
+                                .child(
+                                    Label::new(
+                                        "The tmux session on the host keeps running; the tab \
+                                         attaches again when the host answers.",
+                                    )
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                                ),
+                        )
+                    }),
             )
             .into_any_element(),
     )

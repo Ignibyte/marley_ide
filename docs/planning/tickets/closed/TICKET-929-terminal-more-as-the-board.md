@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #929 (feature, the Marley look, terminal)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [929-terminal-more-as-the-board.spec.md](../../pipeline/queued/929-terminal-more-as-the-board.spec.md)
+- **Pipeline doc:** [929-terminal-more-as-the-board.spec.md](../../pipeline/completed/929-terminal-more-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/A-core.md, board TerminalMore)
 - **Boards:** TerminalMore
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

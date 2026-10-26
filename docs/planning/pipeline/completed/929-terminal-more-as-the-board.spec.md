@@ -1,7 +1,7 @@
 ---
 pipeline_id: 4df6a71f-c635-4671-b7da-5ade6997879e
 ticket: docs/planning/tickets/open/TICKET-929-terminal-more-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Table tabs, restored blocks, dropped links and the mic as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

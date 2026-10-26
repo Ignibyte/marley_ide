@@ -87,7 +87,34 @@
   profile; #764's scenario already does this.
 
 ## Phase 2 — Code
+- **Built:** `BlockTable`'s `facts`, `source`, `set_table`, `kind_word` and header;
+  `AnchoredBlocks::restored_at` and `send_block::restart_divider`; `remote::check_now`,
+  `WAKE_STEP` and the strip's words, Try Now and tmux line; `agent_bar::MicrophoneLook` and the
+  pill; `rail::row_marks` with "read off the screen".
+- **Deviations:** the divider is the footer row of the last restored block while no command has
+  run (the footer hook already reserves a row above the live prompt), so no row is left in the
+  replay and no Zed path changes; it goes once a command runs. Try Now acts on a waiting check
+  only (D3). The line for a stopped link keeps "not sent" for its count.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- `script/e2e/929-terminal-more-as-the-board.sh` (sway), green:
+  - `929-01-table`: the header "csv · printf 'crate,tests\\nrail,…' · 3 rows · from printf …" over
+    the table. REQ-001.
+  - `929-02-restored`, `929-07-day`: three restored blocks, then "Marley started again · 20:02"
+    between rules over the live prompt, in Marley Night and Day. REQ-002.
+  - `929-05-mic`: "Listening · Voxtype" in a red-dotted pill on the stand-in Claude Code's bar.
+    REQ-004.
+- `script/e2e/929-dropped-link.sh` (sway, #641's sshd), green:
+  - `929-03-link`, `929-07-day-link`: "e2e stopped answering · checking now · 9 keys held back"
+    (Day: "checking again in 1 s"), Try Now, and the tmux line. REQ-003.
+  - `929-04-try-now`: reattached, `remote$` back. The ssh log: the failed check ended at
+    …858.66 and the next began at …860.66, 2 s later, where the backoff after several failures
+    waits 4 s or more: Try Now's check. REQ-003.
+- #640's scenario, `640-01-rows`: watcher and asker grey with "read off the screen". REQ-005.
+- The UI proof named one scenario; the link has its own, built on #641's sshd, and the screen-read
+  row is #640's own fixture.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `marley_workbench.md` (remote link, harness marks, voice, restart divider);
+  `terminal_blocks.md` (the table header); the look plan's TICKET-826 line. No Zed path.

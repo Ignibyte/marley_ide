@@ -1647,6 +1647,10 @@ alike.
 
 ## Voice (`src/voice.rs`, #480, #642)
 
+- Since #929 `microphone_look` gives a `MicrophoneLook`: while Voxtype records or transcribes, the
+  microphone is a pill with a dot and "Listening · Voxtype" or "Transcribing · Voxtype"; idle, the
+  icon. The words name Voxtype's state only.
+
 - Everything here waits for `MarleySettings::dictation` (`marley.voice.enabled`, read "off unless
   on" by `Dictation::from_content`, #642). Off, `microphone` in `agent_bar.rs` returns nothing
   before it reads `Voice` or calls `follow_once_drawn`, and `marley::ToggleDictation` answers with
@@ -2044,7 +2048,11 @@ alike.
   it). `Down` waits again with ssh's reason; `Stopped` leaves the line saying why. The entry goes
   with the old terminal (`observe_release`), so a Rerun or a closed tab ends the checks.
   `link_overlay`, asked first by `block_filter::overlay`, draws the dim, occluding cover and its
-  line. `rich_input::send` leaves a held terminal's prompt in the editor. Any other exit removes
+  line. Since #929 the line reads "<host> stopped answering · checking again in N s" (or "·
+  checking now") with "N keys held back", ssh's reason in its tooltip, and Try Now, which
+  `check_now` answers by moving a waiting check's time to now; the wait sleeps in `WAKE_STEP`s of
+  250 ms so it sees that at once, and a check under way is left to end. A muted line under it says
+  the tmux session keeps running. A stopped link keeps its words and gets no Try Now. `rich_input::send` leaves a held terminal's prompt in the editor. Any other exit removes
   the task's backoff.
 
 - Since #808 `open`'s second half is `open_words(host, label, id_base, words, …)`, which
@@ -2217,7 +2225,8 @@ alike.
   `quota.KIND.resets_at_ms` (most used first), and `quota.account` unless it holds an `@`; a
   value that does not parse is left out (`percent_of`: a finite number from 0 to 100, rounded).
   No source is declared, as the harness sent before. `harness_row` mutes the dot of a state not
-  declared and puts the source's word, and `stale`, in the first line's end slot; it adds a
+  declared and puts the source's word, and `stale`, in the first line's end slot (`row_marks`;
+  since #929 a `detected` state reads "read off the screen"); it adds a
   progress line and a line for the most-used window (`62 % · resets in 1 h 35 m`, `used_words` and
   `reset_words`), and a tooltip (`Tooltip::with_meta`: the source's sentence, every window, the
   account). `harness_entries` skips a state not declared, so only a declared question reaches the
@@ -5366,6 +5375,11 @@ below describe what #743 retired.
   agent starts once idle, the session's end or the view's release.
 
 ## Terminal output across a restart (`src/scrollback.rs`, #751)
+
+- Since #929 `AnchoredBlocks::restore` keeps `restored_at`, and `send_block::footer` answers the
+  footer row of the block that ends at the live prompt with `restart_divider` while that block is
+  the last restored one and no command has run: "Marley started again · HH:MM" between two rules.
+  The first live command's block takes the row, so the divider goes with it.
 
 - `init`, after `terminal_ids::init` and `resume::init`, sets `terminal::MarleyTerminalHistory`
   over `<data dir>/terminal_history` and an `Arc<AtomicBool>` read from

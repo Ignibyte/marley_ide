@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **More of the terminal as the board draws it** (#929, 2026-10-25). A table tab has a header with
+  its kind, its name and "N rows · from <command>". A terminal restored after a restart shows
+  "Marley started again · HH:MM" between its restored blocks and the live prompt. A remote
+  terminal whose host stops answering says so, when it checks again and how many keys it holds
+  back, offers Try Now, and says the tmux session keeps running. The microphone reads "Listening
+  · Voxtype" while it records. A harness seat whose state is only read off the screen says so.
+
 - **An agent's terminal as the board draws it** (#928, 2026-10-25). A command an agent wants to
   run waits on a card that says who asks, in which folder, what the lists say, and shows the
   command on its own line, with Run and Refuse and their keys. Always run <prefix> here runs it

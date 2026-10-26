@@ -39,8 +39,9 @@ use theme::ActiveTheme as _;
 use theme_settings::ThemeSettings;
 use ui::table_row::TableRow;
 use ui::{
-    Button, ButtonCommon as _, ButtonStyle, Clickable as _, ContextMenu, FluentBuilder as _, Icon,
-    IconName, LabelSize, SharedString, TintColor, Tooltip, h_flex,
+    Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color, ContextMenu, FluentBuilder as _,
+    Icon, IconName, Label, LabelCommon as _, LabelSize, SharedString, TintColor, Tooltip, h_flex,
+    v_flex,
 };
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
@@ -665,14 +666,26 @@ fn open_output(
         return;
     };
     let tooltip = SharedString::from(format!("The output of {command} as a table"));
-    let (tab, table_view) = add_table_tab(workspace, view, title_of(&command), tooltip, window, cx);
+    let source = title_of(&command);
+    let (tab, table_view) = add_table_tab(
+        workspace,
+        view,
+        title_of(&command),
+        tooltip,
+        source,
+        window,
+        cx,
+    );
     remember(key, Opened::Table(tab.downgrade()), cx);
+    let tab = tab.downgrade();
     cx.spawn(async move |cx| {
         let table = smol::unblock(move || tables::parse(&text)).await;
-        table_view.update(cx, |table_view, cx| match table {
-            Some(table) => table_view.set_contents(content_of(table), cx),
-            None => table_view.set_loading(false, cx),
-        });
+        match table {
+            Some(table) => {
+                tab.update(cx, |tab, cx| tab.set_table(table, cx)).log_err();
+            }
+            None => table_view.update(cx, |table_view, cx| table_view.set_loading(false, cx)),
+        }
     })
     .detach();
 }
@@ -683,6 +696,7 @@ fn add_table_tab(
     view: &Entity<TerminalView>,
     title: SharedString,
     tooltip: SharedString,
+    source: SharedString,
     window: &mut Window,
     cx: &mut App,
 ) -> (Entity<BlockTable>, Entity<TableView>) {
@@ -694,6 +708,8 @@ fn add_table_tab(
     let tab = cx.new(|cx| BlockTable {
         title,
         tooltip,
+        facts: None,
+        source,
         _table_changed: cx.observe(&table_view, |_, _, cx| cx.notify()),
         table: table_view.clone(),
     });
@@ -722,18 +738,17 @@ pub(crate) fn show_table(
         .read(cx)
         .items_of_type::<BlockTable>(cx)
         .find(|tab| tab.read(cx).title == title);
-    let table_view = if let Some(tab) = open {
+    let tab = if let Some(tab) = open {
         workspace.update(cx, |workspace, cx| {
             workspace.activate_item(&tab, true, true, window, cx);
         });
-        tab.read(cx).table.clone()
+        tab
     } else {
         let tooltip = SharedString::from(format!("{title}, shown from a terminal"));
-        add_table_tab(workspace, view, title, tooltip, window, cx).1
+        let source = SharedString::from(format!("show {title}"));
+        add_table_tab(workspace, view, title, tooltip, source, window, cx).0
     };
-    table_view.update(cx, |table_view, cx| {
-        table_view.set_contents(content_of(table), cx);
-    });
+    tab.update(cx, |tab, cx| tab.set_table(table, cx));
 }
 
 /// Keeps the tab `key`'s table opened in, so the next open brings it forward.
@@ -785,7 +800,44 @@ pub(crate) struct BlockTable {
     title: SharedString,
     tooltip: SharedString,
     table: Entity<TableView>,
+    /// What the header says once the table is read (#929).
+    facts: Option<TableFacts>,
+    /// Where the table came from: the block's command, or `show <file>`.
+    source: SharedString,
     _table_changed: Subscription,
+}
+
+/// A table's kind and its row count, for its tab's header (#929, D1).
+#[derive(Clone, Copy)]
+struct TableFacts {
+    kind: TableKind,
+    rows: usize,
+}
+
+impl BlockTable {
+    /// Shows `table` and keeps its kind and row count for the header.
+    fn set_table(&mut self, table: Table, cx: &mut Context<Self>) {
+        self.facts = Some(TableFacts {
+            kind: table.kind,
+            rows: table.rows.len(),
+        });
+        self.table.update(cx, |table_view, cx| {
+            table_view.set_contents(content_of(table), cx);
+        });
+        cx.notify();
+    }
+}
+
+/// A table kind's short word, as its chip shows it.
+const fn kind_word(kind: TableKind) -> &'static str {
+    match kind {
+        TableKind::Delimited(',') => "csv",
+        TableKind::Delimited('\t') => "tsv",
+        TableKind::Delimited(_) => "table",
+        TableKind::JsonArray => "json",
+        TableKind::JsonLines => "jsonl",
+        TableKind::Markdown => "md",
+    }
 }
 
 impl Focusable for BlockTable {
@@ -797,8 +849,42 @@ impl Focusable for BlockTable {
 impl EventEmitter<ItemEvent> for BlockTable {}
 
 impl Render for BlockTable {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl gpui::IntoElement {
-        div().size_full().child(self.table.clone())
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
+        let colors = cx.theme().colors();
+        // The kind, the name and where the rows came from over the table (#929).
+        let header = h_flex()
+            .flex_none()
+            .w_full()
+            .gap_2()
+            .px_3()
+            .py_1p5()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .children(self.facts.map(|facts| {
+                div()
+                    .px_1p5()
+                    .rounded_sm()
+                    .bg(colors.element_background)
+                    .child(
+                        Label::new(kind_word(facts.kind))
+                            .size(LabelSize::XSmall)
+                            .buffer_font(cx),
+                    )
+            }))
+            .child(Label::new(self.title.clone()).size(LabelSize::Small))
+            .child(
+                Label::new(match self.facts {
+                    Some(facts) => format!("{} rows \u{b7} from {}", facts.rows, self.source),
+                    None => format!("from {}", self.source),
+                })
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .truncate(),
+            );
+        v_flex()
+            .size_full()
+            .child(header)
+            .child(div().flex_1().min_h_0().child(self.table.clone()))
     }
 }
 

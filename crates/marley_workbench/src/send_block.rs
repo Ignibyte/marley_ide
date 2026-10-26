@@ -230,6 +230,41 @@ pub(crate) fn chip(
 /// in front, a row of labelled buttons (#916). Ask an agent to fix it, or Explain, where Claude
 /// Code starts with it when no agent runs (#826); Ask Marley opens Marley's own agent beside the
 /// terminal (#865). A 127 the shell could not run keeps its own ask in the header (#557).
+/// "Marley started again · HH:MM" between two rules, under the last block a restore drew again
+/// while no command has run since (#929, D2).
+fn restart_divider(terminal: &Terminal, index: usize, cx: &App) -> Option<AnyElement> {
+    let anchored = terminal.marley_anchored();
+    let restored = anchored.restored_count();
+    if restored == 0 || index + 1 != restored || !anchored.live().is_empty() {
+        return None;
+    }
+    let at: chrono::DateTime<chrono::Local> = anchored.restored_at()?.into();
+    let rule = || {
+        div()
+            .flex_1()
+            .h(px(1.))
+            .bg(cx.theme().colors().border_variant)
+    };
+    Some(
+        h_flex()
+            .size_full()
+            .items_center()
+            .gap_2()
+            .px_2()
+            .child(rule())
+            .child(
+                Label::new(format!(
+                    "Marley started again \u{b7} {}",
+                    at.format("%H:%M")
+                ))
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+            )
+            .child(rule())
+            .into_any_element(),
+    )
+}
+
 pub(crate) fn footer(
     view: &Entity<TerminalView>,
     terminal: &Entity<Terminal>,
@@ -237,6 +272,11 @@ pub(crate) fn footer(
     cx: &App,
 ) -> Option<AnyElement> {
     let terminal_ref = terminal.read(cx);
+    // The block that ends at the live prompt is the last restored one until a command runs: its
+    // foot is the restart's divider (#929).
+    if let Some(divider) = restart_divider(terminal_ref, index, cx) {
+        return Some(divider);
+    }
     if asks_fix(terminal_ref) != Some(index) {
         return None;
     }

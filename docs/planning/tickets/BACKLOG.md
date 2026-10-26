@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-929](open/TICKET-929-terminal-more-as-the-board.md) | feature | Table tabs, restored blocks, dropped links and the mic as the board draws them (design review 2026-10-23) |
 | [TICKET-930](open/TICKET-930-tmux-sessions-as-the-board.md) | feature | tmux sessions as the board draws them (design review 2026-10-23) |
 | [TICKET-931](open/TICKET-931-browser-as-the-board.md) | feature | The Browser tab as the board draws it (design review 2026-10-23) |
 | [TICKET-932](open/TICKET-932-recordings-and-script-runs.md) | feature | Recordings with a timeline and Draft a Test, and scripts' last run (design review 2026-10-23) |

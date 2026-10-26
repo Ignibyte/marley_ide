@@ -541,32 +541,72 @@ fn microphone(context: &MarleyFooterContext, cx: &mut App) -> Option<AnyElement>
     }
     let voice = cx.try_global::<Voice>()?;
     let voxtype = voice.voxtype.clone()?;
-    let (color, tooltip) = microphone_look(voice.state);
+    let look = microphone_look(voice.state);
     voice::follow_once_drawn(&voxtype, cx);
     let (workspace, focus_handle) = (context.workspace.clone(), context.focus_handle.clone());
+    let toggle = move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+        window.focus(&focus_handle, cx);
+        voice::toggle(voxtype.clone(), workspace.clone(), cx);
+    };
+    // While Voxtype works, the button says what it does in a pill, as the board draws it (#929).
+    let button = match look.words {
+        Some(words) => {
+            let ink = look.color.color(cx);
+            h_flex()
+                .id("marley-microphone")
+                .h(px(22.))
+                .px_2()
+                .gap_1p5()
+                .rounded_full()
+                .bg(ink.opacity(0.12))
+                .cursor_pointer()
+                .child(div().flex_none().size(px(6.)).rounded_full().bg(ink))
+                .child(Label::new(words).size(LabelSize::XSmall).color(look.color))
+                .tooltip(Tooltip::text(look.tooltip))
+                .on_click(toggle)
+                .into_any_element()
+        }
+        None => IconButton::new("marley-microphone", IconName::Mic)
+            .icon_size(IconSize::Small)
+            .icon_color(look.color)
+            .tooltip(Tooltip::text(look.tooltip))
+            .on_click(toggle)
+            .into_any_element(),
+    };
     Some(
         div()
             .debug_selector(|| "marley-microphone".into())
-            .child(
-                IconButton::new("marley-microphone", IconName::Mic)
-                    .icon_size(IconSize::Small)
-                    .icon_color(color)
-                    .tooltip(Tooltip::text(tooltip))
-                    .on_click(move |_, window, cx| {
-                        window.focus(&focus_handle, cx);
-                        voice::toggle(voxtype.clone(), workspace.clone(), cx);
-                    }),
-            )
+            .child(button)
             .into_any_element(),
     )
 }
 
-/// The microphone's color and tooltip while Voxtype is in `state`.
-const fn microphone_look(state: VoiceState) -> (Color, &'static str) {
+/// How the microphone looks while Voxtype is in one state (#929, D5).
+struct MicrophoneLook {
+    color: Color,
+    tooltip: &'static str,
+    /// The pill's words while Voxtype works; none while it waits, when the icon shows.
+    words: Option<&'static str>,
+}
+
+/// The microphone's look while Voxtype is in `state`.
+const fn microphone_look(state: VoiceState) -> MicrophoneLook {
     match state {
-        VoiceState::Idle => (Color::Muted, "Dictate with Voxtype"),
-        VoiceState::Recording => (Color::Error, "Stop and transcribe"),
-        VoiceState::Transcribing => (Color::Warning, "Transcribing…"),
+        VoiceState::Idle => MicrophoneLook {
+            color: Color::Muted,
+            tooltip: "Dictate with Voxtype",
+            words: None,
+        },
+        VoiceState::Recording => MicrophoneLook {
+            color: Color::Error,
+            tooltip: "Stop and transcribe",
+            words: Some("Listening \u{b7} Voxtype"),
+        },
+        VoiceState::Transcribing => MicrophoneLook {
+            color: Color::Warning,
+            tooltip: "Transcribing\u{2026}",
+            words: Some("Transcribing \u{b7} Voxtype"),
+        },
     }
 }
 

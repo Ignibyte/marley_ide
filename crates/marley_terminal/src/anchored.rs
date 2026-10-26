@@ -292,6 +292,8 @@ pub struct AnchoredBlocks {
     clears: Vec<(u64, u64, u64)>,
     /// How many of the first blocks a restore drew again from before a restart (#764).
     restored: usize,
+    /// When the restore drew them, for the divider after them (#929, D2).
+    restored_at: Option<SystemTime>,
 }
 
 impl AnchoredBlocks {
@@ -476,6 +478,15 @@ impl AnchoredBlocks {
             self.hosts.push(None);
         }
         self.restored = self.blocks.len();
+        if self.restored > 0 {
+            self.restored_at = Some(SystemTime::now());
+        }
+    }
+
+    /// When a restore drew the first blocks again (#929), none when it drew none.
+    #[must_use]
+    pub const fn restored_at(&self) -> Option<SystemTime> {
+        self.restored_at
     }
 
     /// Whether block `index` was drawn again from before a restart (#764): history, which is
