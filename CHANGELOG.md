@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **An agent's terminal as the board draws it** (#928, 2026-10-25). A command an agent wants to
+  run waits on a card that says who asks, in which folder, what the lists say, and shows the
+  command on its own line, with Run and Refuse and their keys. Always run <prefix> here runs it
+  and keeps the prefix for that project folder, so the next `cargo test` there runs without
+  asking. The bar under a program an agent types into says who is typing, and Take Over shows its
+  key. An agent's editor lists its keys under it: send, new line, keep the draft, paste an image.
+
 - **Thread states as the board draws them** (#927, 2026-10-25). A thread's width button reads ⅓,
   ½, ⅔ or Whole window. A tool call waiting for permission leads with ASKS and the tool's name, and
   its buttons read Allow and Deny, in one row. An agent's HTML page shows in the thread as a card

@@ -148,6 +148,10 @@ pub struct MarleySettingsContent {
     /// without asking, each matched against the whole command and every part of a pipeline or a
     /// list (#556). Warp's defaults.
     pub agent_command_allowlist: Option<Vec<String>>,
+    /// More patterns of the kind `agent_command_allowlist` holds, each list for a folder and
+    /// everything under it, by the folder's path (#928). Always run … here on a waiting command's
+    /// card adds to it.
+    pub agent_command_allowlist_by_folder: Option<BTreeMap<String, Vec<String>>>,
     /// Regular expressions for the commands an agent's `terminal_run` always asks about, whatever
     /// the allowlist says (#556). Warp's defaults.
     pub agent_command_denylist: Option<Vec<String>>,

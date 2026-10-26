@@ -52,6 +52,51 @@ pub enum Verdict {
     Outside,
 }
 
+/// Programs whose first word allows nothing on its own: Always run … here is not offered for them
+/// (#928, D3).
+const NO_ALWAYS: [&str; 10] = [
+    "sh", "bash", "zsh", "fish", "dash", "env", "sudo", "eval", "exec", "xargs",
+];
+
+/// The prefix Always run … here would allow for `command` (#928, D3).
+///
+/// It is the program and, when the second word is a plain word, that word ("cargo test"). `None`
+/// for a shell, a program that runs others, a prefix `deny` asks about, or a command that is not
+/// a plain word first.
+#[must_use]
+pub fn always_prefix<S: AsRef<str>>(command: &str, deny: &[S]) -> Option<String> {
+    let plain = |word: &str| {
+        !word.is_empty()
+            && word
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "-_./".contains(character))
+    };
+    let mut words = command.split_whitespace();
+    let program = words
+        .next()
+        .filter(|word| plain(word) && !word.starts_with('-'))?;
+    if NO_ALWAYS.contains(&program) {
+        return None;
+    }
+    let prefix = match words.next() {
+        Some(word) if plain(word) && !word.starts_with('-') => format!("{program} {word}"),
+        _ => program.to_string(),
+    };
+    let none: &[&str] = &[];
+    let denied = matches!(verdict(&prefix, none, &as_strs(deny)), Verdict::Ask);
+    (!denied).then_some(prefix)
+}
+
+/// The allowlist pattern for `prefix`: the prefix alone or followed by its arguments.
+#[must_use]
+pub fn prefix_pattern(prefix: &str) -> String {
+    format!(r"{}(\s.*)?", regex::escape(prefix))
+}
+
+fn as_strs<S: AsRef<str>>(patterns: &[S]) -> Vec<&str> {
+    patterns.iter().map(AsRef::as_ref).collect()
+}
+
 /// What `allow` and `deny` say of `command`: the denylist first, then the allowlist.
 #[must_use]
 pub fn verdict<S: AsRef<str>>(command: &str, allow: &[S], deny: &[S]) -> Verdict {

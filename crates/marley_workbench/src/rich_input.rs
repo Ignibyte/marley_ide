@@ -965,7 +965,11 @@ pub fn element(context: &MarleyFooterContext, frame: PromptFrame, cx: &App) -> O
                     .border_t_1()
                     .border_color(colors.border_variant)
                     .bg(colors.editor_background)
-                    .child(prompt.editor.clone()),
+                    .child(prompt.editor.clone())
+                    // An agent's editor names its keys under it (#928).
+                    .when(matches!(prompt.target, Target::Agent(_)), |strip| {
+                        strip.child(agent_key_hints(&prompt.editor.focus_handle(cx), cx))
+                    }),
                 // The card draws the frame; the line leads with the prompt's mark and ends with
                 // the key that takes the suggestion while one shows (#917).
                 PromptFrame::Card => strip.child(
@@ -984,6 +988,31 @@ pub fn element(context: &MarleyFooterContext, frame: PromptFrame, cx: &App) -> O
             })
             .into_any_element(),
     )
+}
+
+/// The keys of an agent's editor, each with what it does, read from the keymap from the editor
+/// (#928, D4): send, a new line, keep the draft, paste an image.
+fn agent_key_hints(focus: &gpui::FocusHandle, cx: &App) -> AnyElement {
+    let hints: [(&dyn gpui::Action, &'static str); 4] = [
+        (&SendRichInput, "sends"),
+        (&editor::actions::Newline, "new line"),
+        (&CloseRichInput, "keeps the draft"),
+        (&RichInputPaste, "pastes an image"),
+    ];
+    let mut row = h_flex().pt_1().gap_3().flex_wrap();
+    for (action, words) in hints {
+        row = row.child(
+            h_flex()
+                .gap_1()
+                .child(ui::KeyBinding::for_action_in(action, focus, cx).size(rems_from_px(11_f32)))
+                .child(
+                    Label::new(words)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                ),
+        );
+    }
+    row.into_any_element()
 }
 
 /// How the prompt editor is framed (#917): inside the prompt card the shell's prompt becomes, or

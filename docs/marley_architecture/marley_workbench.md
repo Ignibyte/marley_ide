@@ -1071,6 +1071,10 @@ alike.
 
 ## Rich input (`src/rich_input.rs`, #481)
 
+- Since #928 an agent's editor (`Target::Agent`, the strip under the agent bar) shows
+  `agent_key_hints` under it: the keys of `SendRichInput`, `editor::Newline`, `CloseRichInput`
+  and `RichInputPaste`, read from the editor's focus, each with what it does.
+
 - The agent bar's pencil (`agent_bar::rich_input_button`) toggles since #677:
   `rich_input::is_open_for_agent` (the view's prompt open, its target an agent) sets its
   `toggle_state` and its tooltip's title, Hide Rich Input, and a click reads it again and calls
@@ -1506,6 +1510,19 @@ alike.
   with no lines given.
 
 ## An agent that drives a running program (`src/terminal_drive.rs`, #525)
+
+- **The board's card and bar (#928).** `Pending` holds a `PendingKind`: a write's words, or a
+  run's `RunCard` (who, the command, the terminal's folder, `here`, `Listed`, the `always`
+  prefix). `footer` draws a run as `run_card`: a warning dot, "<who> wants to run", "in <folder>",
+  the lists' word at the right, the command in mono, and `run_card_buttons` (Run and Refuse as
+  `ButtonLike`s with `KeyBinding::for_action_in` from the footer context's focus handle, and
+  Always run <prefix> here). `answer_always` adds `agent_commands::prefix_pattern(prefix)` under
+  `here` in `marley.agent_command_allowlist_by_folder` through `update_settings_file`, then runs
+  the command. `check_run_in` joins the patterns of every listed folder that holds the terminal's
+  folder to the allowlist; `here` is the workspace root holding that folder, else the folder;
+  `agent_commands::always_prefix` gives the prefix (the program and a plain second word) or none
+  for a shell, a program that runs others, or a denied prefix. The typing bar reads "<who> is
+  typing into this terminal's program", and Take Over and Hand Back carry their key.
 
 - A `Drives` global keeps each terminal's control state by its view: `generation`, the foreground
   program it belongs to (the PTY's foreground process group leader, `Terminal::pid`, none when it

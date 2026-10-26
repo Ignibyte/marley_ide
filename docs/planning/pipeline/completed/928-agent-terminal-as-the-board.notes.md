@@ -86,7 +86,33 @@
   never the user's (the runner's profile isolation).
 
 ## Phase 2 — Code
+- **Built:** `agent_command_allowlist_by_folder` in `settings_content` and `MarleySettings`
+  (`allowlist_by_folder`); `agent_commands::always_prefix` and `prefix_pattern`; in
+  `terminal_drive.rs` `PendingKind`, `RunCard`, `Listed`, `run_card`, `run_card_buttons`,
+  `write_card`, `answer_always`, the folder patterns in `check_run_in`, the typing bar's words
+  and Take Over's key; `rich_input::agent_key_hints`.
+- **Deviations:** the keys come from `KeyBinding::for_action_in` on the footer context's focus
+  handle, which needs no window. `run_card` and `write_card` came out of `footer` for the line
+  limit. `Written` keeps only who wrote (D5).
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/928-agent-terminal-as-the-board.sh` (sway), full run green; the stand-in
+  client is `mcp_agent` on Marley's own endpoint.
+- `928-01-card`: "Stand-in agent wants to run in <repo>", "not on either list", `cargo test -p
+  demo` in mono, Run Enter, Refuse Escape, Always run cargo test here. REQ-001.
+- `928-02-always`: the click ran it (exit 0); the settings hold `"<repo>": ["cargo test(\\s.*)?"]`;
+  `cargo test --doc` then ran with no card. REQ-002.
+- `928-05-day-card`: `cargo build --release` waiting on the card in Marley Day; Escape refused it.
+  REQ-001.
+- `928-03-typing`: python3 with `print(6 * 7)` → 42; the bar "Stand-in agent is typing into this
+  terminal's program" with Take Over Ctrl-I and the close button. REQ-003.
+- `928-04-hints`, `928-05-day-hints`: the stand-in Claude Code, Ctrl-G, "Run the tests" typed: the
+  row Enter sends · Shift-Enter new line · Escape keeps the draft · Ctrl-Shift-V pastes an image.
+  REQ-004.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `docs/marley_architecture/marley_workbench.md` (the drive's card and bar, the
+  rich input's key row); the look plan's TICKET-826 line; the `settings_content/src/marley.rs`
+  ledger row.
+- Knowledge: L-claude-927 corrected to point at L-claude-871 and `mcp_agent`.

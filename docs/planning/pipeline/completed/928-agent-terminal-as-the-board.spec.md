@@ -1,7 +1,7 @@
 ---
 pipeline_id: 0fc83695-9672-4e85-9fe7-d90bd9ecafba
 ticket: docs/planning/tickets/open/TICKET-928-agent-terminal-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: An agent CLI's terminal as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

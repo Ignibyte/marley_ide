@@ -172,7 +172,7 @@ pub mod worktree_agents;
 pub mod worktree_git;
 pub mod worktree_include;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 
 use agent_ui::AgentPanel;
@@ -538,6 +538,8 @@ pub struct MarleySettings {
     pub agent_terminal_writes: settings::MarleyAgentTerminalWrites,
     /// The commands an agent's `terminal_run` types at once, as regular expressions (#556).
     pub agent_command_allowlist: Vec<String>,
+    /// More commands it types at once in a folder and under it, by the folder (#928).
+    pub agent_command_allowlist_by_folder: BTreeMap<PathBuf, Vec<String>>,
     /// The commands an agent's `terminal_run` always asks about (#556).
     pub agent_command_denylist: Vec<String>,
     /// Whether a command neither list matches asks (#556).
@@ -971,6 +973,7 @@ impl Settings for MarleySettings {
             agent_command_allowlist: marley
                 .and_then(|marley| marley.agent_command_allowlist.clone())
                 .unwrap_or_else(|| owned(marley_terminal::agent_commands::WARP_ALLOWLIST)),
+            agent_command_allowlist_by_folder: allowlist_by_folder(marley),
             agent_command_denylist: marley
                 .and_then(|marley| marley.agent_command_denylist.clone())
                 .unwrap_or_else(|| owned(marley_terminal::agent_commands::WARP_DENYLIST)),
@@ -1005,6 +1008,21 @@ impl Settings for MarleySettings {
 }
 
 /// The order the rail lists projects and rows in (#542).
+/// `marley.agent_command_allowlist_by_folder` with its folders as paths (#928).
+fn allowlist_by_folder(
+    marley: Option<&settings::MarleySettingsContent>,
+) -> BTreeMap<PathBuf, Vec<String>> {
+    marley
+        .and_then(|marley| marley.agent_command_allowlist_by_folder.as_ref())
+        .map(|folders| {
+            folders
+                .iter()
+                .map(|(folder, patterns)| (PathBuf::from(folder), patterns.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn rail_order(marley: Option<&settings::MarleySettingsContent>) -> marley_rail::RailOrder {
     match marley
         .and_then(|marley| marley.rail_order)

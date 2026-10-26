@@ -17,15 +17,17 @@
 //! `marley.agent_commands_outside_lists` decides the rest; Enter and Escape answer the card from
 //! its terminal. Each block an agent ran carries a mark, and the same take-over stops both tools.
 
+use std::path::PathBuf;
 use std::pin::pin;
 use std::time::{Duration, Instant};
 
 use collections::{BTreeMap, HashMap};
+use fs::Fs;
 use futures::channel::oneshot;
 use futures::future::{self, Either};
 use gpui::{
-    AnyElement, App, Context, Entity, EntityId, Focusable as _, Global, Keystroke, SharedString,
-    Task,
+    AnyElement, App, Context, Entity, EntityId, FocusHandle, Focusable as _, Global, Keystroke,
+    SharedString, Task,
 };
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use marley_terminal::agent_commands::{self, Verdict};
@@ -34,7 +36,9 @@ use serde_json::{Value, json};
 use settings::{MarleyAgentCommandsOutsideLists, MarleyAgentTerminalWrites, Settings as _};
 use terminal::Terminal;
 use terminal_view::{MarleyFooterContext, TerminalView};
-use ui::{Button, ButtonStyle, IconButton, Label, LabelSize, Tooltip, prelude::*};
+use ui::{
+    Button, ButtonLike, ButtonStyle, IconButton, KeyBinding, Label, LabelSize, Tooltip, prelude::*,
+};
 use util::ResultExt as _;
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
@@ -119,20 +123,43 @@ enum Control {
 
 struct Written {
     who: String,
-    program: String,
-    text: String,
 }
 
 /// A write, or a run, that waits for the user.
 struct Pending {
-    /// What the card says.
-    words: String,
-    /// The card's two buttons.
-    allow: &'static str,
-    deny: &'static str,
-    /// Whether it is a run, which Enter and Escape answer.
-    run: bool,
+    kind: PendingKind,
     answer: Option<oneshot::Sender<bool>>,
+}
+
+/// What waits.
+enum PendingKind {
+    /// A write into a program, and what its bar says.
+    Write(String),
+    /// A command at the prompt, drawn as the board's card (#928); Enter and Escape answer it.
+    Run(RunCard),
+}
+
+/// What a waiting command's card shows (#928).
+struct RunCard {
+    who: String,
+    command: String,
+    /// The terminal's folder, which the card names.
+    folder: Option<PathBuf>,
+    /// The folder Always run … here writes for: the project folder holding the terminal's folder,
+    /// else that folder (D2).
+    here: Option<PathBuf>,
+    listed: Listed,
+    /// The prefix Always run … here allows; none when D3 rules it out.
+    always: Option<String>,
+}
+
+/// What the lists say of a waiting command.
+#[derive(Clone, Copy)]
+enum Listed {
+    /// The denylist asks about it.
+    AskList,
+    /// Neither list holds it, and the setting asks.
+    Neither,
 }
 
 /// Registers the take-over on every workspace; [`crate::init`] calls it once.
@@ -490,13 +517,10 @@ async fn ask_then_type(typing: Typing, cx: &gpui::AsyncApp) -> Result<ToolAnswer
     let id = typing.view.entity_id();
     cx.update(|cx| {
         drive(&typing.view, cx).pending = Some(Pending {
-            words: format!(
+            kind: PendingKind::Write(format!(
                 "{} wants to type into {}: {text}",
                 typing.who, typing.program
-            ),
-            allow: "Allow",
-            deny: "Deny",
-            run: false,
+            )),
             answer: Some(sender),
         });
         typing.view.update(cx, |_, cx| cx.notify());
@@ -562,15 +586,12 @@ async fn write(typing: &Typing, cx: &gpui::AsyncApp) -> ToolAnswer {
         None => cx.update(|cx| terminal.update(cx, |terminal, _| after(terminal))),
     }
     cx.update(|cx| {
-        let text = shown(typing);
         let drive = drive(&typing.view, cx);
         if drive.control == Control::Quiet {
             drive.control = Control::Agents;
         }
         drive.last_write = Some(Written {
             who: typing.who.clone(),
-            program: typing.program.clone(),
-            text,
         });
         typing.view.update(cx, |_, cx| cx.notify());
         answer_of(json!({
@@ -661,6 +682,180 @@ fn close_bar(view: &Entity<TerminalView>, cx: &mut App) {
     view.update(cx, |_, cx| cx.notify());
 }
 
+/// Writes Always run … here's pattern for the command waiting under `view`, then runs it (#928).
+fn answer_always(view: EntityId, cx: &mut App) {
+    let card = cx
+        .try_global::<Drives>()
+        .and_then(|drives| drives.0.get(&view))
+        .and_then(|drive| drive.pending.as_ref())
+        .and_then(|pending| match &pending.kind {
+            PendingKind::Run(card) => Some((card.here.clone()?, card.always.clone()?)),
+            PendingKind::Write(_) => None,
+        });
+    if let Some((here, prefix)) = card {
+        let pattern = agent_commands::prefix_pattern(&prefix);
+        let folder = here.to_string_lossy().into_owned();
+        settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+            let patterns = content
+                .marley
+                .get_or_insert_default()
+                .agent_command_allowlist_by_folder
+                .get_or_insert_default()
+                .entry(folder)
+                .or_default();
+            if !patterns.contains(&pattern) {
+                patterns.push(pattern);
+            }
+        });
+    }
+    answer(view, true, cx);
+}
+
+/// A waiting command as the board's card (#928): who asks, where, what the lists say, the command
+/// on its own line, and Run, Refuse and Always run … here, the keys read from the keymap (D4).
+fn run_card(card: &RunCard, id: EntityId, focus: &FocusHandle, cx: &App) -> AnyElement {
+    use util::paths::PathExt as _;
+
+    let status = match card.listed {
+        Listed::AskList => "on the ask list",
+        Listed::Neither => "not on either list",
+    };
+    let folder = card
+        .folder
+        .as_ref()
+        .map(|folder| folder.compact().to_string_lossy().into_owned());
+    let colors = cx.theme().colors();
+    let header = h_flex()
+        .w_full()
+        .gap_1p5()
+        .child(
+            div()
+                .flex_none()
+                .size(px(8.))
+                .rounded_full()
+                .bg(cx.theme().status().warning),
+        )
+        .child(
+            Label::new(format!("{} wants to run", card.who))
+                .size(LabelSize::Small)
+                .weight(gpui::FontWeight::MEDIUM),
+        )
+        .children(folder.map(|folder| {
+            Label::new(format!("in {folder}"))
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .truncate()
+        }))
+        .child(div().flex_1())
+        .child(
+            Label::new(status)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        );
+    let command = div()
+        .w_full()
+        .px_2()
+        .py_1()
+        .rounded_md()
+        .bg(colors.editor_background)
+        .child(
+            Label::new(card.command.clone())
+                .size(LabelSize::Small)
+                .buffer_font(cx),
+        );
+    v_flex()
+        .debug_selector(|| "marley-terminal-run-card".into())
+        .mx_2()
+        .my_1()
+        .p_2()
+        .gap_1p5()
+        .rounded_lg()
+        .border_1()
+        .border_color(colors.border_variant)
+        .bg(colors.elevated_surface_background)
+        .child(header)
+        .child(command)
+        .child(run_card_buttons(card, id, focus, cx))
+        .into_any_element()
+}
+
+/// The card's Run and Refuse, each with its key, and Always run … here (#928).
+fn run_card_buttons(card: &RunCard, id: EntityId, focus: &FocusHandle, cx: &App) -> Div {
+    let keyed = |label: &'static str, action: &dyn gpui::Action| {
+        h_flex()
+            .gap_1()
+            .child(Label::new(label).size(LabelSize::Small))
+            .child(KeyBinding::for_action_in(action, focus, cx).size(rems_from_px(11_f32)))
+    };
+    h_flex()
+        .gap_1p5()
+        .child(
+            ButtonLike::new(("marley-terminal-run-allow", id.as_u64()))
+                .style(ButtonStyle::Filled)
+                .child(keyed("Run", &RunAgentCommand))
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    answer(id, true, cx);
+                }),
+        )
+        .child(
+            ButtonLike::new(("marley-terminal-run-refuse", id.as_u64()))
+                .style(ButtonStyle::Subtle)
+                .child(keyed("Refuse", &RefuseAgentCommand))
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    answer(id, false, cx);
+                }),
+        )
+        .children(
+            card.always
+                .as_ref()
+                .filter(|_| card.here.is_some())
+                .map(|prefix| {
+                    Button::new(
+                        ("marley-terminal-run-always", id.as_u64()),
+                        format!("Always run {prefix} here"),
+                    )
+                    .label_size(LabelSize::Small)
+                    .style(ButtonStyle::Subtle)
+                    .on_click(move |_, _, cx| {
+                        cx.stop_propagation();
+                        answer_always(id, cx);
+                    })
+                }),
+        )
+}
+
+/// A pending write's card: Allow, Deny and what the agent wants to type. The buttons lead the row:
+/// the write's toast stacks at the workspace's bottom right, over the right end of a terminal's
+/// footer (#593).
+fn write_card(bar: Div, words: &str, id: EntityId) -> AnyElement {
+    bar.debug_selector(|| "marley-terminal-write-card".into())
+        .child(
+            Button::new(("marley-terminal-write-allow", id.as_u64()), "Allow")
+                .style(ButtonStyle::Filled)
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    answer(id, true, cx);
+                }),
+        )
+        .child(
+            Button::new(("marley-terminal-write-deny", id.as_u64()), "Deny")
+                .style(ButtonStyle::Subtle)
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    answer(id, false, cx);
+                }),
+        )
+        .child(
+            Label::new(words.to_string())
+                .size(LabelSize::Small)
+                .color(Color::Warning)
+                .truncate(),
+        )
+        .into_any_element()
+}
+
 /// The card of a pending write, or the bar of an agent's writes, under the terminal; none while
 /// no agent has typed into its program.
 pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyElement> {
@@ -669,6 +864,8 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
     let drives = cx.try_global::<Drives>()?;
     let drive = drives.0.get(&id)?;
     let colors = cx.theme().colors();
+    // The card's and the bar's keys are matched from the terminal's focus (#928, D4).
+    let focus = context.focus_handle.clone();
     let bar = h_flex()
         .w_full()
         .gap_2()
@@ -678,34 +875,10 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
         .border_color(colors.border_variant)
         .bg(colors.terminal_background);
     if let Some(pending) = &drive.pending {
-        // The buttons lead the row: the write's toast stacks at the workspace's bottom right,
-        // over the right end of a terminal's footer (#593).
-        return Some(
-            bar.debug_selector(|| "marley-terminal-write-card".into())
-                .child(
-                    Button::new(("marley-terminal-write-allow", id.as_u64()), pending.allow)
-                        .style(ButtonStyle::Filled)
-                        .on_click(move |_, _, cx| {
-                            cx.stop_propagation();
-                            answer(id, true, cx);
-                        }),
-                )
-                .child(
-                    Button::new(("marley-terminal-write-deny", id.as_u64()), pending.deny)
-                        .style(ButtonStyle::Subtle)
-                        .on_click(move |_, _, cx| {
-                            cx.stop_propagation();
-                            answer(id, false, cx);
-                        }),
-                )
-                .child(
-                    Label::new(pending.words.clone())
-                        .size(LabelSize::Small)
-                        .color(Color::Warning)
-                        .truncate(),
-                )
-                .into_any_element(),
-        );
+        return Some(match &pending.kind {
+            PendingKind::Run(card) => run_card(card, id, &focus, cx),
+            PendingKind::Write(words) => write_card(bar, words, id),
+        });
     }
     // A closed bar stays closed, but never while the user holds control, which refuses the
     // agents' writes (#810).
@@ -723,11 +896,9 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
             .last_write
             .as_ref()
             .filter(|_| drive.program == program_of(context.terminal.read(cx)))?;
+        // The terminal shows what was typed; the bar says who types (#928, D5).
         (
-            format!(
-                "{} typed into {}: {}",
-                written.who, written.program, written.text
-            ),
+            format!("{} is typing into this terminal's program", written.who),
             "Take Over",
         )
     };
@@ -742,8 +913,18 @@ pub(crate) fn footer(context: &MarleyFooterContext, cx: &App) -> Option<AnyEleme
             .child(div().flex_1())
             .child({
                 let view = view.clone();
-                Button::new(("marley-terminal-take-over", id.as_u64()), action)
+                // Take Over and Hand Back carry their key (#928, D4).
+                ButtonLike::new(("marley-terminal-take-over", id.as_u64()))
                     .style(ButtonStyle::Subtle)
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .child(Label::new(action).size(LabelSize::Small))
+                            .child(
+                                KeyBinding::for_action_in(&TakeOverTerminal, &focus, cx)
+                                    .size(rems_from_px(11_f32)),
+                            ),
+                    )
                     .on_click(move |_, _, cx| {
                         cx.stop_propagation();
                         toggle_control(&view, cx);
@@ -776,6 +957,11 @@ struct Run {
     who: String,
     wait: Duration,
     ask: bool,
+    /// The terminal's folder, and the folder Always run … here writes for (#928).
+    folder: Option<PathBuf>,
+    here: Option<PathBuf>,
+    listed: Listed,
+    always: Option<String>,
 }
 
 /// `terminal_run` (#556): checks the command and the terminal's prompt, asks the user when the
@@ -835,18 +1021,27 @@ fn check_run_in(
         .map_or(RUN_WAIT_SECONDS, |seconds| seconds.min(RUN_WAIT_SECONDS));
     prompt_refusal(&view, cx)?;
     let who = Who::of(call, cx).words;
+    let folder = view.read(cx).terminal().read(cx).working_directory();
     let settings = MarleySettings::get_global(cx);
-    let ask = match agent_commands::verdict(
-        &command,
-        &settings.agent_command_allowlist,
-        &settings.agent_command_denylist,
-    ) {
-        Verdict::Allowed => false,
-        Verdict::Ask => true,
-        Verdict::Outside => {
-            settings.agent_commands_outside_lists == MarleyAgentCommandsOutsideLists::Ask
+    // The patterns kept for the terminal's folder and every folder above it join the list (#928).
+    let mut allow = settings.agent_command_allowlist.clone();
+    if let Some(folder) = &folder {
+        for (root, patterns) in &settings.agent_command_allowlist_by_folder {
+            if folder.starts_with(root) {
+                allow.extend(patterns.iter().cloned());
+            }
         }
-    };
+    }
+    let (ask, listed) =
+        match agent_commands::verdict(&command, &allow, &settings.agent_command_denylist) {
+            Verdict::Allowed => (false, Listed::Neither),
+            Verdict::Ask => (true, Listed::AskList),
+            Verdict::Outside => (
+                settings.agent_commands_outside_lists == MarleyAgentCommandsOutsideLists::Ask,
+                Listed::Neither,
+            ),
+        };
+    let always = agent_commands::always_prefix(&command, &settings.agent_command_denylist);
     let drive = drive(&view, cx);
     if drive.control == Control::Taken {
         return Err(
@@ -865,6 +1060,18 @@ fn check_run_in(
         .into_iter()
         .find(|(_, other)| *other == view)
         .map(|(workspace, _)| workspace);
+    let here = folder.as_ref().map(|folder| {
+        workspace
+            .as_ref()
+            .and_then(|workspace| {
+                workspace
+                    .read(cx)
+                    .root_paths(cx)
+                    .into_iter()
+                    .find(|root| folder.starts_with(root))
+            })
+            .map_or_else(|| folder.clone(), |root| root.to_path_buf())
+    });
     Ok(Run {
         view,
         workspace,
@@ -873,6 +1080,10 @@ fn check_run_in(
         who,
         wait: Duration::from_secs(wait),
         ask,
+        folder,
+        here,
+        listed,
+        always,
     })
 }
 
@@ -1033,10 +1244,14 @@ async fn ask_to_run(run: &Run, deadline: Instant, cx: &gpui::AsyncApp) -> Result
     let shown: String = run.command.chars().take(SHOWN_CHARACTERS).collect();
     cx.update(|cx| {
         drive(&run.view, cx).pending = Some(Pending {
-            words: format!("{} wants to run {shown}", run.who),
-            allow: "Run",
-            deny: "Refuse",
-            run: true,
+            kind: PendingKind::Run(RunCard {
+                who: run.who.clone(),
+                command: shown.clone(),
+                folder: run.folder.clone(),
+                here: run.here.clone(),
+                listed: run.listed,
+                always: run.always.clone(),
+            }),
             answer: Some(sender),
         });
         run.view.update(cx, |_, cx| cx.notify());
@@ -1118,7 +1333,7 @@ fn answer_focused_run(workspace: &Workspace, allowed: bool, window: &Window, cx:
         .try_global::<Drives>()
         .and_then(|drives| drives.0.get(&id))
         .and_then(|drive| drive.pending.as_ref())
-        .is_some_and(|pending| pending.run);
+        .is_some_and(|pending| matches!(pending.kind, PendingKind::Run(_)));
     if waiting {
         answer(id, allowed, cx);
     }
