@@ -80,7 +80,30 @@
   shot shows Fleet in the right half, not an empty pane.
 
 ## Phase 2 — Code
+- **Built:** `fleet.rs` only: `BESIDE_FROM`, `Arrangement` with `for_width`,
+  `FleetPanel.body_width`, the measuring `canvas` behind the body, `render_beside`,
+  `render_under` (#608's split, moved), and the header's `Headline` with the summary beside it.
+- **Deviations:** none. The redraw on a changed arrangement is `window.refresh()` from the
+  canvas's prepaint, since the panel's own `cx` is not there.
+- **Review:** `render_list` and `render_selected` are unchanged; the `Panel` impl, `ToggleFleet`,
+  `fleet_shows` and #748's tab are untouched (REQ-005). Before the first prepaint the body draws
+  under, then beside at the next frame when wide.
+- **Gate:** clippy clean at the first run. `just gate-diff`: 17 passed, 0 failed.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/935-fleet-as-a-centre-tab.sh` (sway), run in full; every shot read.
+- `935-02-none`: `marley: toggle fleet` opens the Fleet tab at full width: "Fleet" headline, "3
+  agents on 2 hosts · Pseudo provider", the two host cards on the left, "Select an agent to see
+  its snapshot here." in the right column. REQ-002, REQ-003, REQ-005.
+- `935-01-beside`: build-1 clicked: its row lit, and its snapshot (header, work item, run strip,
+  resources, tokens) in the right column. REQ-001.
+- `935-03-under`: `pane: split right` moves the Fleet into the right half: the list over the
+  snapshot with the split line between. REQ-004.
+- `935-04-day`: in Marley Day, the Fleet opened again at full width, build-1 still selected, beside.
+  The first run closed the split's items, which closed the Fleet too, and shot the terminal; the
+  scenario opens the Fleet again before the shot. REQ-001, REQ-003.
 
 ## Phase 4 — Complete
+- CHANGELOG entry; `docs/marley_architecture/marley_workbench.md` (the Fleet panel as cards);
+  the look-plan row. No Zed path, so no touchpoint row.
+- Brain: the consultation closed with `brain decide`.

@@ -4855,6 +4855,15 @@ below describe what #743 retired.
 
 ## The Fleet panel as cards (`src/fleet.rs`, #848)
 
+- **Beside or under (#935).** A `canvas` behind the body fills `FleetPanel.body_width` at
+  prepaint; `Arrangement::for_width` picks `Beside` at `BESIDE_FROM` (760 px) or wider, else
+  `Under`, and a measured width that picks another arrangement than the frame drew calls
+  `window.refresh()`. `render_beside` puts the list and the snapshot in two `flex_1` columns that
+  scroll on their own, the snapshot's on the editor background, or "Select an agent to see its
+  snapshot here." with none selected; no split handle. `render_under` is #608's split with
+  `snapshot_ratio`. The header is a `Headline` "Fleet" with `summary` beside it. The panel stays a
+  `Panel` that #748's tab draws, so every entry that opens it is unchanged.
+
 - `summary(sources)` stands beside FLEET; `render_source` draws each host group as a card, its
   `host_line` at the header's right; `render_agent` draws the runtime as a tile of
   `runtime_glyph`'s two letters.

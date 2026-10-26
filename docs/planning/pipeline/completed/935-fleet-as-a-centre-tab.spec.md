@@ -1,7 +1,7 @@
 ---
 pipeline_id: 319e502f-5724-4a46-8ef1-40290c0354dc
 ticket: docs/planning/tickets/open/TICKET-935-fleet-as-a-centre-tab.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The Fleet tab with the snapshot beside the list
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

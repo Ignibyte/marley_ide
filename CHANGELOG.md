@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Fleet tab with the snapshot beside the list** (#935, 2026-10-25). A Fleet 760 px wide or
+  wider, as its centre tab is at full width, draws the hosts and their agents on the left and the
+  selected agent's snapshot as a column on the right, as the Fleet board does. With nothing
+  selected, the column says so. A narrower Fleet, in the dock or a half-width pane, keeps the
+  snapshot under the list with its draggable split. The Fleet titles itself with a headline and
+  its summary beside it.
 - **Agent Activity lists Rusty's calls** (#934, 2026-10-25). Calls Claude Code makes to Rusty's
   tools that change something are listed beside Marley's own, though Marley does not carry them:
   from an Agent Panel thread, read off the adapter's tool calls, and from Claude Code in a Marley

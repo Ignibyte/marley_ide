@@ -14,13 +14,15 @@
 //! graphs. The hosts the settings list are read with Marley's collector script every few seconds
 //! while a Fleet surface shows (#610, `crate::fleet_hosts`).
 
+use std::cell::Cell;
 use std::collections::{HashMap, VecDeque};
+use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use gpui::{
     Action, AnyElement, App, ClickEvent, Context, Div, DragMoveEvent, EntityId, EventEmitter,
     FocusHandle, Focusable, Global, Hsla, Pixels, Render, Subscription, Task, WeakEntity, Window,
-    px, relative,
+    canvas, px, relative,
 };
 use marley_sdk::stale::DEFAULT_POLL_S;
 use marley_sdk::{
@@ -29,8 +31,8 @@ use marley_sdk::{
 };
 use settings::{FleetProviderContent, Settings as _};
 use ui::{
-    Button, ButtonSize, ButtonStyle, Chip, Divider, Icon, IconName, IconSize, Label, LabelSize,
-    ProgressBar, Tooltip, prelude::*,
+    Button, ButtonSize, ButtonStyle, Chip, Divider, Headline, HeadlineSize, Icon, IconName,
+    IconSize, Label, LabelSize, ProgressBar, Tooltip, prelude::*,
 };
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::{MultiWorkspace, Workspace};
@@ -46,6 +48,29 @@ const ACTIVATION_PRIORITY: u32 = 20;
 /// The snapshot's share of the panel's height until the user drags the split. A third hid the
 /// question of an agent that asks one on a 1000 px tall window.
 const SNAPSHOT_RATIO: f32 = 0.5;
+
+/// The Fleet's width from which the snapshot is a column beside the list (#935, D2): a
+/// full-width tab is beside; the dock and a half-width pane keep it under the list.
+const BESIDE_FROM: Pixels = px(760.);
+
+/// How the Fleet lays its list and the selected agent's snapshot out (#935).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Arrangement {
+    /// Two columns of equal width, as the Fleet board draws them.
+    Beside,
+    /// The snapshot under the list, with #608's draggable split.
+    Under,
+}
+
+impl Arrangement {
+    /// The arrangement for a body `width` wide; under until the body was measured.
+    fn for_width(width: Option<Pixels>) -> Self {
+        match width {
+            Some(width) if width >= BESIDE_FROM => Self::Beside,
+            _ => Self::Under,
+        }
+    }
+}
 
 /// How long a host's samples are kept for its graphs.
 const SAMPLES_KEPT_MS: u64 = 30 * 60 * 1000;
@@ -609,6 +634,8 @@ pub struct FleetPanel {
     selected: Option<Selected>,
     /// The snapshot's share of the height below the header.
     snapshot_ratio: f32,
+    /// The body's width at the last prepaint, which picks the arrangement (#935).
+    body_width: Rc<Cell<Option<Pixels>>>,
     _fleet: Subscription,
 }
 
@@ -635,6 +662,7 @@ impl FleetPanel {
             workspace,
             selected: None,
             snapshot_ratio: SNAPSHOT_RATIO,
+            body_width: Rc::new(Cell::new(None)),
             _fleet: cx.observe_global::<Fleet>(|panel, cx| {
                 panel.drop_gone_selection(cx);
                 cx.notify();
@@ -1495,7 +1523,25 @@ impl Render for FleetPanel {
         }
         let list = self.render_list(&sources, cx);
         let snapshot = self.render_selected(&sources, cx);
-        let ratio = self.snapshot_ratio;
+        let arrangement = Arrangement::for_width(self.body_width.get());
+        let measured = Rc::clone(&self.body_width);
+        // Behind the body: its width picks the arrangement, and a width that picks another one
+        // than this frame drew asks for one more frame.
+        let measure = canvas(
+            move |bounds, window, _| {
+                measured.set(Some(bounds.size.width));
+                if Arrangement::for_width(Some(bounds.size.width)) != arrangement {
+                    window.refresh();
+                }
+            },
+            |_, (), _, _| {},
+        )
+        .absolute()
+        .size_full();
+        let body = match arrangement {
+            Arrangement::Beside => Self::render_beside(list, snapshot, cx),
+            Arrangement::Under => self.render_under(list, snapshot, cx),
+        };
         v_flex()
             .id("marley-fleet-panel")
             .key_context("FleetPanel menu")
@@ -1509,53 +1555,102 @@ impl Render for FleetPanel {
             }))
             .size_full()
             .bg(cx.theme().colors().panel_background)
+            // The board's title, with how many agents on how many hosts, and from where, beside
+            // it (#848, #935).
             .child(
                 h_flex()
-                    .px_2()
-                    .py_1p5()
+                    .px_3()
+                    .py_2()
                     .gap_2()
-                    .child(
-                        Label::new("FLEET")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                    // How many agents on how many hosts, and from where, as the Fleet board's line
-                    // (#848).
+                    .child(Headline::new("Fleet").size(HeadlineSize::Small))
                     .children(
                         summary(&sources).map(|line| {
-                            Label::new(line).size(LabelSize::XSmall).color(Color::Muted)
+                            Label::new(line).size(LabelSize::Small).color(Color::Muted)
                         }),
                     ),
             )
             .child(Divider::horizontal())
             .child(
-                v_flex()
-                    .id("marley-fleet-body")
+                div()
+                    .relative()
+                    .flex()
                     .flex_1()
                     .min_h_0()
-                    .on_drag_move::<DraggedFleetSplit>(cx.listener(
-                        |panel, event: &DragMoveEvent<DraggedFleetSplit>, _, cx| {
-                            let bounds = event.bounds;
-                            let height = bounds.size.height;
-                            if height > px(0.) {
-                                let below = bounds.bottom() - event.event.position.y;
-                                panel.snapshot_ratio = (below / height).clamp(0.15, 0.85);
-                                cx.notify();
-                            }
-                        },
-                    ))
-                    .child(list)
-                    .when_some(snapshot, |body, snapshot| {
-                        body.child(Self::render_handle(cx)).child(
-                            div()
-                                .id("marley-fleet-snapshot")
-                                .flex_none()
-                                .h(relative(ratio))
-                                .overflow_y_scroll()
-                                .child(snapshot),
-                        )
-                    }),
+                    .child(measure)
+                    .child(body),
             )
+    }
+}
+
+impl FleetPanel {
+    /// The list and the snapshot as two columns of equal width, each scrolling on its own; with
+    /// nothing selected, the right column says so (#935, D3, D4).
+    fn render_beside(list: AnyElement, snapshot: Option<AnyElement>, cx: &App) -> AnyElement {
+        let colors = cx.theme().colors();
+        let column = snapshot.unwrap_or_else(|| {
+            div()
+                .p_3()
+                .child(
+                    Label::new("Select an agent to see its snapshot here.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .into_any_element()
+        });
+        h_flex()
+            .id("marley-fleet-body")
+            .size_full()
+            .items_start()
+            .child(v_flex().flex_1().min_w_0().h_full().child(list))
+            .child(
+                div()
+                    .id("marley-fleet-snapshot")
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .overflow_y_scroll()
+                    .border_l_1()
+                    .border_color(colors.border_variant)
+                    .bg(colors.editor_background)
+                    .child(column),
+            )
+            .into_any_element()
+    }
+
+    /// The list over the snapshot with #608's draggable split, for a narrow Fleet.
+    fn render_under(
+        &self,
+        list: AnyElement,
+        snapshot: Option<AnyElement>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let ratio = self.snapshot_ratio;
+        v_flex()
+            .id("marley-fleet-body")
+            .size_full()
+            .on_drag_move::<DraggedFleetSplit>(cx.listener(
+                |panel, event: &DragMoveEvent<DraggedFleetSplit>, _, cx| {
+                    let bounds = event.bounds;
+                    let height = bounds.size.height;
+                    if height > px(0.) {
+                        let below = bounds.bottom() - event.event.position.y;
+                        panel.snapshot_ratio = (below / height).clamp(0.15, 0.85);
+                        cx.notify();
+                    }
+                },
+            ))
+            .child(list)
+            .when_some(snapshot, |body, snapshot| {
+                body.child(Self::render_handle(cx)).child(
+                    div()
+                        .id("marley-fleet-snapshot")
+                        .flex_none()
+                        .h(relative(ratio))
+                        .overflow_y_scroll()
+                        .child(snapshot),
+                )
+            })
+            .into_any_element()
     }
 }
 
