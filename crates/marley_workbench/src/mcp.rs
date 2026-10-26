@@ -229,7 +229,7 @@ fn publisher(shared: transport::Shared, cx: &App) -> mpsc::UnboundedSender<Fleet
 
 /// The conditional tools the settings turn on (#567): each while System One is on and its use,
 /// of the tool's name, has a mode other than `off`.
-fn enabled_tools(cx: &App) -> BTreeSet<String> {
+pub(crate) fn enabled_tools(cx: &App) -> BTreeSet<String> {
     let settings = &MarleySettings::get_global(cx).system_one;
     marley_mcp::CONDITIONAL_TOOLS
         .iter()

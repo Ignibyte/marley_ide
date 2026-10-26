@@ -13,6 +13,16 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **MCP Servers and Agent Activity as the Tools board draws them** (#933, 2026-10-25). MCP
+  Servers says what it is for under its title. Each agent's card opens with its lettered tile, its
+  name and version over the program's path, and a pill: ready, missing, version unknown or
+  checking. Its integrations are chips with a dot for their state, and a chip's tooltip says the
+  state and the versions it was tested on. Marley's own server has its own card, with how many
+  tools it lists to Marley's agents now and its status in each project. Agent Activity draws each
+  call as a card with the caller's tile, the tool, the time, what it acted on and how it ended.
+  Marley now records that end: "exit 0", "you accepted", "saved" or the answer's first line, or
+  the refusal's reason in red. Home's card keeps one line per call. Day files written before this
+  still read.
 - **Recordings with their minute, and scripts' last runs** (#932, 2026-10-25). Record This opens
   the drawer on the new recording, expanded: twenty bars over the minute, the steps at their times
   in words, Draft a test and Send to the agent. Draft a test opens the drafted Playwright test in a

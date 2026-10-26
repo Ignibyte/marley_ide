@@ -92,7 +92,47 @@
   wrong guess draws a plain tile, never a wrong agent's.
 
 ## Phase 2 — Code
+- **Built:** `mcp_servers.rs` (the subtitle; `pill`, `card_head`, `render_chip`; `render_agent`
+  rewritten; `render_marley_server`; `render` partitions `zed_rows` by `mcp::CONTEXT_SERVER`),
+  `agent_activity.rs` (`ActivityRow.agent`, `Outcome::Done { result }`, `Outcome::Refused {
+  code, reason }`, `RowLayout`, `result_line`, `first_sentence`, `shortened`, `cut`, `minute`,
+  `render_card`, `render_line`), `click_pause.rs` (`Who::mark`), `item_kind.rs`
+  (`AgentMark` serde derive, `AgentMark::from_client`, `square_tile`), `home_page.rs`
+  (`RowLayout::Line`), `mcp.rs` (`enabled_tools` `pub(crate)`).
+- **Deviations:** the tile is a new `item_kind::square_tile` rather than `tile` (whose height
+  follows its label), so the 34 px and 28 px tiles are square. The adapters' client names were
+  not read from a live `initialize`: `claude-code` is the name Marley already maps for Claude
+  Code's events (`agent_events.rs`), and any name starting `codex` maps to CX. An unknown name
+  draws its first letter, so a wrong guess never draws another agent's tile. A terminal caller's
+  mark comes from its seat's agent label (`agent_events::seat_agent`).
+- **Review:** the `on_answer` hook is `Send`; `model_redactor` hands an `Arc<Redactor>`, which
+  the hook takes. Old rows: `{"outcome":"done"}` reads as `Done { result: None }`; `agent`
+  absent reads as `None`. New fields are skipped when empty.
+- **Gate:** clippy found four (a name too close to another, a redundant closure, two
+  `unwrap_or` calls); fixed with `minute`. `just gate-diff`: 17 passed, 0 failed.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/933-tools-page-as-the-board.sh` (sway), run in full; every shot read.
+- `933-01-servers`: the subtitle beside the title; Claude Code's card (CC tile, "Claude Code
+  2.1.304" over the stand-in's path, green "ready", five chips with dots, Prompt tags green);
+  Codex's (CX tile, "not on Marley's PATH", red "missing", the App Servers chip); Marley's card
+  (M tile, "Zed's agents · running in repo", "68 tools: editor, terminal, …", green "running");
+  the ZED card with no context servers. REQ-001 to REQ-004.
+- `933-02-chip`: the tooltip "Prompt tags: on · tested on 2.1.283 and later 2.1 releases".
+  REQ-003.
+- `933-03-activity`: two cards, newest first: S tile, `terminal_run` in accent, "Stand-in
+  agent", 22:02; "echo nowhere" with "no terminal has the id 99999" in red; "echo hello" with
+  "exit 0" muted. The day file's two lines hold `"result":"exit 0"` and `"reason":"no terminal
+  has the id 99999"`. REQ-005 to REQ-007, REQ-009.
+- `933-04-home`: Home's AGENT ACTIVITY card, two lines: 22:05, `terminal_run`, the command.
+  The first run shot Agent Activity, because the palette's `rusty: open home` left the group's
+  active tab in front; the scenario clicks the Home tab now. REQ-008.
+- `933-05-day`, `933-06-day-activity`: both pages in Marley Day, tiles and pills tinted for the
+  light theme. REQ-001, REQ-005.
+- **Pre-existing, not in scope:** Home's RECENT PROJECTS in a scenario lists the machine's real
+  recent projects (the run's profile reads them); the shots stay out of the repository.
 
 ## Phase 4 — Complete
+- CHANGELOG entry; `docs/marley_architecture/marley_workbench.md` (MCP Servers and Agent
+  activity sections); the look-plan row. No Zed path, so no touchpoint row.
+- Brain: the consultation closed with `brain decide` (the result line kept in the row).

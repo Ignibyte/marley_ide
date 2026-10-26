@@ -1,7 +1,7 @@
 ---
 pipeline_id: bf12e69f-ce30-49f1-8e9d-bd975c3c025f
 ticket: docs/planning/tickets/open/TICKET-933-tools-page-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: MCP Servers and Agent Activity as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

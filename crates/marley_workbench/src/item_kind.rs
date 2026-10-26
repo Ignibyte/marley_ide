@@ -11,8 +11,10 @@ use marley_rail::{Attention, ThreadStatus};
 use project::AgentId;
 use ui::{Color, IconName, prelude::*};
 
-/// An agent, as its tile's glyph and colour tell it apart (#905, D2).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// An agent, as its tile's glyph and colour tell it apart (#905, D2). Agent Activity's day files
+/// keep it (#933).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum AgentMark {
     Claude,
     Codex,
@@ -50,6 +52,21 @@ impl AgentMark {
             crate::agents::CODEX_AGENT => Self::Codex,
             id => Self::Other(
                 id.chars()
+                    .next()
+                    .map_or('?', |first| first.to_ascii_uppercase()),
+            ),
+        }
+    }
+
+    /// An MCP client, by the name it gave at `initialize` (#933): Claude Code's and Codex's, else
+    /// the name's first letter, as Zed's `Z`.
+    pub(crate) fn from_client(name: &str) -> Self {
+        match name {
+            "claude-code" => Self::Claude,
+            codex if codex.starts_with("codex") => Self::Codex,
+            other => Self::Other(
+                other
+                    .chars()
                     .next()
                     .map_or('?', |first| first.to_ascii_uppercase()),
             ),
@@ -207,6 +224,24 @@ pub(crate) fn tile(kind: ItemKind, glyph: SharedString, width: Pixels, cx: &App)
         .child(
             Label::new(glyph)
                 .size(LabelSize::XSmall)
+                .buffer_font(cx)
+                .color(Color::Custom(kind.ink(cx))),
+        )
+}
+
+/// A square tile of `size` with the kind's glyph, for a card's head (#933).
+pub(crate) fn square_tile(kind: ItemKind, glyph: SharedString, size: Pixels, cx: &App) -> Div {
+    div()
+        .flex_none()
+        .size(size)
+        .rounded(size / 4.)
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(kind.tint(cx))
+        .child(
+            Label::new(glyph)
+                .size(LabelSize::Small)
                 .buffer_font(cx)
                 .color(Color::Custom(kind.ink(cx))),
         )

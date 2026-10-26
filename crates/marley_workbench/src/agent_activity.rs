@@ -3,7 +3,7 @@
 //! Every call an agent makes to a write-tier tool of Marley's MCP server (typing into and running
 //! in terminals, the browser's clicks and typing, settings and keymap changes, harness seats) is a
 //! row in a day log under Marley's data directory and in the Agent Activity tab: who called, the
-//! tool, what it acted on, and whether it ran. While `marley.agent_control.stopped` is on, those
+//! tool, what it acted on, and how it ended: its result's line or the refusal's reason (#933). While `marley.agent_control.stopped` is on, those
 //! tools refuse every agent; the tools that only read keep answering.
 
 use std::collections::VecDeque;
@@ -18,7 +18,8 @@ use gpui::{
     App, AppContext as _, Context, EventEmitter, FocusHandle, Focusable, Global, Render,
     SharedString, Subscription, WeakEntity, Window, actions,
 };
-use marley_mcp::{AppCall, Refusal};
+use marley_mcp::redact::Redactor;
+use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
 use ui::{ButtonStyle, Headline, HeadlineSize, prelude::*};
@@ -28,6 +29,7 @@ use workspace::item::{Item, ItemEvent};
 
 use crate::groups::GroupKind;
 use crate::home_page::muted;
+use crate::item_kind::{self, AgentMark, ItemKind};
 use crate::{AgentControl, MarleySettings};
 
 actions!(
@@ -56,6 +58,9 @@ const ROWS_KEPT: usize = 500;
 /// How long a row's summary may be, in characters.
 const SUMMARY_CHARS: usize = 160;
 
+/// How long a call's result or reason may be, in characters (#933, D5).
+const RESULT_CHARS: usize = 120;
+
 /// The arguments a row's summary is taken from, the first one present.
 const SUMMARY_FIELDS: [&str; 7] = [
     "command",
@@ -74,18 +79,38 @@ pub(crate) struct ActivityRow {
     pub(crate) time: String,
     /// The caller in words, as `click_pause::Who` names it.
     pub(crate) who: String,
+    /// The caller's tile (#933); none in rows written before it, and for a caller Marley cannot
+    /// name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) agent: Option<AgentMark>,
     pub(crate) tool: String,
     /// What it acted on: a command, a URL, a key, cut to a line and redacted.
     pub(crate) summary: String,
     pub(crate) outcome: Outcome,
 }
 
-/// How a call ended.
+/// How a call ended. The lines default, so rows written before #933 still read (D7).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub(crate) enum Outcome {
-    Done,
-    Refused { code: String },
+    Done {
+        /// The answer's line, from [`result_line`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<String>,
+    },
+    Refused {
+        code: String,
+        /// The refusal's first sentence.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+}
+
+/// How [`render_rows`] lays a row out: the tab's card, or Home's compact line (#933, D6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RowLayout {
+    Card,
+    Line,
 }
 
 /// The rows of this run and today's earlier ones, newest last; the tab and Home's card observe it.
@@ -163,27 +188,92 @@ pub(crate) fn gate(call: &mut AppCall, cx: &App) -> Result<(), Refusal> {
 /// Logs `call`'s outcome once it is answered, with no refusal: a read that reveals a file's text
 /// (#704) is listed while the kill switch leaves it working.
 pub(crate) fn log(call: &mut AppCall, cx: &App) {
-    let who = crate::click_pause::Who::of(call, cx).words;
+    let caller = crate::click_pause::Who::of(call, cx);
     let summary = summary(&call.arguments, cx);
     let tool = call.tool.clone();
+    let redactor = crate::mcp::model_redactor(cx);
     if let Some(activity) = cx.try_global::<AgentActivity>() {
         let log = activity.log.clone();
         call.on_answer(move |result| {
             let outcome = match result {
-                Ok(_) => Outcome::Done,
+                Ok(answer) => Outcome::Done {
+                    result: result_line(answer).map(|line| shortened(&line, &redactor)),
+                },
                 Err(refusal) => Outcome::Refused {
                     code: refusal.code.to_string(),
+                    reason: first_sentence(&refusal.reason)
+                        .map(|sentence| shortened(sentence, &redactor)),
                 },
             };
             log.unbounded_send(ActivityRow {
                 time: now(),
-                who,
+                who: caller.words,
+                agent: caller.mark,
                 tool,
                 summary,
                 outcome,
             })
             .log_err();
         });
+    }
+}
+
+/// The line a row shows for `answer` (#933, D5): a receipt's choice (#367), an exit code, a run
+/// still going, a save, else the answer's first line of text.
+fn result_line(answer: &ToolAnswer) -> Option<String> {
+    let structured = &answer.structured;
+    match structured.get("result").and_then(serde_json::Value::as_str) {
+        Some("accepted") => return Some("you accepted".to_string()),
+        Some("refused") => return Some("you refused".to_string()),
+        _ => {}
+    }
+    if structured
+        .get("running")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        return Some("running".to_string());
+    }
+    if let Some(code) = structured
+        .get("exit_code")
+        .and_then(serde_json::Value::as_i64)
+    {
+        return Some(format!("exit {code}"));
+    }
+    if structured.get("saved").and_then(serde_json::Value::as_bool) == Some(true) {
+        return Some("saved".to_string());
+    }
+    answer
+        .text
+        .as_deref()?
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_string)
+}
+
+/// `reason`'s first sentence, none when it is empty.
+fn first_sentence(reason: &str) -> Option<&str> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return None;
+    }
+    Some(reason.find(". ").map_or(reason, |end| &reason[..=end]))
+}
+
+/// `line` redacted and cut to [`RESULT_CHARS`].
+fn shortened(line: &str, redactor: &Redactor) -> String {
+    cut(redactor.redact(line).text, RESULT_CHARS)
+}
+
+/// `text` cut to `chars` characters, an ellipsis marking the cut.
+fn cut(text: String, chars: usize) -> String {
+    if text.chars().count() > chars {
+        let mut cut: String = text.chars().take(chars).collect();
+        cut.push('…');
+        cut
+    } else {
+        text
     }
 }
 
@@ -234,14 +324,10 @@ fn summary(arguments: &serde_json::Value, cx: &App) -> String {
             },
         );
     let line = picked.lines().next().unwrap_or_default();
-    let redacted = crate::mcp::model_redactor(cx).redact(line).text;
-    if redacted.chars().count() > SUMMARY_CHARS {
-        let mut cut: String = redacted.chars().take(SUMMARY_CHARS).collect();
-        cut.push('…');
-        cut
-    } else {
-        redacted
-    }
+    cut(
+        crate::mcp::model_redactor(cx).redact(line).text,
+        SUMMARY_CHARS,
+    )
 }
 
 /// The log's folder under Marley's data directory.
@@ -359,50 +445,137 @@ pub(crate) fn render_state(id: &'static str, cx: &App) -> impl IntoElement {
         )
 }
 
-/// The `limit` newest rows, newest first, refusals marked.
-pub(crate) fn render_rows(limit: usize, cx: &App) -> AnyElement {
+/// The `limit` newest rows, newest first, as `layout` draws them.
+pub(crate) fn render_rows(limit: usize, layout: RowLayout, cx: &App) -> AnyElement {
     let rows = newest(limit, cx);
     if rows.is_empty() {
         return muted("No agent has used a tool that acts yet.");
     }
     v_flex()
         .w_full()
-        .children(rows.into_iter().map(|row| {
-            let (outcome, color) = match &row.outcome {
-                Outcome::Done => (SharedString::new_static("done"), Color::Muted),
-                Outcome::Refused { code } => (format!("refused: {code}").into(), Color::Error),
-            };
-            let time = row.time.split(' ').nth(1).unwrap_or(&row.time).to_string();
-            h_flex()
-                .w_full()
-                .gap_2()
-                .px_2()
-                .py_0p5()
-                .child(
-                    div()
-                        .w_16()
-                        .child(Label::new(time).size(LabelSize::XSmall).color(Color::Muted)),
-                )
-                .child(
-                    div()
-                        .w_32()
-                        .child(Label::new(row.who).size(LabelSize::Small).truncate()),
-                )
-                .child(
-                    div()
-                        .w_32()
-                        .child(Label::new(row.tool).size(LabelSize::Small).truncate()),
-                )
-                .child(
-                    div().flex_1().min_w_0().child(
-                        Label::new(row.summary)
-                            .size(LabelSize::Small)
-                            .color(Color::Muted)
-                            .truncate(),
-                    ),
-                )
-                .child(Label::new(outcome).size(LabelSize::XSmall).color(color))
+        .when(layout == RowLayout::Card, Styled::gap_2)
+        .children(rows.into_iter().map(|row| match layout {
+            RowLayout::Card => render_card(row, cx),
+            RowLayout::Line => render_line(row, cx),
         }))
+        .into_any_element()
+}
+
+/// A row's `HH:MM`, or the whole stamp when it has no time.
+fn minute(row: &ActivityRow) -> String {
+    let clock = row.time.split(' ').nth(1).unwrap_or(&row.time);
+    clock.get(..5).unwrap_or(clock).to_string()
+}
+
+/// Home's line for a row, as the Home board draws it: time, tool, what (#933, D6).
+fn render_line(row: ActivityRow, cx: &App) -> AnyElement {
+    let minute = minute(&row);
+    let refused = matches!(row.outcome, Outcome::Refused { .. });
+    h_flex()
+        .w_full()
+        .gap_2()
+        .px_2()
+        .py_0p5()
+        .child(
+            div().w_10().flex_none().child(
+                Label::new(minute)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            ),
+        )
+        .child(
+            div().w_32().flex_none().child(
+                Label::new(row.tool)
+                    .size(LabelSize::Small)
+                    .buffer_font(cx)
+                    .color(if refused { Color::Error } else { Color::Accent })
+                    .truncate(),
+            ),
+        )
+        .child(
+            div().flex_1().min_w_0().child(
+                Label::new(row.summary)
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .truncate(),
+            ),
+        )
+        .into_any_element()
+}
+
+/// The tab's card for a row, as the Tools board draws it: the caller's tile, the tool and the
+/// time, what it acted on, and how it ended (#933).
+fn render_card(row: ActivityRow, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let (ended, color) = match &row.outcome {
+        Outcome::Done { result } => (
+            result.clone().unwrap_or_else(|| "done".to_string()),
+            Color::Muted,
+        ),
+        Outcome::Refused { code, reason } => (
+            reason.clone().unwrap_or_else(|| format!("refused: {code}")),
+            Color::Error,
+        ),
+    };
+    let tile = row.agent.map_or_else(
+        || {
+            let first = row
+                .who
+                .chars()
+                .next()
+                .map_or('?', |first| first.to_ascii_uppercase());
+            item_kind::square_tile(ItemKind::Page, first.to_string().into(), px(28.), cx)
+        },
+        |mark| item_kind::square_tile(ItemKind::Thread(mark), mark.glyph(), px(28.), cx),
+    );
+    let minute = minute(&row);
+    h_flex()
+        .w_full()
+        .items_start()
+        .gap_3()
+        .px_3()
+        .py_2()
+        .rounded_lg()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(tile)
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap_0p5()
+                .child(
+                    h_flex()
+                        .w_full()
+                        .gap_2()
+                        .child(
+                            Label::new(row.tool)
+                                .size(LabelSize::Small)
+                                .buffer_font(cx)
+                                .color(Color::Accent),
+                        )
+                        .child(
+                            Label::new(row.who)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted)
+                                .truncate(),
+                        )
+                        .child(div().flex_1())
+                        .child(
+                            Label::new(minute)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .child(Label::new(row.summary).size(LabelSize::Small).truncate())
+                .child(
+                    Label::new(ended)
+                        .size(LabelSize::XSmall)
+                        .color(color)
+                        .truncate(),
+                ),
+        )
         .into_any_element()
 }
 
@@ -444,7 +617,7 @@ impl Render for AgentActivityView {
             .bg(colors.editor_background)
             .child(Headline::new("Agent Activity").size(HeadlineSize::Small))
             .child(render_state("marley-agent-activity-switch", cx))
-            .child(render_rows(ROWS_KEPT, cx))
+            .child(render_rows(ROWS_KEPT, RowLayout::Card, cx))
     }
 }
 

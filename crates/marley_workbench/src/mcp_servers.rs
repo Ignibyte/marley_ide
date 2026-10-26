@@ -21,7 +21,8 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, actions,
 };
 use marley_agent::AgentKind;
-use marley_agent::versions::{self, Found, integrations_of};
+use marley_agent::versions::{self, Found, Integration, integrations_of};
+use marley_mcp::Principal;
 use marley_mcp::redact::Redactor;
 use project::Project;
 use project::context_server_store::{ContextServerStatus, ServerStatusChangedEvent};
@@ -29,12 +30,13 @@ use project::project_settings::ContextServerSettings;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 use serde_json::value::RawValue;
-use ui::{ButtonStyle, Headline, HeadlineSize, prelude::*};
+use ui::{ButtonStyle, Headline, HeadlineSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
 
 use crate::home_page::muted;
+use crate::item_kind::{self, AgentMark, ItemKind};
 use crate::mcp_server_form::{self, Kind, McpServerForm, Place, Stored, entry_hash};
 
 actions!(
@@ -357,7 +359,10 @@ impl McpServers {
 impl Render for McpServers {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let zed = zed_rows(&open_projects(window, cx), cx);
+        // Marley's own server has its card (#933, D3); the Zed card lists the others.
+        let (marley, zed): (Vec<Row>, Vec<Row>) = zed_rows(&open_projects(window, cx), cx)
+            .into_iter()
+            .partition(|row| row.name == crate::mcp::CONTEXT_SERVER);
         let claude = self.files.as_ref().map(|files| &files.claude);
         let codex = self.files.as_ref().map(|files| &files.codex);
         v_flex()
@@ -374,6 +379,11 @@ impl Render for McpServers {
                     .w_full()
                     .gap_2()
                     .child(Headline::new("MCP Servers").size(HeadlineSize::Small))
+                    .child(
+                        Label::new("What each agent can reach, and what Marley needs of it")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
                     .child(div().flex_1())
                     .child(
                         Button::new("marley-mcp-servers-refresh", "Refresh")
@@ -426,6 +436,7 @@ impl Render for McpServers {
                         cx,
                     )),
             )
+            .child(render_marley_server(marley.first(), cx))
             .child(
                 card(cx)
                     .child(heading("ZED"))
@@ -485,77 +496,168 @@ fn card(cx: &App) -> Div {
         .bg(colors.panel_background)
 }
 
+/// A state in a card's corner, its words in its colour on a tint of it (#933).
+fn pill(words: impl Into<SharedString>, color: Color, cx: &App) -> Div {
+    let hue = color.color(cx);
+    div()
+        .flex_none()
+        .px_2()
+        .py_0p5()
+        .rounded_full()
+        .bg(hue.opacity(0.15))
+        .child(Label::new(words).size(LabelSize::XSmall).color(color))
+}
+
+/// A card's head: the tile, the name over a muted line in the buffer font, the pill (#933).
+fn card_head(tile: Div, name: String, line: String, pill: Div, cx: &App) -> Div {
+    h_flex()
+        .w_full()
+        .gap_3()
+        .child(tile)
+        .child(
+            v_flex().flex_1().min_w_0().child(Label::new(name)).child(
+                Label::new(line)
+                    .size(LabelSize::XSmall)
+                    .buffer_font(cx)
+                    .color(Color::Muted)
+                    .truncate(),
+            ),
+        )
+        .child(pill)
+}
+
+/// An agent's head, as the Tools board draws it: its tile, its name and version over its path,
+/// what Marley found as a pill (#933, D2), then its integrations as chips.
 fn render_agent(kind: AgentKind, cx: &App) -> AnyElement {
     let program = crate::agent_versions::program(kind, cx)
         .map(|path| path.display().to_string())
         .unwrap_or_default();
-    let found = match crate::agent_versions::found(kind, cx) {
-        None => "not checked yet".to_string(),
-        Some(Found::Version(version)) => format!("{version} at {program}"),
-        Some(Found::Unreadable(why)) => format!("{program}: version unknown, --version {why}"),
-        Some(Found::Missing(_)) => "not on Marley's PATH".to_string(),
+    let found = crate::agent_versions::found(kind, cx);
+    let name = match &found {
+        Some(Found::Version(version)) => format!("{} {version}", kind.display_name()),
+        _ => kind.display_name().to_string(),
     };
+    let (line, state) = match &found {
+        None => (String::new(), pill("checking", Color::Muted, cx)),
+        Some(Found::Version(_)) => (program, pill("ready", Color::Success, cx)),
+        Some(Found::Unreadable(why)) => (
+            format!("{program}: --version {why}"),
+            pill("version unknown", Color::Warning, cx),
+        ),
+        Some(Found::Missing(_)) => (
+            "not on Marley's PATH".to_string(),
+            pill("missing", Color::Error, cx),
+        ),
+    };
+    let mark = AgentMark::from_cli(kind);
+    let tile = item_kind::square_tile(ItemKind::Thread(mark), mark.glyph(), px(34.), cx);
     let outdated = crate::agent_versions::outdated(kind, cx);
     let update = (!outdated.is_empty())
         .then(|| versions::update_command(kind))
         .flatten();
-    v_flex()
-        .w_full()
-        .px_2()
-        .gap_0p5()
-        .child(
-            h_flex()
-                .gap_2()
-                .child(Label::new(kind.display_name()))
-                .child(Label::new(found).size(LabelSize::Small).color(Color::Muted)),
-        )
-        .children(integrations_of(kind).map(|integration| {
-            let wanted = crate::agent_versions::wanted(integration, cx);
+    let chips: Vec<AnyElement> = integrations_of(kind)
+        .map(|integration| {
             let older = outdated
                 .iter()
                 .any(|outdated| outdated.id == integration.id);
-            let (state, color) = if older {
-                (
-                    format!("needs {} or later", integration.tested.from),
-                    Color::Warning,
-                )
-            } else if !wanted {
-                ("not turned on".to_string(), Color::Muted)
-            } else if crate::agent_versions::is_on(integration, cx) {
-                ("on".to_string(), Color::Success)
-            } else {
-                ("off on this version".to_string(), Color::Muted)
-            };
-            h_flex()
-                .pl_4()
-                .gap_2()
-                .when(older, |line| {
-                    line.child(
-                        Icon::new(IconName::Warning)
-                            .size(IconSize::XSmall)
-                            .color(Color::Warning),
-                    )
-                })
-                .child(
-                    Label::new(crate::agent_versions::capitalized(integration.name))
-                        .size(LabelSize::Small),
-                )
-                .child(Label::new(state).size(LabelSize::Small).color(color))
-                .child(
-                    Label::new(format!("tested on {}", integration.tested.words()))
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-        }))
+            render_chip(integration, older, cx)
+        })
+        .collect();
+    v_flex()
+        .w_full()
+        .px_2()
+        .gap_2()
+        .child(card_head(tile, name, line, state, cx))
+        .child(h_flex().flex_wrap().gap_1p5().children(chips))
         .when_some(update, |agent, command| {
             agent.child(
-                div().pl_4().child(
-                    Label::new(format!("Run {command} to update it."))
-                        .size(LabelSize::Small)
-                        .color(Color::Warning),
-                ),
+                Label::new(format!("Run {command} to update it."))
+                    .size(LabelSize::Small)
+                    .color(Color::Warning),
             )
         })
+        .into_any_element()
+}
+
+/// An integration's chip: a dot for its state, green on, amber when the agent is older than it
+/// needs, grey otherwise; the tooltip says the state and what it was tested on (#933).
+fn render_chip(integration: &Integration, older: bool, cx: &App) -> AnyElement {
+    let (state, dot) = if older {
+        (
+            format!("needs {} or later", integration.tested.from),
+            Color::Warning,
+        )
+    } else if !crate::agent_versions::wanted(integration, cx) {
+        ("not turned on".to_string(), Color::Muted)
+    } else if crate::agent_versions::is_on(integration, cx) {
+        ("on".to_string(), Color::Success)
+    } else {
+        ("off on this version".to_string(), Color::Muted)
+    };
+    let name = crate::agent_versions::capitalized(integration.name);
+    let tip = format!("{name}: {state} · tested on {}", integration.tested.words());
+    h_flex()
+        .id(SharedString::from(format!(
+            "marley-mcp-integration-{}",
+            integration.id
+        )))
+        .gap_1p5()
+        .px_2()
+        .py_0p5()
+        .rounded_full()
+        .border_1()
+        .border_color(cx.theme().colors().border)
+        .child(div().size_1p5().rounded_full().bg(dot.color(cx)))
+        .child(Label::new(name).size(LabelSize::Small))
+        .tooltip(Tooltip::text(tip))
+        .into_any_element()
+}
+
+/// Marley's own server, as the Tools board draws it (#933, D3, D4): its status in Zed's projects
+/// from `row`, and how many tools it lists to Marley's agents now.
+fn render_marley_server(row: Option<&Row>, cx: &App) -> AnyElement {
+    let status = row.map_or_else(
+        || "not in Zed's servers".to_string(),
+        |row| row.state.words().to_string(),
+    );
+    let state = if status.starts_with("running") {
+        pill("running", Color::Success, cx)
+    } else if status.starts_with("starting") {
+        pill("starting", Color::Muted, cx)
+    } else if status.starts_with("error") {
+        pill("error", Color::Error, cx)
+    } else {
+        pill("not running", Color::Muted, cx)
+    };
+    let tools = marley_mcp::tools_list_for(&Principal::Marley, &crate::mcp::enabled_tools(cx));
+    let count = tools
+        .get("tools")
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    let mark = AgentMark::Marley;
+    let tile = item_kind::square_tile(ItemKind::Thread(mark), mark.glyph(), px(34.), cx);
+    card(cx)
+        .child(
+            v_flex()
+                .w_full()
+                .px_2()
+                .gap_2()
+                .child(card_head(
+                    tile,
+                    crate::mcp::CONTEXT_SERVER.to_string(),
+                    format!("Zed's agents \u{b7} {status}"),
+                    state,
+                    cx,
+                ))
+                .child(
+                    Label::new(format!(
+                        "{count} tools: editor, terminal, browser, settings, threads. Every call \
+                         that acts is listed in Agent Activity."
+                    ))
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+                ),
+        )
         .into_any_element()
 }
 

@@ -1835,6 +1835,14 @@ alike.
 
 ## MCP Servers (`src/mcp_servers.rs`, #720)
 
+- **As the Tools board draws it (#933).** `render` splits `zed_rows`' `marley` row off into
+  `render_marley_server`: an `M` tile, the row's status words, and the count of tools
+  `marley_mcp::tools_list_for(&Principal::Marley, &mcp::enabled_tools(cx))` lists, read live on
+  each render. The Zed card lists the rest. `render_agent` heads each agent's card with
+  `card_head` (an `item_kind::square_tile` of 34 px, the name and version over the path, a `pill`
+  for `agent_versions::found`: ready, missing, version unknown, checking) and draws
+  `render_chip` per integration: a dot (green on, amber outdated, grey otherwise) with the state
+  and "tested on" in its tooltip.
 - `marley::OpenMcpServers` and Home's MCP Servers button open the tab, one per group: `open`
   brings the group's tab forward and refreshes it, else adds one to the center.
 - `refresh` looks up the open projects once the caller's update has ended (`spawn_in`, then
@@ -2675,7 +2683,19 @@ alike.
   `ResumeAgentControl` and the Stop/Resume buttons write it through `update_settings_file`.
 - **The views.** `AgentActivityView` is an `Item` opened in the Home group by
   `OpenAgentActivity` (`open_later`). `render_state` and `render_rows` are shared with Home's
-  AGENT ACTIVITY card.
+  AGENT ACTIVITY card: `render_rows` takes a `RowLayout`, `Card` for the tab (the caller's
+  28 px tile, the tool in the buffer font and accent, the time, the summary, how it ended) and
+  `Line` for Home (time, tool, what).
+- **How a call ended (#933).** `log` takes the redactor (`model_redactor`) on the main thread and
+  moves it into the `Send` hook. `Outcome::Done { result }` keeps `result_line`'s line: a
+  receipt's `result` as "you accepted" or "you refused", `running` as "running", `exit_code` as
+  "exit N", `saved` as "saved", else the answer's first non-empty text line.
+  `Outcome::Refused { code, reason }` keeps the refusal's first sentence. Both are redacted and
+  cut to 120 characters. `ActivityRow.agent` keeps the caller's `AgentMark` from
+  `click_pause::Who::mark` (a terminal's seat agent, Claude Code by its permission mode,
+  `AgentMark::from_client` for a client's `initialize` name: `claude-code` CC, `codex…` CX, any
+  other its first letter, as Zed's Z). Every new field has a serde default and is skipped when
+  empty, so rows written before still read (D7).
 - **Home's page (`home_page::ensure`).** After inserting the page at index 0, it activates the tab
   that was active. `Pane::add_item_inner` moves no active index for an item it doesn't activate,
   so the page used to take the front.

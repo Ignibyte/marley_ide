@@ -30,6 +30,7 @@ use ui::SharedString;
 use crate::MarleySettings;
 use crate::agent_events::AgentEvents;
 use crate::browser::{self, BrowserHub};
+use crate::item_kind::AgentMark;
 use crate::system_one::{self, Asking};
 
 /// The use's name, which its mode is set under.
@@ -60,6 +61,8 @@ pub(crate) struct Who {
     prompts: bool,
     /// An outside client's name, for the recorder (#524).
     by: Option<SharedString>,
+    /// The caller's tile, for Agent Activity (#933); none for an agent Marley cannot name.
+    pub(crate) mark: Option<AgentMark>,
 }
 
 impl Who {
@@ -73,23 +76,32 @@ impl Who {
             words: words.to_string(),
             prompts: false,
             by: None,
+            mark: None,
         };
         if let Some(name) = call.principal().client_name() {
             return Self {
                 by: Some(SharedString::from(name.to_string())),
+                mark: Some(AgentMark::from_client(name)),
                 ..unknown(name)
             };
         }
         let caller = call.caller();
         if let Some((_, view)) = crate::mcp::caller_terminal(caller, cx) {
-            let mode = cx
+            let seat = cx
                 .try_global::<AgentEvents>()
-                .and_then(|events| events.seat(view.entity_id()))
-                .and_then(|seat| seat.labels.get(PERMISSION_MODE_LABEL).cloned());
+                .and_then(|events| events.seat(view.entity_id()));
+            let mark = seat
+                .and_then(crate::agent_events::seat_agent)
+                .map(AgentMark::from_cli);
+            let mode = seat.and_then(|seat| seat.labels.get(PERMISSION_MODE_LABEL).cloned());
             return mode.map_or_else(
-                || unknown("An agent in a terminal"),
+                || Self {
+                    mark,
+                    ..unknown("An agent in a terminal")
+                },
                 |mode| Self {
                     prompts: !PROMPTLESS_MODES.contains(&mode.as_str()),
+                    mark: Some(AgentMark::Claude),
                     ..unknown("Claude Code")
                 },
             );
@@ -97,9 +109,13 @@ impl Who {
         match caller.client.as_deref() {
             Some(ZED_CLIENT) => Self {
                 prompts: !zed_runs_without_asking(cx),
+                mark: Some(AgentMark::from_client(ZED_CLIENT)),
                 ..unknown("Zed's agent")
             },
-            Some(name) => unknown(name),
+            Some(name) => Self {
+                mark: Some(AgentMark::from_client(name)),
+                ..unknown(name)
+            },
             None => unknown("An agent"),
         }
     }

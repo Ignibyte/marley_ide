@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #933 (feature, the Marley look, MCP Servers and Agent Activity)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [933-tools-page-as-the-board.spec.md](../../pipeline/queued/933-tools-page-as-the-board.spec.md)
+- **Pipeline doc:** [933-tools-page-as-the-board.spec.md](../../pipeline/completed/933-tools-page-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/F-tools.md, board Tools)
 - **Boards:** Tools
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

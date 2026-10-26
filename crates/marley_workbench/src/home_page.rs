@@ -27,7 +27,7 @@ use workspace::{
 };
 
 use crate::OpenGuide;
-use crate::agent_activity::AgentActivity;
+use crate::agent_activity::{AgentActivity, RowLayout};
 use crate::agents;
 use crate::rail::Rail;
 use crate::rusty::home_tab::RustyCards;
@@ -321,7 +321,11 @@ impl MarleyHome {
                 "marley-home-agent-control",
                 cx,
             ))
-            .child(crate::agent_activity::render_rows(ACTIVITY_SHOWN, cx))
+            .child(crate::agent_activity::render_rows(
+                ACTIVITY_SHOWN,
+                RowLayout::Line,
+                cx,
+            ))
             .child(
                 h_flex().child(
                     Button::new("marley-home-open-activity", "Open Agent Activity")
