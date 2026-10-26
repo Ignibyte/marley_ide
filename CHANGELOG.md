@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Browser tab as the board draws it** (#931, 2026-10-25). A picked element keeps an accent
+  box on the page with its chip (`div.card · 1`) while its pick waits. The address box shows the
+  project as a chip, the drawer opens on Console with its errors counted in red and their rows
+  tinted, and a pick's card leads with its chip and where its listener is. The Note is three rows,
+  To is a dropdown, the take-over bar says which agent is driving with Take Over's key, a page's
+  dialog says who asks, Clear names the project and counts its tabs, the scripts tray has one
+  field (Ctrl Enter keeps a script for every project), and an annotation's note names its keys.
+
 - **tmux sessions as the board draws them** (#930, 2026-10-25). In the rail's Sessions view a
   session not attached in this window fades, and a host Marley could look on and does not is a
   row with Add to tmux hosts. The Sessions page heads its table, shows each session's state as a

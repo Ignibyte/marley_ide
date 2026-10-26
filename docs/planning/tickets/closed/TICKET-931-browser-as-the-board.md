@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #931 (feature, the Marley look, Browser)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [931-browser-as-the-board.spec.md](../../pipeline/queued/931-browser-as-the-board.spec.md)
+- **Pipeline doc:** [931-browser-as-the-board.spec.md](../../pipeline/completed/931-browser-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/F-tools.md, boards Browser and BrowserTools)
 - **Boards:** Browser, BrowserTools
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

@@ -236,10 +236,12 @@
     }
   },
   {
-    // The Playwright scripts tray's name field: Enter keeps a new script for this project.
+    // The Playwright scripts tray's name field: Enter keeps a new script for this project, Ctrl
+    // Enter for every project (#931).
     "context": "MarleyScriptName > Editor",
     "bindings": {
-      "enter": "marley::NewPlaywrightScript"
+      "enter": "marley::NewPlaywrightScript",
+      "ctrl-enter": "marley::NewGlobalPlaywrightScript"
     }
   },
   {

@@ -5,6 +5,13 @@
 // have no twin: a Mac's terminals keep them on Ctrl too.
 [
   {
+    // The scripts tray's name field: Cmd Enter keeps a new script for every project (#931).
+    "context": "MarleyScriptName > Editor",
+    "bindings": {
+      "cmd-enter": "marley::NewGlobalPlaywrightScript"
+    }
+  },
+  {
     // Zed's macOS keymap binds Cmd-Shift-T to Reopen Closed Item here, as its Linux keymap binds
     // Ctrl-Shift-T, and this one loads later, so it is tried first and hands the key back when no
     // close is held.

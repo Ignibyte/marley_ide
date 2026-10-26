@@ -365,6 +365,10 @@ actions!(
         /// tray.
         #[derive(Eq)]
         NewPlaywrightScript,
+        /// Keeps a new Playwright script for every project, named in the Browser tab's scripts
+        /// tray.
+        #[derive(Eq)]
+        NewGlobalPlaywrightScript,
         /// Opens Outside Clients, which this name opened as Browser Clients: the programs outside
         /// Marley let in, each with a token of its own, and a form to allow a browser client.
         #[derive(Eq)]

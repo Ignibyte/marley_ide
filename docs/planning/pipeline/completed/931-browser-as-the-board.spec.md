@@ -1,7 +1,7 @@
 ---
 pipeline_id: cabf4871-eef6-4f7c-b904-19d2bcb0ea7e
 ticket: docs/planning/tickets/open/TICKET-931-browser-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The Browser tab as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

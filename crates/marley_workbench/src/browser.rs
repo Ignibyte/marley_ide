@@ -78,8 +78,8 @@ use terminal_view::TerminalView;
 use terminal_view::terminal_panel::TerminalPanel;
 use ui::prelude::*;
 use ui::{
-    AlertModal, Checkbox, Chip, ContextMenu, IconPosition, Indicator, TintColor, ToggleState,
-    Tooltip,
+    AlertModal, ButtonLike, Checkbox, Chip, ContextMenu, DropdownMenu, DropdownStyle, IconPosition,
+    KeyBinding, TintColor, ToggleState, Tooltip,
 };
 use util::ResultExt as _;
 use util::paths::{PathExt as _, PathStyle};
@@ -95,8 +95,9 @@ use crate::playwright_scripts::{self, RunTarget, Scope, Script};
 use crate::{
     AllowPausedClick, Annotate, AnswerDialog, BrowserBack, BrowserForward, BrowserReload,
     ClearProjectBrowserData, DismissDialog, DropAnnotation, FocusAddressBar, GoToAddress,
-    KeepAnnotation, NewBrowserTab, NewPlaywrightScript, OpenBrowser, PickElement,
-    PlaywrightScripts, RecordThis, RefusePausedClick, RestoreAddress, SendPick, TakeOverBrowser,
+    KeepAnnotation, NewBrowserTab, NewGlobalPlaywrightScript, NewPlaywrightScript, OpenBrowser,
+    PickElement, PlaywrightScripts, RecordThis, RefusePausedClick, RestoreAddress, SendPick,
+    TakeOverBrowser,
 };
 
 /// How many times, a tenth of a second apart, a start waits for Chromium to write its endpoint
@@ -5190,6 +5191,8 @@ enum AnnotateMode {
 /// A pick as its tray row shows it.
 struct TrayRow {
     id: usize,
+    /// The pick's chip: its tag and first class, and its id (#931, D4).
+    selector: String,
     summary: String,
     /// The caption it was sent with, once sent.
     sent: Option<String>,
@@ -5352,7 +5355,8 @@ impl BrowserView {
             comparison: None,
             checking: HashSet::new(),
             scripts_tray: None,
-            drawer: None,
+            // Open on Console, so a page's errors show without a click (#931, D1).
+            drawer: Some(Drawer::Console),
             recordings: None,
             reading_recordings: None,
             drawer_error: None,
@@ -5872,8 +5876,9 @@ impl BrowserView {
             )
         } else {
             let who = hub.agent_name(target)?;
-            (format!("{who} acted in this page").into(), "Take Over")
+            (format!("{who} is driving this page").into(), "Take Over")
         };
+        let taken = hub.is_taken(target);
         let colors = cx.theme().colors();
         Some(
             h_flex()
@@ -5886,11 +5891,20 @@ impl BrowserView {
                 .gap_2()
                 .border_b_1()
                 .border_color(colors.border_variant)
-                .child(
+                // A live dot while an agent drives, as the board draws it (#931, D7).
+                .child(if taken {
                     Icon::new(IconName::Sparkle)
                         .size(IconSize::Small)
-                        .color(Color::Accent),
-                )
+                        .color(Color::Accent)
+                        .into_any_element()
+                } else {
+                    div()
+                        .flex_none()
+                        .size(px(7.))
+                        .rounded_full()
+                        .bg(cx.theme().status().success)
+                        .into_any_element()
+                })
                 .child(
                     div().flex_1().min_w_0().child(
                         Label::new(sentence)
@@ -5900,9 +5914,21 @@ impl BrowserView {
                     ),
                 )
                 .child(
-                    Button::new("marley-browser-control-toggle", button)
+                    ButtonLike::new("marley-browser-control-toggle")
                         .style(ButtonStyle::Subtle)
-                        .label_size(LabelSize::Small)
+                        .child(
+                            h_flex()
+                                .gap_1()
+                                .child(Label::new(button).size(LabelSize::Small))
+                                .child(
+                                    KeyBinding::for_action_in(
+                                        &TakeOverBrowser,
+                                        &self.focus_handle,
+                                        cx,
+                                    )
+                                    .size(rems_from_px(11_f32)),
+                                ),
+                        )
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.toggle_control(cx);
                         })),
@@ -6166,13 +6192,10 @@ impl BrowserView {
         self.captions
             .entry(id)
             .or_insert_with(|| {
+                // Three rows, as the board draws the Note (#931, D5); Enter still sends.
                 cx.new(|cx| {
-                    let mut editor = Editor::single_line(window, cx);
-                    editor.set_placeholder_text(
-                        "What should the agent know? Enter sends",
-                        window,
-                        cx,
-                    );
+                    let mut editor = Editor::auto_height(3, 3, window, cx);
+                    editor.set_placeholder_text("What should change here?", window, cx);
                     editor
                 })
             })
@@ -6471,7 +6494,7 @@ impl BrowserView {
         if self.scripts_tray.take().is_none() {
             let name = cx.new(|cx| {
                 let mut editor = Editor::single_line(window, cx);
-                editor.set_placeholder_text("A new script's name", window, cx);
+                editor.set_placeholder_text("New script name, then Enter", window, cx);
                 editor
             });
             self.scripts_tray = Some(ScriptsTray {
@@ -6513,6 +6536,16 @@ impl BrowserView {
     }
 
     /// `marley::NewPlaywrightScript`, Enter in the tray's field: a new script for this project.
+    /// Keeps the named script for every project, the field's Ctrl Enter (#931, D6).
+    fn new_global_script(
+        &mut self,
+        _: &NewGlobalPlaywrightScript,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.create_script(Scope::Global, window, cx);
+    }
+
     fn new_project_script(
         &mut self,
         _: &NewPlaywrightScript,
@@ -6707,7 +6740,7 @@ impl BrowserView {
         }
         let note = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("A note for this box; Enter keeps it", window, cx);
+            editor.set_placeholder_text("A note for this box", window, cx);
             editor
         });
         window.focus(&note.focus_handle(cx), cx);
@@ -7053,10 +7086,18 @@ impl BrowserView {
             .child(
                 h_flex()
                     .gap_2()
+                    // The project as an accent chip (#931).
                     .children(hub.project_of(target).map(|project| {
-                        Label::new(project.name.clone())
-                            .size(LabelSize::Small)
-                            .color(Color::Muted)
+                        div()
+                            .flex_none()
+                            .px_1p5()
+                            .rounded_sm()
+                            .bg(colors.text_accent.opacity(0.15))
+                            .child(
+                                Label::new(project.name.clone())
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Accent),
+                            )
                     }))
                     .child(div().flex_1().min_w_0().child(self.address_bar.clone()))
                     .children(place_of(&self.address_bar.read(cx).text(cx)).map(|place| {
@@ -7217,11 +7258,7 @@ impl BrowserView {
                         .gap_1()
                         .border_b_1()
                         .border_color(colors.border_variant)
-                        .child(tab(
-                            "browser-drawer-console",
-                            format!("Console {}", console.len()),
-                            Drawer::Console,
-                        ))
+                        .child(Self::console_tab(drawer, &console, cx))
                         .child(tab(
                             "browser-drawer-network",
                             format!("Network {}", network.len()),
@@ -7265,6 +7302,38 @@ impl BrowserView {
                 )
                 .into_any_element(),
         )
+    }
+
+    /// The drawer's Console tab (#931): "Console", then its errors' count in the error colour, as
+    /// the toolbar's Console counts them (#887, D1).
+    fn console_tab(
+        drawer: Drawer,
+        console: &[ConsoleEntry],
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let errors = console
+            .iter()
+            .filter(|entry| is_error(&entry.level))
+            .count();
+        ButtonLike::new("browser-drawer-console")
+            .toggle_state(drawer == Drawer::Console)
+            .child(
+                h_flex()
+                    .gap_1()
+                    .child(Label::new("Console").size(LabelSize::Small))
+                    .when(errors > 0, |tab| {
+                        tab.child(
+                            Label::new(errors.to_string())
+                                .size(LabelSize::Small)
+                                .color(Color::Error),
+                        )
+                    }),
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.drawer = Some(Drawer::Console);
+                this.drawer_error = None;
+                cx.notify();
+            }))
     }
 
     /// The drawer's rows for its tab `drawer`, and the line it shows when there are none (#892).
@@ -7463,6 +7532,67 @@ impl BrowserView {
 
     /// The page's annotations over the frame drawn now, each placed from that frame's own
     /// scroll and scale; then the box being drawn, and the field for its note (#498).
+    /// Each pick still in the tray, while the page shows the document it was picked in, as an
+    /// accent box on its element with its chip at the top right (#931, D2, D3). It takes no clicks.
+    fn render_pick_marks(
+        &self,
+        placement: Option<Placement>,
+        cx: &Context<Self>,
+    ) -> Vec<AnyElement> {
+        let (Some(placement), Some(target)) = (placement, self.target.as_deref()) else {
+            return Vec::new();
+        };
+        let hub = self.hub.read(cx);
+        let Some(document) = hub.url(target).and_then(|url| document_of(&url)) else {
+            return Vec::new();
+        };
+        let accent = cx.theme().colors().text_accent;
+        let ink = cx.theme().colors().background;
+        hub.picks()
+            .iter()
+            .filter(|pick| {
+                pick.tab == target
+                    && !pick.dismissed
+                    && document_of(&pick.url).as_deref() == Some(document.as_str())
+            })
+            .filter_map(|pick| {
+                let bounds = placement.place(pick.bundle.page_box);
+                placement.shows(&bounds).then(|| {
+                    div()
+                        .absolute()
+                        .left(bounds.origin.x)
+                        .top(bounds.origin.y)
+                        .w(bounds.size.width)
+                        .h(bounds.size.height)
+                        .rounded_sm()
+                        .border_2()
+                        .border_color(accent)
+                        .bg(accent.opacity(0.08))
+                        .child(
+                            div()
+                                .absolute()
+                                .top(px(-18.))
+                                .right(px(-2.))
+                                .px_1()
+                                .rounded_sm()
+                                .bg(accent)
+                                .child(
+                                    Label::new(format!(
+                                        "{} \u{b7} {}",
+                                        pick_selector(&pick.bundle),
+                                        pick.id
+                                    ))
+                                    .size(LabelSize::XSmall)
+                                    .buffer_font(cx)
+                                    .color(Color::Custom(ink)),
+                                ),
+                        )
+                        .into_any_element()
+                })
+            })
+            .collect()
+    }
+
     fn render_annotations(
         &self,
         placement: Option<Placement>,
@@ -7472,14 +7602,16 @@ impl BrowserView {
             return Vec::new();
         };
         let user = cx.theme().status().warning;
-        let mut elements: Vec<AnyElement> = self
-            .hub
-            .read(cx)
-            .annotations(target)
-            .iter()
-            .filter_map(|annotation| self.render_annotation(annotation, placement, cx))
-            .flatten()
-            .collect();
+        // The picks' marks go first, under the annotations (#931).
+        let mut elements = self.render_pick_marks(Some(placement), cx);
+        elements.extend(
+            self.hub
+                .read(cx)
+                .annotations(target)
+                .iter()
+                .filter_map(|annotation| self.render_annotation(annotation, placement, cx))
+                .flatten(),
+        );
         match &self.annotate_mode {
             AnnotateMode::Dragging { from, to } => {
                 let page_box = PageBox {
@@ -7595,7 +7727,17 @@ impl BrowserView {
             .border_1()
             .border_color(colors.border)
             .bg(colors.editor_background)
-            .child(note.clone())
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().child(note.clone()))
+                    // The keys the field answers (#931).
+                    .child(
+                        Label::new("Enter keeps it \u{b7} Esc drops it")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+            )
             .into_any_element()
     }
 
@@ -7613,8 +7755,8 @@ impl BrowserView {
             )
         } else {
             let asker = dialog.origin().map_or_else(
-                || "This page says".to_string(),
-                |origin| format!("{origin} says"),
+                || "This page asks".to_string(),
+                |origin| format!("{origin} asks"),
             );
             (
                 SharedString::from(asker),
@@ -7901,42 +8043,41 @@ impl BrowserView {
             )
     }
 
-    /// The tray's last row: the field that names a new script, and where to keep it.
+    /// The tray's last row: one field that names a new script (#931, D6). Enter keeps it for this
+    /// project, Ctrl Enter for every project, which the hint at its end names from the keymap.
     fn render_new_script(field: Entity<Editor>, cx: &Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors();
-        h_flex()
-            .w_full()
-            .h_9()
-            .gap_2()
-            .px_2()
-            .child(
-                div()
-                    .key_context("MarleyScriptName")
-                    .on_action(cx.listener(Self::new_project_script))
-                    .flex_1()
-                    .min_w_0()
-                    .px_2()
-                    .py_0p5()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.editor_background)
-                    .child(field),
-            )
-            .child(
-                Button::new("browser-script-new-project", "For This Project").on_click(
-                    cx.listener(|this, _, window, cx| {
-                        this.create_script(Scope::Project, window, cx);
-                    }),
+        let focus = field.focus_handle(cx);
+        h_flex().w_full().h_9().gap_2().px_2().child(
+            h_flex()
+                .key_context("MarleyScriptName")
+                .on_action(cx.listener(Self::new_project_script))
+                .on_action(cx.listener(Self::new_global_script))
+                .flex_1()
+                .min_w_0()
+                .gap_2()
+                .px_2()
+                .py_0p5()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.editor_background)
+                .child(div().flex_1().min_w_0().child(field))
+                .child(
+                    h_flex()
+                        .flex_none()
+                        .gap_1()
+                        .child(
+                            KeyBinding::for_action_in(&NewGlobalPlaywrightScript, &focus, cx)
+                                .size(rems_from_px(11_f32)),
+                        )
+                        .child(
+                            Label::new("for every project")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
                 ),
-            )
-            .child(
-                Button::new("browser-script-new-global", "For All Projects").on_click(cx.listener(
-                    |this, _, window, cx| {
-                        this.create_script(Scope::Global, window, cx);
-                    },
-                )),
-            )
+        )
     }
 
     fn render_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -7950,6 +8091,7 @@ impl BrowserView {
                 .filter(|pick| pick.tab == target && !pick.dismissed)
                 .map(|pick| TrayRow {
                     id: pick.id,
+                    selector: format!("{} \u{b7} {}", pick_selector(&pick.bundle), pick.id),
                     summary: pick.summary.clone(),
                     sent: pick.sent.then(|| pick.caption.clone()),
                     place: listener_place(pick),
@@ -7974,7 +8116,7 @@ impl BrowserView {
             .filter(|row| row.sent.is_none())
             .map(|row| row.id)
             .collect();
-        let options = (!unsent.is_empty()).then(|| self.render_pick_options(unsent, cx));
+        let options = (!unsent.is_empty()).then(|| self.render_pick_options(unsent, window, cx));
         let rows: Vec<_> = picks
             .into_iter()
             .map(|row| self.render_pick_row(row, window, cx))
@@ -8013,7 +8155,12 @@ impl BrowserView {
 
     /// The picks panel's foot, as the Browser board draws it (#896): what goes with the picks,
     /// whom they go to, and Send for every pick not sent yet.
-    fn render_pick_options(&self, unsent: Vec<usize>, cx: &Context<Self>) -> AnyElement {
+    fn render_pick_options(
+        &self,
+        unsent: Vec<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let colors = cx.theme().colors();
         let with = self.goes_with;
         let tick =
@@ -8068,18 +8215,7 @@ impl BrowserView {
                 v_flex()
                     .gap_1()
                     .child(Label::new("To").size(LabelSize::XSmall).color(Color::Muted))
-                    .child(self.render_to_choice(
-                        "browser-pick-to-terminal",
-                        Self::last_terminal_label(self.workspace.upgrade(), cx),
-                        PickTo::LastTerminal,
-                        cx,
-                    ))
-                    .child(self.render_to_choice(
-                        "browser-pick-to-new-agent",
-                        SharedString::new_static("A new agent"),
-                        PickTo::NewAgent,
-                        cx,
-                    )),
+                    .child(self.render_to_menu(window, cx)),
             )
             .child(
                 crate::prompts::render_button(
@@ -8104,41 +8240,35 @@ impl BrowserView {
             .into_any_element()
     }
 
-    /// One of To's choices: a dot, filled while chosen, and its words.
-    fn render_to_choice(
+    /// To as a dropdown (#931): the terminal used last, and A new agent.
+    fn render_to_menu(
         &self,
-        id: &'static str,
-        label: SharedString,
-        to: PickTo,
-        cx: &Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors();
-        let chosen = self.pick_to == to;
-        h_flex()
-            .id(id)
-            .gap_2()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .border_1()
-            .border_color(if chosen {
-                colors.border_focused
-            } else {
-                colors.border
-            })
-            .when(chosen, |choice| choice.bg(colors.element_selected))
-            .cursor_pointer()
-            .child(Indicator::dot().color(if chosen { Color::Accent } else { Color::Muted }))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .child(Label::new(label).size(LabelSize::Small).truncate()),
-            )
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.pick_to = to;
-                cx.notify();
-            }))
+        let terminal = Self::last_terminal_label(self.workspace.upgrade(), cx);
+        let chosen = match self.pick_to {
+            PickTo::LastTerminal => terminal.clone(),
+            PickTo::NewAgent => SharedString::new_static("A new agent"),
+        };
+        let this = cx.weak_entity();
+        let menu = ContextMenu::build(window, cx, move |menu, _, _| {
+            let choice = |to: PickTo| {
+                let this = this.clone();
+                move |_: &mut Window, cx: &mut App| {
+                    this.update(cx, |this, cx| {
+                        this.pick_to = to;
+                        cx.notify();
+                    })
+                    .log_err();
+                }
+            };
+            menu.entry(terminal.clone(), None, choice(PickTo::LastTerminal))
+                .entry("A new agent", None, choice(PickTo::NewAgent))
+        });
+        DropdownMenu::new("browser-pick-to", chosen, menu)
+            .full_width(true)
+            .style(DropdownStyle::Outlined)
     }
 
     /// The terminal used last as To names it: the agent in it and its project, when one runs
@@ -8196,6 +8326,7 @@ impl BrowserView {
     ) -> impl IntoElement + use<> {
         let TrayRow {
             id,
+            selector,
             summary,
             sent,
             place,
@@ -8205,19 +8336,29 @@ impl BrowserView {
         let sent_already = sent.is_some();
         let field = (!sent_already).then(|| self.caption(id, window, cx));
         let colors = cx.theme().colors();
+        // The card's head as the board draws it (#931): the selector chip, where its listener is,
+        // then the element's text on the line under.
         let head = h_flex()
             .w_full()
             .gap_2()
             .child(
-                Label::new(format!("Pick {id}"))
-                    .size(LabelSize::Small)
-                    .color(Color::Accent),
+                div()
+                    .flex_none()
+                    .px_1p5()
+                    .rounded_sm()
+                    .bg(colors.text_accent.opacity(0.15))
+                    .child(
+                        Label::new(selector)
+                            .size(LabelSize::XSmall)
+                            .buffer_font(cx)
+                            .color(Color::Accent),
+                    ),
             )
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
-                    .child(Label::new(summary).size(LabelSize::Small).truncate()),
+                    .children(place.map(|place| Self::render_listener_place(id, place, cx))),
             )
             .child(
                 IconButton::new(("browser-pick-discard", id), IconName::Close)
@@ -8238,9 +8379,12 @@ impl BrowserView {
             .border_color(colors.border)
             .bg(colors.elevated_surface_background)
             .child(head)
-            .when_some(place, |card, place| {
-                card.child(Self::render_listener_place(id, place, cx))
-            })
+            .child(
+                Label::new(summary)
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .truncate(),
+            )
             .child(body)
             .child(Self::render_check(id, verdict, checking, cx))
     }
@@ -8514,6 +8658,30 @@ fn time_of_day(ms: f64) -> Option<String> {
 
 /// A console entry as the drawer lists it: its time, its level, the message and where it came
 /// from.
+/// A pick's chip text (#931, D4): its tag and first class from its own start tag, as
+/// `div.card`; the tag alone when it has no class.
+fn pick_selector(bundle: &PickBundle) -> String {
+    let start = bundle.html.split('>').next().unwrap_or_default();
+    let class = start
+        .find("class=\"")
+        .and_then(|at| start.get(at + "class=\"".len()..))
+        .and_then(|rest| rest.split('"').next())
+        .and_then(|classes| classes.split_whitespace().next());
+    class.map_or_else(
+        || bundle.tag.clone(),
+        |class| format!("{}.{class}", bundle.tag),
+    )
+}
+
+/// The document `address` names, for telling whether a pick was made in the page shown: its
+/// scheme, host and path, without the query and the fragment.
+fn document_of(address: &str) -> Option<String> {
+    let mut url = url::Url::parse(address).ok()?;
+    url.set_query(None);
+    url.set_fragment(None);
+    Some(url.to_string())
+}
+
 fn console_row(entry: &ConsoleEntry, cx: &App) -> AnyElement {
     let time = entry.time_ms.and_then(time_of_day).unwrap_or_default();
     let color = match entry.level.as_str() {
@@ -8531,6 +8699,12 @@ fn console_row(entry: &ConsoleEntry, cx: &App) -> AnyElement {
         .w_full()
         .gap_3()
         .py_0p5()
+        // An error's row on the error colour, as the board tints it (#931).
+        .when(is_error(&entry.level), |row| {
+            row.px_1()
+                .rounded_sm()
+                .bg(cx.theme().status().error.opacity(0.1))
+        })
         .child(
             div()
                 .flex_none()
@@ -10100,13 +10274,21 @@ pub(crate) fn clear_project_browser_data(
     cx: &mut Context<Workspace>,
 ) {
     let project = BrowserProject::of(workspace.project(), cx);
+    // The board's words (#931): the project, how many of its tabs close, and that the others keep
+    // their data.
+    let tabs = live_views(cx)
+        .into_iter()
+        .filter(|view| view.read(cx).project == project.key)
+        .count();
+    let closing = match tabs {
+        0 => "Every site signs out.".to_string(),
+        1 => "Its Browser tab closes, and every site signs out.".to_string(),
+        count => format!("Its {count} Browser tabs close, and every site signs out."),
+    };
     let answer = window.prompt(
         PromptLevel::Warning,
-        &format!("Clear the browser data of {}?", project.name),
-        Some(
-            "Its Browser tabs close, and every site in it signs out: its cookies, local storage \
-             and IndexedDB are deleted.",
-        ),
+        &format!("Clear {}\u{2019}s browser data?", project.name),
+        Some(&format!("{closing} Other projects keep theirs.")),
         &["Clear", "Cancel"],
         cx,
     );

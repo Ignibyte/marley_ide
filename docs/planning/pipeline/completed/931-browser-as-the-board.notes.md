@@ -104,7 +104,35 @@
   taller than the rest is cut sooner.
 
 ## Phase 2 — Code
+- **Built:** `render_pick_marks`, `pick_selector`, `document_of`; the project chip; the drawer open
+  on Console; `console_tab`; tinted error rows; the card head with `TrayRow::selector`; the
+  three-row Note; `render_to_menu`; the take-over bar's dot, words and key; "<origin> asks"; the
+  Clear prompt's words and tab count; one script field with `NewGlobalPlaywrightScript` (keymap
+  rows on Linux and macOS); the annotate note's placeholder and hint.
+- **Deviations:** the marks are the first of `render_annotations`' elements, not a call of their
+  own in `render`, which was at its line limit. `console_tab` is an associated function.
+- **Gate:** `just gate-diff` 17/17 green.
 
 ## Phase 3 — Test
+- Scenario `script/e2e/931-browser-as-the-board.sh` (sway, offline Chromium), green.
+- `931-01-picked`, `931-02-card`: the accent box on the card with `div.card · 1`; the `repo` chip;
+  the drawer open, "Console 2" in red (the page's error and its favicon's 404), both rows tinted;
+  the card's chip and text, the three-row Note "What should change here?", To as a dropdown.
+  REQ-001 to REQ-007.
+- `931-03-to-open`: the dropdown: The terminal you used last, A new agent. REQ-007.
+- `931-02b-sent`: "Sent: Make the card wider"; the terminal's prompt holds the pick's line.
+  REQ-006.
+- `931-04-driving`: "An agent is driving this page" after a green dot, Take Over Ctrl-I. REQ-008.
+- `931-05-asks`: "127.0.0.1:<port> asks". REQ-009.
+- `931-06-clear`: "Clear repo's browser data?" / "Its Browser tab closes, and every site signs
+  out. Other projects keep theirs." REQ-010.
+- `931-07-script`: "New script name, then Enter" with "Ctrl-Enter for every project"; `smoke`
+  and Ctrl Enter kept `config/playwright/global/smoke.mjs`. REQ-011.
+- `931-08-note`: the note "A note for this box" with "Enter keeps it · Esc drops it". REQ-012.
+- `931-09-day`: Marley Day, the mark and the cards. REQ-001 to REQ-007.
+- Sending a pick and keeping a script each bring another tab forward (the terminal, the script's
+  editor); the scenario clicks the Browser's tab back after each.
 
 ## Phase 4 — Complete
+- Docs: CHANGELOG; `marley_workbench.md` (the Browser as the board draws it); the look plan's
+  Browser row. No Zed path.

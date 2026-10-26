@@ -6119,6 +6119,24 @@ One agent of the fleet in full, in the center, read-only and not serialized.
   `browser_tools::pick_for_agents` leaves out the crop, the component's source and the listeners'
   original places accordingly.
 
+## The Browser as the board draws it (`src/browser.rs`, #931)
+
+- `render_pick_marks`, first among `render_annotations`' elements: each pick of the tab still in
+  the tray, while `document_of` the page's address (scheme, host, path) is the pick's, is an
+  accent box at `bundle.page_box` through `Placement::place` with a badge at its top right,
+  `pick_selector` (the tag and first class of the element's own start tag) and the id. It takes no
+  clicks. Tray cards lead with that chip and the listener's place, the element's text under them.
+- The address box draws the project as an accent chip. A new or restored tab's drawer starts on
+  Console (`drawer: Some(Drawer::Console)`); `console_tab` counts the errors in the error colour;
+  `console_row` tints an error's row.
+- The Note is `Editor::auto_height(3, 3)` with "What should change here?"; To is a `DropdownMenu`
+  (`render_to_menu`) of the terminal used last and A new agent. The take-over bar says "<agent>
+  is driving this page" after a live dot, its Take Over carrying `TakeOverBrowser`'s key. A page's
+  dialog is titled "<origin> asks". Clear's prompt names the project, counts its live tabs and
+  says other projects keep theirs. The scripts tray has one field: Enter keeps the script for the
+  project, `NewGlobalPlaywrightScript` (Ctrl Enter, Cmd Enter on macOS) for every project, with
+  the key named at the field's end. The annotate note shows "Enter keeps it · Esc drops it".
+
 ## The Browser's download bar (`src/browser.rs`, #896)
 
 - `download_bar` draws the tab's page's newest `Download` under the page: downloading, saved to

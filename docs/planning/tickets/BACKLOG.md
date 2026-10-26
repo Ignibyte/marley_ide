@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-931](open/TICKET-931-browser-as-the-board.md) | feature | The Browser tab as the board draws it (design review 2026-10-23) |
 | [TICKET-932](open/TICKET-932-recordings-and-script-runs.md) | feature | Recordings with a timeline and Draft a Test, and scripts' last run (design review 2026-10-23) |
 | [TICKET-933](open/TICKET-933-tools-page-as-the-board.md) | feature | MCP Servers and Agent Activity as the board draws them (design review 2026-10-23) |
 | [TICKET-934](open/TICKET-934-agent-activity-lists-rustys-calls.md) | feature | Agent Activity lists Rusty's calls (design review 2026-10-23) |
