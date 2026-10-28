@@ -973,7 +973,11 @@ impl PickerDelegate for RecentProjectsDelegate {
         "recent projects"
     }
 
-    fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
+    fn placeholder_text(&self, _window: &mut Window, cx: &mut App) -> Arc<str> {
+        // Marley: the board's words (#942).
+        if cx.has_global::<MarleyRecentLook>() {
+            return "Open a recent project".into();
+        }
         "Search projects…".into()
     }
 

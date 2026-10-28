@@ -6450,3 +6450,14 @@ prints each byte.
   counts with the defaults in its filter, and Find by keys is a text button. The record dialog
   reads "New keys for …", "Also …, in …" and Save Anyway once the conflict shows.
 
+## Search and the editor's pop-ups in the board's words (`src/search_looks.rs`, #942)
+
+- `search_looks::init` also sets `editor::code_context_menus::MarleyCompletionKindLook` (with
+  `completion_kind_word`, D3's words) and `editor::MarleyPredictionNote`.
+- While the existing looks are set:
+  - project search starts with Replace shown and its field reads "Replace with";
+  - Open Recent and the branch picker read the board's placeholders;
+  - an extension's Upgrade reads Update.
+- The note follows a prediction drawn as grey text, in both the `Inline` and `TabAccept` modes, on
+  the editor's background. `default.json` turns `diagnostics.inline` on.
+

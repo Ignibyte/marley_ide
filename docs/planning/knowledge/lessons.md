@@ -6591,3 +6591,14 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** a scenario that checks a setting written by a click first takes the key out of the
   copied `settings.json` (#822's `UNSET` block), and checks before the click that the file does
   not hold it. Measure the control on a shot rather than trusting a check that passes on a guess.
+
+## L-claude-942-zeds-prediction-delegate-draws-tab-accept-not-inline-001
+
+- **Ticket:** #942, 2026-10-28.
+- **What happened:** the plan put the prediction note in the editor's `EditDisplayMode::Inline`
+  arm. Zed's own delegate (`zed_edit_prediction_delegate.rs`, used for Zed, Ollama and the other
+  FIM providers) returns `show_tab_accept_marker() == true`, so their grey text draws in
+  `TabAccept` mode with Zed's Accept marker. Only Copilot-style delegates use `Inline`.
+- **Lesson:** a change to how predictions look covers `TabAccept` as well as `Inline`. A scenario
+  can drive one with an Ollama stand-in on `/api/generate`, whose answer needs `created_at` and
+  `response` and a FIM model name (`codellama:7b`).

@@ -90,6 +90,8 @@ pub use display_map::{
     NavigationOverlayKey, SemanticTokenHighlight,
 };
 pub use edit_prediction::make_suggestion_styles;
+// Marley: the inline prediction note (#942).
+pub use edit_prediction::MarleyPredictionNote;
 pub(crate) use edit_prediction::{
     EditDisplayMode, EditPrediction, EditPredictionPreview, EditPredictionSettings,
     EditPredictionState, MenuEditPredictionsPolicy, RegisteredEditPredictionDelegate,

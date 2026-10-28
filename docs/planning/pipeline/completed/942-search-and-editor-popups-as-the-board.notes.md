@@ -29,6 +29,8 @@
   (`diagnostics.inline`), `search_looks.rs`.
 - **Decisions:** D1–D5 in the spec.
 
+- **Promoted 2026-10-28** at HEAD 827502cf53. Every seam holds: `MarleySearchLook` (`project_search.rs:256`), `MarleyRecentLook` (`recent_projects.rs:75`), `MarleyBranchLook` (`branch_picker.rs:679`), `MarleyExtensionLook`, the two "Upgrade" labels (`extension_card.rs:361`, `:382`), `render_completion_kind_letter` (`code_context_menus.rs:1660`) and the `Inline` arms of `edit_prediction.rs` (`:996`, `:1014`). The brain (consultation 84018cccd7614a7c86c8950ed194d18a) had nothing on this seam.
+
 ### Design
 - **Replace row:** in `ProjectSearchView::new`, `replace_enabled: cx.has_global::<MarleySearchLook>()`
   with a `// Marley:` comment, and the replacement editor's placeholder "Replace with" under the
@@ -86,7 +88,50 @@
   are in Zed with the setting on.
 
 ## Phase 2 — Code
+- **Built:** as the design names, with all seven ledger rows written first.
+  - The Zed hunks are in `project_search.rs`, `recent_projects.rs`, `branch_picker.rs`,
+    `extension_card.rs`, `code_context_menus.rs` (`MarleyCompletionKindLook`, the badge 44 px
+    wide), `edit_prediction.rs` (`MarleyPredictionNote` and `render_marley_prediction_note`,
+    re-exported from `editor`) and `default.json`.
+  - `search_looks.rs` sets both globals and holds `completion_kind_word` (a `const fn`, for
+    clippy).
+- **Deviation (found while planning the scenario):** Zed's own prediction delegate, which Ollama
+  and Zed predictions go through, sets `show_tab_accept_marker`. Such predictions draw as grey
+  text in `TabAccept` mode, with Zed's "Accept" marker, and only Copilot-style providers use
+  `Inline`. The note therefore shows in both modes, replacing the marker in `TabAccept` (D4 read
+  as "grey text on the line").
+- **Gate:** the first run failed on `missing_const_for_fn`, and the receipt failed because the
+  `TabAccept` edit landed mid-run. Then GREEN, and again on the final tree.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/942-search-and-editor-popups-as-the-board.sh` (sway).
+  - It uses #856's crate in git with `feature/one`.
+  - Chad's HTML extension is copied into the run's profile at version 0.0.1, with
+    `auto_update_extensions: {"html": false}`.
+  - An Ollama stand-in answers `/api/generate` (with `created_at`, which Zed requires), and
+    `edit_predictions` is set to `ollama` / `codellama:7b`.
+- **Reds, the scenario's own, fixed:**
+  - Zed updated the lowered extension at start, so it is now kept from auto-updating.
+  - The stand-in's answer lacked `created_at` (the log said so).
+- **Red, the code's, fixed:** the note sat at the line's top in small type over the inline
+  diagnostic and read as clutter. It now has the editor's background and is centred on the line.
+  It still covers the start of a diagnostic at the line's end, as Zed's own Accept marker does.
+- **Shots:**
+  - `942-01-search`: the "Replace with" field under the query.
+  - `942-02-recent`: "Open a recent project".
+  - `942-03-branches`: "Switch to a branch, or name a new one".
+  - `942-04-extensions`: HTML v0.3.2, "Installed v0.0.1", with Update and Uninstall.
+  - `942-05-completions`: "fld width", "fn width_for".
+  - `942-06-prediction`: " = rows * 2;" in grey and "Tab takes the prediction".
+  - `942-07-inline-error`: "no field `wid` on type `Rail`" at the line's end. The unused `rows`
+    warning stays under Zed's inline minimum severity, so the error stands for REQ-007.
+  - `942-08-day`: completions in Marley Day (var, kw, struct, enum) with the inline error.
+- **REQ-008** (globals unset keep Zed's words) was checked by reading the diff: every hunk is under
+  `has_global` or `try_global`.
 
 ## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`, `docs/marley/look-plan.md`, the architecture note, and the seven
+  ledger rows.
+- **Knowledge:** L-claude-942-zeds-prediction-delegate-draws-tab-accept-not-inline-001.
+- **Brain:** consultation 84018cccd7614a7c86c8950ed194d18a closed with `brain no-decision`.
+- **Ticket:** closed.

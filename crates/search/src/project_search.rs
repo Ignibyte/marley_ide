@@ -1552,7 +1552,13 @@ impl ProjectSearchView {
         ));
         let replacement_editor = cx.new(|cx| {
             let mut editor = Editor::auto_height(1, 4, window, cx);
-            editor.set_placeholder_text(REPLACE_PLACEHOLDER, window, cx);
+            // Marley: the board's words for the Replace field (#942).
+            let placeholder = if cx.has_global::<MarleySearchLook>() {
+                "Replace with"
+            } else {
+                REPLACE_PLACEHOLDER
+            };
+            editor.set_placeholder_text(placeholder, window, cx);
             if let Some(text) = replacement_text {
                 editor.set_text(text, window, cx);
             }
@@ -1659,7 +1665,8 @@ impl ProjectSearchView {
             included_files_editor,
             excluded_files_editor,
             filters_enabled,
-            replace_enabled: false,
+            // Marley: Replace shows under the query from the start, as the board draws it (#942).
+            replace_enabled: cx.has_global::<MarleySearchLook>(),
             pending_replace_all: false,
             pending_replace_next: false,
             included_opened_only: false,

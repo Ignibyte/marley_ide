@@ -358,7 +358,12 @@ impl ExtensionCard {
                 let upgrade = matches!(status, ExtensionStatus::Upgrading).then(|| {
                     Button::new(
                         Self::button_id(&extension.id, ExtensionOperation::Upgrade),
-                        "Upgrade",
+                        // Marley: the board's word (#942).
+                        if cx.has_global::<MarleyExtensionLook>() {
+                            "Update"
+                        } else {
+                            "Upgrade"
+                        },
                     )
                     .disabled(Self::disables_actions(status))
                 });
@@ -379,7 +384,12 @@ impl ExtensionCard {
                     );
                     Button::new(
                         Self::button_id(&extension.id, ExtensionOperation::Upgrade),
-                        "Upgrade",
+                        // Marley: the board's word (#942).
+                        if cx.has_global::<MarleyExtensionLook>() {
+                            "Update"
+                        } else {
+                            "Upgrade"
+                        },
                     )
                     .style(ButtonStyle::Tinted(ui::TintColor::Accent))
                     .when(!is_compatible, |button| {

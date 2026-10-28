@@ -920,6 +920,10 @@ impl CompletionsMenu {
         let editor_settings = EditorSettings::get_global(cx);
         let completion_detail_alignment = editor_settings.completion_detail_alignment;
         let completion_menu_item_kind = editor_settings.completion_menu_item_kind;
+        // Marley: each kind as its short word, as the EditorPopups board draws it (#942).
+        let kind_word = cx
+            .try_global::<MarleyCompletionKindLook>()
+            .map(|look| look.word);
         let widest_completion_ix = if self.display_options.dynamic_width {
             let completions = self.completions.borrow();
             let widest_completion_ix = self
@@ -1139,6 +1143,7 @@ impl CompletionsMenu {
                                 completion.kind(),
                                 item_ix,
                                 &style,
+                                kind_word,
                             )),
                         };
 
@@ -1661,10 +1666,15 @@ fn render_completion_kind_letter(
     kind: Option<CompletionItemKind>,
     item_ix: usize,
     style: &EditorStyle,
+    // Marley: the kind's word in place of its letter, on a badge six characters wide (#942).
+    kind_word: Option<fn(CompletionItemKind) -> Option<&'static str>>,
 ) -> AnyElement {
     let badge = div()
         .flex_none()
-        .w(IconSize::XSmall.rems())
+        .map(|badge| match kind_word {
+            Some(_) => badge.w(rems_from_px(44_f32)),
+            None => badge.w(IconSize::XSmall.rems()),
+        })
         .text_center()
         .text_size(rems_from_px(11_f32))
         .line_height(rems_from_px(14_f32));
@@ -1672,8 +1682,12 @@ fn render_completion_kind_letter(
     let Some(kind) = kind else {
         return badge.into_any_element();
     };
-    let Some(letter) = completion_kind_letter(kind) else {
-        return badge.into_any_element();
+    let letter = match kind_word.and_then(|word| word(kind)) {
+        Some(word) => SharedString::new_static(word),
+        None => match completion_kind_letter(kind) {
+            Some(letter) => letter.into(),
+            None => return badge.into_any_element(),
+        },
     };
 
     let color = completion_kind_highlight_name(kind)
@@ -1971,6 +1985,15 @@ pub struct MarleyCodeActionsLook {
 }
 
 impl gpui::Global for MarleyCodeActionsLook {}
+
+/// Marley: while set, the completions menu names each item's kind with `word`'s short word, in
+/// the kind's colour, as the EditorPopups board draws it (#942).
+#[derive(Clone, Copy)]
+pub struct MarleyCompletionKindLook {
+    pub word: fn(CompletionItemKind) -> Option<&'static str>,
+}
+
+impl gpui::Global for MarleyCompletionKindLook {}
 
 pub struct CodeActionsMenu {
     pub actions: CodeActionContents,

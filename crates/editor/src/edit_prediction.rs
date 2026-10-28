@@ -148,6 +148,12 @@ pub(super) fn edit_prediction_edit_text(
     edit_preview.highlight_edits(current_snapshot, &edits, include_deletions, cx)
 }
 
+/// Marley: while set, an inline edit prediction is followed by a muted "<key> takes the
+/// prediction" at its line's end, as the EditorPopups board draws it (#942).
+pub struct MarleyPredictionNote;
+
+impl gpui::Global for MarleyPredictionNote {}
+
 impl Editor {
     pub fn set_edit_prediction_provider<T>(
         &mut self,
@@ -1146,10 +1152,29 @@ impl Editor {
                     )
                 }
             }
+            // Marley: while `MarleyPredictionNote` is set, the key that takes an inline prediction
+            // follows the line, as the EditorPopups board draws it (#942).
             EditPrediction::Edit {
                 display_mode: EditDisplayMode::Inline,
+                edits,
                 ..
-            } => None,
+            } => {
+                if !cx.has_global::<MarleyPredictionNote>() {
+                    return None;
+                }
+                let range = &edits.first()?.0;
+                let target_display_point = range.end.to_display_point(editor_snapshot);
+                self.render_marley_prediction_note(
+                    editor_snapshot,
+                    target_display_point,
+                    line_height,
+                    scroll_pixel_position,
+                    content_origin,
+                    editor_width,
+                    window,
+                    cx,
+                )
+            }
             EditPrediction::Edit {
                 display_mode: EditDisplayMode::TabAccept,
                 edits,
@@ -1157,6 +1182,21 @@ impl Editor {
             } => {
                 let range = &edits.first()?.0;
                 let target_display_point = range.end.to_display_point(editor_snapshot);
+
+                // Marley: grey text taken with Tab is drawn inline too, so it gets the same note
+                // in place of Zed's Accept marker (#942).
+                if cx.has_global::<MarleyPredictionNote>() {
+                    return self.render_marley_prediction_note(
+                        editor_snapshot,
+                        target_display_point,
+                        line_height,
+                        scroll_pixel_position,
+                        content_origin,
+                        editor_width,
+                        window,
+                        cx,
+                    );
+                }
 
                 self.render_edit_prediction_end_of_line_popover(
                     "Accept",
@@ -1892,6 +1932,53 @@ impl Editor {
                 cx,
             )
         }
+    }
+
+    // Marley: a muted "<key> takes the prediction" after the line's end, on the editor's own
+    // background so a diagnostic at the line's end does not show through it; nothing when no key
+    // takes it or the line leaves no room (#942).
+    fn render_marley_prediction_note(
+        self: &mut Editor,
+        editor_snapshot: &EditorSnapshot,
+        target_display_point: DisplayPoint,
+        line_height: Pixels,
+        scroll_pixel_position: gpui::Point<ScrollPixelOffset>,
+        content_origin: gpui::Point<Pixels>,
+        editor_width: Pixels,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<(AnyElement, gpui::Point<Pixels>)> {
+        let keystroke =
+            self.accept_edit_prediction_keystroke(EditPredictionGranularity::Full, window, cx)?;
+        let key = ui::text_for_keybinding_keystrokes(std::slice::from_ref(&keystroke), cx);
+        let target_line_end = DisplayPoint::new(
+            target_display_point.row(),
+            editor_snapshot.line_len(target_display_point.row()),
+        );
+        let mut element = div()
+            .px_1()
+            .rounded_sm()
+            .bg(cx.theme().colors().editor_background)
+            .child(
+                Label::new(format!("{key} takes the prediction"))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .into_any_element();
+        let size = element.layout_as_root(AvailableSpace::min_size(), window, cx);
+        let line_origin =
+            self.display_to_pixel_point(target_line_end, editor_snapshot, window, cx)?;
+        let start_point = content_origin - point(scroll_pixel_position.x.into(), Pixels::ZERO);
+        let mut origin = start_point
+            + line_origin
+            + point(Self::EDIT_PREDICTION_POPOVER_PADDING_X * 2., Pixels::ZERO);
+        origin.x = origin.x.max(content_origin.x);
+        origin.y += (line_height - size.height) / 2.;
+        if origin.x + size.width > content_origin.x + editor_width {
+            return None;
+        }
+        element.prepaint_at(origin, window, cx);
+        Some((element, origin))
     }
 
     fn render_edit_prediction_end_of_line_popover(

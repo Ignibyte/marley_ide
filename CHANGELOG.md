@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Search and the editor's pop-ups in the board's words** (#942, 2026-10-28). Project search opens
+  with its Replace field showing ("Replace with"). Open Recent reads "Open a recent project", the
+  branch picker "Switch to a branch, or name a new one", and an extension with a newer version
+  offers Update. The completions menu names each kind with a short word in its colour (fn, fld,
+  var, struct…). An edit prediction in grey text is followed by "Tab takes the prediction". A
+  diagnostic's message shows at the end of its line by default.
 - **Settings and the keymap as the boards draw them** (#941, 2026-10-28). Each section in the
   Settings window's list has a small lettered tile. On the Marley page, Layout reads Marley | Zed,
   the prompt's settings have a section of their own, and a new switch lets an agent's text run the

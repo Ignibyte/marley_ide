@@ -1279,8 +1279,14 @@ impl PickerDelegate for BranchListDelegate {
         "branch picker"
     }
 
-    fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
+    fn placeholder_text(&self, _window: &mut Window, cx: &mut App) -> Arc<str> {
         match self.state {
+            // Marley: the board's words (#942).
+            PickerState::List | PickerState::NewRemote | PickerState::NewBranch
+                if cx.has_global::<MarleyBranchLook>() =>
+            {
+                "Switch to a branch, or name a new one"
+            }
             PickerState::List | PickerState::NewRemote | PickerState::NewBranch => {
                 "Switch or type to create a branch…"
             }

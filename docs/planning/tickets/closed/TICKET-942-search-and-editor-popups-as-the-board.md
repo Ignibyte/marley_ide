@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #942 (feature, the Marley look, search and the editor's pop-ups)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [942-search-and-editor-popups-as-the-board.spec.md](../../pipeline/queued/942-search-and-editor-popups-as-the-board.spec.md)
+- **Pipeline doc:** [942-search-and-editor-popups-as-the-board.spec.md](../../pipeline/completed/942-search-and-editor-popups-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/D-panels-editor.md, boards SearchMore and EditorPopups)
 - **Boards:** SearchMore, EditorPopups
 - **Size:** S–M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

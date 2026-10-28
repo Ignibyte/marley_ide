@@ -1,7 +1,7 @@
 ---
 pipeline_id: a8f36c51-77c1-470f-a4d7-bd2ce9f6ee5c
 ticket: docs/planning/tickets/open/TICKET-942-search-and-editor-popups-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Search and the editor's pop-ups as the board words them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

@@ -2110,7 +2110,9 @@
     // Settings for inline diagnostics
     "inline": {
       // Whether to show diagnostics inline or not
-      "enabled": false,
+      // Marley: on, so a diagnostic's message shows at its line's end, as the EditorPopups board
+      // draws it (#942).
+      "enabled": true,
       // The delay in milliseconds to show inline diagnostics after the
       // last diagnostic update.
       "update_debounce_ms": 150,

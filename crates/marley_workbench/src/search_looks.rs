@@ -13,6 +13,7 @@ use collab_ui::collab_panel::MarleyCollabLook;
 use extensions_ui::MarleyExtensionLook;
 use git_ui::branch_picker::{MarleyBranchLook, MarleyBranchMark, MarleyBranchRow};
 use gpui::{AnyElement, App, SharedString};
+use lsp::CompletionItemKind;
 use search::project_search::MarleySearchLook;
 use ui::prelude::*;
 
@@ -25,6 +26,10 @@ pub fn init(cx: &mut App) {
         footer: code_actions_footer,
     });
     cx.set_global(editor::MarleyRenameLook);
+    cx.set_global(editor::code_context_menus::MarleyCompletionKindLook {
+        word: completion_kind_word,
+    });
+    cx.set_global(editor::MarleyPredictionNote);
     cx.set_global(MarleyCollabLook);
     cx.set_global(language_tools::lsp_button::MarleyServerAsk(
         crate::send_selection::ask_about_server,
@@ -127,4 +132,36 @@ fn code_actions_footer(cx: &App) -> AnyElement {
             window.dispatch_action(Box::new(crate::AskAgentToFix), cx);
         })
         .into_any_element()
+}
+
+/// A completion kind's short word, as the `EditorPopups` board labels the completions menu
+/// (#942, D3); a kind with no word keeps Zed's letter.
+const fn completion_kind_word(kind: CompletionItemKind) -> Option<&'static str> {
+    Some(match kind {
+        CompletionItemKind::FUNCTION
+        | CompletionItemKind::METHOD
+        | CompletionItemKind::CONSTRUCTOR => "fn",
+        CompletionItemKind::FIELD | CompletionItemKind::PROPERTY => "fld",
+        CompletionItemKind::VARIABLE => "var",
+        CompletionItemKind::CONSTANT => "const",
+        CompletionItemKind::MODULE => "mod",
+        CompletionItemKind::STRUCT => "struct",
+        CompletionItemKind::CLASS => "class",
+        CompletionItemKind::INTERFACE => "trait",
+        CompletionItemKind::ENUM => "enum",
+        CompletionItemKind::ENUM_MEMBER => "vrnt",
+        CompletionItemKind::TYPE_PARAMETER => "type",
+        CompletionItemKind::KEYWORD => "kw",
+        CompletionItemKind::SNIPPET => "snip",
+        CompletionItemKind::VALUE => "val",
+        CompletionItemKind::UNIT => "unit",
+        CompletionItemKind::FILE => "file",
+        CompletionItemKind::FOLDER => "dir",
+        CompletionItemKind::REFERENCE => "ref",
+        CompletionItemKind::EVENT => "event",
+        CompletionItemKind::OPERATOR => "op",
+        CompletionItemKind::COLOR => "color",
+        CompletionItemKind::TEXT => "text",
+        _ => return None,
+    })
 }
