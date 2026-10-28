@@ -51,7 +51,7 @@ use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use command_palette_hooks::CommandPaletteFilter;
 use context_server::types::Request;
@@ -79,8 +79,7 @@ use serde_json::{Value, json};
 use settings::settings_content::ContextServerSettingsContent;
 use settings::{Settings as _, SettingsStore};
 use ui::{
-    AiSettingItem, AiSettingItemSource, AiSettingItemStatus, ButtonSize, ContextMenu, DropdownMenu,
-    DropdownStyle, IconPosition, prelude::*,
+    ButtonSize, ContextMenu, DropdownMenu, DropdownStyle, IconPosition, Indicator, prelude::*,
 };
 
 use crate::MarleySettings;
@@ -214,6 +213,11 @@ pub(crate) struct Rusty {
     keeper: Option<Task<()>>,
     /// Ends the keeper's wait before its next try at once, while it waits (#894).
     wake: Option<futures::channel::oneshot::Sender<()>>,
+    /// When Rusty last answered, at the connect or a ping, for "checked N s ago" (#940).
+    answered_at: Option<Instant>,
+    /// The seconds left before the next try, while Marley waits; the keeper counts them down,
+    /// so every screen that follows the global shows the same number (#940).
+    retry_in: Option<u64>,
 }
 
 impl Global for Rusty {}
@@ -286,7 +290,7 @@ pub fn init(cx: &mut App) {
     context_server::client::log_messages_by_size(CONTEXT_SERVER);
     let view = cx.new(|cx: &mut Context<RustyServerView>| {
         cx.observe_global::<Rusty>(|_, cx| cx.notify()).detach();
-        RustyServerView
+        RustyServerView::new(cx)
     });
     settings_ui::MarleyPageViews::set(SERVER_PAGE, view.into(), cx);
     follow_setting(cx);
@@ -433,12 +437,29 @@ async fn keep(source: Source, cx: &AsyncApp) {
             .unwrap_or(u64::MAX)
             .min(BACKOFF_MAX_S);
         failures = failures.saturating_add(1);
-        // Try Now ends the wait at once (#894).
-        let (wake, woken) = futures::channel::oneshot::channel();
-        cx.update(|cx| update(cx, |rusty| rusty.wake = Some(wake)));
-        let timer = cx.background_executor().timer(Duration::from_secs(wait));
-        select(timer, woken).await;
-        cx.update(|cx| update(cx, |rusty| rusty.wake = None));
+        // Try Now ends the wait at once (#894); the wait counts down a second at a time (#940).
+        let (wake, mut woken) = futures::channel::oneshot::channel();
+        cx.update(|cx| {
+            update(cx, |rusty| {
+                rusty.wake = Some(wake);
+                rusty.retry_in = Some(wait);
+            });
+        });
+        let mut left = wait;
+        while left > 0 {
+            let second = cx.background_executor().timer(Duration::from_secs(1));
+            if let Either::Right(_) = select(second, &mut woken).await {
+                break;
+            }
+            left -= 1;
+            cx.update(|cx| update(cx, |rusty| rusty.retry_in = Some(left)));
+        }
+        cx.update(|cx| {
+            update(cx, |rusty| {
+                rusty.wake = None;
+                rusty.retry_in = None;
+            });
+        });
     }
 }
 
@@ -464,6 +485,14 @@ pub(crate) fn render_dropped(id: usize, cx: &App) -> AnyElement {
                 .map_or_else(|| text.clone(), |reason| reason.to_string().into())
         },
     );
+    // The keeper's countdown follows the reason, as the States board says it (#940).
+    let reason: SharedString = match cx.try_global::<Rusty>().and_then(|rusty| rusty.retry_in) {
+        Some(left) => {
+            let stop = if reason.ends_with('.') { "" } else { "." };
+            format!("{reason}{stop} Trying again in {left} s.").into()
+        }
+        None => reason,
+    };
     crate::states::EmptyState::new("R", "Rusty is not connected", reason)
         .broken()
         .action("Try Now", crate::prompts::Role::Plain, |_, cx| try_now(cx))
@@ -562,6 +591,7 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
         update(cx, |rusty| {
             rusty.server = Some(Arc::clone(&server));
             rusty.agent_server = Some(found);
+            rusty.answered_at = Some(Instant::now());
             rusty.state = State::Connected {
                 server: name.into(),
                 via: via.into(),
@@ -584,7 +614,9 @@ async fn connected(source: &Source, failures: &mut u32, cx: &AsyncApp) -> Lost {
         }
         let ping = protocol.request::<Ping>(());
         match select(pin!(ping), pin!(executor.timer(CALL_TIMEOUT))).await {
-            Either::Left((Ok(_), _)) => {}
+            Either::Left((Ok(_), _)) => {
+                cx.update(|cx| update(cx, |rusty| rusty.answered_at = Some(Instant::now())));
+            }
             Either::Left((Err(error), _)) => {
                 return Lost::Down(format!(
                     "{PROGRAM} stopped answering: {}",
@@ -917,59 +949,41 @@ fn settle(found: Option<&PathBuf>, cx: &mut App) {
 
 /// The Rusty's Server sub-page of the Marley settings page (#643): the connection's state, then
 /// Rusty's own settings, read from and written to it.
-#[derive(Debug)]
-pub struct RustyServerView;
+pub struct RustyServerView {
+    /// Redraws once a second, for "checked N s ago" (#940).
+    _tick: Task<()>,
+}
+
+impl std::fmt::Debug for RustyServerView {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RustyServerView")
+            .finish_non_exhaustive()
+    }
+}
+
+impl RustyServerView {
+    fn new(cx: &Context<Self>) -> Self {
+        let tick = cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(1)).await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        });
+        Self { _tick: tick }
+    }
+}
 
 impl Render for RustyServerView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let rusty = cx.global::<Rusty>();
-        // The row keeps a short word; a path or a reason, often wider than the window, wraps under
-        // it.
-        let (status, detail, under, under_color): (_, SharedString, SharedString, _) =
-            match &rusty.state {
-                State::Off => (
-                    AiSettingItemStatus::Stopped,
-                    SharedString::new_static("off"),
-                    SharedString::new_static(
-                        "Rusty is off: turn it on in the Rusty section of the Marley settings.",
-                    ),
-                    Color::Muted,
-                ),
-                State::Starting => (
-                    AiSettingItemStatus::Starting,
-                    SharedString::new_static("connecting"),
-                    SharedString::new_static("Connecting…"),
-                    Color::Muted,
-                ),
-                State::Connected { server, via } => (
-                    AiSettingItemStatus::Running,
-                    server.clone(),
-                    via.clone(),
-                    Color::Muted,
-                ),
-                State::Down(reason) | State::Missing(reason) => (
-                    AiSettingItemStatus::Error,
-                    SharedString::new_static("not connected"),
-                    reason.clone(),
-                    Color::Error,
-                ),
-            };
         let connected = matches!(rusty.state, State::Connected { .. });
         let settings = rusty.settings.clone();
         let semantic = rusty.semantic.clone();
         let refused = rusty.refused.clone();
-        let item = AiSettingItem::new(
-            "marley-rusty-server",
-            PROGRAM,
-            status,
-            AiSettingItemSource::Custom,
-        )
-        .detail_label(detail)
-        .details(
-            div()
-                .pl_7()
-                .child(Label::new(under).size(LabelSize::Small).color(under_color)),
-        );
+        let card = status_card(rusty, cx);
         let provider_row = match (connected, settings) {
             (true, Some(Ok(settings))) => Some(settings_section(&settings, semantic, window, cx)),
             (true, Some(Err(reason))) => Some(muted(reason)),
@@ -980,16 +994,19 @@ impl Render for RustyServerView {
             .gap_4()
             .child(
                 v_flex().child(Label::new("Rusty's Server")).child(
-                    Label::new("Marley's connection to rusty-mcp, Rusty's MCP server.")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
+                    Label::new(
+                        "Settings › Marley › Rusty. Marley keeps no copy of Rusty's settings; it \
+                         reads them from Rusty.",
+                    )
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
                 ),
             )
-            .child(item)
+            .child(card)
             .child(
                 v_flex()
                     .gap_2()
-                    .child(Label::new("Rusty's Settings"))
+                    .child(Label::new("Rusty's settings · the ten its app lists"))
                     .child(provider_row.unwrap_or_else(|| {
                         muted(SharedString::new_static(
                             "Rusty's settings show once Marley is connected.",
@@ -1004,6 +1021,159 @@ impl Render for RustyServerView {
                     }),
             )
     }
+}
+
+/// The connection as the `RustyServer` board's card draws it (#940): the state and when Rusty
+/// last answered, how Marley reaches it, the program and its version, and whether agents get its
+/// tools; while it is down, why, the countdown to the next try, and Try Now.
+fn status_card(rusty: &Rusty, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let (word, dot) = match &rusty.state {
+        State::Off => ("Off", Color::Muted),
+        State::Starting => ("Connecting", Color::Warning),
+        State::Connected { .. } => ("Connected", Color::Success),
+        State::Down(_) | State::Missing(_) => ("Not connected", Color::Error),
+    };
+    let checked = match (&rusty.state, rusty.answered_at) {
+        (State::Connected { .. }, Some(at)) => {
+            format!(" · checked {} s ago", at.elapsed().as_secs())
+        }
+        _ => String::new(),
+    };
+    let connection: SharedString = match &rusty.source {
+        Source::Off => SharedString::new_static("off"),
+        Source::Embedded => SharedString::new_static("embedded · stdio"),
+        Source::Service(url) => url.clone().into(),
+    };
+    let path = match &rusty.agent_server {
+        Some(RustyServer::Stdio(path)) => Some(path.display().to_string()),
+        Some(RustyServer::Http(_)) | None => None,
+    };
+    let program: SharedString = match (&rusty.state, path) {
+        // The version first: a long path is cut at the card's edge.
+        (State::Connected { server, .. }, Some(path)) => format!("{server} · {path}").into(),
+        (State::Connected { server, .. }, None) => server.clone(),
+        (_, Some(path)) => path.into(),
+        (_, None) => SharedString::new_static(PROGRAM),
+    };
+    let tools: SharedString = if MarleySettings::get_global(cx).rusty.agent_tools {
+        format!("on · as “{CONTEXT_SERVER}”").into()
+    } else {
+        SharedString::new_static("off")
+    };
+    let reason = match &rusty.state {
+        State::Down(reason) | State::Missing(reason) => Some(reason.clone()),
+        State::Off | State::Starting | State::Connected { .. } => None,
+    };
+    let retry_in = rusty.retry_in;
+    v_flex()
+        .debug_selector(|| "marley-rusty-status".into())
+        .gap_1p5()
+        .p_3()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(fact(
+            "State",
+            h_flex()
+                .gap_1p5()
+                .child(Indicator::dot().color(dot))
+                .child(Label::new(format!("{word}{checked}")).size(LabelSize::Small)),
+        ))
+        .child(fact(
+            "Connection",
+            Label::new(connection).size(LabelSize::Small),
+        ))
+        .child(fact(
+            "Program",
+            Label::new(program).size(LabelSize::Small).truncate(),
+        ))
+        .child(fact(
+            "Rusty's tools for agents",
+            Label::new(tools).size(LabelSize::Small),
+        ))
+        .when_some(reason, |card, reason| {
+            card.child(
+                Label::new(reason)
+                    .size(LabelSize::Small)
+                    .color(Color::Error),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .when_some(retry_in, |row, left| {
+                        row.child(
+                            Label::new(format!("Trying again in {left} s")).size(LabelSize::Small),
+                        )
+                    })
+                    .child(
+                        Button::new("marley-rusty-try-now", "Try Now")
+                            .label_size(LabelSize::Small)
+                            .style(ButtonStyle::Outlined)
+                            .on_click(|_, _, cx| try_now(cx)),
+                    ),
+            )
+            .child(muted(SharedString::new_static(
+                "Marley tries again after 1, 2, 4… up to 60 s.",
+            )))
+        })
+        .into_any_element()
+}
+
+/// One of the status card's rows: its label in a quiet column, its value beside it.
+fn fact(label: &'static str, value: impl IntoElement) -> Div {
+    h_flex()
+        .gap_3()
+        .child(
+            div()
+                .w(px(180.))
+                .flex_none()
+                .child(Label::new(label).size(LabelSize::Small).color(Color::Muted)),
+        )
+        .child(value)
+}
+
+/// How far brain search has its pages embedded (#940): "P of T pages embedded", the provider and
+/// model, a bar of the share, and how many wait; full-text only keeps its sentence.
+fn semantic_block(status: &SemanticStatus, cx: &App) -> AnyElement {
+    let Some(provider) = status.provider_words() else {
+        return muted(status.line().into());
+    };
+    let colors = cx.theme().colors();
+    let total = status.total();
+    let done = status.stats.pages;
+    // The share embedded, in thousandths, for the bar.
+    let thousandths = done
+        .saturating_mul(1000)
+        .checked_div(total)
+        .unwrap_or(0)
+        .min(1000);
+    let share = f32::from(u16::try_from(thousandths).unwrap_or(1000)) / 1000.;
+    v_flex()
+        .gap_1()
+        .child(
+            Label::new(format!("{done} of {total} pages embedded · {provider}"))
+                .size(LabelSize::Small),
+        )
+        .child(
+            div()
+                .h_1()
+                .w(px(360.))
+                .rounded_full()
+                .bg(colors.element_background)
+                .child(
+                    div()
+                        .h_1()
+                        .w(relative(share))
+                        .rounded_full()
+                        .bg(colors.text_accent),
+                ),
+        )
+        .when(status.stale > 0, |block| {
+            block.child(muted(format!("{} wait their turn", status.stale).into()))
+        })
+        .into_any_element()
 }
 
 /// A muted line on the Rusty's Server page.
@@ -1023,7 +1193,7 @@ fn settings_section(
     cx: &mut Context<RustyServerView>,
 ) -> AnyElement {
     let status = match semantic {
-        Some(Ok(status)) => muted(status.line().into()),
+        Some(Ok(status)) => semantic_block(&status, cx),
         Some(Err(reason)) => muted(reason),
         None => muted(SharedString::new_static("Reading the embedding status…")),
     };
@@ -1048,37 +1218,77 @@ fn settings_section(
         .gap_3()
         .child(status)
         .children(known)
-        .child(Label::new("Other Stored Keys"))
+        .child(Label::new("Other stored keys"))
         .children(others)
         .child(add_row(window, cx))
         .into_any_element()
 }
 
-/// A key Rusty's app lists: its field, then Rusty's words and its default.
+/// A key Rusty's app lists, as the `RustyServer` board draws it (#940): its plain name over
+/// Rusty's words and the key in mono, its field at the right, an unset value's default muted in
+/// the field.
 fn known_row(
     setting: &KnownSetting,
     stored: Option<&str>,
     window: &mut Window,
     cx: &mut Context<RustyServerView>,
 ) -> AnyElement {
-    v_flex()
-        .gap_1()
-        .child(setting_row(
+    h_flex()
+        .gap_4()
+        .items_start()
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .gap_0p5()
+                .child(Label::new(setting.name).size(LabelSize::Small))
+                .child(muted(setting.about.into()))
+                .child(
+                    Label::new(setting.key)
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .color(Color::Muted),
+                ),
+        )
+        .child(div().w(px(320.)).flex_none().child(setting_field(
             setting.key,
             stored,
             setting.fallback,
             window,
             cx,
-        ))
-        .child(muted(
-            format!("{} Default: {}.", setting.about, setting.fallback).into(),
-        ))
+        )))
         .into_any_element()
 }
 
-/// A setting's key and its field, Enter writing a changed value. The field is keyed by Rusty's
-/// value, so one read back makes a fresh field holding it.
+/// A setting's key and its field, for a key Rusty's app does not list.
 fn setting_row(
+    key: &str,
+    stored: Option<&str>,
+    placeholder: &str,
+    window: &mut Window,
+    cx: &mut Context<RustyServerView>,
+) -> AnyElement {
+    h_flex()
+        .w_full()
+        .gap_4()
+        .child(
+            div()
+                .flex_none()
+                .w(rems(13.))
+                .child(Label::new(key.to_string()).buffer_font(cx).truncate()),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .child(setting_field(key, stored, placeholder, window, cx)),
+        )
+        .into_any_element()
+}
+
+/// A setting's field, Enter writing a changed value. The field is keyed by Rusty's value, so one
+/// read back makes a fresh field holding it.
+fn setting_field(
     key: &str,
     stored: Option<&str>,
     placeholder: &str,
@@ -1103,7 +1313,7 @@ fn setting_row(
     let writing = field.clone();
     let name = key.to_string();
     let stored = stored.map(str::to_string);
-    h_flex()
+    div()
         .key_context("RustySetting menu")
         .on_action(cx.listener(move |_, _: &menu::Confirm, window, cx| {
             let typed = writing.read(cx).text(cx);
@@ -1116,14 +1326,7 @@ fn setting_row(
             }
         }))
         .w_full()
-        .gap_4()
-        .child(
-            div()
-                .flex_none()
-                .w(rems(13.))
-                .child(Label::new(key.to_string()).buffer_font(cx).truncate()),
-        )
-        .child(boxed(&field, cx).flex_1().min_w_0())
+        .child(boxed(&field, cx).w_full())
         .into_any_element()
 }
 
@@ -1214,14 +1417,21 @@ fn provider_row(
         .child(
             v_flex()
                 .min_w_0()
-                .child(Label::new("Embedding Provider"))
+                .gap_0p5()
+                .child(Label::new("Embedding provider").size(LabelSize::Small))
                 .child(
                     Label::new(format!(
-                        "Rusty's embedding_provider: what its brain search embeds pages with. {}",
+                        "What Rusty's brain search embeds pages with. {}",
                         current.description()
                     ))
                     .size(LabelSize::Small)
                     .color(Color::Muted),
+                )
+                .child(
+                    Label::new(EmbeddingProvider::KEY)
+                        .size(LabelSize::XSmall)
+                        .buffer_font(cx)
+                        .color(Color::Muted),
                 ),
         )
         .child(

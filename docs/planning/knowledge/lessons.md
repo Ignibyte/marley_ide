@@ -6569,3 +6569,15 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** to reach a Marley action link in the Settings window, search for its section's name
   and scroll the results to the section's end (`pointer_to` over the content, `scroll 80`), or
   search for its exact title.
+
+## L-claude-940-a-scenario-sees-rusty-drop-at-the-next-ping-001
+
+- **Ticket:** #940, 2026-10-28.
+- **What happened:** the scenario ended its stand-in `rusty-mcp` and shot Rusty's tabs three
+  seconds later; they still showed Rusty connected. Then `rusty: open memory` was refused with a
+  toast, and a Try Now clicked during a 5 s try did not reconnect in five seconds.
+- **Lesson:** Marley sees an ended `rusty-mcp` only at its next ping, so wait about 12 s after
+  ending it. Show the dropped card on a Rusty tab opened before the drop, since a Rusty action is
+  refused while Rusty is down. After Try Now, allow a running try's 5 s to end, then the next
+  try's, before the shot. End only the run's own stand-in, by `RUSTY_STAND_IN_STATE` in
+  `/proc/<pid>/environ`.

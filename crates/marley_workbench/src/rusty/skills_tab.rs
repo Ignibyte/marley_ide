@@ -8,6 +8,7 @@
 //! app does. Every write is Rusty's, which commits its store.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Context as _;
@@ -180,6 +181,8 @@ pub(super) struct BrainSkillsView {
     findings: Option<Vec<String>>,
     /// Whether Approve was refused for the scan's findings, which Approve Anyway overrides.
     blocked: bool,
+    /// Each staged skill's scan findings by its name, from the last read (#940).
+    scans: HashMap<String, Vec<String>>,
     notice: Option<Notice>,
     writing: Option<Task<()>>,
     /// The chosen script's text being read.
@@ -217,6 +220,7 @@ impl BrainSkillsView {
             description,
             body,
             findings: None,
+            scans: HashMap::new(),
             blocked: false,
             notice: None,
             writing: None,
@@ -283,8 +287,34 @@ impl BrainSkillsView {
                     .map_err(|error| format!("{SCRIPT_LIST}'s answer did not parse: {error}"))
             });
             let read = skills.and_then(|skills| scripts.map(|scripts| (ordered(skills), scripts)));
-            this.update(cx, |this, cx| this.take_read(read, cx))
-                .log_err();
+            // Each staged skill is scanned once per read, so its row can say what the scan
+            // found (#940); in this task, since `take_read` ends it.
+            let mut scans = HashMap::new();
+            let pending: Vec<String> = read
+                .iter()
+                .flat_map(|(skills, _)| skills.iter())
+                .filter(|skill| skill.is_pending())
+                .map(|skill| skill.name.clone())
+                .collect();
+            for name in pending {
+                let Ok(asking) = this.update(cx, |_, cx| {
+                    super::call_tool(SKILL_SCAN, json!({ "name": name }), cx)
+                }) else {
+                    break;
+                };
+                if let Some(findings) = asking
+                    .await
+                    .ok()
+                    .and_then(|text| findings_from_answer(&text).ok())
+                {
+                    scans.insert(name, findings);
+                }
+            }
+            this.update(cx, |this, cx| {
+                this.scans = scans;
+                this.take_read(read, cx);
+            })
+            .log_err();
         }));
     }
 
@@ -660,6 +690,11 @@ impl BrainSkillsView {
     fn render_skill_row(&self, index: usize, skill: &Skill, cx: &Context<Self>) -> AnyElement {
         let chosen = self.chosen == Some(Chosen::Skill(skill.name.clone()));
         let row = skill.clone();
+        let title = if skill.is_pending() {
+            format!("{} · staged by an agent", skill.name)
+        } else {
+            skill.name.clone()
+        };
         ListItem::new(("rusty-skill", index))
             .spacing(ListItemSpacing::Sparse)
             .toggle_state(chosen)
@@ -669,7 +704,7 @@ impl BrainSkillsView {
                     .child(
                         h_flex()
                             .gap_1()
-                            .child(Label::new(skill.name.clone()).truncate())
+                            .child(Label::new(title).truncate())
                             // Active green, pending yellow, as the RustyTabs board draws them
                             // (#876).
                             .child(status_chip(skill.is_pending()))
@@ -686,10 +721,67 @@ impl BrainSkillsView {
                             .size(LabelSize::Small)
                             .color(Color::Muted)
                             .truncate(),
-                    ),
+                    )
+                    .when(skill.is_pending(), |column| {
+                        column.child(self.render_staged(index, skill, cx))
+                    }),
             )
             .on_click(cx.listener(move |this, _, window, cx| this.show_skill(&row, window, cx)))
             .into_any_element()
+    }
+
+    /// A staged skill's scan and its answers on its row (#940): the first finding in the warning
+    /// colour, or clean; Reject, and Approve Anyway when the scan found something, else Approve.
+    fn render_staged(&self, index: usize, skill: &Skill, cx: &Context<Self>) -> impl IntoElement {
+        let findings = self.scans.get(&skill.name);
+        let found = findings.is_some_and(|findings| !findings.is_empty());
+        let scan = match findings.and_then(|findings| findings.first()) {
+            Some(finding) => Label::new(format!("Scan: {finding}"))
+                .size(LabelSize::XSmall)
+                .color(Color::Warning),
+            None if findings.is_some() => Label::new("Scan: clean")
+                .size(LabelSize::XSmall)
+                .color(Color::Success),
+            None => Label::new("Scan: not run")
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        };
+        let busy = self.writing.is_some();
+        let approve = skill.name.clone();
+        let reject = skill.name.clone();
+        v_flex().gap_1().child(scan.truncate()).child(
+            h_flex()
+                .gap_1()
+                .child(
+                    Button::new(("rusty-skill-row-reject", index), "Reject")
+                        .label_size(LabelSize::Small)
+                        .disabled(busy)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            let write = SkillWrite::Reject {
+                                name: reject.clone(),
+                            };
+                            this.send(write, window, cx);
+                        })),
+                )
+                .child(
+                    Button::new(
+                        ("rusty-skill-row-approve", index),
+                        if found { "Approve Anyway" } else { "Approve" },
+                    )
+                    .label_size(LabelSize::Small)
+                    .style(ButtonStyle::Filled)
+                    .disabled(busy)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        cx.stop_propagation();
+                        let write = SkillWrite::Approve {
+                            name: approve.clone(),
+                            force: found,
+                        };
+                        this.send(write, window, cx);
+                    })),
+                ),
+        )
     }
 
     fn render_script_row(&self, index: usize, script: &Script, cx: &Context<Self>) -> AnyElement {
@@ -711,6 +803,18 @@ impl BrainSkillsView {
                     )
                     .child(status_chip(script.is_pending())),
             )
+            // An active script runs from its row, as the detail pane's Run does (#940).
+            .when(!script.is_pending(), |item| {
+                let running = script.clone();
+                item.end_slot(
+                    Button::new(("rusty-script-row-run", index), "Run")
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            this.run(running.clone(), window, cx);
+                        })),
+                )
+            })
             .on_click(cx.listener(move |this, _, window, cx| this.show_script(&row, window, cx)))
             .into_any_element()
     }
@@ -1145,7 +1249,7 @@ impl Render for NewSkillForm {
             .child(field(&self.body, cx))
             .child(
                 Checkbox::new("rusty-new-skill-staged", ToggleState::from(self.staged))
-                    .label("Stage for approval instead of making it active")
+                    .label("Stage it for approval")
                     .label_size(LabelSize::Small)
                     .on_click(cx.listener(|this, _: &ToggleState, _, cx| {
                         this.staged = !this.staged;
@@ -1161,7 +1265,7 @@ impl Render for NewSkillForm {
                 h_flex().justify_end().child(
                     Button::new(
                         "rusty-new-skill-create",
-                        if sending { "Creating…" } else { "Create" },
+                        if sending { "Making…" } else { "Make" },
                     )
                     .style(ButtonStyle::Filled)
                     .disabled(sending || !named)

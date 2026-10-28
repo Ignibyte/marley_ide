@@ -1,7 +1,7 @@
 ---
 pipeline_id: 7d6bd891-6325-48e3-86a4-8256c69994a4
 ticket: docs/planning/tickets/open/TICKET-940-rusty-server-and-forms-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Rusty's Server, Secrets and Skills as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -129,7 +129,8 @@ with a script) and made-up secrets with a made-up PIN. No agent CLI; the stand-i
 - `940-06-skills`: `rusty: open skills`: the staged skill's row with "staged by an agent", its
   scan finding, Reject and Approve Anyway; the active script's row with Run (REQ-008, REQ-009).
 - `940-07-new-skill`: New skill: "Stage it for approval" and Make (REQ-010).
-- `940-09-dropped-tab`: while dropped, `rusty: open memory`: the card's reason, "Trying again in N
+- `940-09-dropped-tab`: while dropped, the open Secrets tab (a Rusty action is refused while it
+  is down): the card's reason, "Trying again in N
   s." and Try Now (REQ-011).
 - `940-08-day`: the Server page and Skills in Marley Day (REQ-001, REQ-002, REQ-004, REQ-005,
   REQ-008).

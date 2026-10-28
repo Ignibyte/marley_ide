@@ -7,7 +7,7 @@
 //! Every PIN and value field is masked and emptied once sent, and nothing here logs a PIN, a token
 //! or a value (Rusty-in-Marley R-D7).
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use editor::Editor;
 use gpui::{
@@ -144,6 +144,8 @@ pub(super) struct BrainSecretsView {
     token: Option<String>,
     /// Locks the tab when the unlock runs out.
     expiry: Option<Task<()>>,
+    /// When the unlock ends, for "locks in N m" (#940).
+    locks_at: Option<Instant>,
     /// The one value shown, until Hide, another Reveal or the lock.
     revealed: Option<Revealed>,
     /// The secret whose replace field shows.
@@ -202,6 +204,7 @@ impl BrainSecretsView {
             link: Link::now(cx),
             token: None,
             expiry: None,
+            locks_at: None,
             revealed: None,
             replacing: None,
             changing_pin: false,
@@ -316,6 +319,7 @@ impl BrainSecretsView {
     fn forget(&mut self) {
         self.token = None;
         self.expiry = None;
+        self.locks_at = None;
         self.revealed = None;
         self.replacing = None;
         self.changing_pin = false;
@@ -330,6 +334,19 @@ impl BrainSecretsView {
         Self::send_lock(cx);
         self.notice = Some(Notice::done("Locked."));
         self.read_again(cx);
+    }
+
+    /// "Unlocked · locks in N m", or in seconds under a minute (#940).
+    fn unlocked_words(&self) -> String {
+        let Some(at) = self.locks_at else {
+            return "Unlocked".to_string();
+        };
+        let left = at.saturating_duration_since(Instant::now()).as_secs();
+        if left >= 60 {
+            format!("Unlocked · locks in {} m", left.div_ceil(60))
+        } else {
+            format!("Unlocked · locks in {left} s")
+        }
     }
 
     fn send_lock(cx: &App) {
@@ -357,9 +374,24 @@ impl BrainSecretsView {
                     Ok(unlock) => {
                         this.token = Some(unlock.token);
                         let lifetime = Duration::from_secs(unlock.expires_in_seconds.max(1));
+                        this.locks_at = Some(Instant::now() + lifetime);
+                        // A second at a time, so "locks in N m" counts down (#940).
                         this.expiry = Some(cx.spawn(async move |this, cx| {
-                            cx.background_executor().timer(lifetime).await;
-                            this.update(cx, Self::lock).log_err();
+                            loop {
+                                cx.background_executor().timer(Duration::from_secs(1)).await;
+                                let ended = this.update(cx, |this, cx| {
+                                    let ended = this.locks_at.is_none_or(|at| Instant::now() >= at);
+                                    if ended {
+                                        this.lock(cx);
+                                    } else {
+                                        cx.notify();
+                                    }
+                                    ended
+                                });
+                                if ended.unwrap_or(true) {
+                                    break;
+                                }
+                            }
                         }));
                         this.notice = None;
                     }
@@ -619,8 +651,30 @@ impl BrainSecretsView {
                 .into_any_element();
         }
         if self.token.is_none() {
+            // The locked card, as the `RustyForms` board draws it (#940).
             return v_flex()
-                .gap_1()
+                .gap_2()
+                .p_3()
+                .rounded_md()
+                .border_1()
+                .border_color(cx.theme().colors().border)
+                .bg(cx.theme().colors().panel_background)
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Icon::new(IconName::Lock)
+                                .size(IconSize::Small)
+                                .color(Color::Muted),
+                        )
+                        .child(
+                            Label::new(
+                                "Names show to anyone. A value needs your PIN. Never type the \
+                                 PIN to an agent.",
+                            )
+                            .size(LabelSize::Small),
+                        ),
+                )
                 .child(
                     h_flex()
                         .key_context("RustySecret menu")
@@ -628,7 +682,17 @@ impl BrainSecretsView {
                             this.unlock(window, cx);
                         }))
                         .gap_2()
-                        .child(boxed(&self.fields.unlock_pin, cx).w(rems(16.)))
+                        .child(
+                            boxed(&self.fields.unlock_pin, cx)
+                                .w(rems(16.))
+                                .flex()
+                                .gap_2()
+                                .child(
+                                    Label::new("PIN")
+                                        .size(LabelSize::XSmall)
+                                        .color(Color::Muted),
+                                ),
+                        )
                         .child(
                             Button::new("rusty-secrets-unlock", "Unlock")
                                 .style(ButtonStyle::Filled)
@@ -657,7 +721,7 @@ impl BrainSecretsView {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(Label::new("Unlocked"))
+                    .child(Label::new(self.unlocked_words()))
                     .child(
                         Button::new("rusty-secrets-lock", "Lock")
                             .on_click(cx.listener(|this, _, _, cx| this.lock(cx))),

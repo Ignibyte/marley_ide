@@ -4473,6 +4473,23 @@ below describe what #743 retired.
 
 ## Rusty (`src/rusty.rs`, #633, #643)
 
+- **The Server page and the forms as the boards (#940).**
+  - `Rusty` keeps `answered_at` (the connect and each ping) and `retry_in`. `keep` counts its
+    wait down a second at a time into `retry_in`, so every screen that follows the global (the
+    Server page's card, `render_dropped`'s "Trying again in N s.") shows one countdown, and Try
+    Now still ends the wait.
+  - `RustyServerView` ticks once a second for "checked N s ago". `status_card` draws four `fact`
+    rows (state, connection, program and version, agents' tools) and, while down, the reason, the
+    countdown, Try Now and the backoff's line. `semantic_block` draws "P of T pages embedded" with
+    `SemanticStatus::total` and `provider_words`, a bar, and how many wait.
+  - `KnownSetting.name` heads each `known_row`, over Rusty's words and the key in mono, with
+    `setting_field` at the right.
+  - In `rusty/secrets_tab.rs`, `locks_at` drives "Unlocked · locks in N m" through a one-second
+    expiry loop, and the locked state is a card with the PIN rule.
+  - In `rusty/skills_tab.rs`, `read` scans each staged skill into `scans` before `take_read`, and
+    `render_staged` gives its row "Scan: …", Reject and Approve (Anyway). An active script's row
+    ends with Run, and New Skill reads "Stage it for approval" / Make.
+
 - `MarleySettings::rusty` is `RustySettings::from_content(marley)`: `Source::{Off, Embedded,
   Service(url)}`, off unless `marley.rusty.enabled` is on, and `agent_tools` only while it is.
 - **Off leaves no trace** (#661). `follow_setting` ends with `filter_palette`, which on a change

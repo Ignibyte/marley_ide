@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-940](open/TICKET-940-rusty-server-and-forms-as-the-board.md) | feature | Rusty's Server, Secrets and Skills as the board draws them (design review 2026-10-23) |
 | [TICKET-941](open/TICKET-941-settings-and-keymap-as-the-board.md) | feature | Settings and the keymap as the board draws them (design review 2026-10-23) |
 | [TICKET-942](open/TICKET-942-search-and-editor-popups-as-the-board.md) | feature | Search and the editor's pop-ups as the board words them (design review 2026-10-23) |
 | [TICKET-943](open/TICKET-943-states-and-theme-as-the-board.md) | feature | Empty states and theme details as the board draws them (design review 2026-10-23) |

@@ -87,6 +87,8 @@ pub fn looks_secret(key: &str) -> bool {
 pub struct KnownSetting {
     /// Rusty's key.
     pub key: &'static str,
+    /// Its plain name, as the `RustyServer` board heads its row (#940).
+    pub name: &'static str,
     /// What it does, in Rusty's app's words.
     pub about: &'static str,
     /// What Rusty uses while it is unset.
@@ -97,53 +99,63 @@ pub struct KnownSetting {
 pub const KNOWN: [KnownSetting; 10] = [
     KnownSetting {
         key: "brain_vault_path",
+        name: "Brain vault",
         about: "The brain vault folder (an Obsidian vault). Restart the service after changing it.",
         fallback: "~/.rusty/brain",
     },
     KnownSetting {
         key: "notes_path",
+        name: "Notes",
         about: "The notes folder the notes tools use; inside the vault unless you point it \
                 elsewhere (rusty-cli notes adopt moves an older folder in).",
         fallback: "<vault>/notes",
     },
     KnownSetting {
         key: EmbeddingProvider::KEY,
+        name: "Embedding provider",
         about: "auto (Ollama when it answers), ollama, openai (needs openai_api_key in Secrets), \
                 or off.",
         fallback: "auto",
     },
     KnownSetting {
         key: "embedding_model",
+        name: "Embedding model",
         about: "Overrides the provider's default model (nomic-embed-text, text-embedding-3-small).",
         fallback: "provider default",
     },
     KnownSetting {
         key: "ollama_url",
+        name: "Ollama URL",
         about: "Where Ollama listens.",
         fallback: "http://127.0.0.1:11434",
     },
     KnownSetting {
         key: "pin_timeout_minutes",
+        name: "PIN timeout",
         about: "How long an unlock of the Secrets tab lasts.",
         fallback: "5",
     },
     KnownSetting {
         key: "skills_enabled",
+        name: "Skills",
         about: "Whether the skills store is served to agents.",
         fallback: "true",
     },
     KnownSetting {
         key: "skills_path",
+        name: "Skills folder",
         about: "Where skills live (active/ and staging/).",
         fallback: "~/.rusty/skills",
     },
     KnownSetting {
         key: "brain_auto_enrich",
+        name: "Auto-enrich",
         about: "Enrich captured pages automatically.",
         fallback: "false",
     },
     KnownSetting {
         key: "default_workflow",
+        name: "Default workflow",
         about: "The default agent workflow name.",
         fallback: "deep",
     },
@@ -191,6 +203,23 @@ pub struct SemanticStats {
 }
 
 impl SemanticStatus {
+    /// The pages brain search covers: those with vectors and those waiting for theirs (#940).
+    #[must_use]
+    pub const fn total(&self) -> usize {
+        self.stats.pages.saturating_add(self.stale)
+    }
+
+    /// The provider and its model in words, `ollama · nomic-embed-text`; none while brain search
+    /// is full-text only.
+    #[must_use]
+    pub fn provider_words(&self) -> Option<String> {
+        let provider = self.provider.as_deref()?;
+        Some(provider.split_once(':').map_or_else(
+            || provider.to_string(),
+            |(name, model)| format!("{name} · {model}"),
+        ))
+    }
+
     /// `brain_semantic_status`'s answer.
     ///
     /// # Errors

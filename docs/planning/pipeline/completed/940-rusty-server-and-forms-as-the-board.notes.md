@@ -88,7 +88,62 @@
   unchanged ones.
 
 ## Phase 2 — Code
+- **Built (all Marley crates):**
+  - `rusty.rs`: `Rusty.answered_at` and `retry_in`, with `keep`'s wait counting down each second
+    (in place of a tick on every Rusty tab). `RustyServerView` became a struct with a one-second
+    `_tick`. The page has `status_card`, `fact`, `semantic_block`, `known_row` with the names, and
+    `setting_field` split from `setting_row`; `render_dropped` appends the countdown; the embedding
+    provider's row carries its name and key.
+  - `marley_rusty/src/settings.rs`: `KnownSetting.name`, `SemanticStatus::total` and
+    `provider_words`.
+  - `rusty/secrets_tab.rs`: `locks_at`, the one-second expiry loop, `unlocked_words` and the
+    locked card.
+  - `rusty/skills_tab.rs`: `scans`, filled in the read task before `take_read` (which drops that
+    task); `render_staged`; Run on an active script's row; the New Skill words.
+- **Deviations:**
+  - The countdown lives in the global, not in per-view ticks, so every screen counts the same.
+  - A staged row whose scan failed says "Scan: not run".
+  - The Program value puts the server's name and version before the path, so a long path is cut
+    and the version is not (found in Test).
+- **Gate:** GREEN the first time, and again on the final tree.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/940-rusty-server-and-forms-as-the-board.sh` (sway).
+  - It uses #894's wrapper over the stand-in, with #666's settings and semantic status, #876's
+    staged `quick-shell` (its backtick found) and active `release-notes` with `notes-draft.sh`,
+    two made-up secrets, and the made-up PIN in the stand-in's `pin`.
+  - To drop the connection, the scenario creates the flag and ends only its own stand-in, matched
+    by `RUSTY_STAND_IN_STATE` in `/proc/<pid>/environ`.
+- **Reds, fixed:**
+  - The Program path ran past the card (now truncated, the version first).
+  - "within 5 s Trying again" had no full stop between them (`render_dropped` adds one).
+- **Reds, the scenario's own, fixed:**
+  - `rusty: open memory` is refused while Rusty is down, so the dropped card is shown on the open
+    Secrets tab.
+  - The loss shows only at the next ping, so the scenario waits 12 s after ending the stand-in.
+  - A Try Now clicked during a 5 s try waits for the next one, so it settles 12 s.
+- **Shots:**
+  - `940-01-server`: the header line; the card reads Connected · checked 4 s ago, embedded ·
+    stdio, rusty-mcp stand-in · path, and on · as "rusty". Then "42 of 45 pages embedded · ollama
+    · nomic-embed-text", the bar, "3 wait their turn", and the named rows (Brain vault, Notes,
+    Embedding provider…), each with its key in mono and its default muted in the field.
+  - `940-04-locked`: the lock card, the PIN rule, a field labelled PIN, and Unlock.
+  - `940-05-unlocked`: "Unlocked · locks in 5 m", Lock, Change PIN.
+  - `940-06-skills`: "quick-shell · staged by an agent", "Scan: contains a dynamic command-injection
+    marker…" in the warning colour, Reject, Approve Anyway; "$ notes-draft … active" with Run.
+  - `940-07-new-skill`: "Stage it for approval" and Make.
+  - `940-08-day`, `940-08-day-server`: Skills and the page in Marley Day.
+  - `940-09-dropped-tab`: Secrets' card "rusty-mcp did not answer within 5 s. Trying again in
+    2 s." with Try Now.
+  - `940-02-dropped`: Not connected, the reason in red, "Trying again in 1 s", Try Now, and the
+    backoff line.
+  - `940-03-back`: after Try Now, Connected · checked 0 s ago.
 
 ## Phase 4 — Complete
+- **Documented (§21):** `CHANGELOG.md`, `docs/marley/look-plan.md`, and
+  `docs/marley_architecture/marley_workbench.md` (the #940 entry under Rusty). No Zed path was
+  touched.
+- **Knowledge (§19):** L-claude-940-a-scenario-sees-rusty-drop-at-the-next-ping-001. No `F-`
+  block: the two look reds were caught and fixed in the same ticket's Test.
+- **Brain:** consultation e1ffef5917e64ce49732d0e65aa3ec5d closed with `brain no-decision`.
+- **Ticket:** closed.

@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rusty's Server, Secrets and Skills as the boards draw them** (#940, 2026-10-28). The Rusty's
+  Server page opens with where it lives and that Marley keeps no copy of Rusty's settings. A card
+  then shows the connection: Connected and how long ago Rusty last answered, how Marley reaches it,
+  the program and its version, and whether agents get its tools. While Rusty is down, it shows why,
+  counts down to the next try and offers Try Now; Rusty's tabs count down too. Brain search reads
+  "42 of 45 pages embedded" with a bar, and each of the ten settings has a plain name over its
+  key. Secrets shows a lock card with the PIN rule and, once unlocked, how long until it locks
+  again. A skill an agent staged says so on its row, with its scan's finding, Reject and Approve
+  Anyway; an active script has Run on its row; New Skill reads "Stage it for approval" and Make.
 - **Rusty's Tasks and brain pages as the boards draw them** (#939, 2026-10-28). The Tasks tab's
   Decisions due card gives each decision a Follow Up, which opens the follow-up form right there,
   and an Open the page, with how many are overdue beside the heading. Tasks are cards, the list's
