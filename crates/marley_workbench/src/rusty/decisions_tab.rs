@@ -6,6 +6,8 @@
 //! announcement while it shows (else when it next shows), on Read again after a failure, and after
 //! a follow-up recorded from its form (#660).
 
+use std::rc::Rc;
+
 use gpui::{
     Anchor, AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     MouseDownEvent, Pixels, Point, Render, SharedString, Subscription, Task, WeakEntity, Window,
@@ -403,12 +405,15 @@ impl BrainDecisionsView {
             })
             .collect();
         let tab = cx.entity().downgrade();
+        let on_recorded: follow_up::OnRecorded = Rc::new(move |cx: &mut App| {
+            tab.update(cx, Self::read_again).log_err();
+        });
         let workspace = self.workspace.clone();
         // The form opens in the workspace's modal layer, after the update this click runs in.
         window.defer(cx, move |window, cx| {
             workspace
                 .update(cx, |workspace, cx| {
-                    follow_up::open(workspace, tab, &summary, candidates, window, cx);
+                    follow_up::open(workspace, on_recorded, &summary, candidates, window, cx);
                 })
                 .log_err();
         });

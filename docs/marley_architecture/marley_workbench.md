@@ -4668,6 +4668,19 @@ below describe what #743 retired.
 
 ## The Tasks tab (`src/rusty/tasks_tab.rs`, #658)
 
+- **As the board, again (#939).**
+  - `render_due` gives each due decision Follow Up (`follow_up_click`: #660's form on the
+    workspace, with an `OnRecorded` that re-reads the tab) and Open the page, as
+    `prompts::render_button`s. "N overdue" sits at the heading's right, and the footnote follows.
+  - Tasks are cards, the list name is a `Headline`, "LISTS" heads the lists, and the swatches are
+    rounded squares.
+  - On a page (`page.rs`), `tick_task` flips a body checkbox found by its place in
+    `task_markers` and queues `Write::Text`, which `write_unchanged` writes only while Rusty still
+    holds the text it began from.
+  - `load` reads `brain_get_links` into `linked_here` for the outline's "Linked here", and the
+    Outline toggle is a text button.
+  - `properties::pill` colours values by `Tone`, and the Brain tab's favourites start with ★.
+
 - **Opening.** `rusty::OpenTasks`, registered on every workspace by `tasks_tab::init`;
   `open_later(workspace, list, ..)` defers, then brings the workspace's `TasksView` forward or adds
   one, and with a list calls `show_list`. The Brain view's fixed row (Tasks after Graph, through

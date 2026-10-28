@@ -1336,21 +1336,19 @@ impl BrainView {
             }) if *edited == key => Some(editor.clone()),
             _ => None,
         };
-        let (icon, detail) = match bookmark.kind() {
-            BookmarkKind::Folder => (IconName::Folder, bookmark.path.clone()),
-            BookmarkKind::Search => (IconName::MagnifyingGlass, bookmark.query.clone()),
-            BookmarkKind::Heading => (
-                IconName::Hash,
-                format!("{} › {}", bookmark.path, bookmark.heading),
-            ),
-            BookmarkKind::File | BookmarkKind::Other(_) => {
-                (IconName::FileTextOutlined, bookmark.path.clone())
+        let detail = match bookmark.kind() {
+            BookmarkKind::Folder | BookmarkKind::File | BookmarkKind::Other(_) => {
+                bookmark.path.clone()
             }
+            BookmarkKind::Search => bookmark.query.clone(),
+            BookmarkKind::Heading => format!("{} › {}", bookmark.path, bookmark.heading),
         };
         let title = SharedString::from(bookmark.shown_title().to_string());
         ListItem::new(("marley-brain-favourite", index))
             .spacing(ListItemSpacing::Dense)
-            .start_slot(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+            // A star, as the `BrainPage` board marks a favourite; what it is stays in the tooltip
+            // (#939).
+            .start_slot(Label::new("★").size(LabelSize::Small).color(Color::Accent))
             .tooltip(Tooltip::text(detail))
             .child(renaming.map_or_else(
                 || Label::new(title).truncate().into_any_element(),

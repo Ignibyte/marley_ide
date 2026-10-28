@@ -1,16 +1,17 @@
-//! The form that records how a decision went (#660), opened from the Decisions tab.
+//! The form that records how a decision went (#660), opened from the Decisions tab and from the
+//! Tasks tab's decisions due (#939).
 //!
 //! It holds a `FollowUpDraft`: the status, the outcome, the next day when revised and the
-//! successor when superseded, picked from the decisions the tab lists. Record sends one
+//! successor when superseded, picked from the decisions the opening tab lists. Record sends one
 //! `brain_follow_up`; Rusty's refusal stays in the form with every field, and a success closes it
-//! and has the tab read again.
+//! and runs the opener's `OnRecorded`, which reads its tab again.
 
 use std::rc::Rc;
 
 use editor::{Editor, EditorEvent};
 use gpui::{
     App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Render, SharedString,
-    Subscription, Task, WeakEntity, Window,
+    Subscription, Task, Window,
 };
 use marley_rusty::decisions::{
     BRAIN_FOLLOW_UP, DecisionSummary, FollowUpDraft, FollowUpStatus, Missing,
@@ -20,11 +21,14 @@ use ui::{ToggleButtonGroup, ToggleButtonGroupStyle, ToggleButtonSimple, prelude:
 use util::ResultExt as _;
 use workspace::{ModalView, Workspace};
 
-use super::decisions_tab::BrainDecisionsView;
 use super::project::{Choice, LinkDelegate, OnClose, OnPick};
 use crate::prompts::{Role, render_button};
 
+/// What the opening tab does after a Record: read its decisions again.
+pub(super) type OnRecorded = Rc<dyn Fn(&mut App)>;
+
 /// A decision the successor can be: its slug and its title.
+#[derive(Clone)]
 pub(super) struct Candidate {
     pub(super) slug: String,
     pub(super) title: SharedString,
@@ -34,7 +38,7 @@ pub(super) struct Candidate {
 /// the successor can be, without this one.
 pub(super) fn open(
     workspace: &mut Workspace,
-    tab: WeakEntity<BrainDecisionsView>,
+    on_recorded: OnRecorded,
     summary: &DecisionSummary,
     candidates: Vec<Candidate>,
     window: &mut Window,
@@ -48,12 +52,20 @@ pub(super) fn open(
     };
     let follow_up_line = summary.follow_up_line().map(SharedString::from);
     workspace.toggle_modal(window, cx, |window, cx| {
-        FollowUpModal::new(tab, slug, title, follow_up_line, candidates, window, cx)
+        FollowUpModal::new(
+            on_recorded,
+            slug,
+            title,
+            follow_up_line,
+            candidates,
+            window,
+            cx,
+        )
     });
 }
 
 pub(super) struct FollowUpModal {
-    tab: WeakEntity<BrainDecisionsView>,
+    on_recorded: OnRecorded,
     slug: String,
     title: SharedString,
     follow_up_line: Option<SharedString>,
@@ -74,7 +86,7 @@ pub(super) struct FollowUpModal {
 
 impl FollowUpModal {
     fn new(
-        tab: WeakEntity<BrainDecisionsView>,
+        on_recorded: OnRecorded,
         slug: String,
         title: SharedString,
         follow_up_line: Option<SharedString>,
@@ -99,7 +111,7 @@ impl FollowUpModal {
             }
         })];
         Self {
-            tab,
+            on_recorded,
             slug,
             title,
             follow_up_line,
@@ -205,9 +217,7 @@ impl FollowUpModal {
                 this.recording = None;
                 match answer {
                     Ok(_) => {
-                        this.tab
-                            .update(cx, BrainDecisionsView::read_again)
-                            .log_err();
+                        (this.on_recorded)(cx);
                         cx.emit(DismissEvent);
                     }
                     Err(error) => {

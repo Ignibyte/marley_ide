@@ -1,7 +1,7 @@
 ---
 pipeline_id: fa257a6c-c9c5-4172-a261-c0cc3cbcd298
 ticket: docs/planning/tickets/open/TICKET-939-rusty-tasks-knowledge-brain-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Rusty's Tasks and brain pages as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -112,11 +112,12 @@ one favourite; made-up task lists. No agent CLI.
   (REQ-001, REQ-003, REQ-004).
 - `939-02-form`: Follow Up clicked: the follow-up form for that decision (REQ-002).
 - `939-03-page`: the decision page opened: the property pills, Outline pressed, the outline with
-  "Linked here" and the linking page, a ★ favourite in the Brain tab's list (REQ-006, REQ-007,
-  REQ-008, REQ-009).
-- `939-04-ticked`: the body's checkbox clicked: it shows ticked, and the vault file holds `- [x]`
-  (the scenario prints the line to its log) (REQ-005).
-- `939-05-day`: Tasks and the page in Marley Day (REQ-001, REQ-003, REQ-004, REQ-007).
+  "Linked here" and the linking page (REQ-006, REQ-007, REQ-009).
+- `939-04-favourite`: the Brain tab's favourite with its ★ (REQ-008).
+- `939-05-ticked`: the body's checkbox clicked: it shows ticked, and the vault file holds `- [x]`
+  (an `expect` checks the file) (REQ-005).
+- `939-06-day`, `939-07-day-page`: Tasks and the page in Marley Day (REQ-001, REQ-003, REQ-004,
+  REQ-007).
 
 ## Locked-In Decisions
 - D1 — Follow Up opens #660's form on the Tasks tab itself; the form's after-Record step becomes a
@@ -133,14 +134,14 @@ one favourite; made-up task lists. No agent CLI.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHILE a decision is due, the Tasks tab's Decisions due card shall show it with a filled Follow Up and an outlined Open the page, "N overdue" at the right of the heading, and the footnote under the decisions. | `939-01-tasks`, `939-05-day` |
+| REQ-001 | WHILE a decision is due, the Tasks tab's Decisions due card shall show it with a filled Follow Up and an outlined Open the page, "N overdue" at the right of the heading, and the footnote under the decisions. | `939-01-tasks`, `939-06-day` |
 | REQ-002 | WHEN the user clicks Follow Up on the Tasks tab, the system shall open the follow-up form for that decision. | `939-02-form` |
-| REQ-003 | The Tasks tab shall draw each task as a bordered, rounded card with its checkbox. | `939-01-tasks`, `939-05-day` |
-| REQ-004 | The Tasks tab shall show the list's name in a headline size, the lists heading as "LISTS", and each list's colour as a rounded square. | `939-01-tasks`, `939-05-day` |
-| REQ-005 | WHEN the user clicks a task checkbox in a brain page's body in read mode, the system shall flip it and write the page through Rusty. | `939-04-ticked` |
+| REQ-003 | The Tasks tab shall draw each task as a bordered, rounded card with its checkbox. | `939-01-tasks`, `939-06-day` |
+| REQ-004 | The Tasks tab shall show the list's name in a headline size, the lists heading as "LISTS", and each list's colour as a rounded square. | `939-01-tasks`, `939-06-day` |
+| REQ-005 | WHEN the user clicks a task checkbox in a brain page's body in read mode, the system shall flip it and write the page through Rusty. | `939-05-ticked` |
 | REQ-006 | WHILE other pages link to the page shown, its outline column shall end with "Linked here" and those pages. | `939-03-page` |
-| REQ-007 | A brain page shall draw its property values as pills, `status` decided in the success colours, a past `follow_up_by` in the error colours with "· overdue", and `tags` in teal. | `939-03-page`, `939-05-day` |
-| REQ-008 | The Brain tab's favourites shall each start with ★. | `939-03-page` |
+| REQ-007 | A brain page shall draw its property values as pills, `status` decided in the success colours, a past `follow_up_by` in the error colours with "· overdue", and `tags` in teal. | `939-03-page`, `939-07-day-page` |
+| REQ-008 | The Brain tab's favourites shall each start with ★. | `939-04-favourite` |
 | REQ-009 | A brain page's outline toggle shall be a text button "Outline" that shows pressed while the outline is open. | `939-03-page` |
 
 ## Phase Plan

@@ -11,6 +11,7 @@
 
 use std::any::TypeId;
 use std::collections::VecDeque;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use gpui::{
 };
 use language::{Buffer, LanguageRegistry};
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownOptions, MarkdownStyle};
+use marley_rusty::knowledge::{BRAIN_GET_LINKS, PageLinks};
 use marley_rusty::page::{
     BRAIN_REMOVE_PROPERTY, BRAIN_RENDER, BRAIN_WRITE_PAGE, Heading, NewPage, PageHistory, PageLink,
     Property, PropertyKind, RenderedPage, Visit, body_of, line_offset, outline_label, page_file_in,
@@ -37,7 +39,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use ui::{
-    Checkbox, Chip, ContextMenu, Headline, HeadlineSize, ListItem, ListItemSpacing, PopoverMenu,
+    Checkbox, ContextMenu, Headline, HeadlineSize, ListItem, ListItemSpacing, PopoverMenu,
     ToggleState, Tooltip, prelude::*,
 };
 use util::ResultExt as _;
@@ -132,9 +134,22 @@ struct InlineEditing {
 
 /// One write to the page, with the slug it was made on.
 enum Write {
-    Set { key: String, value: Value },
-    Remove { key: String },
-    Rename { to: String },
+    Set {
+        key: String,
+        value: Value,
+    },
+    Remove {
+        key: String,
+    },
+    Rename {
+        to: String,
+    },
+    /// The page's whole text after a checkbox was ticked (#939), written only while Rusty still
+    /// holds `began` (D2).
+    Text {
+        began: String,
+        content: String,
+    },
 }
 
 /// The tab's writes, sent one at a time; a change signal heard meanwhile waits for the last.
@@ -325,6 +340,8 @@ pub(crate) struct PageView {
     settling: Option<Task<()>>,
     /// Whether the outline column shows in Read (#656).
     outline_shown: bool,
+    /// The pages that link to the one shown, by slug, read with each load (#939, D3).
+    linked_here: Vec<String>,
     /// The open in-place editor (#656).
     inline: Option<InlineEditing>,
     writes: Writes,
@@ -391,6 +408,7 @@ impl PageView {
             problem: None,
             settling: None,
             outline_shown: true,
+            linked_here: Vec::new(),
             inline: None,
             writes: Writes::default(),
             _subscriptions: subscriptions,
@@ -436,6 +454,7 @@ impl PageView {
         let generation = self.generation;
         let visit = self.history.current().clone();
         let asking = super::call_tool(BRAIN_RENDER, json!({ "slug": visit.slug }), cx);
+        let linking = super::call_tool(BRAIN_GET_LINKS, json!({ "slug": visit.slug }), cx);
         cx.spawn_in(window, async move |this, cx| {
             let read = match asking.await {
                 Ok(text) => {
@@ -444,8 +463,16 @@ impl PageView {
                 }
                 Err(error) => Err(error),
             };
+            // "Linked here" is a help, not the page: an answer that fails leaves it empty.
+            let linked_here = linking
+                .await
+                .ok()
+                .and_then(|text| serde_json::from_str::<PageLinks>(&text).log_err())
+                .map(|links| linking_pages(&links))
+                .unwrap_or_default();
             this.update_in(cx, |this, window, cx| {
                 if this.generation == generation {
+                    this.linked_here = linked_here;
                     this.show(read, visit.heading, window, cx);
                 }
             })
@@ -1009,15 +1036,22 @@ impl PageView {
         };
         self.writes.busy = true;
         let renaming = matches!(write, Write::Rename { .. });
-        let (tool, arguments) = match write {
-            Write::Set { key, value } => (
+        let asking = match write {
+            Write::Set { key, value } => super::call_tool(
                 BRAIN_SET_PROPERTY,
                 json!({ "slug": slug, "key": key, "value": value }),
+                cx,
             ),
-            Write::Remove { key } => (BRAIN_REMOVE_PROPERTY, json!({ "slug": slug, "key": key })),
-            Write::Rename { to } => (BRAIN_RENAME, json!({ "from": slug, "to": to })),
+            Write::Remove { key } => super::call_tool(
+                BRAIN_REMOVE_PROPERTY,
+                json!({ "slug": slug, "key": key }),
+                cx,
+            ),
+            Write::Rename { to } => {
+                super::call_tool(BRAIN_RENAME, json!({ "from": slug, "to": to }), cx)
+            }
+            Write::Text { began, content } => Self::write_unchanged(slug, began, content, cx),
         };
-        let asking = super::call_tool(tool, arguments, cx);
         cx.spawn_in(window, async move |this, cx| {
             let answer = asking.await;
             this.update_in(cx, |this, window, cx| {
@@ -1045,6 +1079,82 @@ impl PageView {
             .log_err();
         })
         .detach();
+    }
+
+    /// `brain_write_page` with `content`, once a fresh render shows the page still as `began`,
+    /// so a change made in Rusty meanwhile is never written over (#939, D2).
+    fn write_unchanged(
+        slug: String,
+        began: String,
+        content: String,
+        cx: &Context<Self>,
+    ) -> Task<Result<String, String>> {
+        let rendering = super::call_tool(BRAIN_RENDER, json!({ "slug": slug }), cx);
+        cx.spawn(async move |this, cx| {
+            let answer = rendering.await?;
+            let now = RenderedPage::from_answer(&answer)
+                .map_err(|error| format!("{BRAIN_RENDER}'s answer did not parse: {error}"))?;
+            match now {
+                None => return Err(format!("{slug} is no longer in Rusty's brain")),
+                Some(page) if page.raw != began => {
+                    return Err(format!(
+                        "{slug} changed in Rusty since it was shown, so the box was not ticked"
+                    ));
+                }
+                Some(_) => {}
+            }
+            let writing = this
+                .update(cx, |_, cx| {
+                    super::call_tool(
+                        BRAIN_WRITE_PAGE,
+                        json!({ "slug": slug, "content": content }),
+                        cx,
+                    )
+                })
+                .map_err(|error| error.to_string())?;
+            writing.await
+        })
+    }
+
+    /// A checkbox in the body clicked in Read (#939): the same box in the page's text flips, the
+    /// body shows it at once, and the page is written through Rusty. `marker` is the box's `[ ]`
+    /// in the body `Markdown` was given, which Marley rewrote from the page's (links), so the box
+    /// is found by its place among the boxes, not by offset.
+    fn tick_task(
+        &mut self,
+        marker: Range<usize>,
+        checked: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_edit() {
+            return;
+        }
+        let source = self.markdown.read(cx).source().clone();
+        let Some(index) = task_markers(&source)
+            .iter()
+            .position(|each| each.start == marker.start)
+        else {
+            return;
+        };
+        let Some(page) = self.page_mut() else {
+            return;
+        };
+        let began = page.raw.clone();
+        let body_start = began.len() - body_of(&began).len();
+        let Some(in_page) = task_markers(body_of(&began)).get(index).cloned() else {
+            return;
+        };
+        let mark = if checked { "[x]" } else { "[ ]" };
+        let at = body_start + in_page.start..body_start + in_page.end;
+        let mut content = began.clone();
+        content.replace_range(at, mark);
+        page.raw.clone_from(&content);
+        let mut shown = source.to_string();
+        shown.replace_range(marker, mark);
+        self.markdown
+            .update(cx, |markdown, cx| markdown.replace(shown, cx));
+        self.queue(Write::Text { began, content }, window, cx);
     }
 
     /// Rusty renamed `from` to `to`: the page shown and the history follow, and the page is read
@@ -1351,11 +1461,13 @@ impl PageView {
             }))
     }
 
+    /// The outline's toggle, a text button as the `BrainPage` board draws it (#939).
     fn render_outline_button(&self, cx: &Context<Self>) -> impl IntoElement {
-        let headings = matches!(&self.shown, Shown::Page(page) if !page.outline.is_empty());
+        let headings = matches!(&self.shown, Shown::Page(page) if !page.outline.is_empty())
+            || !self.linked_here.is_empty();
         let reading = matches!(self.mode, Mode::Read);
-        IconButton::new("rusty-page-outline", IconName::ListTree)
-            .icon_size(IconSize::Small)
+        Button::new("rusty-page-outline", "Outline")
+            .label_size(LabelSize::Small)
             .toggle_state(self.outline_shown && headings && reading)
             .disabled(!headings || !reading)
             .tooltip(move |_, cx| {
@@ -1512,7 +1624,7 @@ impl PageView {
             (PropertyKind::List, Value::Array(items)) => {
                 self.render_list(at, &key, items, enabled, cx)
             }
-            (PropertyKind::ReadOnly, value) => properties::value(value),
+            (PropertyKind::ReadOnly, value) => properties::value(&key, value, cx),
             (_, value) => {
                 let text = match value {
                     Value::String(text) => text.clone(),
@@ -1521,7 +1633,7 @@ impl PageView {
                 };
                 inline_edit::shown(
                     ("rusty-property-value", at),
-                    properties::value(value),
+                    properties::value(&key, value, cx),
                     enabled,
                     cx.listener(move |this, _, window, cx| {
                         this.start_inline(
@@ -1559,7 +1671,11 @@ impl PageView {
             let removed = key.to_string();
             h_flex()
                 .gap_0p5()
-                .child(Chip::new(item.as_str().unwrap_or_default().to_string()))
+                .child(properties::pill(
+                    SharedString::from(item.as_str().unwrap_or_default().to_string()),
+                    properties::tone(key, item),
+                    cx,
+                ))
                 .when(enabled, |chip| {
                     chip.child(
                         IconButton::new(("rusty-item-remove", at * 1000 + index), IconName::Close)
@@ -1637,7 +1753,12 @@ impl PageView {
 
     /// The outline column: the page's headings, indented by level, a click bringing one to the
     /// top of the body (D4).
-    fn render_outline(outline: &[Heading], cx: &Context<Self>) -> AnyElement {
+    /// The outline column: the page's headings, then the pages that link to it (#939).
+    fn render_outline(
+        outline: &[Heading],
+        linked_here: &[String],
+        cx: &Context<Self>,
+    ) -> AnyElement {
         let shallowest = outline
             .iter()
             .map(|heading| heading.level)
@@ -1653,13 +1774,15 @@ impl PageView {
             .border_l_1()
             .border_color(cx.theme().colors().border_variant)
             // As the BrainPage board heads it (#875).
-            .child(
-                div().flex_none().px_2().pb_1().child(
-                    Label::new("On this page")
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                ),
-            )
+            .when(!outline.is_empty(), |column| {
+                column.child(
+                    div().flex_none().px_2().pb_1().child(
+                        Label::new("On this page")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    ),
+                )
+            })
             .children(outline.iter().enumerate().map(|(at, heading)| {
                 let line = heading.line;
                 let label = outline_label(&heading.text);
@@ -1681,6 +1804,39 @@ impl PageView {
                     )
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.scroll_to_heading_line(line, cx);
+                    }))
+            }))
+            .when(!linked_here.is_empty(), |column| {
+                column.child(
+                    div()
+                        .flex_none()
+                        .px_2()
+                        .pt_3()
+                        .pb_1()
+                        .debug_selector(|| "rusty-page-linked-here".into())
+                        .child(
+                            Label::new("Linked here")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+            })
+            .children(linked_here.iter().enumerate().map(|(at, slug)| {
+                let name = slug.rsplit('/').next().unwrap_or(slug).to_string();
+                let slug = slug.clone();
+                ListItem::new(("rusty-page-linked-here", at))
+                    .spacing(ListItemSpacing::Dense)
+                    .tooltip(Tooltip::text(slug.clone()))
+                    .child(Label::new(name).size(LabelSize::Small).truncate())
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.navigate(
+                            Visit {
+                                slug: slug.clone(),
+                                heading: None,
+                            },
+                            window,
+                            cx,
+                        );
                     }))
             }))
             .into_any_element()
@@ -1726,6 +1882,7 @@ impl PageView {
                 })
         }));
         let view = cx.entity().downgrade();
+        let ticking = view.clone();
         MarkdownElement::new(self.markdown.clone(), style)
             .scroll_handle(self.scroll.clone())
             .on_url_click(move |address, window, cx| {
@@ -1736,6 +1893,19 @@ impl PageView {
                     view.update(cx, |this, cx| this.follow(&address, window, cx))
                         .log_err();
                 });
+            })
+            .when(self.can_edit(), |element| {
+                element.on_checkbox_toggle(move |marker, checked, window, cx| {
+                    // Inside the `Markdown` entity's update too, which the toggle replaces.
+                    let ticking = ticking.clone();
+                    window.defer(cx, move |window, cx| {
+                        ticking
+                            .update(cx, |this, cx| {
+                                this.tick_task(marker, checked, window, cx);
+                            })
+                            .log_err();
+                    });
+                })
             })
     }
 
@@ -1762,8 +1932,9 @@ impl PageView {
                         .child(self.render_properties(page, cx))
                         .child(self.markdown_element(window, cx)),
                 );
-            let outline = (self.outline_shown && !page.outline.is_empty())
-                .then(|| Self::render_outline(&page.outline, cx));
+            let outline = (self.outline_shown
+                && (!page.outline.is_empty() || !self.linked_here.is_empty()))
+            .then(|| Self::render_outline(&page.outline, &self.linked_here, cx));
             return h_flex()
                 .flex_1()
                 .min_h_0()
@@ -2005,4 +2176,48 @@ fn outline_line(page: &RenderedPage, heading: &str) -> Option<usize> {
         .iter()
         .find(|entry| entry.text.trim() == heading || outline_label(&entry.text) == heading)
         .map(|entry| entry.line)
+}
+
+/// Each task list item's box, `[ ]` or `[x]`, in `text`, in order: a line that starts, after its
+/// indent, with `-`, `*`, `+` or a number and `.` or `)`, a space, then the box.
+fn task_markers(text: &str) -> Vec<Range<usize>> {
+    let mut markers = Vec::new();
+    let mut line_start = 0;
+    for line in text.split_inclusive('\n') {
+        let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
+        let rest = line.get(indent..).unwrap_or_default();
+        let bullet = if rest.starts_with(['-', '*', '+']) {
+            Some(1)
+        } else {
+            let digits = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+            (digits > 0
+                && rest
+                    .get(digits..)
+                    .is_some_and(|after| after.starts_with(['.', ')'])))
+            .then_some(digits + 1)
+        };
+        if let Some(bullet) = bullet
+            && let Some(after) = rest.get(bullet..)
+            && after.starts_with(' ')
+        {
+            let box_text = after.get(1..4).unwrap_or_default();
+            if matches!(box_text, "[ ]" | "[x]" | "[X]") {
+                let start = line_start + indent + bullet + 1;
+                markers.push(start..start + 3);
+            }
+        }
+        line_start += line.len();
+    }
+    markers
+}
+
+/// The pages that link to the shown one, once each, in the order Rusty gives them.
+fn linking_pages(links: &PageLinks) -> Vec<String> {
+    let mut slugs: Vec<String> = Vec::new();
+    for link in &links.backlinks {
+        if !slugs.contains(&link.from_slug) {
+            slugs.push(link.from_slug.clone());
+        }
+    }
+    slugs
 }

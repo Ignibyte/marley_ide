@@ -28,9 +28,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use gpui::{AnyElement, App, SharedString, rems};
+use gpui::{AnyElement, App, Hsla, SharedString, rems};
 use serde_json::Value;
-use ui::{Chip, prelude::*};
+use ui::prelude::*;
 
 /// One property's row: its key in a quiet column, its value beside it (dropping under the key
 /// when short of room), what ends the row, and a hairline under it unless it is the last.
@@ -62,21 +62,94 @@ pub(super) fn row(
         .into_any_element()
 }
 
-/// A value as the page shows it: a list as chips, a scalar as its text, an object as compact JSON.
-pub(super) fn value(value: &Value) -> AnyElement {
+/// How a property's value is coloured, as the `BrainPage` board draws its pills (#939, D4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Tone {
+    Plain,
+    /// A `status` that is settled: decided or done.
+    Settled,
+    /// A `follow_up_by` day already past.
+    Overdue,
+    /// One of the page's `tags`.
+    Tag,
+}
+
+/// The tone of `value` under `key`. Only the key and the value decide it.
+pub(super) fn tone(key: &str, value: &Value) -> Tone {
+    let text = value.as_str().unwrap_or_default();
+    match key {
+        "status" if matches!(text, "decided" | "done") => Tone::Settled,
+        "follow_up_by" if is_past(text) => Tone::Overdue,
+        "tags" => Tone::Tag,
+        _ => Tone::Plain,
+    }
+}
+
+/// Whether `day`, `YYYY-MM-DD`, is before today here; anything else is not.
+fn is_past(day: &str) -> bool {
+    chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .is_ok_and(|day| day < chrono::Local::now().date_naive())
+}
+
+/// `text` on a pill in `tone`'s colours; an overdue day says so after it.
+pub(super) fn pill(text: SharedString, tone: Tone, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let status = cx.theme().status();
+    let (ink, fill, border): (Hsla, Hsla, Hsla) = match tone {
+        Tone::Plain => (
+            colors.text,
+            colors.element_background,
+            colors.border_variant,
+        ),
+        Tone::Settled => (
+            status.success,
+            status.success_background,
+            status.success_border,
+        ),
+        Tone::Overdue => (status.error, status.error_background, status.error_border),
+        Tone::Tag => {
+            let teal = colors.terminal_ansi_cyan;
+            (teal, teal.opacity(0.14), teal.opacity(0.4))
+        }
+    };
+    let text = if tone == Tone::Overdue {
+        SharedString::from(format!("{text} · overdue"))
+    } else {
+        text
+    };
+    div()
+        .flex_none()
+        .px_2()
+        .rounded_full()
+        .border_1()
+        .border_color(border)
+        .bg(fill)
+        .child(
+            Label::new(text)
+                .size(LabelSize::Small)
+                .color(Color::Custom(ink)),
+        )
+        .into_any_element()
+}
+
+/// A value under `key` as the page shows it: a list as pills, a scalar as a pill, an object as
+/// compact JSON on one, each in its tone (#939).
+pub(super) fn value(key: &str, value: &Value, cx: &App) -> AnyElement {
     match value {
         Value::Array(items) => h_flex()
             .flex_wrap()
             .gap_1()
-            .children(items.iter().map(|item| Chip::new(scalar_text(item))))
+            .children(
+                items
+                    .iter()
+                    .map(|item| pill(scalar_text(item), tone(key, item), cx)),
+            )
             .into_any_element(),
         Value::Null => Label::new("(empty)")
             .size(LabelSize::Small)
             .color(Color::Muted)
             .into_any_element(),
-        other => Label::new(scalar_text(other))
-            .size(LabelSize::Small)
-            .into_any_element(),
+        other => pill(scalar_text(other), tone(key, other), cx),
     }
 }
 

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Rusty's Tasks and brain pages as the boards draw them** (#939, 2026-10-28). The Tasks tab's
+  Decisions due card gives each decision a Follow Up, which opens the follow-up form right there,
+  and an Open the page, with how many are overdue beside the heading. Tasks are cards, the list's
+  name is a headline, and each list has a coloured square. On a brain page, a task box in the body
+  can be ticked in Read and is written through Rusty, unless the page changed in Rusty meanwhile.
+  The outline ends with the pages that link here. Properties are coloured pills (a decided status
+  in green, a past follow-up day in red with "overdue", tags in teal). Favourites start with ★, and
+  the outline toggle is a button that reads Outline.
 - **What agents may do, as the board draws it** (#938, 2026-10-28). When an agent asks to edit a
   file, the question leads with the agent's tile and "wants to edit main.rs", says the terminal
   and project it works in, and shows the change itself: the old lines with "−" on red and the new

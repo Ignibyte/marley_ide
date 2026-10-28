@@ -87,7 +87,71 @@
   (§7), so the review checks that tab's call by reading.
 
 ## Phase 2 — Code
+- **Built (all Marley crate):**
+  - `follow_up.rs`: `OnRecorded = Rc<dyn Fn(&mut App)>` replaces the `WeakEntity<BrainDecisionsView>`
+    (D1), and `Candidate` derives `Clone`. `decisions_tab.rs` passes its `read_again`.
+  - `tasks_tab.rs`:
+    - `render_due` (split from `render_side` for `too_many_lines`): each due decision has
+      `prompts::render_button` Follow Up (Primary) and Open the page (Plain). "N overdue" sits at
+      the heading's right, and the loop's footnote is under the decisions. `follow_up_click` opens
+      the form on the workspace with the other due decisions as successors and re-reads the tab
+      after a Record.
+    - Each task is a card (border, rounded, `element_selected` when chosen).
+    - The list name is a `Headline` Large, the heading reads "LISTS", and each swatch is a 10 px
+      rounded square.
+  - `page.rs`:
+    - `tick_task`, through `on_checkbox_toggle` while `can_edit`, finds the box by its place among
+      the body's `task_markers` (the body `Markdown` gets is rewritten). It flips the same box in
+      the page's raw text, shows it at once and queues `Write::Text { began, content }`.
+      `write_unchanged` renders first and writes with `brain_write_page` only while Rusty still
+      holds `began` (D2).
+    - `load` reads `brain_get_links` beside `brain_render` into `linked_here` (D3).
+      `render_outline` ends with "Linked here" and those pages, each opening in the tab.
+    - The Outline toggle is a text `Button`.
+  - `properties.rs`: `Tone` and `pill`. A settled `status` is drawn in the success colours, a past
+    `follow_up_by` in the error colours with "· overdue", and `tags` in teal. `render_list`'s
+    chips use the same pills.
+  - `brain.rs`: each favourite starts with ★ in the accent, and its kind stays in the tooltip.
+- **Deviations:**
+  - Teal is `terminal_ansi_cyan`, which holds across themes; the player colours do not.
+  - "Linked here" names each page by its slug's last part: `brain_get_links` gives no title.
+  - The page's own property checkbox already used the name `toggle_checkbox`, so the body's is
+    `tick_task`.
+- **Gate:** the first run failed on `use_self` (`decisions_tab.rs`) and `too_many_lines`
+  (`render_side`). The second is GREEN, with the scenario in place.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/939-rusty-tasks-knowledge-brain-as-the-board.sh` (sway).
+  - It uses the stand-in `rusty-mcp` on its fixed day 2026-10-03, with two decisions due ("Ship the
+    home page", overdue; "Ask one question at a time", due that day), Atlas linking to the first,
+    and one favourite.
+  - Runs with `STOP_AT=1` and `STOP_AT=2` measured Follow Up (1346, 183), Open the page
+    (1446, 183) and the body's box (311, 635).
+  - The third run's box click landed on the Brain tab, which a second "toggle brain view" left in
+    front, so the scenario now clicks the page's tab. The fourth run is the one read below.
+- **`939-01-tasks` (REQ-001, REQ-003, REQ-004):**
+  - "Work" is a headline with "2 open · 1 done". LISTS shows orange, green and yellow square
+    swatches, and the tasks are bordered cards.
+  - "Decisions due" has "1 overdue" at the right. Each decision has an orange filled Follow Up and
+    an outlined Open the page, and the footnote is under them.
+- **`939-02-form` (REQ-002):** "Follow up: Ship the home page", follow up by 2026-09-28 · overdue,
+  Kept / Revised / Superseded, Outcome, Cancel and Record.
+- **`939-03-page` (REQ-006, REQ-007, REQ-009):**
+  - status "decided" is a green pill, follow_up_by reads "2026-09-28 · overdue" in red, and the
+    tags home and rusty are teal.
+  - "Outline" is a pressed text button. The outline reads On this page (three headings), then
+    Linked here and atlas.
+- **`939-04-favourite` (REQ-008):** the Brain tab's Favourites shows "★ Atlas".
+- **`939-05-ticked` (REQ-005):** "Rusty cards on Home" shows ticked. The check "the vault file
+  holds the box ticked" passed.
+- **`939-06-day`, `939-07-day-page`:** Tasks and the page in Marley Day, with the same marks.
 
 ## Phase 4 — Complete
+- **Documented (§21):**
+  - `CHANGELOG.md`: an Added entry for #939.
+  - `docs/marley/look-plan.md`: the Rusty row names #939.
+  - `docs/marley_architecture/marley_workbench.md`: the #939 entry under Rusty's Tasks.
+  - No Zed path was touched.
+- **Knowledge (§19):** no `F-` block. The red in Test was the scenario's tab order, not a bug.
+- **Brain:** consultation 6b14c470cba240d6b08ac617430e3657 closed with `brain no-decision`.
+- **Ticket:** closed. The Knowledge panel's items (Out, D5) became TICKET-948, queued after #947.

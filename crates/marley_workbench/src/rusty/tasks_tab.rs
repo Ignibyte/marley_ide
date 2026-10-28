@@ -8,6 +8,7 @@
 //! another `rusty-mcp` writes, an agent's own, is announced to no other process.
 
 use std::collections::{HashMap, VecDeque};
+use std::rc::Rc;
 
 use editor::Editor;
 use gpui::{
@@ -22,13 +23,17 @@ use marley_rusty::tasks::{
     id_from_answer, kept_list, kept_task, moved_one, tasks_from_answer, typed_name,
 };
 use serde_json::json;
-use ui::{Checkbox, ContextMenu, Indicator, ListItem, ListItemSpacing, Tooltip, prelude::*};
+use ui::{
+    Checkbox, ContextMenu, Headline, HeadlineSize, ListItem, ListItemSpacing, Tooltip, prelude::*,
+};
 use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
+use super::follow_up::{self, Candidate, OnRecorded};
 use crate::launch::verbatim;
+use crate::prompts::{Role, render_button};
 use crate::rail::order::{drag_preview, drop_line};
 
 actions!(
@@ -992,7 +997,8 @@ impl TasksView {
             let label = self
                 .render_row_editor(RowTarget::RenameList(id), cx)
                 .unwrap_or_else(|| Label::new(list.name.clone()).into_any_element());
-            // Each list's dot and open count, as the Tasks board draws them (#845).
+            // Each list's swatch and open count, as the Tasks board draws them (#845; a rounded
+            // square since #939).
             let dot = LIST_DOTS
                 .get(position % LIST_DOTS.len())
                 .copied()
@@ -1001,7 +1007,7 @@ impl TasksView {
             ListItem::new(("rusty-task-list", u64::try_from(id).unwrap_or_default()))
                 .spacing(ListItemSpacing::Sparse)
                 .toggle_state(self.chosen == Some(id))
-                .start_slot(Indicator::dot().color(dot))
+                .start_slot(div().size(px(10.)).rounded(px(3.)).bg(dot.color(cx)))
                 .end_slot::<Label>(open.map(|open| {
                     Label::new(open.to_string())
                         .size(LabelSize::Small)
@@ -1033,8 +1039,8 @@ impl TasksView {
                     .px_2()
                     .py_1()
                     .child(
-                        Label::new("Lists")
-                            .size(LabelSize::Small)
+                        Label::new("LISTS")
+                            .size(LabelSize::XSmall)
                             .color(Color::Muted),
                     )
                     .child(
@@ -1110,8 +1116,97 @@ impl TasksView {
         format!("{open} open · {done} done")
     }
 
-    /// The Rusty column: the decisions due, each with Decisions and Open the page, and Rusty's
-    /// newest memories (#845).
+    /// The Decisions due card (#939): each due decision with Follow Up and Open the page, how
+    /// many are overdue at the heading's right, and the loop's line under them.
+    fn render_due(&self, side: &Side, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let overdue = side.due.iter().filter(|due| due.overdue).count();
+        let due = side.due.iter().enumerate().map(|(index, due)| {
+            let slug = due.slug.clone();
+            let workspace = self.workspace.clone();
+            let follow_up = self.follow_up_click(due, cx);
+            let mut line = Vec::new();
+            line.extend(due.decided_line());
+            line.extend(due.follow_up_line());
+            v_flex()
+                .gap_1()
+                .child(Label::new(if due.title.is_empty() {
+                    due.slug.clone()
+                } else {
+                    due.title.clone()
+                }))
+                .child(
+                    Label::new(line.join(" · "))
+                        .size(LabelSize::XSmall)
+                        .color(if due.overdue {
+                            Color::Warning
+                        } else {
+                            Color::Muted
+                        }),
+                )
+                .child(
+                    h_flex()
+                        .pt_1()
+                        .gap_1p5()
+                        .child(
+                            render_button(index * 2, "Follow Up", Role::Primary, false, cx)
+                                .on_click(move |_, window, cx| follow_up(window, cx)),
+                        )
+                        .child(
+                            render_button(index * 2 + 1, "Open the page", Role::Plain, false, cx)
+                                .on_click(move |_, window, cx| {
+                                    if let Some(workspace) = workspace.upgrade() {
+                                        super::brain::open_page(
+                                            &workspace, &slug, false, true, window, cx,
+                                        );
+                                    }
+                                }),
+                        ),
+                )
+        });
+        v_flex()
+            .gap_1p5()
+            .p_3()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.panel_background)
+            .child(
+                h_flex()
+                    .justify_between()
+                    .child(
+                        Label::new("Decisions due")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .when(overdue > 0, |heading| {
+                        heading.child(
+                            Label::new(format!("{overdue} overdue"))
+                                .size(LabelSize::XSmall)
+                                .color(Color::Warning),
+                        )
+                    }),
+            )
+            .when(side.due.is_empty(), |card| {
+                card.child(
+                    Label::new("Nothing to follow up.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .children(due)
+            .child(
+                Label::new(
+                    "Ask before a choice, record it when made, follow up when its \
+                     day comes.",
+                )
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+            )
+    }
+
+    /// The Rusty column: the decisions due, each with Follow Up and Open the page (#939), and
+    /// Rusty's newest memories (#845).
     fn render_side(&self, _window: &Window, cx: &Context<Self>) -> Option<AnyElement> {
         let side = self.side.as_ref()?;
         let colors = cx.theme().colors();
@@ -1125,54 +1220,6 @@ impl TasksView {
                 .bg(colors.panel_background)
                 .child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
         };
-        let overdue = side.due.iter().filter(|due| due.overdue).count();
-        let due =
-            side.due.iter().enumerate().map(|(index, due)| {
-                let slug = due.slug.clone();
-                let workspace = self.workspace.clone();
-                let mut line = Vec::new();
-                line.extend(due.decided_line());
-                line.extend(due.follow_up_line());
-                v_flex()
-                    .gap_1()
-                    .child(Label::new(if due.title.is_empty() {
-                        due.slug.clone()
-                    } else {
-                        due.title.clone()
-                    }))
-                    .child(Label::new(line.join(" · ")).size(LabelSize::XSmall).color(
-                        if due.overdue {
-                            Color::Warning
-                        } else {
-                            Color::Muted
-                        },
-                    ))
-                    .child(
-                        h_flex()
-                            .gap_1()
-                            .child(
-                                Button::new(("rusty-side-decisions", index), "Decisions")
-                                    .label_size(LabelSize::Small)
-                                    .on_click(|_, window, cx| {
-                                        window.dispatch_action(
-                                            Box::new(super::decisions_tab::OpenDecisions),
-                                            cx,
-                                        );
-                                    }),
-                            )
-                            .child(
-                                Button::new(("rusty-side-page", index), "Open the page")
-                                    .label_size(LabelSize::Small)
-                                    .on_click(move |_, window, cx| {
-                                        if let Some(workspace) = workspace.upgrade() {
-                                            super::brain::open_page(
-                                                &workspace, &slug, false, true, window, cx,
-                                            );
-                                        }
-                                    }),
-                            ),
-                    )
-            });
         let memories = side
             .memories
             .iter()
@@ -1187,27 +1234,58 @@ impl TasksView {
                 .gap_3()
                 .border_l_1()
                 .border_color(colors.border_variant)
-                .child(
-                    card("Decisions due")
-                        .when(overdue > 0, |card| {
-                            card.child(
-                                Label::new(format!("{overdue} overdue"))
-                                    .size(LabelSize::XSmall)
-                                    .color(Color::Warning),
-                            )
-                        })
-                        .when(side.due.is_empty(), |card| {
-                            card.child(
-                                Label::new("Nothing to follow up.")
-                                    .size(LabelSize::Small)
-                                    .color(Color::Muted),
-                            )
-                        })
-                        .children(due),
-                )
+                .child(self.render_due(side, cx))
                 .child(card("Memory").children(memories))
                 .into_any_element(),
         )
+    }
+
+    /// Follow Up's click for `due` (#939, D1): #660's form on this tab, its successor one of the
+    /// other decisions due, and this tab read again after a Record.
+    fn follow_up_click(
+        &self,
+        due: &DecisionSummary,
+        cx: &Context<Self>,
+    ) -> impl Fn(&mut Window, &mut App) + 'static {
+        let summary = due.clone();
+        let candidates: Rc<Vec<Candidate>> = Rc::new(
+            self.side
+                .iter()
+                .flat_map(|side| side.due.iter())
+                .filter(|each| each.slug != due.slug)
+                .map(|each| Candidate {
+                    slug: each.slug.clone(),
+                    title: SharedString::from(if each.title.is_empty() {
+                        each.slug.clone()
+                    } else {
+                        each.title.clone()
+                    }),
+                })
+                .collect(),
+        );
+        let tab = cx.entity().downgrade();
+        let workspace = self.workspace.clone();
+        move |window, cx| {
+            let summary = summary.clone();
+            let candidates = candidates.to_vec();
+            let tab = tab.clone();
+            let on_recorded: OnRecorded = Rc::new(move |cx: &mut App| {
+                tab.update(cx, |tab, cx| {
+                    tab.read(cx);
+                    cx.notify();
+                })
+                .log_err();
+            });
+            let workspace = workspace.clone();
+            // The form opens in the workspace's modal layer, after the click's own update.
+            window.defer(cx, move |window, cx| {
+                workspace
+                    .update(cx, |workspace, cx| {
+                        follow_up::open(workspace, on_recorded, &summary, candidates, window, cx);
+                    })
+                    .log_err();
+            });
+        }
     }
 
     fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1223,7 +1301,13 @@ impl TasksView {
                     .flex_1()
                     .min_w_0()
                     .gap_3()
-                    .child(Label::new(name).size(LabelSize::Large).truncate())
+                    .items_baseline()
+                    .child(
+                        div()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .child(Headline::new(name).size(HeadlineSize::Large)),
+                    )
                     .child(
                         Label::new(self.open_done_line())
                             .size(LabelSize::Small)
@@ -1335,7 +1419,18 @@ impl TasksView {
                         this.dropped(dragged, (at, id), cx);
                     }))
             })
-            .border_color(colors.border_transparent)
+            // Each task is a card, as the Tasks board draws it (#939); a drop target's line
+            // replaces the card's border while a task is dragged over it.
+            .mb_1p5()
+            .p_0p5()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border_variant)
+            .bg(if self.selected == Some(at) {
+                colors.element_selected
+            } else {
+                colors.element_background
+            })
             .child(row)
     }
 
