@@ -5300,7 +5300,7 @@ dependencies = [
  "postage",
  "pretty_assertions",
  "project",
- "pulldown-cmark 0.13.4",
+ "pulldown-cmark 0.13.5",
  "rand 0.9.4",
  "regex",
  "release_channel",
@@ -10617,7 +10617,7 @@ dependencies = [
  "markup5ever_rcdom",
  "mermaid_render",
  "node_runtime",
- "pulldown-cmark 0.13.4",
+ "pulldown-cmark 0.13.5",
  "settings",
  "smallvec",
  "stacksafe",
@@ -10775,7 +10775,7 @@ dependencies = [
 name = "marley_rusty"
 version = "0.1.0"
 dependencies = [
- "pulldown-cmark 0.13.4",
+ "pulldown-cmark 0.13.5",
  "serde",
  "serde_json",
 ]
@@ -11122,7 +11122,7 @@ dependencies = [
  "libm",
  "manatee",
  "merman-core",
- "pulldown-cmark 0.13.4",
+ "pulldown-cmark 0.13.5",
  "quick-xml 0.41.0",
  "roughr-merman",
  "roxmltree 0.21.1",
@@ -14622,9 +14622,9 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.13.4"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f068eba8e7071c5f9511831b44f32c740d5adf574e990f946ddb53db2f314e"
+checksum = "278e9268c93b9e498a2da46c34d90ba93a3255eb99009646398f34bc73ab36eb"
 dependencies = [
  "bitflags 2.13.1",
  "memchr",
@@ -23368,9 +23368,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.16+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",

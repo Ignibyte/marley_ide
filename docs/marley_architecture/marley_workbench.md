@@ -4851,7 +4851,20 @@ below describe what #743 retired.
 
 - A `find` field heads `render_navigation`, a 220 px column of each group's component names;
   `matches` (name or description) filters the names and the main's cards; a name's click sets the
-  field to it.
+  field to it. While the field holds exactly a name, that row is filled with `element_selected`
+  (#936).
+- **Templates and Try it as the board (#936).** `render_templates` (an associated function)
+  heads the templates with "Your templates" and a transparent accent `Button` that opens
+  `templates_dir()`. Under them is a wrapping row of `template_chip`s, one per file, each with its
+  file name and "loaded" (`Color::Success`) or `BrokenTemplate.error` cut to 48 characters
+  (`Color::Error`), and the whole of it in a tooltip.
+  - A loaded chip runs `draw_template`, which writes `Template::example_tree` as pretty JSON into
+    `scratch`; the existing `BufferEdited` subscription parses and draws it.
+  - A broken chip runs `open_template_file` through the `WeakEntity<Workspace>` that `open` hands
+    `ComponentLibrary::new`.
+  - Try it's header is "Try it", the hint "Paste JSON; it draws as you type." (`flex_none`) and,
+    when `tried` is an `Err`, the parser's error at the right (`flex_1`, `min_w_0`, truncated, in a
+    tooltip). Under the box, only an `Ok` tree is drawn, and no `render_error` callout.
 
 ## The Fleet panel as cards (`src/fleet.rs`, #848)
 

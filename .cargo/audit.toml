@@ -37,4 +37,13 @@ ignore = [
   # asks for `^0.5.4`, so no version in range is fixed. Upstream main 56934ec056 (2026-10-17) locks
   # the same two. Listed 2026-10-25, the advisory's second day.
   "RUSTSEC-2026-0387", # crypto-bigint 0.4.9/0.5.5 — timing variability in constant-time ops; upstream tree
+  # zstd 0.13.3 is Zed's workspace `zstd = "0.13"` (agent, crashes, edit_prediction, rpc) and
+  # include-flate-compress's; zstd-safe 7.3.0 is its. zstd 0.11.2 and zstd-safe 5.0.2 are zip
+  # 0.6.6's, webrtc-sys-build's above. The fixes are zstd 0.14.3 and zstd-safe 8.2.0, a major step
+  # past every requirement in the tree. Upstream main 5e8998a2a7 (2026-10-28) locks the same.
+  # zstd-sys moved to 2.1.2 for RUSTSEC-2026-0410. Listed 2026-10-28, the day the ids reached
+  # the database here.
+  "RUSTSEC-2026-0391", # zstd 0.13.3 — an abandoned stream's data leaks into the next; upstream tree
+  "RUSTSEC-2026-0398", # zstd-safe 7.3.0 — Seekable::decompress sets a Vec length past capacity; upstream tree
+  "RUSTSEC-2026-0403", # zstd-safe 5.0.2/7.3.0 — uninitialised memory on a failed legacy frame; upstream tree
 ]

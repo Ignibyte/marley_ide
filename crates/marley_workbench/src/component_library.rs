@@ -7,10 +7,11 @@
 //! Configure card and the Marley Settings page; one tab per workspace, brought forward when open.
 //!
 //! The templates in `components/` of Marley's config folder (#801) are loaded here into
-//! `MarleyTemplates` and loaded again when a file there changes; the library shows them in their
-//! own group, the refused files with why, and the scratch box and the agent tools use them.
+//! `MarleyTemplates` and loaded again when a file there changes; the library shows each file as
+//! a chip, loaded or refused with why (#936), and the scratch box and the agent tools use them.
+//! A loaded chip clicked puts its template's example in the scratch box, which draws it.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,14 +20,17 @@ use fs::Fs;
 use futures::StreamExt as _;
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, Global,
-    SharedString, Subscription, Window, actions,
+    SharedString, Stateful, Subscription, WeakEntity, Window, actions,
 };
 use marley_components::{
-    Entry, Group, ParseError, Templates, Tree, catalog, parse, parse_str_with, parse_with,
+    Entry, Group, ParseError, Templates, Tree, catalog, parse, parse_str_with,
 };
+use serde_json::Value;
+use ui::Tooltip;
 use ui::prelude::*;
-use workspace::Workspace;
+use util::ResultExt as _;
 use workspace::item::{Item, ItemEvent};
+use workspace::{OpenOptions, Workspace};
 
 actions!(
     marley,
@@ -99,7 +103,8 @@ pub(crate) fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
         workspace.activate_item(&tab, true, true, window, cx);
         return;
     }
-    let tab = cx.new(|cx| ComponentLibrary::new(window, cx));
+    let workspace_handle = cx.weak_entity();
+    let tab = cx.new(|cx| ComponentLibrary::new(workspace_handle, window, cx));
     workspace.add_item_to_center(Box::new(tab), window, cx);
 }
 
@@ -117,6 +122,8 @@ pub(crate) struct ComponentLibrary {
     /// The navigation column's find field (#849).
     find: Entity<Editor>,
     tried: Option<Result<Tree, ParseError>>,
+    /// Where a refused template's file opens when its chip is clicked.
+    workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
     _find_edits: Subscription,
     _scratch_edits: Subscription,
@@ -124,7 +131,7 @@ pub(crate) struct ComponentLibrary {
 }
 
 impl ComponentLibrary {
-    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let shown = catalog()
             .into_iter()
             .map(|entry| {
@@ -170,6 +177,7 @@ impl ComponentLibrary {
             scratch,
             find,
             tried: None,
+            workspace,
             focus_handle: cx.focus_handle(),
             _find_edits: find_edits,
             _scratch_edits: scratch_edits,
@@ -183,7 +191,8 @@ impl ComponentLibrary {
     }
 
     /// The navigation column, as the Components board draws it (#849): the find field over each
-    /// group's component names; a name clicked narrows the page to it.
+    /// group's component names; a name clicked narrows the page to it, and its row stays filled
+    /// while the field holds exactly that name (#936).
     fn render_navigation(&self, cx: &Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let query = self.query(cx);
@@ -211,6 +220,7 @@ impl ComponentLibrary {
                             .py_0p5()
                             .rounded_sm()
                             .cursor_pointer()
+                            .when(query == name, |row| row.bg(colors.element_selected))
                             .hover(|style| style.bg(colors.ghost_element_hover))
                             .on_click(cx.listener(move |library, _, window, cx| {
                                 library
@@ -250,6 +260,123 @@ impl ComponentLibrary {
         self.tried = (!text.trim().is_empty()).then(|| parse_str_with(&text, &templates(cx)));
         cx.notify();
     }
+
+    /// Puts a template's example tree in the scratch box; its edit subscription draws it.
+    fn draw_template(&self, example: &Value, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(text) = serde_json::to_string_pretty(example).log_err() else {
+            return;
+        };
+        self.scratch
+            .update(cx, |scratch, cx| scratch.set_text(text, window, cx));
+    }
+
+    /// Opens a refused template's file in the workspace, to fix what its chip names.
+    fn open_template_file(&self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        self.workspace
+            .update(cx, |workspace, cx| {
+                workspace
+                    .open_abs_path(path, OpenOptions::default(), window, cx)
+                    .detach_and_log_err(cx);
+            })
+            .log_err();
+    }
+
+    /// The templates, as the Components board draws them (#936): "Your templates" with a link to
+    /// their folder, over one chip per file saying whether it loaded. A loaded chip clicked draws
+    /// its template in the scratch box; a refused one opens its file.
+    fn render_templates(cx: &Context<Self>) -> impl IntoElement {
+        let templates = templates(cx);
+        let dir = templates_dir();
+        let empty = templates.templates().is_empty() && templates.broken().is_empty();
+        let loaded = templates.templates().iter().map(|template| {
+            let example = template.example_tree();
+            template_chip(&template.path, cx)
+                .tooltip(Tooltip::text(template.description.clone()))
+                .on_click(cx.listener(move |library, _, window, cx| {
+                    library.draw_template(&example, window, cx);
+                }))
+                .child(
+                    Label::new("loaded")
+                        .size(LabelSize::XSmall)
+                        .color(Color::Success),
+                )
+        });
+        let broken = templates.broken().iter().map(|broken| {
+            let path = broken.path.clone();
+            template_chip(&broken.path, cx)
+                .tooltip(Tooltip::text(broken.error.clone()))
+                .on_click(cx.listener(move |library, _, window, cx| {
+                    library.open_template_file(path.clone(), window, cx);
+                }))
+                .child(
+                    Label::new(util::truncate_and_trailoff(&broken.error, 48))
+                        .size(LabelSize::XSmall)
+                        .color(Color::Error),
+                )
+        });
+        v_flex()
+            .debug_selector(|| "marley-library-templates".into())
+            .gap_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(Headline::new("Your templates").size(HeadlineSize::Medium))
+                    .child(Label::new("·").color(Color::Muted))
+                    .child(
+                        Button::new(
+                            "marley-library-open-templates",
+                            "components/ in Marley's config folder",
+                        )
+                        .style(ButtonStyle::Transparent)
+                        .color(Color::Accent)
+                        .tooltip(Tooltip::text(format!("Open {}", dir.display())))
+                        .on_click(move |_, _, cx| cx.open_with_system(&dir)),
+                    ),
+            )
+            .when(empty, |group| {
+                group.child(
+                    Label::new("No templates yet.")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_2()
+                    .children(loaded)
+                    .children(broken),
+            )
+    }
+}
+
+/// A template file's chip: its file name, ready for its state label.
+fn template_chip(path: &Path, cx: &App) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    let file_name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    // A scenario finds a chip by its file's stem, as #801's scenario named its cards.
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    h_flex()
+        .id(SharedString::from(format!(
+            "marley-template-chip-{file_name}"
+        )))
+        .debug_selector(move || format!("marley-template-chip-{stem}"))
+        .flex_none()
+        .px_2()
+        .py_0p5()
+        .gap_1p5()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .cursor_pointer()
+        .hover(|style| style.bg(colors.ghost_element_hover))
+        .child(Label::new(file_name).size(LabelSize::Small).buffer_font(cx))
 }
 
 impl Focusable for ComponentLibrary {
@@ -263,10 +390,14 @@ impl EventEmitter<ItemEvent> for ComponentLibrary {}
 impl Render for ComponentLibrary {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let tried = match &self.tried {
-            None => None,
-            Some(Ok(tree)) => Some(marley_components::render(tree, "marley-library-tried", cx)),
-            Some(Err(error)) => Some(marley_components::render_error(error)),
+        // A tree that draws is drawn under the box; a refusal goes on the header line (#936).
+        let (tried, refused) = match &self.tried {
+            None => (None, None),
+            Some(Ok(tree)) => (
+                Some(marley_components::render(tree, "marley-library-tried", cx)),
+                None,
+            ),
+            Some(Err(error)) => (None, Some(SharedString::from(error.to_string()))),
         };
         let query = self.query(cx);
         let main = v_flex()
@@ -294,9 +425,34 @@ impl Render for ComponentLibrary {
                     .border_1()
                     .border_color(colors.border)
                     .child(
-                        Label::new("Try it")
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
+                        h_flex()
+                            .debug_selector(|| "marley-library-scratch-header".into())
+                            .gap_2()
+                            .min_w_0()
+                            .child(Label::new("Try it").size(LabelSize::Small))
+                            .child(
+                                div().flex_none().child(
+                                    Label::new("Paste JSON; it draws as you type.")
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                ),
+                            )
+                            .when_some(refused, |header, refused| {
+                                header.child(
+                                    h_flex()
+                                        .id("marley-library-scratch-error")
+                                        .flex_1()
+                                        .min_w_0()
+                                        .justify_end()
+                                        .tooltip(Tooltip::text(refused.clone()))
+                                        .child(
+                                            Label::new(refused)
+                                                .size(LabelSize::Small)
+                                                .color(Color::Error)
+                                                .truncate(),
+                                        ),
+                                )
+                            }),
                     )
                     .child(
                         div()
@@ -323,7 +479,7 @@ impl Render for ComponentLibrary {
                         .children(cards)
                 })
             }))
-            .child(templates_group(cx));
+            .child(Self::render_templates(cx));
         h_flex()
             .key_context("MarleyComponentLibrary")
             .track_focus(&self.focus_handle)
@@ -339,91 +495,6 @@ fn matches(entry: &Entry, query: &str) -> bool {
     query.is_empty()
         || entry.name.contains(query)
         || entry.description.to_lowercase().contains(query)
-}
-
-/// The Templates group: each template drawn from its example with its file, each refused file
-/// with why, and a button that opens the folder.
-fn templates_group(cx: &App) -> impl IntoElement {
-    let colors = cx.theme().colors();
-    let templates = templates(cx);
-    let dir = templates_dir();
-    v_flex()
-        .debug_selector(|| "marley-library-templates".into())
-        .gap_3()
-        .child(
-            h_flex()
-                .gap_3()
-                .child(Headline::new("Templates").size(HeadlineSize::Medium))
-                .child(
-                    Button::new("marley-library-open-templates", "Open Folder")
-                        .start_icon(Icon::new(IconName::Folder).size(IconSize::Small))
-                        .style(ButtonStyle::Filled)
-                        .on_click(move |_, _, cx| cx.open_with_system(&dir)),
-                ),
-        )
-        .child(
-            Label::new(SharedString::from(format!(
-                "A JSON file in {} defines a component from the ones above. Marley reads the \
-                 folder again when a file changes.",
-                templates_dir().display()
-            )))
-            .size(LabelSize::Small)
-            .color(Color::Muted),
-        )
-        .when(
-            templates.templates().is_empty() && templates.broken().is_empty(),
-            |group| {
-                group.child(
-                    Label::new("No templates yet.")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-            },
-        )
-        .children(templates.templates().iter().map(|template| {
-            let name = template.name.clone();
-            let drawn = match parse_with(&template.example_tree(), &templates) {
-                Ok(tree) => marley_components::render(&tree, format!("marley-template-{name}"), cx),
-                Err(error) => marley_components::render_error(&error),
-            };
-            v_flex()
-                .debug_selector(move || format!("marley-template-{name}"))
-                .gap_2()
-                .p_3()
-                .rounded_md()
-                .border_1()
-                .border_color(colors.border)
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .child(
-                            Label::new(SharedString::from(template.name.clone()))
-                                .buffer_font(cx)
-                                .weight(gpui::FontWeight::BOLD),
-                        )
-                        .child(
-                            Label::new(SharedString::from(template.description.clone()))
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        ),
-                )
-                .child(
-                    Label::new(SharedString::from(template.path.display().to_string()))
-                        .size(LabelSize::XSmall)
-                        .color(Color::Muted),
-                )
-                .child(drawn)
-        }))
-        .children(templates.broken().iter().map(|broken| {
-            ui::Callout::new()
-                .severity(Severity::Error)
-                .icon(IconName::XCircle)
-                .title(SharedString::from(format!(
-                    "{} is not used",
-                    broken.path.display()
-                )))
-                .description(SharedString::from(broken.error.clone()))
-        }))
 }
 
 /// An entry's card: its name and description over its drawn example, the JSON beside it.

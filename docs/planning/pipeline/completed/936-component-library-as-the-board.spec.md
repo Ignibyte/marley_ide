@@ -1,7 +1,7 @@
 ---
 pipeline_id: 26955ac4-4003-4da4-89a3-0bff2205530a
 ticket: docs/planning/tickets/open/TICKET-936-component-library-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The Component Library as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -73,12 +73,13 @@ Zed's `ui` components (`Label`, `Chip`-like pills, `Tooltip`); no Zed or Warp vi
 Scenario `script/e2e/936-component-library-as-the-board.sh` (sway). Setup: a scratch repository,
 and the run's config folder `components/` holding two good templates (#801's `deploy_status.json`
 and a second) and one broken file, as #801's scenario writes them. No agent and no Rusty.
-- `936-01-chosen`: the library open, `card` clicked in the left list: the name filled, the page
+- `936-01-chosen`: the library open, `card` typed into the find field (the state a click on its
+  name in the left list writes, #849): the name filled, the page
   narrowed to it, Try it's header with its hint, and the template strip (REQ-001, REQ-003,
   REQ-005).
 - `936-02-template`: `deploy_status` chip clicked: its JSON in Try it and its card drawn under
   it (REQ-002).
-- `936-03-error`: a component with a wrong tone typed into Try it: the error on the header line,
+- `936-03-error`: a component with a wrong tone pasted into Try it: the error on the header line,
   no callout (REQ-004).
 - `936-04-day`: `936-01-chosen`'s view in Marley Day (REQ-001, REQ-003, REQ-005).
 

@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The Component Library's templates as chips** (#936, 2026-10-28). Under "Your templates" and a
+  link to `components/` in Marley's config folder, each template file is a chip with its name and
+  "loaded" in green, or its error in red, cut short with the whole of it in a tooltip. A loaded
+  chip clicked puts its template's example in Try it, which draws it; a broken one opens its file.
+  Try it's header says "Paste JSON; it draws as you type." and carries the parser's error at its
+  right, in place of the callout under the box. The name chosen in the left list stays filled
+  while the find field holds it.
 - **The Fleet tab with the snapshot beside the list** (#935, 2026-10-25). A Fleet 760 px wide or
   wider, as its centre tab is at full width, draws the hosts and their agents on the left and the
   selected agent's snapshot as a column on the right, as the Fleet board does. With nothing
@@ -372,6 +379,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Changed
 
+- **cargo-audit's zstd and pulldown-cmark advisories** (2026-10-28). pulldown-cmark 0.13.5 and
+  zstd-sys 2.1.2 take the fixes for RUSTSEC-2026-0414 and -0410. RUSTSEC-2026-0391, -0398 and
+  -0403 (zstd 0.13.3, zstd-safe 5.0.2 and 7.3.0) need zstd 0.14 and zstd-safe 8, past every
+  requirement in Zed's tree, and upstream main locks the same versions. They go on
+  `.cargo/audit.toml`'s list of inherited advisories.
 - **Tabs with their kind and state, and the menus drawn** (#866, 2026-10-22). In the Marley layout
   each center tab leads with a tile for its kind and a dot for its state (a command running or
   failed, a terminal needing you); a project's + menu shows each entry's key; the split menu draws

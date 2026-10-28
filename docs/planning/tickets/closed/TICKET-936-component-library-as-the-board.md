@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #936 (feature, the Marley look, the Component Library)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [936-component-library-as-the-board.spec.md](../../pipeline/queued/936-component-library-as-the-board.spec.md)
+- **Pipeline doc:** [936-component-library-as-the-board.spec.md](../../pipeline/completed/936-component-library-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/F-tools.md, board Components)
 - **Boards:** Components
 - **Size:** S
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

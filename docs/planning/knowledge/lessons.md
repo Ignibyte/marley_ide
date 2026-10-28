@@ -6545,3 +6545,15 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** the new part is the scripted ACP agent: it is one loop on stdin, so while it waits on
   `session/request_permission` it answers no other request, and a second thread on the same agent
   stays on Loading.
+
+## L-claude-936-paste-json-into-an-editor-do-not-type-it-001
+
+- **Ticket:** #936, 2026-10-28.
+- **What happened:** under sway, `type_text '{"type": "badge", "text": "beta", "tone": "orange"}'`
+  into the Component Library's scratch editor left only `{"type": "badge", "` in the box. Every
+  key goes through one `wtype` call, so the scenario logged nothing wrong, and the shot showed
+  serde's syntax error instead of the wrong-tone error it was meant to show.
+- **Lesson:** a scenario that puts JSON or other bracket-and-quote text into an editor pastes it.
+  Write the text to a file in `$E2E_WORK`, `wl-copy` it on `$SWAY_DISPLAY`, select all and press
+  Ctrl+V, as #799's `paste_into_scratch` does. Read the box's text in the shot before reading the
+  error.
