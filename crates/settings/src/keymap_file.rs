@@ -1407,6 +1407,9 @@ pub enum KeybindSource {
     User,
     Vim,
     Base,
+    // Marley: Marley's keymap is its own source (#941), after the base keymap and before Zed's
+    // defaults, so a Zed default's `null` does not hide a Marley binding and the user's still win.
+    Marley,
     #[default]
     Default,
     Unknown,
@@ -1417,6 +1420,7 @@ impl KeybindSource {
     const DEFAULT: KeyBindingMetaIndex = KeyBindingMetaIndex(KeybindSource::Default as u32);
     const VIM: KeyBindingMetaIndex = KeyBindingMetaIndex(KeybindSource::Vim as u32);
     const USER: KeyBindingMetaIndex = KeyBindingMetaIndex(KeybindSource::User as u32);
+    const MARLEY: KeyBindingMetaIndex = KeyBindingMetaIndex(KeybindSource::Marley as u32);
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -1424,6 +1428,7 @@ impl KeybindSource {
             KeybindSource::Default => "Default",
             KeybindSource::Base => "Base",
             KeybindSource::Vim => "Vim",
+            KeybindSource::Marley => "Marley",
             KeybindSource::Unknown => "Unknown",
         }
     }
@@ -1434,6 +1439,7 @@ impl KeybindSource {
             KeybindSource::Default => Self::DEFAULT,
             KeybindSource::Base => Self::BASE,
             KeybindSource::Vim => Self::VIM,
+            KeybindSource::Marley => Self::MARLEY,
             KeybindSource::Unknown => KeyBindingMetaIndex(*self as u32),
         }
     }
@@ -1444,6 +1450,7 @@ impl KeybindSource {
             Self::BASE => KeybindSource::Base,
             Self::DEFAULT => KeybindSource::Default,
             Self::VIM => KeybindSource::Vim,
+            Self::MARLEY => KeybindSource::Marley,
             _ => KeybindSource::Unknown,
         }
     }

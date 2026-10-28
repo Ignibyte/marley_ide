@@ -106,7 +106,55 @@
   sentence case changes what a result shows, not what it finds; confirm in Phase 2.
 
 ## Phase 2 — Code
+- **Built:** as the design names.
+  - Zed hunks: `tree_view_item.rs` (`start_slot`), `settings_ui.rs` (tiles in `render_nav`;
+    `marley_row` or the page's title for the Marley look), `keymap_file.rs` (`KeybindSource::Marley`)
+    and `keymap_editor.rs` (filter arm, override words, header, `source_label`, Find by keys, the
+    dialog's words).
+  - Marley's files in Zed crates: `marley_page.rs` (`PAGE_TITLE`, `SECTION_GLYPHS`,
+    `section_tile`, `prompt_section`, Agent text full width, sentence-case row titles) and
+    `settings_content/src/marley.rs` (Marley first).
+  - Marley crate: `load_keymap_from` binds with `KeybindSource::Marley`, and its test's
+    expectation follows.
+  - All six ledger rows were written first.
+- **D3 check:** Zed's Linux keymap has one `null`, `f5` in "Workspace && debugger_running".
+  Marley binds `f5` in "MarleyBrowser" (Browser Reload), which a running debugger used to silence.
+  It now reloads, as D3 intends. No other key overlaps.
+- **Deviations:**
+  - Section headers keep their case (D6 names row titles only). "Component Library" and "Rusty's
+    Server" keep their capitals as the names of a tab and a page.
+  - "Edit Keystroke" and "Edit Context" are unchanged.
+- **Gate:**
+  - The first run failed gate:18 on "Pn". `.config/typos.toml`'s `extend-ignore-re` gains
+    `letters: "Pn"` with its reason, as it lists `"ba"`.
+  - gate:22 failed once on semgrep itself and passed on the rerun.
+  - Then GREEN, and again on the final tree.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/941-settings-and-keymap-as-the-board.sh` (sway).
+  - The run's `keymap.json` binds Ctrl+Alt+Shift+K to New File.
+  - The copied `agent.limit_content_width` is taken out first, as #822's scenario does.
+- **Reds, the scenario's own:**
+  - The first full-width check passed on Chad's copied setting before any click. The check now
+    runs before the click too, and the row is found by searching "full width".
+  - Marley's default is full width (#822), so the switch reads on and the click writes `true`.
+  - The record dialog opens from the row's pencil, and its keys field records only after a click.
+  - While it records, Escape is taken as keys, so Cancel closes it.
+- **Shots:**
+  - `941-01-settings`: the tiles (M in the accent, G, Ap, Km, Ed, Ln, Sf, Wl, Pn, Db, Tm, Vc, Co,
+    AI, Nw, Dv), Layout Marley | Zed, and sentence-case rows.
+  - `941-02-found`: Agent text full width on, with its key `agent.limit_content_width`.
+    `941-02-full-width`: off, "changed · reset"; both checks passed.
+  - `941-03-keymap`: Action / Arguments / Keys / Where / From, with Ctrl-Alt-Shift-K "Yours" and
+    Zed's "Zed". `941-03-keymap-marley`: Browser Reload's F5 and Ctrl-R, "Marley".
+  - `941-04-find-by-keys`: Find by keys pressed, keystroke search on.
+  - `941-05-record`: "New keys for marley: browser reload", Ctrl-L recorded, "Also marley: focus
+    address bar, in MarleyBrowser", Cancel and Save Anyway.
+  - `941-06-day-keymap`, `941-06-day`: the keymap and Settings in Marley Day.
 
 ## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`, `docs/marley/look-plan.md`, the architecture note, and the six
+  ledger rows.
+- **Knowledge:** L-claude-941-a-scenario-shows-marleys-default-only-after-clearing-the-copied-setting-001.
+- **Brain:** consultation 3f5528f65ff84b7b8e11d69a6bac6185 closed with `brain no-decision`.
+- **Ticket:** closed.

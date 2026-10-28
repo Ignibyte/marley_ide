@@ -734,8 +734,8 @@ fn the_marley_keymap_binds_new_agent_as_a_default(cx: &TestAppContext) {
         load_keymap_from(KEYMAP, cx).expect("the Marley keymap loads");
         assert_eq!(
             new_agent_bindings(cx),
-            [Some(KeybindSource::Default.meta())],
-            "bound once, as a default source, below the user's keymap"
+            [Some(KeybindSource::Marley.meta())],
+            "bound once, as Marley's source, below the user's keymap"
         );
     });
 }

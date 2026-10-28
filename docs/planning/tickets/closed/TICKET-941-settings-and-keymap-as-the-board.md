@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #941 (feature, the Marley look, Settings and the keymap)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [941-settings-and-keymap-as-the-board.spec.md](../../pipeline/queued/941-settings-and-keymap-as-the-board.spec.md)
+- **Pipeline doc:** [941-settings-and-keymap-as-the-board.spec.md](../../pipeline/completed/941-settings-and-keymap-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/D-panels-editor.md, boards Settings, Keymap)
 - **Boards:** Settings, Keymap
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

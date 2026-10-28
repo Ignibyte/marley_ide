@@ -22,6 +22,8 @@ pub struct TreeViewItem {
     on_secondary_mouse_down: Option<Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>>,
     tab_index: Option<isize>,
     focus_handle: Option<gpui::FocusHandle>,
+    // Marley: a tile before a root item's label, as the Settings board draws its sections (#941).
+    start_slot: Option<AnyElement>,
 }
 
 impl TreeViewItem {
@@ -43,6 +45,7 @@ impl TreeViewItem {
             on_secondary_mouse_down: None,
             tab_index: None,
             focus_handle: None,
+            start_slot: None,
         }
     }
 
@@ -74,6 +77,12 @@ impl TreeViewItem {
 
     pub fn tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
         self.tooltip = Some(Box::new(tooltip));
+        self
+    }
+
+    // Marley: drawn before the label (#941).
+    pub fn start_slot(mut self, start_slot: impl IntoElement) -> Self {
+        self.start_slot = Some(start_slot.into_any_element());
         self
     }
 
@@ -199,6 +208,7 @@ impl RenderOnce for TreeViewItem {
                                     .opened_icon(IconName::ChevronDown)
                                     .closed_icon(IconName::ChevronRight),
                             )
+                            .children(self.start_slot)
                             .child(
                                 Label::new(label)
                                     .when(!self.selected, |this| this.color(Color::Muted)),

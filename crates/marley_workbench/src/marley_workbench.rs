@@ -1339,7 +1339,7 @@ fn load_keymap_from(keymap: &str, cx: &mut App) -> anyhow::Result<()> {
         }
     };
     for binding in &mut bindings {
-        binding.set_meta(KeybindSource::Default.meta());
+        binding.set_meta(KeybindSource::Marley.meta());
     }
     cx.bind_keys(bindings);
     Ok(())

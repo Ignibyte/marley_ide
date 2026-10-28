@@ -1066,9 +1066,11 @@ pub enum ClaudeCodeWorktreeTrust {
 )]
 #[serde(rename_all = "snake_case")]
 pub enum MarleyLayout {
-    /// Zed's own layout: the Threads Sidebar and Zed's panel defaults.
-    Zed,
+    // Marley: listed first, so the Settings window's buttons read Marley | Zed (#941); serde's
+    // names and the default are unchanged.
     /// The Marley layout: a rail of projects with their terminals, and terminals in the center.
     #[default]
     Marley,
+    /// Zed's own layout: the Threads Sidebar and Zed's panel defaults.
+    Zed,
 }

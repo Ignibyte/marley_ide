@@ -6435,3 +6435,18 @@ prints each byte.
   project's folder changes and Next and Previous Project and Thread have not been seen live:
   the drives for #439 and #440 would have moved Chad's windows off his monitor, and the later
   ones need input or a relaunch. They are owed to the next headless capture.
+
+## Settings and the keymap as the boards (`settings_ui`, `keymap_editor`, `settings`, #941)
+
+- The Settings list's root entries carry `marley_page::section_tile` (`SECTION_GLYPHS`, the
+  Marley page's in the accent) through `TreeViewItem::start_slot`. `MarleyLayout` lists Marley
+  first.
+- The Marley page gains "At the prompt" (`prompt_section`) and Agent text full width, which shows
+  and writes Zed's `agent.limit_content_width` inverted. Every row on the page (`PAGE_TITLE`) draws
+  the Marley look, and its row titles are in sentence case.
+- `KeybindSource::Marley` sits between `Base` and `Default`, and `load_keymap_from` binds Marley's
+  keymap with it.
+- The keymap editor: `source_label` fills the From column (Yours, Zed, Marley, Base, Vim), Marley
+  counts with the defaults in its filter, and Find by keys is a text button. The record dialog
+  reads "New keys for …", "Also …, in …" and Save Anyway once the conflict shows.
+

@@ -170,6 +170,18 @@ fn open_binding_modal_after_loading(cx: &mut Context<KeymapEditor>) {
 
 pub struct KeymapEventChannel {}
 
+// Marley: the From column's words (#941).
+fn source_label(source: KeybindSource) -> &'static str {
+    match source {
+        KeybindSource::User => "Yours",
+        KeybindSource::Default => "Zed",
+        KeybindSource::Marley => "Marley",
+        KeybindSource::Base => "Base",
+        KeybindSource::Vim => "Vim",
+        KeybindSource::Unknown => "",
+    }
+}
+
 impl Global for KeymapEventChannel {}
 
 impl KeymapEventChannel {
@@ -241,9 +253,14 @@ impl SourceFilters {
         match source {
             Some(KeybindSource::User) => self.user,
             Some(KeybindSource::Vim) => self.vim_defaults,
-            Some(KeybindSource::Base | KeybindSource::Default | KeybindSource::Unknown) | None => {
-                self.zed_defaults
-            }
+            // Marley: Marley's bindings count with Zed's defaults (#941).
+            Some(
+                KeybindSource::Base
+                | KeybindSource::Marley
+                | KeybindSource::Default
+                | KeybindSource::Unknown,
+            )
+            | None => self.zed_defaults,
         }
     }
 }
@@ -2064,11 +2081,13 @@ impl Render for KeymapEditor {
                                     // div in the keystroke search input
                                     .min_w_80()
                                     .child(
-                                        IconButton::new(
+                                        // Marley: a text button, as the KeymapEditor board
+                                        // draws it (#941).
+                                        Button::new(
                                             "KeymapEditorKeystrokeSearchButton",
-                                            IconName::Keyboard,
+                                            "Find by keys",
                                         )
-                                        .icon_size(IconSize::Small)
+                                        .label_size(LabelSize::Small)
                                         .toggle_state(matches!(
                                             search_mode,
                                             SearchMode::KeyStroke { .. }
@@ -2146,7 +2165,8 @@ impl Render for KeymapEditor {
                     .width_config(ColumnWidthConfig::redistributable(
                         self.current_widths.clone(),
                     ))
-                    .header(vec!["", "Action", "Arguments", "Keystrokes", "Context", "Source"])
+                    // Marley: the KeymapEditor board's names (#941).
+                    .header(vec!["", "Action", "Arguments", "Keys", "Where", "From"])
                     .uniform_list(
                         "keymap-editor-table",
                         row_count,
@@ -2257,9 +2277,10 @@ impl Render for KeymapEditor {
                                         },
                                     );
 
+                                    // Marley: whose binding, in the board's words (#941).
                                     let source = binding
                                         .keybind_source()
-                                        .map(|source| source.name())
+                                        .map(source_label)
                                         .unwrap_or_default()
                                         .into_any_element();
 
@@ -2345,6 +2366,8 @@ impl Render for KeymapEditor {
                                                         KeybindSource::User  => Some("your keymap"),
                                                         KeybindSource::Vim => Some("the vim keymap"),
                                                         KeybindSource::Base => Some("your base keymap"),
+                                                        // Marley: its own keymap (#941).
+                                                        KeybindSource::Marley => Some("Marley's keymap"),
                                                         _ => {
                                                             log::error!("Unexpected override from the {} keymap", conflict.override_source.name());
                                                             None
@@ -2823,45 +2846,57 @@ impl KeybindingEditorModal {
                 self.creating.not().then_some(self.editing_keybind_idx),
             );
 
-        conflicting_indices.map(|KeybindConflict {
-            first_conflict_index,
-            remaining_conflict_amount,
-        }|
-        {
-            let conflicting_action_name = self
-                .keymap_editor
-                .read(cx)
-                .keybindings
-                .get(first_conflict_index)
-                .map(|keybind| keybind.action().name);
+        conflicting_indices
+            .map(
+                |KeybindConflict {
+                     first_conflict_index,
+                     remaining_conflict_amount,
+                 }| {
+                    // Marley: the conflict in the KeymapEditor board's words, the action as the table names
+                    // it and where it is bound (#941).
+                    let conflicting = self
+                        .keymap_editor
+                        .read(cx)
+                        .keybindings
+                        .get(first_conflict_index)
+                        .map(|keybind| {
+                            let place = keybind
+                                .context()
+                                .map(|context| context.local_str().unwrap_or("global"))
+                                .unwrap_or("global");
+                            format!("{}, in {place}", keybind.action().humanized_name)
+                        });
 
-            let warning_message = match conflicting_action_name {
-                Some(name) => {
-                     if remaining_conflict_amount > 0 {
-                        format!(
-                            "Your keybind would conflict with the \"{}\" action and {} other bindings",
-                            name, remaining_conflict_amount
-                        )
+                    let warning_message = match conflicting {
+                        Some(also) => {
+                            if remaining_conflict_amount > 0 {
+                                format!("Also {also}, and {remaining_conflict_amount} more")
+                            } else {
+                                format!("Also {also}")
+                            }
+                        }
+                        None => {
+                            log::info!(
+                                "Could not find action in keybindings with index {}",
+                                first_conflict_index
+                            );
+                            "Your keybind would conflict with other actions".to_string()
+                        }
+                    };
+
+                    let warning = InputError::warning(warning_message);
+                    if self
+                        .error
+                        .as_ref()
+                        .is_some_and(|old_error| *old_error == warning)
+                    {
+                        Ok(())
                     } else {
-                        format!("Your keybind would conflict with the \"{}\" action", name)
+                        Err(warning)
                     }
-                }
-                None => {
-                    log::info!(
-                        "Could not find action in keybindings with index {}",
-                        first_conflict_index
-                    );
-                    "Your keybind would conflict with other actions".to_string()
-                }
-            };
-
-            let warning = InputError::warning(warning_message);
-            if self.error.as_ref().is_some_and(|old_error| *old_error == warning) {
-                Ok(())
-           } else {
-                Err(warning)
-            }
-        }).unwrap_or(Ok(()))?;
+                },
+            )
+            .unwrap_or(Ok(()))?;
 
         let create = self.creating;
         let keyboard_mapper = cx.keyboard_mapper().clone();
@@ -3103,10 +3138,12 @@ impl Render for KeybindingEditorModal {
                                 .gap_0p5()
                                 .border_b_1()
                                 .border_color(theme.border_variant)
+                                // Marley: "New keys for <action>", as the board heads it (#941).
                                 .when(!self.creating, |this| {
-                                    this.child(Label::new(
-                                        self.editing_keybind.action().humanized_name.clone(),
-                                    ))
+                                    this.child(Label::new(format!(
+                                        "New keys for {}",
+                                        self.editing_keybind.action().humanized_name
+                                    )))
                                     .when_some(
                                         self.editing_keybind.action().documentation,
                                         |this, docs| {
@@ -3118,9 +3155,7 @@ impl Render for KeybindingEditorModal {
                                         },
                                     )
                                 })
-                                .when(self.creating, |this| {
-                                    this.child(Label::new("Create Keybinding"))
-                                }),
+                                .when(self.creating, |this| this.child(Label::new("New keys"))),
                         ),
                     )
                     .section(
@@ -3206,11 +3241,25 @@ impl Render for KeybindingEditorModal {
                                     Button::new("cancel", "Cancel")
                                         .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
                                 )
-                                .child(Button::new("save-btn", "Save").on_click(cx.listener(
-                                    |this, _event, _window, cx| {
-                                        this.save_or_display_error(cx);
-                                    },
-                                ))),
+                                // Marley: once the conflict shows, a second Save keeps the keys
+                                // anyway, and the button says so (#941).
+                                .child(
+                                    Button::new(
+                                        "save-btn",
+                                        if self.error.as_ref().is_some_and(|error| {
+                                            error.severity == Severity::Warning
+                                        }) {
+                                            "Save Anyway"
+                                        } else {
+                                            "Save"
+                                        },
+                                    )
+                                    .on_click(cx.listener(
+                                        |this, _event, _window, cx| {
+                                            this.save_or_display_error(cx);
+                                        },
+                                    )),
+                                ),
                         ),
                     ),
             )

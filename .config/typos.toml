@@ -95,6 +95,8 @@ extend-ignore-re = [
     'cl\[ist]',
     '\[lan\]guage',
     '"ba"',
+    # The Settings list's tile letters for Panels, as the Settings board draws them (#941)
+    'letters: "Pn"',
     "doas",
     # ProtoLS crate with tree-sitter Protobuf grammar.
     "protols",

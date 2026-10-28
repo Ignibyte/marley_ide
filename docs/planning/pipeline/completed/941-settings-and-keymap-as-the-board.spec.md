@@ -1,7 +1,7 @@
 ---
 pipeline_id: 6cd08aa7-379c-483c-bba4-49b905e51478
 ticket: docs/planning/tickets/open/TICKET-941-settings-and-keymap-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Settings and the keymap as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

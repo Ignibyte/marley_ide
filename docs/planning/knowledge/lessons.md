@@ -6581,3 +6581,13 @@ shot of the current build: the review may have been taken against an older one.
   refused while Rusty is down. After Try Now, allow a running try's 5 s to end, then the next
   try's, before the shot. End only the run's own stand-in, by `RUSTY_STAND_IN_STATE` in
   `/proc/<pid>/environ`.
+
+## L-claude-941-a-scenario-shows-marleys-default-only-after-clearing-the-copied-setting-001
+
+- **Ticket:** #941, 2026-10-28.
+- **What happened:** the scenario's check that a click wrote `"limit_content_width": false` passed
+  although the click hit nothing: the run's profile copies Chad's own `settings.json`, which
+  already held the value. The page also showed his choice, not Marley's default.
+- **Lesson:** a scenario that checks a setting written by a click first takes the key out of the
+  copied `settings.json` (#822's `UNSET` block), and checks before the click that the file does
+  not hold it. Measure the control on a shot rather than trusting a check that passes on a guess.

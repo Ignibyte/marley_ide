@@ -32,11 +32,128 @@ impl MarleyPageViews {
     }
 }
 
+/// The Marley page's title; a row on it draws the Marley look (#941).
+pub(crate) const PAGE_TITLE: &str = "Marley";
+
+/// A section of the Settings window's list and the letters of its tile (#941).
+struct SectionGlyph {
+    title: &'static str,
+    letters: &'static str,
+}
+
+/// The tiles' letters, as the Settings board draws the list; a section not listed takes its
+/// first letter.
+const SECTION_GLYPHS: [SectionGlyph; 16] = [
+    SectionGlyph {
+        title: PAGE_TITLE,
+        letters: "M",
+    },
+    SectionGlyph {
+        title: "General",
+        letters: "G",
+    },
+    SectionGlyph {
+        title: "Appearance",
+        letters: "Ap",
+    },
+    SectionGlyph {
+        title: "Keymap",
+        letters: "Km",
+    },
+    SectionGlyph {
+        title: "Editor",
+        letters: "Ed",
+    },
+    SectionGlyph {
+        title: "Languages & Tools",
+        letters: "Ln",
+    },
+    SectionGlyph {
+        title: "Search & Files",
+        letters: "Sf",
+    },
+    SectionGlyph {
+        title: "Window & Layout",
+        letters: "Wl",
+    },
+    SectionGlyph {
+        title: "Panels",
+        letters: "Pn",
+    },
+    SectionGlyph {
+        title: "Terminal",
+        letters: "Tm",
+    },
+    SectionGlyph {
+        title: "Version Control",
+        letters: "Vc",
+    },
+    SectionGlyph {
+        title: "Debugger",
+        letters: "Db",
+    },
+    SectionGlyph {
+        title: "AI",
+        letters: "AI",
+    },
+    SectionGlyph {
+        title: "Collaboration",
+        letters: "Co",
+    },
+    SectionGlyph {
+        title: "Network",
+        letters: "Nw",
+    },
+    SectionGlyph {
+        title: "Developer",
+        letters: "Dv",
+    },
+];
+
+/// The tile before a section's name in the list: its letters on a small rounded square, the
+/// Marley page's in the accent's colours (#941, D1).
+pub(crate) fn section_tile(title: &str, cx: &App) -> impl IntoElement {
+    let colors = cx.theme().colors();
+    let letters: SharedString = SECTION_GLYPHS
+        .iter()
+        .find(|glyph| glyph.title == title)
+        .map_or_else(
+            || {
+                title
+                    .chars()
+                    .next()
+                    .map(String::from)
+                    .unwrap_or_default()
+                    .into()
+            },
+            |glyph| glyph.letters.into(),
+        );
+    let marley = title == PAGE_TITLE;
+    div()
+        .flex_none()
+        .size(px(18.))
+        .rounded(px(4.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(if marley {
+            colors.text_accent.opacity(0.18)
+        } else {
+            colors.element_background
+        })
+        .child(
+            Label::new(letters)
+                .size(LabelSize::XSmall)
+                .color(if marley { Color::Accent } else { Color::Muted }),
+        )
+}
+
 pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     SettingsPage {
-        title: "Marley",
+        title: PAGE_TITLE,
         items: layout_section()
             .into_iter()
+            .chain(prompt_section())
             .chain(agents_section())
             .chain(agent_versions_section())
             .chain(terminal_section())
@@ -56,7 +173,7 @@ pub(crate) fn marley_page(cx: &App) -> SettingsPage {
     }
 }
 
-fn layout_section() -> [SettingsPageItem; 9] {
+fn layout_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Layout"),
         SettingsPageItem::SettingItem(SettingItem {
@@ -80,7 +197,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: the rail's order (#542).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Rail Order",
+            title: "Rail order",
             description: "The order the rail lists projects and the rows under them in: what needs you first (an agent waiting on you or failed, then one that finished while you looked elsewhere, then working, then not reporting, then the rest), or the window's order. Nothing moves while the pointer is over the rail.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -100,7 +217,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: the machine's containers, in the rail (#669) and in a panel since #673.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Containers Panel",
+            title: "Containers panel",
             description: "Show the Containers panel's button in the status bar: the panel, on the right, lists the ports of the containers running on this machine that no project's folder holds, each with Stop. A container whose Compose folder is in a project shows under that project in the rail either way.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -123,7 +240,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: the rail folded to a strip of project marks (#830).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Shrink the Rail",
+            title: "Shrink the rail",
             description: "Fold the rail to a strip of project marks: each shows a count of what waits on you and, under the pointer, its project's rows; the search at the top opens the filter. The buttons at the rail's top fold and open it too.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -143,7 +260,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: Files, Changes and Outline in one Inspector column (#837).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Use the Inspector",
+            title: "Use the inspector",
             description: "Open Files, Changes and Outline in one column at the right of the editor, with a switcher at its top, instead of as a tab each. Fleet, Knowledge and Containers keep their tabs.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -164,9 +281,42 @@ fn layout_section() -> [SettingsPageItem; 9] {
             metadata: None,
             files: USER,
         }),
+        // Zed's own key, inverted, on the Marley page (#941, D5): on lets an agent's answer run
+        // the width of its tab.
+        SettingsPageItem::SettingItem(SettingItem {
+            title: "Agent text full width",
+            description: "An agent's answer runs the width of its tab. Off keeps Zed's readable column.",
+            field: Box::new(SettingField {
+                organization_override: None,
+                json_path: Some("agent.limit_content_width"),
+                pick: |settings_content| {
+                    settings_content
+                        .agent
+                        .as_ref()?
+                        .limit_content_width
+                        .as_ref()
+                        .map(|limited| if *limited { &false } else { &true })
+                },
+                write: |settings_content, value, _| {
+                    settings_content
+                        .agent
+                        .get_or_insert_default()
+                        .limit_content_width = value.map(|full_width| !full_width);
+                },
+            }),
+            metadata: None,
+            files: USER,
+        }),
+    ]
+}
+
+/// The prompt's own settings, a section of their own as the Settings board draws them (#941).
+fn prompt_section() -> [SettingsPageItem; 4] {
+    [
+        SettingsPageItem::SectionHeader("At the prompt"),
         // Marley: the shell's prompt editor at every prompt (#627).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Prompt Editor",
+            title: "Prompt editor",
             description: "At a terminal's shell prompt, type in a Zed editor docked under the terminal, with completions and colours, and send the command with Enter. A running command or a full-screen program still gets every key. Off, Ctrl+G at a prompt still opens it.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -189,7 +339,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: the hint for English at a shell's prompt (#557).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "English at the Prompt",
+            title: "English at the prompt",
             description: "When a line typed at a terminal's prompt reads as a request in words, such as what is using port 3000, show that Ctrl+Shift+Enter asks the agent, and offer Ask the agent on a block the shell could not run (exit 127). Marley's own rules decide; nothing is sent until you ask, and the key works either way.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -209,7 +359,7 @@ fn layout_section() -> [SettingsPageItem; 9] {
         }),
         // Marley: follow Omarchy's theme (#759).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Follow Omarchy's Theme",
+            title: "Follow Omarchy's theme",
             description: "On Omarchy, follow the desktop's theme: Omarchy renders Marley's theme at each theme switch. Turning it on re-applies Omarchy's current theme once. Off puts back the theme chosen before. Nothing happens without Omarchy.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -237,7 +387,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
     [
         SettingsPageItem::SectionHeader("Agents"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Redact Secrets for Agents",
+            title: "Redact secrets for agents",
             description: "Hide keys, tokens and passwords in what Marley's tools give agents from terminals and the browser's console (#516). Add your own patterns as `marley.redaction_patterns` in settings.json.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -260,7 +410,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: when a working Claude Code's rail row says `no update in N m` (#547).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "No Update After Minutes",
+            title: "No update after minutes",
             description: "Minutes a working Claude Code may go without reporting a hook event before its row in the rail says \"no update in N m\" instead of \"working\". 0 turns this off.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -283,7 +433,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: Claude Code sessions resumed after a restart (#540).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Resume Agent Sessions",
+            title: "Resume agent sessions",
             description: "When Marley starts, a terminal that was running a Claude Code session at the last quit runs claude --resume with that session, and one that ran Codex on Marley's App Server runs codex resume with its thread, in the folder the session started in, so the conversation comes back. A turn the restart cut off offers Continue on the terminal's row.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -306,7 +456,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: a limited Codex continued at its reset without a click (#715).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Continue Limited Agents at Reset",
+            title: "Continue limited agents at reset",
             description: "When a Claude Code, or a Codex on Marley's App Server, stops at its usage limit, Marley sends it \"Continue where you left off.\" once the limit resets, without waiting for Continue at Reset in Needs you. Starting a turn yourself first cancels it.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -329,7 +479,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: past CLI sessions listed in Threads (#754).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "List CLI Sessions",
+            title: "List CLI sessions",
             description: "List the Claude Code and Codex sessions in the CLIs' own files on the Threads page, in the rail's Threads view and in Reopen Thread…, beside Zed's conversations. Choosing one resumes it in a terminal in its folder, or brings forward the terminal it runs in. Off, no session file is read.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -352,7 +502,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: when the stall kind's quiet checks come (#569).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Stall Check After Seconds",
+            title: "Stall check after seconds",
             description: "Seconds a working Claude Code may be quiet before the stall kind's first check, with the next at twice, four and eight times it. The checks run only while the stall kind's mode in the System One section is on. 0 turns them off.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -375,7 +525,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: asking before a close ends a working agent, and holding it for undo (#550).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Ask Before Ending a Working Agent",
+            title: "Ask before ending a working agent",
             description: "Whether closing a terminal, a window or Marley asks first while an agent in it is working, and names each one.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -397,7 +547,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Undo Close Seconds",
+            title: "Undo close seconds",
             description: "Seconds a working agent's terminal closed from its tab is kept, still running, for Undo or Ctrl-Shift-T. 0 ends it at once.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -420,7 +570,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: which agents' consequential clicks in the Browser tab wait for Allow (#571).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Browser Click Pause Agents",
+            title: "Browser click pause agents",
             description: "Whose clicks in a Browser tab that pay, delete, send in your name or change an account wait for Allow or Refuse, while the Click Consequence mode in the System One section is on: agents that run without a permission prompt of their own and callers Marley cannot name, or every agent.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -443,7 +593,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: when an agent's writes into a running program ask the user (#525).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Agent Terminal Writes",
+            title: "Agent terminal writes",
             description: "When an agent that types into a program running in a terminal (psql, a debugger, a REPL) asks you first: its first write to each program, every write, or never.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -467,7 +617,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         // Marley: whether an agent's commands outside both lists ask (#556); the lists are set in
         // settings.json.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Agent Commands Outside Lists",
+            title: "Agent commands outside lists",
             description: "What happens to a command an agent runs at a terminal's prompt (terminal_run) that neither marley.agent_command_allowlist nor marley.agent_command_denylist in settings.json matches: it runs, since the agent's own permission prompt already asked, or it waits for Run or Refuse under the terminal. A command the allowlist matches runs at once; one the denylist matches always asks.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -490,7 +640,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: whether an agent's commands enter the shell's history (#553).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Agent Commands in History",
+            title: "Agent commands in history",
             description: "Whether commands an agent runs in your terminal enter your shell history and Marley's suggestions. Applies to terminals opened after a change.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -514,7 +664,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         // Marley: what Marley starts Claude Code and Codex with (#532); the per-project entries
         // are set in settings.json.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Claude Code Permissions",
+            title: "Claude Code permissions",
             description: "What Marley starts Claude Code with: its own permission prompts, or --dangerously-skip-permissions, which asks for none. An entry of agent_permissions_by_project in settings.json wins for its project. A rail row marks an agent that runs without its prompts.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -536,7 +686,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Codex Permissions",
+            title: "Codex permissions",
             description: "What Marley starts Codex with: its own approvals and sandbox, or full access (--sandbox danger-full-access --ask-for-approval never), with no sandbox and no approvals. An entry of agent_permissions_by_project in settings.json wins for its project.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -559,7 +709,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: Codex runs against an App Server of its own, which Marley joins (#650).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Codex App Server",
+            title: "Codex app server",
             description: "Run each Codex Marley launches in a local project against a Codex App Server of its own, and join it as a second client: the rail, the inbox and the close guard then read the thread's own state, its token use and its sandbox, not the terminal's quiet. Codex's requests then name Marley in their user agent. Applies to Codex launched after the change.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -582,7 +732,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: Marley as Claude Code's IDE for each local project (#653).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Claude Code IDE Link",
+            title: "Claude Code IDE link",
             description: "Serve Claude Code's IDE link for each local project: Marley writes a lock file into Claude Code's ide folder and names the project's port in its new terminals, so a claude started there gets your selection and open file with each prompt and the language servers' diagnostics, and send selection mentions the lines in its prompt. /ide reaches it from other terminals. Any program of yours that can read the lock file can connect and read the selection.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -605,7 +755,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: the Claude Code plugin shared with rustal-harness, off by default (#709).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Shared Claude Code Plugin",
+            title: "Shared Claude Code plugin",
             description: "Load the Claude Code plugin Marley shares with rustal-harness in Marley's local terminals, so a claude started there reports its state (working, waiting on you and for what, idle) to the rail. Applies to terminals opened after the change. A Claude Code under a managed disableSideloadFlags refuses to start with it.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -628,7 +778,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: Claude Code's plan in a review tab, off by default (#726).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Plan Review",
+            title: "Plan review",
             description: "Open Claude Code's plan in a tab beside its terminal when it asks to leave plan mode: select a passage and comment, add an overall note, then Approve or Send Feedback. Needs the Shared Claude Code Plugin, at a revision that hands the call to Marley; until then Claude Code's own dialog decides. Applies to terminals opened after the change.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -648,7 +798,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: Claude Code's Remote Control, off by default (#757).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Claude Code Remote Control",
+            title: "Claude Code remote control",
             description: "Start Claude Code with --remote-control, so its sessions show in the Claude app on your phone, through Anthropic's service. Its row shows a remote chip, and Marley's own push skips the session. Applies to Claude Code started after the change.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -671,7 +821,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: the rustal-ste skill for Marley's agents, on by default (#725).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Rustal STE Skill",
+            title: "Rustal STE skill",
             description: "Give Marley's agents the rustal-ste skill: Simplified Technical English with Rustal's glossary, verbs and message shapes, for what one agent writes to another. Zed's agent gets it built in, Claude Code in Marley's terminals and the Marley entry through a plugin folder, and Codex as a copy in its skills folder. Off, no agent gets it from Marley, and Marley removes only its own Codex copy.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -694,7 +844,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: who answers Claude Code's trust question in a new worktree (#587).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Worktree Trust Question",
+            title: "Worktree trust question",
             description: "Who answers Claude Code's question whether to trust a folder when it asks it in a worktree New Agent in Worktree made, as it does for a repository it has not trusted yet: you, from a notification whose Trust Folder answers it, or Marley, when Zed trusts the worktree's folder.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -717,7 +867,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
         }),
         // Marley: agent prompts through the agent's own editor key, in a tab (#649).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Agent Prompts in a Tab",
+            title: "Agent prompts in a tab",
             description: "Give the terminals Marley opens for agents Marley's editor: Ctrl-G, the Rich Input button and the agent's own editor key open the prompt in a tab, and closing the tab hands it back to the agent, which sends nothing until you do. Off, Ctrl-G opens Marley's Rich Input overlay. Applies to agent terminals opened after the change.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -739,7 +889,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Thread Details",
+            title: "Thread details",
             description: "A thread tab shows its details panel at the right: the files the agent read and changed, and its tools. The panel's own button sets it too.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -758,7 +908,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Review Notes Message",
+            title: "Review notes message",
             description: "The message review notes reach an agent in. Unset, Marley's own asks the agent to check each note and change nothing the notes do not name. Write a line break as \\n.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -777,7 +927,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Run the Harness",
+            title: "Run the harness",
             description: "Marley runs rustal-harness's runtime itself and follows it, when no harness command is set.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -796,7 +946,7 @@ fn agents_section() -> [SettingsPageItem; 28] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Harness Writes",
+            title: "Harness writes",
             description: "Marley calls the harness's write verbs from a session's tab and the palette, and follows the harness it runs with --grant write.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -844,7 +994,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
     [
         SettingsPageItem::SectionHeader("Terminal"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Terminal Links",
+            title: "Terminal links",
             description: "Where a URL Ctrl+clicked in a terminal opens: a local one, such as a dev server's localhost address, in a Browser tab of the terminal's project; every one in a Browser tab; or every one in the system browser. Shift+Ctrl+click opens it in the other place. A terminal running ssh always uses the system browser.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -867,7 +1017,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: a scrolled-back block's command pinned over the terminal's top row (#529).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Sticky Command Header",
+            title: "Sticky command header",
             description: "Whether a block's command is pinned over the terminal's top row while you scroll back through its output. A click on it scrolls to the block's start.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -890,7 +1040,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: a block's prompt rows drawn as Marley's header (#628).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Block Headers",
+            title: "Block headers",
             description: "Whether a block's prompt rows are drawn as Marley's header, the command and its status in place of the shell's prompt. The prompt waiting for your next command stays the shell's.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -913,7 +1063,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: how blocks are spaced in a terminal (#631).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Block Density",
+            title: "Block density",
             description: "How blocks are spaced in a terminal: comfortable puts half a row between blocks and gives a one-row prompt's header two lines, the folder and branch over the command; compact draws no gaps and keeps each header in its prompt's own rows.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -936,7 +1086,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: what a block whose output reads as a table does (#804).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Block Tables",
+            title: "Block tables",
             description: "What a block whose output reads as a table does: offer shows its text with a Table chip and an Inline toggle; in place draws the table over the block's rows as soon as it finishes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -956,7 +1106,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: a long command's end, notified from a terminal not in front (#551).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Long Command Seconds",
+            title: "Long command seconds",
             description: "How many seconds a command runs before its end shows a desktop notification, when its terminal is not the one in front. 0 turns this off.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -979,7 +1129,7 @@ fn terminal_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: a terminal's earlier output drawn again, dimmed, after a restart (#751).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Restore Scrollback",
+            title: "Restore scrollback",
             description: "Whether each local terminal keeps its recent output, the newest 5,000 lines, in a file only you can read, and shows it dimmed above the new prompt when Marley starts again. Turning it off deletes every kept file.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1008,7 +1158,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
     [
         SettingsPageItem::SectionHeader("Agent Versions"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Prompt Tags on Untested Claude Code",
+            title: "Prompt tags on untested Claude Code",
             description: "Whether Marley tells your prompts from the ones Claude Code adds itself (task notifications, system reminders) by their tags on a Claude Code version it has not checked them on. Off, it reads every prompt there as yours; the agent bar says which version it found and which it checked.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1037,7 +1187,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: Codex's App Server on a Codex version Marley has not tested it on (#650).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "App Server on Untested Codex",
+            title: "App server on untested Codex",
             description: "Whether Codex App Server runs on a Codex version Marley has not tested it on. Off, such a Codex starts as it does with Codex App Server off, and the agent bar says which version it found and which Marley tested.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1066,7 +1216,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: Claude Code's IDE link on a version Marley has not checked it on (#653).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "IDE Link on Untested Claude Code",
+            title: "IDE link on untested Claude Code",
             description: "Whether Claude Code IDE Link serves a Claude Code version Marley has not checked the link on. Off, Marley serves no IDE link to it, and the agent bar says which version it found and which Marley checked.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1095,7 +1245,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: the IDE link's selection on an unchecked version (#653).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "IDE Selection on Untested Claude Code",
+            title: "IDE selection on untested Claude Code",
             description: "Whether the IDE link sends your selection and open file to a Claude Code version Marley has not checked them on. Off, such a Claude Code gets diagnostics from Marley but no selection.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1124,7 +1274,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: send selection's mention on an unchecked version (#653).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "IDE Mentions on Untested Claude Code",
+            title: "IDE mentions on untested Claude Code",
             description: "Whether send selection mentions the lines in the prompt of a Claude Code version Marley has not checked mentions on. Off, it types @path#La-b at the prompt instead.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1153,7 +1303,7 @@ fn agent_versions_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: the shared plugin on an unchecked version (#709).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Shared Plugin on Untested Claude Code",
+            title: "Shared plugin on untested Claude Code",
             description: "Whether Marley's terminals load the shared Claude Code plugin for a Claude Code version before the one the plugin was tested on. Off, they don't, and the rail reads Claude Code's state from its hooks.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1350,7 +1500,7 @@ fn agent_control_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: the actions agents may run besides Marley's safe ones (#711).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Allowed Actions",
+            title: "Allowed actions",
             description: "Palette actions an agent may run besides Marley's safe ones, such as editor::SelectAll. An action that could quit, run code, answer a consent or delete stays refused even when listed here.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1388,7 +1538,7 @@ fn assistant_section() -> [SettingsPageItem; 4] {
     [
         SettingsPageItem::SectionHeader("Marley Agent"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Marley Agent",
+            title: "Marley agent",
             description: "Marley's own agent, told to explain and configure Marley with Marley's tools and kept from editing files. Each settings change it proposes waits for your Apply.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1438,7 +1588,7 @@ fn assistant_section() -> [SettingsPageItem; 4] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Marley's Folder",
+            title: "Marley's folder",
             description: "The folder the Marley agent's conversations start in; ~/ is your home folder, and a missing folder is made. Empty, Marley's settings folder, where the agent can read the settings it changes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1472,7 +1622,7 @@ fn push_section() -> [SettingsPageItem; 8] {
     [
         SettingsPageItem::SectionHeader("Push"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Server",
+            title: "Push server",
             description: "An ntfy server on this machine, such as http://127.0.0.1:8090. When an agent you are not looking at needs a permission or an answer, finishes or fails, Marley pushes one line to it, which the ntfy app shows on your phone. Empty pushes nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1497,7 +1647,7 @@ fn push_section() -> [SettingsPageItem; 8] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Topic",
+            title: "Push topic",
             description: "The ntfy topic the phone subscribes to.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1522,7 +1672,7 @@ fn push_section() -> [SettingsPageItem; 8] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Token File",
+            title: "Push token file",
             description: "A file holding the ntfy access token Marley sends, readable by you alone. Empty sends none.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1548,7 +1698,7 @@ fn push_section() -> [SettingsPageItem; 8] {
         }),
         // Marley: each kind of event pushed or not (#752).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Approvals",
+            title: "Push approvals",
             description: "Whether an agent that needs a permission pushes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1573,7 +1723,7 @@ fn push_section() -> [SettingsPageItem; 8] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Questions",
+            title: "Push questions",
             description: "Whether an agent that asks a question pushes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1598,7 +1748,7 @@ fn push_section() -> [SettingsPageItem; 8] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Finished Turns",
+            title: "Push finished turns",
             description: "Whether an agent whose turn finished pushes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1623,7 +1773,7 @@ fn push_section() -> [SettingsPageItem; 8] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Push Failures",
+            title: "Push failures",
             description: "Whether an agent whose turn failed pushes.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1735,7 +1885,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: #548, the account the cloudflare provider runs Jev in.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Cloudflare Account ID",
+            title: "Cloudflare account ID",
             description: "The Cloudflare account the cloudflare provider runs Jev in. Its API token comes from MARLEY_CLOUDFLARE_API_TOKEN, or Set Cloudflare Token in System One calls.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1785,7 +1935,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Daily Budget",
+            title: "Daily budget",
             description: "The most the layer spends in a day, in cents. Once it is spent, calls wait for the next day.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1835,7 +1985,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Price per Million Tokens",
+            title: "Price per million tokens",
             description: "The compatible provider's price, in cents per million input tokens, which the daily budget counts.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1892,7 +2042,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the stop kind's mode (#566).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Stop Kind",
+            title: "Stop kind",
             description: "The mode of the stop kind, which says on an idle Claude Code's rail row what its stop needs: done and checked, done and only claimed, a question for you, a block, or work still going. Shadow logs it in System One calls, Suggest adds it after idle with a question mark, and Act shows it in place of idle.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1924,7 +2074,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of browser_find (#567).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Browser Find",
+            title: "Browser find",
             description: "The mode of browser_find, an agents' tool that finds the element of a page a query in words names, such as the sign in button: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in System One calls, Suggest gives the model's candidates to check, and Act gives the element to act on when the model is sure.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1956,7 +2106,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of terminal_find (#567).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Terminal Find",
+            title: "Terminal find",
             description: "The mode of terminal_find, an agents' tool that finds the line of a block's output a query in words names, such as where the server refused the connection: by the query's words first, then by the model for what the words leave open. Off, agents do not see the tool. Shadow answers by the words and logs the model in System One calls, Suggest gives the model's candidates to check, and Act gives the line when the model is sure.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -1988,7 +2138,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the stall kind (#569).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Stall Kind",
+            title: "Stall kind",
             description: "The mode of the stall kind, which flags a working Claude Code's rail row looping? when it repeats one step and stalled? when it has gone quiet with nothing running, from Marley's own facts first and the model for the quiet case. It never stops the agent. Shadow logs in System One calls, Suggest shows the flag, and Act adds a notification.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2020,7 +2170,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the click consequence (#571).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Click Consequence",
+            title: "Click consequence",
             description: "The mode of the click consequence, which holds an agent's click in a Browser tab that pays, deletes, sends in your name or changes an account until you Allow or Refuse it, from Marley's own rules first and the model for a click the rules leave open. Off makes no pause. Shadow pauses on the rules and logs the model, Suggest adds a notice after an open click the model reads as consequential, and Act pauses on it too.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2052,7 +2202,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the inbox's risk chips (#568).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Inbox Risk",
+            title: "Inbox risk",
             description: "The mode of the inbox's risk chips, which mark what an agent waits on in the rail's inbox (destroys, credentials, rewrites history, sends out, installs, outside project, claims approval) and put what matters most first, from Marley's own rules first and the model for what the rules found nothing on. Nothing here answers a prompt. Off keeps the inbox oldest first with no chips. Shadow shows the rules' chips and order and logs the model, Suggest shows the model's chips with a question mark, and Act lets them order the inbox too.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2084,7 +2234,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the question route (#570).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Question Route",
+            title: "Question route",
             description: "The mode of the question route, which marks each entry of the rail's inbox with who should answer it: you, a manager agent, the agent itself (could proceed), or unclear, from Marley's own rules first and the model for what the rules leave open. Nothing here answers anything. Off shows no marks. Shadow shows the rules' marks and logs the model, Suggest shows the model's marks with a question mark, and Act lets the marks order the inbox within each level too.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2116,7 +2266,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the running error (#572).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Running Error",
+            title: "Running error",
             description: "The mode of the running error, which tells a command that keeps running, such as a dev server, when it prints a failure and is still running five seconds later: a red mark on its rail row with the line, a notification when the terminal is not in front, and another when it recovers. The lines' shapes decide first; the model reads only the lines they leave open. Shadow logs the model in System One calls, Suggest marks its failures with a question mark and no notification, and Act treats them as the shapes'. Off watches nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2148,7 +2298,7 @@ fn system_one_section() -> [SettingsPageItem; 20] {
         }),
         // Marley: the mode of the typed line (#573).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Typed Line",
+            title: "Typed line",
             description: "The mode of the typed line, which reads a line typed at a shell's prompt that Marley's own rules leave open, a command's name followed by plain words, as a command, a request, a comment, or a command followed by English. It asks only after 250 ms without typing, never for a line holding a secret, and never holds up Enter. Shadow logs the reading in System One calls, Suggest shows it after the line with a question mark, and Act shows it plainly and colours the words a command would take as arguments. Off asks nothing.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2298,7 +2448,7 @@ fn rusty_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: Rusty's MCP server for Zed's agents (#633), in the Agents section until #643.
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Rusty Tools for Agents",
+            title: "Rusty tools for agents",
             description: "Whether Zed's agents get Rusty's tools, its brain loop among them, through the context server rusty, while Rusty is on and rusty-mcp is found. A rusty entry of your own in context_servers wins.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2324,7 +2474,7 @@ fn rusty_section() -> [SettingsPageItem; 7] {
         }),
         // Marley: where Rusty's agent's conversations start (#780).
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Rusty Agent's Folder",
+            title: "Rusty agent's folder",
             description: "The folder Rusty's agent's conversations start in; ~/ is your home folder, and a missing folder is made. Empty, the vault folder Rusty stores, else ~/.rusty/brain.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2397,7 +2547,7 @@ fn privacy_section() -> [SettingsPageItem; 3] {
     [
         SettingsPageItem::SectionHeader("Privacy"),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Telemetry Diagnostics",
+            title: "Telemetry diagnostics",
             description: "Send debug information like crash reports to Zed's servers.",
             field: Box::new(SettingField {
                 organization_override: None,
@@ -2419,7 +2569,7 @@ fn privacy_section() -> [SettingsPageItem; 3] {
             files: USER,
         }),
         SettingsPageItem::SettingItem(SettingItem {
-            title: "Telemetry Metrics",
+            title: "Telemetry metrics",
             description: "Send anonymized usage data to Zed's servers.",
             field: Box::new(SettingField {
                 organization_override: None,

@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Settings and the keymap as the boards draw them** (#941, 2026-10-28). Each section in the
+  Settings window's list has a small lettered tile. On the Marley page, Layout reads Marley | Zed,
+  the prompt's settings have a section of their own, and a new switch lets an agent's text run the
+  full width of its tab (Zed's own `agent.limit_content_width`, inverted). Every title is in
+  sentence case. The keymap's columns read Action, Arguments, Keys, Where and From, and From says
+  Yours, Zed or Marley: Marley's bindings are their own source now. Search by keystroke is a "Find
+  by keys" button. The dialog that records new keys says "New keys for …", names the binding the
+  keys would clash with ("Also …, in …"), and its button reads Save Anyway once the clash shows.
 - **Rusty's Server, Secrets and Skills as the boards draw them** (#940, 2026-10-28). The Rusty's
   Server page opens with where it lives and that Marley keeps no copy of Rusty's settings. A card
   then shows the connection: Connected and how long ago Rusty last answered, how Marley reaches it,

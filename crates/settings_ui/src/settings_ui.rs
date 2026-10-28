@@ -1455,8 +1455,10 @@ fn render_settings_item_layout(
     sub_field: bool,
     cx: &mut Context<'_, SettingsWindow>,
 ) -> Stateful<Div> {
-    // Marley: a Marley row's reset reads "changed · reset", and its key shows under it (#844).
-    let marley = marley_row(json_path);
+    // Marley: a Marley row's reset reads "changed · reset", and its key shows under it (#844); a
+    // row of Zed's key on the Marley page draws the same (#941).
+    let marley =
+        marley_row(json_path) || settings_window.current_page().title == marley_page::PAGE_TITLE;
     let (reset_fn, marley_reset) = if marley {
         (None, reset_fn)
     } else {
@@ -3314,6 +3316,14 @@ impl SettingsWindow {
                                         )
                                         .track_focus(&entry.focus_handle)
                                         .root_item(entry.is_root)
+                                        // Marley: each section's tile, as the Settings board
+                                        // draws the list (#941).
+                                        .when(entry.is_root, |item| {
+                                            item.start_slot(marley_page::section_tile(
+                                                entry.title,
+                                                cx,
+                                            ))
+                                        })
                                         .toggle_state(this.is_navbar_entry_selected(entry_index))
                                         .when(entry.is_root, |item| {
                                             item.expanded(entry.expanded || this.has_query)
