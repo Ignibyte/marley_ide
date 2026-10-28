@@ -5430,7 +5430,7 @@ impl Rail {
                     div().px_1().py_1().child(
                         crate::states::EmptyState::new(
                             "rh",
-                            "The harness is not running",
+                            "The harness is stopped",
                             stopped_line,
                         )
                         .broken()

@@ -594,6 +594,25 @@ impl MarleyHome {
 
     /// The projects the chip offers (#867): the window's open ones but Home's own, then the recent
     /// ones not open, each by its name and folders.
+    /// Whether a group in the window, Home's own project aside, has a folder open (#943).
+    fn window_has_project(&self, cx: &App) -> bool {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return false;
+        };
+        let own = workspace.entity_id();
+        workspace
+            .read(cx)
+            .multi_workspace()
+            .and_then(WeakEntity::upgrade)
+            .is_some_and(|multi| {
+                multi
+                    .read(cx)
+                    .workspaces()
+                    .filter(|other| other.entity_id() != own)
+                    .any(|other| !worktree_paths(other.read(cx).project().read(cx), cx).is_empty())
+            })
+    }
+
     fn project_choices(&self, cx: &App) -> Vec<(&'static str, Vec<ProjectChoice>)> {
         let mut open: Vec<ProjectChoice> = Vec::new();
         // Home's own project is the menu's Home entry, so Recent leaves it out too.
@@ -693,20 +712,8 @@ impl MarleyHome {
             return muted("Reading your recent projects…");
         };
         if recent.is_empty() {
-            // The States board's card (#857).
-            return crate::states::EmptyState::new(
-                "..",
-                "No recent projects",
-                "Open a folder, clone one, or start an agent in your home folder.",
-            )
-            .action(
-                "Open a Folder",
-                crate::prompts::Role::Primary,
-                |window, cx| {
-                    window.dispatch_action(Box::new(workspace::Open::DEFAULT), cx);
-                },
-            )
-            .render(0, cx);
+            // The "No project open" card sits over the grid now (#943).
+            return muted("No recent projects yet.");
         }
         v_flex()
             .children(recent.iter().enumerate().map(|(index, recent)| {
@@ -1123,6 +1130,14 @@ impl Render for MarleyHome {
         let colors = cx.theme().colors();
         let background = colors.editor_background;
         let cards = self.cards(window, cx);
+        // The States board's card while no group in the window has a folder open (#943).
+        let no_project = (!self.window_has_project(cx)).then(|| {
+            div()
+                .flex()
+                .justify_center()
+                .w_full()
+                .child(crate::states::no_project_card(cx))
+        });
         v_flex()
             .id("marley-home")
             .track_focus(&self.focus_handle)
@@ -1149,6 +1164,7 @@ impl Render for MarleyHome {
                     .child(self.render_prompt(cx))
                     .child(self.render_start(cx)),
             )
+            .children(no_project)
             .child(
                 h_flex()
                     .debug_selector(|| "marley-home-cards".into())

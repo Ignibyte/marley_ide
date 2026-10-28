@@ -143,6 +143,12 @@ pub struct MarleyFilesFilter(pub fn(&App) -> bool);
 
 impl gpui::Global for MarleyFilesFilter {}
 
+/// Marley: while set, the panel with no folder draws this in place of Zed's empty state, inside
+/// the same wrapper so a folder can still be dropped on it (#943).
+pub struct MarleyProjectEmptyState(pub fn(&App) -> AnyElement);
+
+impl gpui::Global for MarleyProjectEmptyState {}
+
 pub struct ProjectPanel {
     // Marley: the Find a file field and its text, lowercased (#923).
     marley_filter: Option<Entity<Editor>>,
@@ -8245,10 +8251,14 @@ impl Render for ProjectPanel {
             let workspace = self.workspace.clone();
             let workspace_clone = self.workspace.clone();
 
+            // Marley: the States board's "No project open" card in place of Zed's (#943).
+            let marley_empty = cx
+                .try_global::<MarleyProjectEmptyState>()
+                .map(|look| (look.0)(cx));
             v_flex()
                 .id("empty-project_panel-wrapper")
                 .size_full()
-                .child(
+                .children(marley_empty.is_none().then(|| {
                     ProjectEmptyState::new(
                         "Project Panel",
                         focus_handle.clone(),
@@ -8270,8 +8280,9 @@ impl Render for ProjectPanel {
                                 window.dispatch_action(git::Clone.boxed_clone(), cx);
                             })
                             .log_err();
-                    }),
-                )
+                    })
+                }))
+                .children(marley_empty)
                 .when(is_local, |div| {
                     div.when(panel_settings.drag_and_drop, |div| {
                         div.drag_over::<ExternalPaths>(|style, _, _, cx| {

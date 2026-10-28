@@ -1,7 +1,7 @@
 ---
 pipeline_id: c060374e-4538-44b2-8dd7-a52f9b838a02
 ticket: docs/planning/tickets/open/TICKET-943-states-and-theme-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Empty states and theme details as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -87,8 +87,8 @@ opened with `workspace: new window`, which holds Home's group only.
 - `943-02-files`: the same window with Files shown: the card in the panel (REQ-002).
 - `943-03-harness`: the repository's window: the rail's harness card, "The harness is stopped"
   (REQ-003).
-- `943-04-ring`: the README edited and closed, Right pressed until Save is chosen: the lighter ring
-  round Save (REQ-004).
+- `943-04-ring`, `943-04-ring-day`: the README edited and closed, Right and Left back to Save: the
+  lighter ring round Save (REQ-004).
 - `943-05-about`: `zed: about`: both sentences under the headline (REQ-005).
 - `943-06-day`: Marley Day: the new window's Home card and the chosen Save with its ring (REQ-001,
   REQ-004).

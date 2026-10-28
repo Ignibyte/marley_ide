@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-943](open/TICKET-943-states-and-theme-as-the-board.md) | feature | Empty states and theme details as the board draws them (design review 2026-10-23) |
 | [TICKET-944](open/TICKET-944-open-and-connect-as-the-board.md) | feature | Remote folders, layouts and About as the board draws them (design review 2026-10-23) |
 | [TICKET-945](open/TICKET-945-system-pages-as-the-board.md) | feature | The system pages as the board draws them (design review 2026-10-23) |
 | [TICKET-946](open/TICKET-946-forge-as-the-board.md) | feature | Forge's board and online agents as the board draws them (design review 2026-10-23) |

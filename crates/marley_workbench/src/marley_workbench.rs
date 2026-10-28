@@ -1274,6 +1274,7 @@ pub fn init(cx: &mut App) {
     tab_tiles::init(cx);
     sessions_page::init(cx);
     search_looks::init(cx);
+    states::init(cx);
     panel_group::init(cx);
     component_tools::init(cx);
     browser_pages::init(cx);

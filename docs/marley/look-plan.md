@@ -196,7 +196,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 - **Editor pop-ups** (EditorPopups; completions, hover and code actions done, #856, 2026-10-22;
   Ask an agent to fix this and the rename note done, #899; inline assist's line done, #900; kind words, the prediction note, inline diagnostics, and search, recent, branch and extension words, #942, 2026-10-28): completions, hover, code actions,
   rename, inline assist.
-- **Empty and error states** (States; done, #857 and #894, 2026-10-22): no project, no threads, no filter match, Rusty dropped,
+- **Empty and error states** (States; done, #857 and #894, 2026-10-22; No project open on Home and in Files, the harness's words, the ring on a chosen primary button and About's second sentence, #943, 2026-10-28): no project, no threads, no filter match, Rusty dropped,
   Chromium missing, an agent CLI missing, forge offline, the harness stopped.
 - **Motion and focus** (States; the needs-you pulse done, #858, 2026-10-22; the labels' fade and one focus ring done, #895): the rail's shrink, the needs-you pulse (two pulses, then still),
   one focus ring everywhere, reduced motion honored.

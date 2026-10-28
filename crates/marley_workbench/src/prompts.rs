@@ -7,7 +7,7 @@
 
 use std::rc::Rc;
 
-use gpui::{AnyElement, App, Div, FontWeight, Global, Hsla, Stateful, Window, px};
+use gpui::{AnyElement, App, BoxShadow, Div, FontWeight, Global, Hsla, Stateful, Window, px};
 use ui::prelude::*;
 use ui_prompt::{MarleyPrompt, MarleyPromptLook};
 
@@ -102,7 +102,9 @@ fn card(prompt: &MarleyPrompt<'_>, _window: &mut Window, cx: &mut App) -> Option
         .rev()
         .map(|(index, (label, role))| {
             let answer = Rc::clone(&prompt.answer);
-            let chosen = index == prompt.active && index != 0;
+            // The default is marked only once chosen, but a primary default is what Enter
+            // presses, so it carries its ring from the start (#943).
+            let chosen = index == prompt.active && (index != 0 || *role == Role::Primary);
             render_button(index, label, *role, chosen, cx)
                 .on_click(move |_, window, cx| answer(index, window, cx))
         })
@@ -253,7 +255,8 @@ pub(crate) fn primary_fill(cx: &App) -> Hsla {
 
 /// A button as the board draws its role: quiet on nothing, plain filled with a border, primary and
 /// danger solid in the accent or the error colour with dark ink. A chosen button (the arrow keys')
-/// has a focus border.
+/// has a focus border; a chosen primary one keeps its fill's border and draws a 2 px ring outside
+/// it in a lighter colour instead (#943, D3).
 pub(crate) fn render_button(
     index: usize,
     label: &str,
@@ -278,11 +281,15 @@ pub(crate) fn render_button(
             (Some(error), Some(error), Color::Custom(colors.background))
         }
     };
-    let border = if chosen {
+    let ring = chosen && matches!(role, Role::Primary);
+    let border = if chosen && !ring {
         Some(colors.border_focused)
     } else {
         border
     };
+    // The focus colour 60% of the way to the text's: light on Night, dark on Day, apart from the
+    // fill either way.
+    let ring_color = colors.border_focused.blend(colors.text.opacity(0.6));
     h_flex()
         .id(("marley-prompt", index))
         .h(px(30.))
@@ -291,6 +298,11 @@ pub(crate) fn render_button(
         .border_1()
         .border_color(border.unwrap_or_else(gpui::transparent_black))
         .when_some(fill, Styled::bg)
+        .when(ring, |button| {
+            button.shadow(vec![
+                BoxShadow::new(px(0.), px(0.), ring_color).spread_radius(px(2.)),
+            ])
+        })
         .when(fill.is_none(), |button| {
             button.hover(|style| style.bg(colors.ghost_element_hover))
         })

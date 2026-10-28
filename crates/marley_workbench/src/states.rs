@@ -6,7 +6,8 @@
 
 use std::rc::Rc;
 
-use gpui::{App, Window};
+use gpui::{AnyElement, App, Window};
+use project_panel::MarleyProjectEmptyState;
 use ui::prelude::*;
 
 use crate::prompts::{Role, render_button};
@@ -109,4 +110,34 @@ impl EmptyState {
             }))
             .into_any_element()
     }
+}
+
+/// The "No project open" card, as the States board draws it: Home and the Files panel show it while
+/// no folder is open (#943).
+pub(crate) fn no_project_card(cx: &App) -> AnyElement {
+    EmptyState::new(
+        "..",
+        "No project open",
+        "Open a folder, clone one, or start an agent in your home folder.",
+    )
+    .action("Open a Folder", Role::Primary, |window, cx| {
+        window.dispatch_action(Box::new(workspace::Open::DEFAULT), cx);
+    })
+    .render(0, cx)
+}
+
+/// The Files panel's state with no folder: the card, centred.
+fn files_empty_state(cx: &App) -> AnyElement {
+    v_flex()
+        .size_full()
+        .items_center()
+        .justify_center()
+        .p_4()
+        .child(no_project_card(cx))
+        .into_any_element()
+}
+
+/// Sets the Files panel's empty state; [`crate::init`] calls it once.
+pub(crate) fn init(cx: &mut App) {
+    cx.set_global(MarleyProjectEmptyState(files_empty_state));
 }

@@ -6461,3 +6461,15 @@ prints each byte.
 - The note follows a prediction drawn as grey text, in both the `Inline` and `TabAccept` modes, on
   the editor's background. `default.json` turns `diagnostics.inline` on.
 
+## No project open, the ring and About (`src/states.rs`, `src/prompts.rs`, #943)
+
+- `states::no_project_card` is the States board's "No project open" card with Open a Folder.
+  - Home draws it over its grid while `MarleyHome::window_has_project` finds no other group with a
+    folder.
+  - `states::init` sets project_panel's `MarleyProjectEmptyState(files_empty_state)`, so the
+    Files panel with no folder draws it centred.
+- `prompts::render_button` draws a chosen Primary with a 2 px `BoxShadow` ring
+  (`border_focused` blended 60% toward the text colour) in place of the focus border. A Primary
+  default counts as chosen from the start.
+- The harness card reads "The harness is stopped", and About's line has its second sentence.
+

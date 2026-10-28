@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Empty states and theme details as the boards draw them** (#943, 2026-10-28). A window with no
+  folder open shows "No project open" with Open a Folder, on Home and in the Files panel. The rail's
+  harness card says "The harness is stopped". The orange button a prompt will press when you hit
+  Enter wears a light ring (deep brown in Marley Day). About adds "Her coat is the color you act
+  with, her eyes the color of things done."
 - **Search and the editor's pop-ups in the board's words** (#942, 2026-10-28). Project search opens
   with its Replace field showing ("Replace with"). Open Recent reads "Open a recent project", the
   branch picker "Switch to a branch, or name a new one", and an extension with a newer version

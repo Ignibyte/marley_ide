@@ -1635,7 +1635,9 @@ fn open_about_window(cx: &mut App) {
                             .when(self.is_marley, |this| {
                                 this.child(
                                     Label::new(
-                                        "Named for Marley: a solid orange cat with green eyes.",
+                                        "Named for Marley: a solid orange cat with green eyes. \
+                                         Her coat is the color you act with, her eyes the color \
+                                         of things done.",
                                     )
                                     .color(Color::Muted)
                                     .size(LabelSize::Small),

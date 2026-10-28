@@ -71,7 +71,30 @@
   has padding round its buttons.
 
 ## Phase 2 — Code
+- **Built:** as the design names, with both ledger rows written first.
+  - `MarleyProjectEmptyState` takes `fn(&App) -> AnyElement`, not the window: `panel_settings`
+    borrows `cx` across the empty branch, and the card needs only `&App`.
+  - `marley_workbench` already depended on `project_panel`.
+- **Gate:** GREEN, and again on the final tree.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/943-states-and-theme-as-the-board.sh` (sway).
+- **Red, the code's, fixed:** a prompt's first action is its default and was never drawn as chosen
+  (`index != 0`). Save is index 0, so the ring could not show. A Primary default now counts as
+  chosen, because it is what Enter presses. The scenario goes Right and back Left to choose it
+  with the arrow keys.
+- **Shots:**
+  - `943-03-harness`: "The harness is stopped".
+  - `943-04-ring`, `943-04-ring-day`: Save with a light peach ring in Night and a deep brown one in
+    Day.
+  - `943-05-about`: both sentences.
+  - `943-01-home`: the new window's Home with "No project open" and Open a Folder over the grid.
+  - `943-02-files`: the Files panel with the card.
+  - `943-06-day`: the same in Marley Day.
 
 ## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`, `docs/marley/look-plan.md`, the architecture note, and the ledger
+  rows.
+- **Knowledge:** F-claude-943-a-prompts-primary-default-was-never-drawn-as-chosen-001.
+- **Brain:** consultation 0a73ead053ac45508e89e23a96b8a014 closed with `brain no-decision`.
+- **Ticket:** closed.

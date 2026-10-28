@@ -4618,3 +4618,12 @@ The edit question's task line first read "repo — bash · /mnt/…/work.104gfK/
 project key (`project_key`, the caller's project or folder) is the folder's whole path, kept that
 way because approvals are stored by it. The line now names the folder (`Path::file_name`), as the
 rail does. A value that keys a store is not a label; name it for the screen where it is shown.
+
+## F-claude-943-a-prompts-primary-default-was-never-drawn-as-chosen-001
+*found: 2026-10-28 · while: testing #943 · severity: low*
+
+`prompts::render_prompt` passed `chosen = index == prompt.active && index != 0`, so a prompt's
+first action, its default, was never drawn as chosen. Save is a save prompt's index 0, so the new
+ring for a chosen primary button could never show, and arrowing back to Save marked nothing.
+Fixed: a Primary default counts as chosen, since Enter presses it. A look meant for "the button
+Enter presses" is tested on a prompt whose default is that button.
