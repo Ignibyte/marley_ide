@@ -6602,3 +6602,14 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** a change to how predictions look covers `TabAccept` as well as `Inline`. A scenario
   can drive one with an Ollama stand-in on `/api/generate`, whose answer needs `created_at` and
   `response` and a FIM model name (`codellama:7b`).
+
+## L-claude-945-a-row-that-compares-files-reads-them-when-the-page-opens-001
+
+- **Ticket:** #945, 2026-10-28.
+- **What happened:** Install and update compared the running binary with the installed one by
+  calling `canonicalize` on both inside `install_rows`, which runs on every draw. The gate's dylint
+  (`blocking_io_on_foreground`) refused it; `read_to_string` of the record in `SystemPages::new`
+  was the same fault.
+- **Lesson:** a System page row that looks at the disk gets its answer once, on the background
+  executor, when the page opens (`cx.background_spawn(futures::future::lazy(…))`, as
+  `count` and `check` do), and keeps it on the entity. The row reads only fields.

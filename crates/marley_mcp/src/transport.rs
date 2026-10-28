@@ -670,7 +670,7 @@ fn caller_path(value: &str) -> Option<String> {
 /// Inspect fix (pre-auth DoS): never allocate an attacker-chosen `Content-Length`. A hostile
 /// (unauthenticated, loopback) request with a huge length would otherwise `vec![0u8; N]` → an OOM
 /// process abort taking down the whole app, so anything over this cap is a bad request.
-const MAX_BODY_BYTES: usize = 1 << 20;
+pub const MAX_BODY_BYTES: usize = 1 << 20;
 
 /// The longest request line or header line the server reads, its line end included (#524).
 ///

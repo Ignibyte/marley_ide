@@ -157,6 +157,18 @@ impl Identity {
         }
     }
 
+    /// The browser's name and major version from its user agent, `Chrome 130`, for the Chromium
+    /// page (#945); none when the user agent names no Chrome.
+    #[must_use]
+    pub fn product(&self) -> Option<String> {
+        let version = self.user_agent.split("Chrome/").nth(1)?;
+        let major = version
+            .split('.')
+            .next()
+            .filter(|major| !major.is_empty())?;
+        Some(format!("Chrome {major}"))
+    }
+
     /// The identity of the browser on `connection`, from its own user agent.
     ///
     /// # Errors

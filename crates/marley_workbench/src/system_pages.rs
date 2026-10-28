@@ -5,6 +5,7 @@
 //! thread when the tab opens and again on their buttons; nothing on a page writes or starts
 //! anything.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use gpui::{
@@ -263,7 +264,108 @@ fn build_rows(cx: &App) -> Vec<Row> {
 }
 
 /// Install and update's rows: the running build and its binary, and how an install goes.
-fn install_rows(cx: &App) -> Vec<Row> {
+/// What `script/install-marley` wrote at the end of its last full install (#945).
+#[derive(Debug, Clone, serde::Deserialize)]
+struct InstallRecord {
+    commit: String,
+    #[serde(default)]
+    dirty: bool,
+    #[serde(default)]
+    ended: String,
+    binary: PathBuf,
+    #[serde(default)]
+    steps: Vec<InstallStep>,
+}
+
+/// One step of an install, with what it gave and how it went.
+#[derive(Debug, Clone, serde::Deserialize)]
+struct InstallStep {
+    name: String,
+    value: String,
+    result: String,
+}
+
+/// The install record, and whether this window runs the binary it installed.
+struct InstallState {
+    record: InstallRecord,
+    running_is_installed: bool,
+}
+
+/// The install record in `data_dir`, read off the main thread; none when there is none or it
+/// does not read.
+fn read_install_in(data_dir: &Path) -> Option<InstallState> {
+    let text = std::fs::read_to_string(data_dir.join("install.json")).ok()?;
+    let record: InstallRecord = serde_json::from_str(&text).log_err()?;
+    let running = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.canonicalize().ok());
+    let installed = record.binary.canonicalize().ok();
+    let running_is_installed = running.is_some() && running == installed;
+    Some(InstallState {
+        record,
+        running_is_installed,
+    })
+}
+
+/// Install and update's rows: each step of the last install with its result, and a warning
+/// while this window runs an older build than the one installed (#945); without a record, what
+/// this build is and how it is installed.
+fn install_rows(state: Option<&InstallState>, cx: &App) -> Vec<Row> {
+    if let Some(state) = state {
+        let record = &state.record;
+        let short = |commit: &str| commit.chars().take(7).collect::<String>();
+        let mut rows: Vec<Row> = record
+            .steps
+            .iter()
+            .map(|step| {
+                let mark = if step.result == "ok" {
+                    Mark::Ok
+                } else {
+                    Mark::Bad
+                };
+                Row::new(
+                    mark,
+                    step.name.clone(),
+                    step.value.clone(),
+                    step.result.clone(),
+                )
+            })
+            .collect();
+        let changes = if record.dirty {
+            ", with changes not committed"
+        } else {
+            ""
+        };
+        rows.insert(
+            0,
+            Row::new(
+                Mark::Idle,
+                "Installed",
+                format!(
+                    "commit {}{changes} · {}",
+                    short(&record.commit),
+                    record.ended
+                ),
+                "",
+            ),
+        );
+        let running_commit = AppCommitSha::try_global(cx).map(|sha| sha.full());
+        if state.running_is_installed
+            && running_commit
+                .as_deref()
+                .is_some_and(|commit| commit != record.commit)
+        {
+            let still_on = running_commit.as_deref().map(short).unwrap_or_default();
+            rows.push(Row::new(
+                Mark::Warn,
+                "Running Marley",
+                format!("still on {still_on}"),
+                "restart",
+            ));
+        }
+        return rows;
+    }
+    // With no install record, what this build is (#885).
     let commit =
         AppCommitSha::try_global(cx).map_or_else(|| "not recorded".to_string(), |sha| sha.short());
     let binary = std::env::current_exe().map_or_else(
@@ -446,15 +548,43 @@ fn mcp_rows(cx: &App) -> Vec<Row> {
             clients.len().to_string(),
         )
     };
+    // The endpoint as the System board lists it (#945).
+    let bridge = paths::data_dir().join("mcp").join("marley-mcp-bridge");
+    let refusal = crate::agent_activity::last_refusal_today(cx).map_or_else(
+        || Row::new(Mark::Idle, "Last refusal", "none today", ""),
+        |row| {
+            let code = match &row.outcome {
+                crate::agent_activity::Outcome::Refused { code, .. } => code.clone(),
+                _ => String::new(),
+            };
+            let when = row.time.get(11..16).unwrap_or_default().to_string();
+            Row::new(
+                Mark::Warn,
+                "Last refusal",
+                format!("{} · {code} · {}", row.tool, row.summary),
+                when,
+            )
+        },
+    );
+    let limit = marley_mcp::transport::MAX_BODY_BYTES / (1 << 20);
     vec![
-        Row::new(Mark::Ok, "Server", url, "running"),
+        Row::new(Mark::Ok, "Endpoint", url, "loopback only · up"),
+        Row::new(Mark::Idle, "Bridge", bridge.display().to_string(), "stdio"),
         Row::new(
             Mark::Idle,
-            "Agents' address file",
-            paths::data_dir()
-                .join("mcp-endpoint.json")
-                .display()
-                .to_string(),
+            "Tools",
+            format!(
+                "{} tools · {} write classes granted",
+                marley_mcp::served_tool_count(),
+                crate::mcp::GRANTED_WRITE_CLASSES.len()
+            ),
+            "",
+        ),
+        refusal,
+        Row::new(
+            Mark::Idle,
+            "Limits",
+            format!("request bodies ≤ {limit} MiB · loopback only"),
             "",
         ),
         paired,
@@ -462,11 +592,26 @@ fn mcp_rows(cx: &App) -> Vec<Row> {
 }
 
 /// Marley's Chromium's rows: each project's browser with its state and pages.
-fn chromium_rows(cx: &App) -> Vec<Row> {
+fn chromium_rows(cookie_sites: &HashMap<String, usize>, cx: &App) -> Vec<Row> {
+    // The guide's "Limits of the Browser tab", in a line (#945).
+    let limits = Row::new(
+        Mark::Idle,
+        "Limits",
+        "no context menus or cursor shapes · soft pages above 1× · downloads to Downloads only",
+        "",
+    );
     let Some(hub) = crate::browser::BrowserHub::try_global(cx) else {
-        return vec![Row::new(Mark::Idle, "Browsers", "none started", "")];
+        return vec![Row::new(Mark::Idle, "Chromium", "", "not started"), limits];
     };
     let hub = hub.read(cx);
+    let product = hub
+        .projects()
+        .iter()
+        .find_map(|(project, _)| hub.product_of(&project.key));
+    let chromium = product.map_or_else(
+        || Row::new(Mark::Idle, "Chromium", "", "not started"),
+        |product| Row::new(Mark::Ok, "Chromium", product, "running"),
+    );
     let tabs = hub.tabs();
     let rows: Vec<Row> = hub
         .projects()
@@ -482,8 +627,19 @@ fn chromium_rows(cx: &App) -> Vec<Row> {
             let profile = marley_browser::service::profile_in(
                 &marley_browser::service::project_dir_in(paths::data_dir(), &project.key),
             );
+            let cookies = cookie_sites
+                .get(project.key.as_ref())
+                .map(|sites| match sites {
+                    1 => " · cookies from 1 site".to_string(),
+                    sites => format!(" · cookies from {sites} sites"),
+                })
+                .unwrap_or_default();
+            let pages = match pages {
+                1 => "1 page".to_string(),
+                pages => format!("{pages} pages"),
+            };
             let (mark, value) = match state {
-                crate::browser::HubState::Showing => (Mark::Ok, format!("{pages} pages")),
+                crate::browser::HubState::Showing => (Mark::Ok, format!("{pages}{cookies}")),
                 crate::browser::HubState::Starting | crate::browser::HubState::Connecting => {
                     (Mark::Idle, "starting".to_string())
                 }
@@ -492,16 +648,19 @@ fn chromium_rows(cx: &App) -> Vec<Row> {
             Row::new(mark, project.name, profile.display().to_string(), value)
         })
         .collect();
+    let mut all = vec![chromium];
     if rows.is_empty() {
-        vec![Row::new(
+        all.push(Row::new(
             Mark::Idle,
             "Browsers",
             "no project has started its browser yet",
             "",
-        )]
+        ));
     } else {
-        rows
+        all.extend(rows);
     }
+    all.push(limits);
+    all
 }
 
 /// Fleet providers' rows: each configured store, and how it last answered when the Fleet panel
@@ -590,6 +749,12 @@ pub(crate) struct SystemPages {
     counting: Option<Task<()>>,
     /// The checks running or last run.
     checking: Option<Task<()>>,
+    /// The last install's record, read off the main thread when the tab opens (#945).
+    install: Option<InstallState>,
+    install_reading: Option<Task<()>>,
+    /// How many sites each running project browser keeps cookies for, by project key (#945).
+    cookie_sites: HashMap<String, usize>,
+    cookie_reads: Vec<Task<()>>,
 }
 
 impl SystemPages {
@@ -601,9 +766,26 @@ impl SystemPages {
             focus_handle: cx.focus_handle(),
             counting: None,
             checking: None,
+            install: None,
+            install_reading: None,
+            cookie_sites: HashMap::new(),
+            cookie_reads: Vec::new(),
         };
         pages.count(cx);
         pages.check(cx);
+        pages.install_reading = Some(cx.spawn(async move |pages, cx| {
+            let state = cx
+                .background_spawn(futures::future::lazy(
+                    |_| read_install_in(paths::data_dir()),
+                ))
+                .await;
+            pages
+                .update(cx, |pages, cx| {
+                    pages.install = state;
+                    cx.notify();
+                })
+                .log_err();
+        }));
         pages
     }
 
@@ -673,6 +855,38 @@ impl SystemPages {
         cx.notify();
     }
 
+    /// Reads how many sites each running project browser keeps cookies for (#945).
+    fn read_cookie_sites(&mut self, cx: &Context<Self>) {
+        let Some(hub) = crate::browser::BrowserHub::try_global(cx) else {
+            return;
+        };
+        let reads: Vec<(String, Task<anyhow::Result<usize>>)> = {
+            let hub = hub.read(cx);
+            hub.projects()
+                .into_iter()
+                .filter_map(|(project, _)| {
+                    let key = project.key.to_string();
+                    hub.cookie_sites_of(&key, cx).map(|read| (key, read))
+                })
+                .collect()
+        };
+        self.cookie_reads = reads
+            .into_iter()
+            .map(|(key, read)| {
+                cx.spawn(async move |pages, cx| {
+                    if let Some(sites) = read.await.log_err() {
+                        pages
+                            .update(cx, |pages, cx| {
+                                pages.cookie_sites.insert(key, sites);
+                                cx.notify();
+                            })
+                            .log_err();
+                    }
+                })
+            })
+            .collect();
+    }
+
     fn data_rows(&self) -> Vec<Row> {
         self.folders
             .iter()
@@ -697,11 +911,11 @@ impl SystemPages {
         match self.page {
             Page::Build => build_rows(cx),
             Page::Data => self.data_rows(),
-            Page::Install => install_rows(cx),
+            Page::Install => install_rows(self.install.as_ref(), cx),
             Page::Trouble => trouble_rows(self.checks.as_ref(), cx),
             Page::Shell => shell_rows(),
             Page::Mcp => mcp_rows(cx),
-            Page::Chromium => chromium_rows(cx),
+            Page::Chromium => chromium_rows(&self.cookie_sites, cx),
             Page::Fleet => fleet_rows(cx),
             Page::Developers => developer_rows(),
         }
@@ -740,6 +954,9 @@ impl SystemPages {
                     .hover(|style| style.bg(colors.ghost_element_hover))
                     .on_click(cx.listener(move |pages, _, _, cx| {
                         pages.page = page;
+                        if page == Page::Chromium {
+                            pages.read_cookie_sites(cx);
+                        }
                         cx.notify();
                     }))
                     .child(
@@ -767,17 +984,63 @@ impl SystemPages {
                 button(1, "Count again", Role::Quiet)
                     .on_click(cx.listener(|pages, _, _, cx| pages.count(cx))),
             ],
-            Page::Install => vec![
-                button(0, "Open the logs", Role::Plain)
-                    .on_click(cx.listener(|_, _, _, cx| cx.reveal_path(paths::logs_dir()))),
-            ],
+            Page::Install => vec![button(0, "Open the log", Role::Plain).on_click(cx.listener(
+                |_, _, window, cx| {
+                    window.dispatch_action(Box::new(workspace::OpenLog), cx);
+                },
+            ))],
             Page::Trouble => vec![
                 button(0, "Run the checks again", Role::Plain)
                     .on_click(cx.listener(|pages, _, _, cx| pages.check(cx))),
                 button(1, "Copy a report", Role::Quiet)
                     .on_click(cx.listener(|pages, _, _, cx| pages.copy_report(cx))),
             ],
-            Page::Shell | Page::Mcp | Page::Chromium | Page::Fleet | Page::Developers => Vec::new(),
+            // The System board's buttons for the other pages (#945).
+            Page::Shell => vec![
+                button(0, "Open the guide", Role::Plain)
+                    .on_click(cx.listener(|_, _, window, cx| open_guide(window, cx))),
+            ],
+            Page::Mcp => vec![
+                button(0, "Open Agent Activity", Role::Plain).on_click(cx.listener(
+                    |_, _, window, cx| {
+                        window.dispatch_action(
+                            Box::new(crate::agent_activity::OpenAgentActivity),
+                            cx,
+                        );
+                    },
+                )),
+                button(1, "Copy the endpoint", Role::Quiet).on_click(cx.listener(|_, _, _, cx| {
+                    if let Some(url) = crate::clients::server_url(cx) {
+                        cx.write_to_clipboard(ClipboardItem::new_string(url));
+                    }
+                })),
+            ],
+            Page::Chromium => Vec::new(),
+            Page::Fleet => vec![
+                button(0, "Add a provider", Role::Plain).on_click(cx.listener(
+                    |_, _, window, cx| {
+                        window.dispatch_action(Box::new(zed_actions::OpenSettingsFile), cx);
+                    },
+                )),
+                button(1, "Open Settings", Role::Quiet).on_click(cx.listener(
+                    |_, _, window, cx| {
+                        window.dispatch_action(
+                            Box::new(zed_actions::OpenSettingsAt {
+                                path: "marley".to_string(),
+                                target: None,
+                            }),
+                            cx,
+                        );
+                    },
+                )),
+            ],
+            Page::Developers => vec![
+                button(0, "Open the plan", Role::Plain).on_click(cx.listener(|_, _, _, cx| {
+                    cx.open_url(PLAN_URL);
+                })),
+                button(1, "Open the guide", Role::Quiet)
+                    .on_click(cx.listener(|_, _, window, cx| open_guide(window, cx))),
+            ],
         }
     }
 
@@ -927,4 +1190,12 @@ impl Item for SystemPages {
     fn show_toolbar(&self) -> bool {
         false
     }
+}
+
+/// The public plan Marley follows, for For developers (#945).
+const PLAN_URL: &str = "https://github.com/Ignibyte/marley_ide/blob/marley/workbench-shell/docs/marley/three-prong-plan.md";
+
+/// Opens Marley's guide in a tab.
+fn open_guide(window: &mut Window, cx: &mut App) {
+    window.dispatch_action(Box::new(crate::OpenGuide), cx);
 }

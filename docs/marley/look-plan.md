@@ -189,7 +189,7 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
 | Workflows (Save and Run done, #852, 2026-10-21), launch configs (approval done, #882), the block filter (done, #889), 2026-10-22 | Workflows, OpenConnect |
 | Splits (focused pane done, #853; switcher done, #883; 2026-10-22; tinted by kind with state dots, #905, 2026-10-25), ports, containers, collab (done, #890, 2026-10-22) | Splits |
 | Project search, branches and extensions (done, #891), recent (done, #854), the guide's look (done, #884), 2026-10-22; the guide's Try it (done, #897; history is Zed's git panel's History tab) | SearchMore |
-| New pages: this build, data folders (done, #855), troubleshooting and the rest (done, #885), 2026-10-22 | SystemPages |
+| New pages: this build, data folders (done, #855), troubleshooting and the rest (done, #885), 2026-10-22; the install record, the MCP and Chromium rows and every page's buttons (done, #945, 2026-10-28) | SystemPages |
 
 ## Wave 6: polish
 

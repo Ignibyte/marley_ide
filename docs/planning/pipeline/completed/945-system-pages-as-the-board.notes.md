@@ -88,7 +88,69 @@
   script (`:130`, `:344`), so no escaping beyond that is needed.
 
 ## Phase 2 — Code
+- **Built:**
+  - `script/install-marley`: `write_install_record` (python3 writes `install.json` to a temporary
+    name and renames it), timed builds, called at the end of the Linux install (toolchain, build,
+    remote server, desktop entry) and the macOS one (toolchain, build, app). `--remote-server-only`
+    exits before it, so it writes none (REQ-007).
+  - `system_pages.rs`: `InstallRecord`, `InstallStep`, `InstallState`; `read_install_in` on the
+    background executor when the tab opens; `install_rows` with the stale-build warning; `mcp_rows`
+    with Endpoint, Bridge, Tools, Last refusal, Limits; `chromium_rows` with the version, pages and
+    cookie sites, and the limits; `read_cookie_sites` when the Chromium page is chosen; the buttons.
+  - `browser.rs` (`product_of`, `cookie_sites_of`), `marley_browser/src/page.rs`
+    (`Identity::product`), `marley_mcp/src/transport.rs` (`MAX_BODY_BYTES` public), `mcp.rs`
+    (`GRANTED_WRITE_CLASSES`), `agent_activity.rs` (`last_refusal_today`).
+- **Deviations:**
+  - Keys: `ended` and each step's `value`, not `finished_at` and `detail`, to match the rows' words.
+  - The record is written by python3 rather than `printf`, so a path is escaped by `json.dump`.
+  - `marley_mcp::served_tool_count` already existed; no `granted_write_classes(cx)` function: the
+    grants are a constant list, read by its length.
+  - `clients.rs` unchanged: the bridge row reads the path the page already had.
+- **Review:**
+  - The first gate failed on dylint `blocking_io_on_foreground`: `install_rows` canonicalized the
+    running and installed binaries while drawing. The read and both canonicalizations moved into
+    `read_install_in`, run on the background executor; the page keeps `InstallState`.
+  - The Chromium row read "1 pages · cookies from 1 sites"; singular words for one.
+  - The macOS call named `$app`, local to `install_mac` and empty after it returns; it names
+    `$app_dir/Marley.app` now. `git status --porcelain | head -c 1` could fail under `pipefail`
+    when git is cut off; the whole status is passed instead.
+  - Clippy: `OpenSettingsAt` needed `target: None`; unused qualifications; `map_or_else`;
+    `needless_pass_by_ref_mut` on `read_cookie_sites`.
+
+- **Gate:** `just gate-diff` green, 17 passed (after the dylint fix). The installer's later fixes are
+  outside the receipt; `shellcheck -S info script/install-marley` passes, and
+  `write_install_record` run alone under `set -euo pipefail` wrote the record shown below.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/945-system-pages-as-the-board.sh` under sway: a scratch repository, a
+  loopback page that sets one cookie, `install.json` in the run's data folder naming the debug
+  binary and commit `0000000…945`.
+- **Shots:**
+  - `945-01-install` (REQ-001, REQ-002): Installed "commit 0000000 · 2026-10-28T12:00:00-0500";
+    toolchain, build "412 s", remote server "linux-x86_64", desktop entry, each "ok" with a green
+    dot; "Running Marley · still on c210142 · restart" in the warning color; Open the log.
+  - `945-02-mcp` (REQ-003, REQ-004): Endpoint "http://127.0.0.1:…/mcp · loopback only · up", Bridge
+    with its path and "stdio", Tools "68 tools · 10 write classes granted", Last refusal "none
+    today", Limits "request bodies ≤ 1 MiB · loopback only", Paired programs; Open Agent Activity
+    and Copy the endpoint.
+  - `945-03-activity` (REQ-004): the button opened the Agent Activity tab.
+  - `945-04-chromium` (REQ-005): Chromium "Chrome 154 · running", repo's profile path with "1 page ·
+    cookies from 1 site", Limits.
+  - `945-05a-shell`, `945-05b-fleet`, `945-05c-developers` (REQ-006): Open the guide; Add a provider
+    and Open Settings; Open the plan and Open the guide.
+  - `945-06-day` (REQ-001): Install and update in Marley Day, dots and warning legible.
+- **Not seen:** the plan's refusal before the MCP shot was not driven, so Last refusal is shown only
+  in its empty state; the filled row's words come from `last_refusal_today` and were checked by
+  reading the code. REQ-007's `--remote-server-only` path exits before the record (read in the diff).
+- **Fixes from Test:** the first run showed "1 pages · cookies from 1 sites"; singular words added,
+  gate re-run, scenario re-run.
+- Nothing pre-existing failed.
 
 ## Phase 4 — Complete
+- Documented: `CHANGELOG.md` (Added), `docs/marley/look-plan.md` (SystemPages row),
+  `docs/marley_architecture/marley_workbench.md` (the System tab). No Zed path, so no ledger row.
+- Knowledge: L-claude-945-a-row-that-compares-files-reads-them-when-the-page-opens-001,
+  F-claude-945-the-macos-install-record-named-a-local-of-install-mac-001.
+- Brain: consultation 557f3e8cf0a147fdae37c12dfa11fc46 closed with no decision (the spec's
+  decisions follow the existing page shape).
+- Ticket closed; pipeline archived.

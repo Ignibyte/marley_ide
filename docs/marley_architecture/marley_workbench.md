@@ -4891,6 +4891,23 @@ below describe what #743 retired.
   Shell integration, the MCP endpoint (`clients::server_url`, `paired_clients`), Chromium
   (`BrowserHub::projects`), Fleet providers (the settings and the `Fleet` global) and For
   developers. A row is a `Row` with its `Mark`.
+- **The board's rows and buttons (#945).**
+  - `script/install-marley` ends a full install with `write_install_record`, which writes
+    `install.json` (commit, dirty, ended, binary, steps) into Marley's data folder by a rename;
+    `--remote-server-only` writes none. `read_install_in` reads it on the background executor
+    when the tab opens, with `running_is_installed` (the current exe and the record's binary,
+    both canonicalized), and `install_rows` warns "Running Marley · still on <commit> · restart"
+    when that holds and `AppCommitSha` differs.
+  - `mcp_rows` adds Endpoint, Bridge, Tools (`marley_mcp::served_tool_count`,
+    `mcp::GRANTED_WRITE_CLASSES`), Last refusal (`agent_activity::last_refusal_today`) and Limits
+    (`marley_mcp::transport::MAX_BODY_BYTES`).
+  - `chromium_rows` adds the version (`browser::product_of`, `Identity::product`) and the
+    Browser tab's limits; choosing the page runs `read_cookie_sites`, which asks each running
+    project's browser for `Storage.getCookies` (`browser::cookie_sites_of`) and keeps the count
+    of distinct domains in `cookie_sites`.
+  - `render_buttons` gives Install and update Open the log, the MCP page Open Agent Activity and
+    Copy the endpoint, Shell integration Open the guide, Fleet providers Add a provider and Open
+    Settings, and For developers Open the plan (`PLAN_URL`) and Open the guide.
 
 ## The Component Library's navigation (`src/component_library.rs`, #849)
 

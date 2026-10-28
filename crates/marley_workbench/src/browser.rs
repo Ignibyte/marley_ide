@@ -991,6 +991,45 @@ impl BrowserHub {
         self.started(generation).is_some()
     }
 
+    /// The name and version the browser of the project keyed `key` reported, once it is up
+    /// (#945).
+    pub(crate) fn product_of(&self, key: &str) -> Option<String> {
+        self.browsers
+            .iter()
+            .find(|browser| browser.project.key == key)
+            .and_then(|browser| browser.identity.as_ref())
+            .and_then(Identity::product)
+    }
+
+    /// How many sites the running browser of the project keyed `key` keeps cookies for, read
+    /// with `Storage.getCookies` (#945); none while it has no connection.
+    pub(crate) fn cookie_sites_of(
+        &self,
+        key: &str,
+        cx: &App,
+    ) -> Option<Task<anyhow::Result<usize>>> {
+        let connection = self
+            .browsers
+            .iter()
+            .find(|browser| browser.project.key == key)?
+            .connection
+            .clone()?;
+        Some(cx.background_spawn(async move {
+            let answer = connection
+                .call("Storage.getCookies", serde_json::json!({}), None)
+                .await?;
+            let sites: std::collections::BTreeSet<&str> = answer
+                .get("cookies")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|cookie| cookie.get("domain").and_then(Value::as_str))
+                .map(|domain| domain.trim_start_matches('.'))
+                .collect();
+            anyhow::Ok(sites.len())
+        }))
+    }
+
     /// Each project's browser, oldest first, with its state (#885).
     pub(crate) fn projects(&self) -> Vec<(BrowserProject, HubState)> {
         self.browsers

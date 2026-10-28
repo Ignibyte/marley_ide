@@ -165,6 +165,38 @@ cleanup_mac() {
   if [[ -n $mac_icons ]]; then rm -rf "$mac_icons"; fi
 }
 
+# Writes install.json into Marley's data folder `$1` (#945): the commit, whether the tree had
+# changes, when the install ended, the binary `$2`, and each step after them, a "name<TAB>value"
+# each, with its result. Written to a temporary name and renamed, so a reader never sees half.
+write_install_record() {
+  local data_dir=$1 binary=$2
+  shift 2
+  mkdir -p "$data_dir"
+  python3 - "$data_dir/install.json" "$(git rev-parse HEAD)" "$(git status --porcelain)" \
+    "$binary" "$@" <<'PY'
+import json
+import os
+import sys
+import time
+
+path, commit, changes, binary, *steps = sys.argv[1:]
+record = {
+    "commit": commit,
+    "dirty": bool(changes),
+    "ended": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    "binary": binary,
+    "steps": [
+        {"name": name, "value": value, "result": "ok"}
+        for name, value in (step.split("\t", 1) for step in steps)
+    ],
+}
+temporary = f"{path}.{os.getpid()}"
+with open(temporary, "w", encoding="utf-8") as file:
+    json.dump(record, file, indent=2)
+os.replace(temporary, path)
+PY
+}
+
 # The macOS install (#787).
 install_mac() {
   local root commit memory_gb jobs built version app size launcher running
@@ -198,7 +230,9 @@ install_mac() {
   fi
   wait_for_cargo
   echo "==> building marley in the release profile"
+  build_started=$SECONDS
   nice -n 10 cargo build --release -p zed --bin marley
+  build_seconds=$((SECONDS - build_started))
   built=${CARGO_TARGET_DIR:-$root/target}/release/marley
 
   echo "==> writing Marley.app into $app_dir"
@@ -331,6 +365,9 @@ if [[ $(uname -s) == Darwin ]]; then
   case $app_dir in /*) ;; *) app_dir=$PWD/$app_dir ;; esac
   refuse_unquotable "a prefix" "$prefix"
   install_mac
+  write_install_record "$HOME/Library/Application Support/Marley" "$app_dir/Marley.app/Contents/MacOS/marley" \
+    "toolchain"$'\t'"$(rustc --version)" "build"$'\t'"${build_seconds} s" \
+    "app"$'\t'"$app_dir/Marley.app"
   exit 0
 fi
 if [[ -n $mac_option ]]; then
@@ -420,7 +457,9 @@ if ((server_only)); then
 fi
 
 echo "==> building marley in the release profile"
+build_started=$SECONDS
 cargo build --release -p zed --bin marley
+build_seconds=$((SECONDS - build_started))
 stage_remote_server
 
 if ((regress)); then
@@ -492,6 +531,10 @@ EOF
 if command -v update-desktop-database >/dev/null; then
   update-desktop-database "$applications"
 fi
+
+write_install_record "${XDG_DATA_HOME:-$HOME/.local/share}/marley" "$lib/marley" \
+  "toolchain"$'\t'"$(rustc --version)" "build"$'\t'"${build_seconds} s" \
+  "remote server"$'\t'"linux-x86_64" "desktop entry"$'\t'"$entry"
 
 commit=$(git rev-parse --short HEAD)
 if [[ -n $(git status --porcelain) ]]; then

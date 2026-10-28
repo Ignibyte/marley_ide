@@ -13,6 +13,15 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The System tab's pages as the board draws them** (#945, 2026-10-28). `just install` writes
+  `install.json` into Marley's data folder, and Install and update lists its steps: the
+  toolchain, the build with its time, the remote server and the desktop entry (the app on a Mac).
+  When the Marley you are running is the installed one but an older commit, the page says "Running
+  Marley · still on <commit> · restart". Marley's MCP endpoint shows the endpoint, the bridge, the
+  tool count with the write classes granted, today's last refusal and the request limits, with
+  Open Agent Activity and Copy the endpoint. Marley's Chromium shows its version, each project's
+  pages and how many sites it keeps cookies for, and what the Browser tab cannot do. Shell
+  integration, Fleet providers and For developers gain their buttons.
 - **Remote folders, the layouts and About as the boards draw them** (#944, 2026-10-28). The
   remote-folder dialog takes an address: type `ssh://user@host/path` and its first row opens that
   folder on that host, through the saved host when you have one. Each saved host has a dot that

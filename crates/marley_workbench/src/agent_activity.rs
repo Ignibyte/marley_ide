@@ -174,6 +174,17 @@ pub(crate) struct AgentActivity {
     log: mpsc::UnboundedSender<ActivityRow>,
 }
 
+/// Today's latest refused call, for the MCP endpoint page (#945); none without one.
+pub(crate) fn last_refusal_today(cx: &App) -> Option<ActivityRow> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    cx.try_global::<AgentActivity>()?
+        .rows
+        .iter()
+        .rev()
+        .find(|row| row.time.starts_with(&today) && matches!(row.outcome, Outcome::Refused { .. }))
+        .cloned()
+}
+
 impl Global for AgentActivity {}
 
 /// Sets up the log, reads today's rows back, and registers the actions on every workspace;

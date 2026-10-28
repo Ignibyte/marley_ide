@@ -105,18 +105,7 @@ pub fn start(cx: &mut App) {
     // waits for the user's Apply (#682), as a harness seat does (#692).
     let shared: transport::Shared = Arc::new((
         Mutex::new(transport::ServerData {
-            grants: GrantTable::from_classes([
-                "browser.write",
-                "terminal.write",
-                "editor.write",
-                "settings.write",
-                "harness.write",
-                "thread.write",
-                "action.write",
-                "draft.write",
-                "review.write",
-                "agents.write",
-            ]),
+            grants: GrantTable::from_classes(GRANTED_WRITE_CLASSES),
             ..transport::ServerData::default()
         }),
         Condvar::new(),
@@ -953,6 +942,21 @@ pub(crate) fn terminal_with_id(id: u64, cx: &App) -> Result<Entity<TerminalView>
             .next(there),
     )
 }
+
+/// The write classes Marley's server grants (#492 D2, #649, #682, #692); the MCP endpoint page
+/// counts them (#945).
+pub(crate) const GRANTED_WRITE_CLASSES: [&str; 10] = [
+    "browser.write",
+    "terminal.write",
+    "editor.write",
+    "settings.write",
+    "harness.write",
+    "thread.write",
+    "action.write",
+    "draft.write",
+    "review.write",
+    "agents.write",
+];
 
 /// The terminal of Marley's a call comes from (#520), with its workspace.
 pub(crate) fn caller_terminal(

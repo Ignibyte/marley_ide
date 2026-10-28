@@ -4637,3 +4637,11 @@ the whole `SshConnectionOptions`, nickname and args included, so the typed conne
 saved host's. Fixed: an address that names a saved host (host, port, and user when given) connects
 through that host's options. Anything that asks "is this host connected" must connect with the
 same options it asks with.
+
+## F-claude-945-the-macos-install-record-named-a-local-of-install-mac-001
+*found: 2026-10-28 · while: reviewing #945 · severity: low*
+
+The macOS call to `write_install_record` passed `$app`, which `install_mac` declares `local`; after
+the function returns it is empty, so the record would have named "/Contents/MacOS/marley" as the
+binary and Install and update could never see the running build as the installed one. Fixed: the
+call names `$app_dir/Marley.app`. Code after a bash function reads only that function's globals.

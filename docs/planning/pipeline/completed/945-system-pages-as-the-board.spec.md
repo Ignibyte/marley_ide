@@ -1,7 +1,7 @@
 ---
 pipeline_id: b1ecc9ef-37e6-4e30-a7fb-8acdc64e64f7
 ticket: docs/planning/tickets/open/TICKET-945-system-pages-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: The system pages as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
