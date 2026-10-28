@@ -1288,7 +1288,17 @@ impl SshRemoteConnection {
         let size = src_stat.len();
 
         let t0 = Instant::now();
-        delegate.set_status(Some("Uploading remote development server"), cx);
+        // Marley: a dev build uploads the server built with it, and says so with its size (#944).
+        let dev = cx.update(|cx| ReleaseChannel::global(cx) == ReleaseChannel::Dev);
+        if dev {
+            let status = format!(
+                "Uploading Marley's server for this build · {} MB",
+                size.div_ceil(1_000_000)
+            );
+            delegate.set_status(Some(&status), cx);
+        } else {
+            delegate.set_status(Some("Uploading remote development server"), cx);
+        }
         log::info!(
             "uploading remote development server to {:?} ({}kb)",
             tmp_path,

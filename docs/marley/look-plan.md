@@ -198,6 +198,8 @@ Each is a ticket of its own, *S–M*, mostly layout once the theme is in:
   rename, inline assist.
 - **Empty and error states** (States; done, #857 and #894, 2026-10-22; No project open on Home and in Files, the harness's words, the ring on a chosen primary button and About's second sentence, #943, 2026-10-28): no project, no threads, no filter match, Rusty dropped,
   Chromium missing, an agent CLI missing, forge offline, the harness stopped.
+- **Open and connect** (OpenConnect, AboutMarley; done, #944, 2026-10-28): the remote-folder dialog's address row,
+  host dots and words, the upload line, the layout cards, Marley's own About.
 - **Motion and focus** (States; the needs-you pulse done, #858, 2026-10-22; the labels' fade and one focus ring done, #895): the rail's shrink, the needs-you pulse (two pulses, then still),
   one focus ring everywhere, reduced motion honored.
 

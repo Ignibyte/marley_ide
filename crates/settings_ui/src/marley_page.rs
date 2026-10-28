@@ -2675,3 +2675,125 @@ pub(crate) fn render_action_names(
         )
         .into_any_element()
 }
+
+/// One of the layouts as the Settings board's picture card draws it (#944).
+struct MarleyLayoutCard {
+    layout: settings::MarleyLayout,
+    name: &'static str,
+    line: &'static str,
+}
+
+const LAYOUT_CARDS: [MarleyLayoutCard; 2] = [
+    MarleyLayoutCard {
+        layout: settings::MarleyLayout::Marley,
+        name: "Marley",
+        line: "A rail of projects, terminals in the center.",
+    },
+    MarleyLayoutCard {
+        layout: settings::MarleyLayout::Zed,
+        name: "Zed",
+        line: "Zed's docks and a bottom panel.",
+    },
+];
+
+/// `marley.layout` as two picture cards side by side, the chosen one outlined in the accent; a
+/// click on the other writes it (#944).
+pub(crate) fn render_layout_cards(
+    field: SettingField<settings::MarleyLayout>,
+    file: crate::SettingsUiFile,
+    _metadata: Option<&crate::SettingsFieldMetadata>,
+    _title: &'static str,
+    _description: &'static str,
+    _window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let current = crate::get_current_value(cx.global::<SettingsStore>(), &file, &field, cx)
+        .map(|current| *current.value)
+        .unwrap_or_default();
+    let colors = cx.theme().colors();
+    let cards = LAYOUT_CARDS.iter().enumerate().map(|(index, card)| {
+        let picked = card.layout == current;
+        let layout = card.layout;
+        let file = file.clone();
+        v_flex()
+            .id(("marley-layout-card", index))
+            // Narrow, so the row's title and description keep room beside the cards.
+            .w(px(132.))
+            .p_2()
+            .gap_1()
+            .rounded_md()
+            .border_1()
+            .border_color(if picked {
+                colors.text_accent
+            } else {
+                colors.border
+            })
+            .bg(colors.editor_background)
+            .cursor_pointer()
+            .child(layout_diagram(layout, cx))
+            .child(Label::new(card.name).size(LabelSize::Small))
+            .child(
+                Label::new(card.line)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            )
+            .on_click(move |_, window, cx| {
+                if layout == current {
+                    return;
+                }
+                crate::update_settings_file(
+                    file.clone(),
+                    field.json_path,
+                    window,
+                    cx,
+                    move |settings, app| (field.write)(settings, Some(layout), app),
+                )
+                .log_err();
+            })
+    });
+    h_flex().gap_2().children(cards).into_any_element()
+}
+
+/// A small picture of a layout: Marley's rail beside tabs, or Zed's dock, center and bottom panel.
+fn layout_diagram(layout: settings::MarleyLayout, cx: &App) -> impl IntoElement {
+    let colors = cx.theme().colors();
+    let part = || div().rounded_sm().bg(colors.element_background);
+    let frame = h_flex()
+        .h(px(48.))
+        .w_full()
+        .p_1()
+        .gap_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(colors.border_variant);
+    match layout {
+        settings::MarleyLayout::Marley => frame
+            .child(
+                part()
+                    .w(px(24.))
+                    .h_full()
+                    .bg(colors.text_accent.opacity(0.3)),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .h_full()
+                    .gap_1()
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .child(part().w(px(20.)).h(px(6.)))
+                            .child(part().w(px(20.)).h(px(6.))),
+                    )
+                    .child(part().flex_1().w_full()),
+            ),
+        settings::MarleyLayout::Zed => frame.child(part().w(px(20.)).h_full()).child(
+            v_flex()
+                .flex_1()
+                .h_full()
+                .gap_1()
+                .child(part().flex_1().w_full())
+                .child(part().h(px(10.)).w_full()),
+        ),
+    }
+}

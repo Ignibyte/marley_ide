@@ -40,8 +40,8 @@ use std::{
 };
 
 use ui::{
-    CommonAnimationExt, HighlightedLabel, IconButtonShape, KeyBinding, ListItem, ListSeparator,
-    ModalHeader, Navigable, NavigableEntry, Tooltip, prelude::*,
+    CommonAnimationExt, HighlightedLabel, IconButtonShape, Indicator, KeyBinding, ListItem,
+    ListSeparator, ModalHeader, Navigable, NavigableEntry, Tooltip, prelude::*,
 };
 use util::{
     ResultExt,
@@ -809,7 +809,52 @@ impl Mode {
     }
 }
 
+// Marley: while set, the picker offers to open a typed `ssh://` address, dots each host by
+// whether it is connected, and words its rows as the OpenConnect board does (#944).
+pub struct MarleyRemoteLook;
+
+impl gpui::Global for MarleyRemoteLook {}
+
+// Marley: an `ssh://` address typed in the picker (#944).
+#[derive(Clone, Debug, PartialEq)]
+struct SshAddress {
+    username: Option<String>,
+    host: String,
+    port: Option<u16>,
+    path: String,
+}
+
+// Marley: reads `ssh://[user@]host[:port]/path`, or the SCP form `ssh://user@host:/path` (#944).
+fn parse_ssh_address(query: &str) -> Option<SshAddress> {
+    let rest = query.strip_prefix("ssh://")?;
+    let slash = rest.find('/')?;
+    // The SCP form, `user@host:/path`: the colon right before the first slash ends the host.
+    let (authority, path) = match rest[..slash].strip_suffix(':') {
+        Some(authority) => (authority, &rest[slash..]),
+        None => (&rest[..slash], &rest[slash..]),
+    };
+    let (username, host_port) = match authority.split_once('@') {
+        Some((user, host)) => (Some(user.to_string()), host),
+        None => (None, authority),
+    };
+    let (host, port) = match host_port.rsplit_once(':') {
+        Some((host, port)) => (host, Some(port.parse().ok()?)),
+        None => (host_port, None),
+    };
+    if host.is_empty() || path.len() < 2 {
+        return None;
+    }
+    Some(SshAddress {
+        username: username.filter(|user| !user.is_empty()),
+        host: host.to_string(),
+        port,
+        path: path.to_string(),
+    })
+}
+
 enum RemoteMatch {
+    // Marley: the typed address's folder (#944).
+    OpenAddress(SshAddress),
     AddServer,
     AddDevContainer,
     AddWsl,
@@ -848,6 +893,8 @@ struct RemoteServerPickerDelegate {
     query: String,
     has_open_project: bool,
     is_local: bool,
+    // Marley: whether `MarleyRemoteLook` was set when the picker was made (#944).
+    marley: bool,
 }
 
 impl RemoteServerPickerDelegate {
@@ -866,6 +913,7 @@ impl RemoteServerPickerDelegate {
             query: String::new(),
             has_open_project,
             is_local,
+            marley: cx.has_global::<MarleyRemoteLook>(),
         };
         this.rebuild_matches();
         this
@@ -896,6 +944,12 @@ impl RemoteServerPickerDelegate {
         let is_local = self.is_local;
 
         let mut matches = Vec::new();
+        // Marley: a typed address comes first (#944).
+        if self.marley
+            && let Some(address) = parse_ssh_address(self.query.trim())
+        {
+            matches.push(RemoteMatch::OpenAddress(address));
+        }
         if self.query.trim().is_empty() {
             matches.push(RemoteMatch::AddServer);
             if has_open_project && is_local {
@@ -994,9 +1048,20 @@ impl RemoteServerPickerDelegate {
         &self,
         server_index: usize,
         host_positions: &[usize],
+        cx: &App,
     ) -> Option<AnyElement> {
         let server = self.state.servers.get(server_index)?;
         let connection = server.connection().into_owned();
+        // Marley: a dot in the success colour while the host is connected (#944).
+        let dot = self.marley.then(|| {
+            let options: RemoteConnectionOptions = connection.clone().into();
+            let color = if remote::has_active_connection(&options, cx) {
+                Color::Success
+            } else {
+                Color::Muted
+            };
+            Indicator::dot().color(color)
+        });
         let (main_label, aux_label, is_wsl) = match &connection {
             Connection::Ssh(connection) => {
                 if let Some(nickname) = connection.nickname.clone() {
@@ -1017,6 +1082,7 @@ impl RemoteServerPickerDelegate {
                 .px_3()
                 .gap_1()
                 .overflow_hidden()
+                .children(dot)
                 .child(
                     h_flex()
                         .gap_1()
@@ -1094,6 +1160,10 @@ impl PickerDelegate for RemoteServerPickerDelegate {
     }
 
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
+        // Marley: the OpenConnect board's address hint (#944).
+        if self.marley {
+            return "ssh://user@host/path".into();
+        }
         "Search remote projects…".into()
     }
 
@@ -1145,6 +1215,44 @@ impl PickerDelegate for RemoteServerPickerDelegate {
         let remote_server_projects = self.remote_server_projects.clone();
         match entry {
             RemoteMatch::Separator | RemoteMatch::ServerHeader { .. } => {}
+            // Marley: connects and opens the typed folder, as a saved project opens (#944).
+            RemoteMatch::OpenAddress(address) => {
+                // A saved host at that address is connected through, so its connection, its
+                // nickname and its dot are the ones the folder opens with.
+                let saved = self.state.servers.iter().find_map(|server| match server {
+                    RemoteEntry::Project {
+                        connection: Connection::Ssh(saved),
+                        ..
+                    } if saved.host == address.host
+                        && saved.port == address.port
+                        && (address.username.is_none() || saved.username == address.username) =>
+                    {
+                        Some(saved.clone())
+                    }
+                    _ => None,
+                });
+                let connection = Connection::Ssh(saved.unwrap_or_else(|| SshConnection {
+                    host: address.host.clone(),
+                    username: address.username.clone(),
+                    port: address.port,
+                    ..SshConnection::default()
+                }));
+                let project = RemoteProject {
+                    paths: vec![address.path.clone()],
+                };
+                remote_server_projects
+                    .update(cx, |this, cx| {
+                        this.open_remote_project_entry(
+                            SshServerIndex(0).into(),
+                            project,
+                            connection,
+                            secondary,
+                            window,
+                            cx,
+                        );
+                    })
+                    .ok();
+            }
             RemoteMatch::AddServer => {
                 remote_server_projects
                     .update(cx, |this, cx| {
@@ -1262,10 +1370,30 @@ impl PickerDelegate for RemoteServerPickerDelegate {
             RemoteMatch::ServerHeader {
                 server,
                 host_positions,
-            } => self.render_server_header(*server, host_positions),
-            RemoteMatch::AddServer => {
-                Some(self.render_action_item(ix, IconName::Plus, "Connect SSH Server", selected))
-            }
+            } => self.render_server_header(*server, host_positions, cx),
+            // Marley: the typed address's row and the add row's words (#944).
+            RemoteMatch::OpenAddress(address) => Some(
+                ListItem::new(("remote-action", ix))
+                    .toggle_state(selected)
+                    .inset(true)
+                    .spacing(ui::ListItemSpacing::Sparse)
+                    .start_slot(Icon::new(IconName::FolderOpen).color(Color::Muted))
+                    .child(Label::new(format!(
+                        "Open {} on {}",
+                        address.path, address.host
+                    )))
+                    .into_any_element(),
+            ),
+            RemoteMatch::AddServer => Some(self.render_action_item(
+                ix,
+                IconName::Plus,
+                if self.marley {
+                    "Add a host…"
+                } else {
+                    "Connect SSH Server"
+                },
+                selected,
+            )),
             RemoteMatch::AddDevContainer => {
                 Some(self.render_action_item(ix, IconName::Plus, "Connect Dev Container", selected))
             }

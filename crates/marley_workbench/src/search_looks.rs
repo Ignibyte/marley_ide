@@ -30,6 +30,7 @@ pub fn init(cx: &mut App) {
         word: completion_kind_word,
     });
     cx.set_global(editor::MarleyPredictionNote);
+    cx.set_global(recent_projects::MarleyRemoteLook);
     cx.set_global(MarleyCollabLook);
     cx.set_global(language_tools::lsp_button::MarleyServerAsk(
         crate::send_selection::ask_about_server,

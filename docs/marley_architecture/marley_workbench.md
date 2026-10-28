@@ -6473,3 +6473,17 @@ prints each byte.
   default counts as chosen from the start.
 - The harness card reads "The harness is stopped", and About's line has its second sentence.
 
+## Open and connect (`recent_projects`, `remote`, `settings_ui`, `zed`, #944)
+
+- `search_looks::init` sets `recent_projects::MarleyRemoteLook`. While it is set, the default remote
+  picker:
+  - reads "ssh://user@host/path";
+  - lists a typed address first (`parse_ssh_address`, `RemoteMatch::OpenAddress`), which opens
+    through a saved host at that address when there is one, so the connection pool's key matches;
+  - dots each host by `has_active_connection`;
+  - names the add row "Add a host…".
+- On `dev`, `upload_local_server_binary` says "Uploading Marley's server for this build · N MB".
+- `marley_page::render_layout_cards` draws `marley.layout` as two picture cards.
+- `AboutWindow::render_marley` shows the mark, "Marley", "dev · <commit> · built <when>", the cat
+  and update lines, Copy the command (`git pull && just install`) and Open the log (`OpenLog`).
+

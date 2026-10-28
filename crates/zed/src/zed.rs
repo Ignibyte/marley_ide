@@ -40,11 +40,11 @@ use git_ui::staged_diff::StagedDiffToolbar;
 use git_ui::unstaged_diff::UnstagedDiffToolbar;
 use git_ui_core::file_diff_view::FileDiffStyleToolbar;
 use gpui::{
-    Action, App, AppContext as _, AsyncWindowContext, ClipboardItem, Context, DismissEvent,
-    Element, Entity, FocusHandle, Focusable, Image, ImageFormat, KeyBinding, ParentElement,
-    PathPromptOptions, PromptLevel, ReadGlobal, SharedString, Size, Task, TaskExt, TitlebarOptions,
-    UpdateGlobal, WeakEntity, Window, WindowBounds, WindowHandle, WindowKind, WindowOptions,
-    actions, image_cache, img, point, px, retain_all,
+    Action, AnyElement, App, AppContext as _, AsyncWindowContext, ClipboardItem, Context,
+    DismissEvent, Element, Entity, FocusHandle, Focusable, Image, ImageFormat, KeyBinding,
+    ParentElement, PathPromptOptions, PromptLevel, ReadGlobal, SharedString, Size, Task, TaskExt,
+    TitlebarOptions, UpdateGlobal, WeakEntity, Window, WindowBounds, WindowHandle, WindowKind,
+    WindowOptions, actions, image_cache, img, point, px, retain_all,
 };
 use image_viewer::ImageInfo;
 use language::Capability;
@@ -1556,6 +1556,8 @@ fn open_about_window(cx: &mut App) {
         full_version: SharedString,
         // Marley: the line about Marley shows on its own channel only (#829).
         is_marley: bool,
+        // Marley: "dev · <commit> · built <when>", the AboutMarley board's build line (#944).
+        build_line: SharedString,
     }
 
     impl AboutWindow {
@@ -1576,6 +1578,28 @@ fn open_about_window(cx: &mut App) {
                 .filter(|commit| !commit.is_empty())
                 .map(SharedString::from);
 
+            // Marley: when the running build was made, from its file's time (#944).
+            let built = std::env::current_exe()
+                .and_then(std::fs::metadata)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .map(|modified| {
+                    chrono::DateTime::<chrono::Local>::from(modified)
+                        .format("%Y-%m-%d %H:%M")
+                        .to_string()
+                });
+            let short_commit = AppCommitSha::try_global(cx).map(|sha| sha.short());
+            let build_line: SharedString = [
+                Some("dev".to_string()),
+                short_commit,
+                built.map(|built| format!("built {built}")),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" · ")
+            .into();
+
             Self {
                 focus_handle: cx.focus_handle(),
                 ok_entry: NavigableEntry::focusable(cx),
@@ -1585,7 +1609,116 @@ fn open_about_window(cx: &mut App) {
                 commit,
                 full_version,
                 is_marley: matches!(release_channel, ReleaseChannel::Dev),
+                build_line,
             }
+        }
+
+        // Marley: About as the AboutMarley board draws it: the mark, the name, the build line, the
+        // cat line, how Marley updates, Copy the command and Open the log (#944).
+        fn render_marley(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+            let copy_is_focused = self.ok_entry.focus_handle.contains_focused(window, cx);
+            let log_is_focused = self.copy_entry.focus_handle.contains_focused(window, cx);
+            let copy_command = |window: &mut Window, cx: &mut App| {
+                cx.write_to_clipboard(ClipboardItem::new_string(
+                    "git pull && just install".to_string(),
+                ));
+                window.remove_window();
+            };
+            let open_log = |window: &mut Window, cx: &mut App| {
+                window.remove_window();
+                cx.defer(|cx| cx.dispatch_action(&OpenLog));
+            };
+            Navigable::new(
+                v_flex()
+                    .id("about-window")
+                    .track_focus(&self.focus_handle)
+                    .on_action(cx.listener(|_, _: &menu::Cancel, window, _cx| {
+                        window.remove_window();
+                    }))
+                    .min_w_0()
+                    .size_full()
+                    .bg(cx.theme().colors().editor_background)
+                    .text_color(cx.theme().colors().text)
+                    .p_4()
+                    .gap_4()
+                    .text_center()
+                    .justify_between()
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .gap_2()
+                            .items_center()
+                            .child(img(self.app_icon.clone()).size_16().flex_none())
+                            .child(Headline::new("Marley"))
+                            .child(
+                                Label::new(self.build_line.clone())
+                                    .size(LabelSize::Small)
+                                    .buffer_font(cx)
+                                    .color(Color::Muted),
+                            )
+                            .child(
+                                Label::new(
+                                    "Named for Marley: a solid orange cat with green eyes. \
+                                     Her coat is the color you act with, her eyes the color of \
+                                     things done.",
+                                )
+                                .color(Color::Muted)
+                                .size(LabelSize::Small),
+                            )
+                            .child(
+                                Label::new(
+                                    "Marley updates through its install script, never from \
+                                     zed.dev. Pull, then run just install.",
+                                )
+                                .size(LabelSize::Small),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .track_focus(&self.ok_entry.focus_handle)
+                                    .on_action(move |_: &menu::Confirm, window, cx| {
+                                        copy_command(window, cx);
+                                    })
+                                    .child(
+                                        Button::new("copy-command", "Copy the command")
+                                            .full_width()
+                                            .style(ButtonStyle::Tinted(TintColor::Accent))
+                                            .toggle_state(copy_is_focused)
+                                            .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                                            .on_click(move |_, window, cx| {
+                                                copy_command(window, cx);
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .track_focus(&self.copy_entry.focus_handle)
+                                    .on_action(move |_: &menu::Confirm, window, cx| {
+                                        open_log(window, cx);
+                                    })
+                                    .child(
+                                        Button::new("open-log", "Open the log")
+                                            .full_width()
+                                            .style(ButtonStyle::OutlinedGhost)
+                                            .toggle_state(log_is_focused)
+                                            .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                                            .on_click(move |_, window, cx| {
+                                                open_log(window, cx);
+                                            }),
+                                    ),
+                            ),
+                    )
+                    .into_any_element(),
+            )
+            .entry(self.ok_entry.clone())
+            .entry(self.copy_entry.clone())
+            .into_any_element()
         }
 
         fn copy_details(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1605,6 +1738,10 @@ fn open_about_window(cx: &mut App) {
 
     impl Render for AboutWindow {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            // Marley: its own About on its own channel (#944).
+            if self.is_marley {
+                return self.render_marley(window, cx);
+            }
             let ok_is_focused = self.ok_entry.focus_handle.contains_focused(window, cx);
             let copy_is_focused = self.copy_entry.focus_handle.contains_focused(window, cx);
 
@@ -1705,6 +1842,7 @@ fn open_about_window(cx: &mut App) {
             )
             .entry(self.ok_entry.clone())
             .entry(self.copy_entry.clone())
+            .into_any_element()
         }
     }
 

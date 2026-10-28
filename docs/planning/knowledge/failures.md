@@ -4627,3 +4627,13 @@ first action, its default, was never drawn as chosen. Save is a save prompt's in
 ring for a chosen primary button could never show, and arrowing back to Save marked nothing.
 Fixed: a Primary default counts as chosen, since Enter presses it. A look meant for "the button
 Enter presses" is tested on a prompt whose default is that button.
+
+## F-claude-944-the-connection-pool-keys-on-the-whole-ssh-options-001
+*found: 2026-10-28 · while: testing #944 · severity: low*
+
+The remote dialog's typed `ssh://` address connected with options built from the address alone, and
+its saved host's dot stayed muted although the host was connected: `remote::ConnectionPool` keys on
+the whole `SshConnectionOptions`, nickname and args included, so the typed connection was not the
+saved host's. Fixed: an address that names a saved host (host, port, and user when given) connects
+through that host's options. Anything that asks "is this host connected" must connect with the
+same options it asks with.

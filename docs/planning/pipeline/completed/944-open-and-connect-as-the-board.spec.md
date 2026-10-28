@@ -1,7 +1,7 @@
 ---
 pipeline_id: 3861f6e7-d93c-4e96-ab34-6b151b789463
 ticket: docs/planning/tickets/open/TICKET-944-open-and-connect-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: Remote folders, layouts and About as the board draws them
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)

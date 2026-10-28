@@ -34,6 +34,8 @@ use picker::{
 };
 use project::{Worktree, git_store::Repository};
 pub use remote_connections::RemoteSettings;
+// Marley: the remote picker's look (#944).
+pub use remote_servers::MarleyRemoteLook;
 pub use remote_servers::RemoteServerProjects;
 use settings::{DefaultOpenBehavior, Settings, WorktreeId};
 use workspace::ProjectGroupKey;

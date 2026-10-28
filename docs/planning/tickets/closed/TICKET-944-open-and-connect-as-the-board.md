@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #944 (feature, the Marley look, opening and connecting)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [944-open-and-connect-as-the-board.spec.md](../../pipeline/queued/944-open-and-connect-as-the-board.spec.md)
+- **Pipeline doc:** [944-open-and-connect-as-the-board.spec.md](../../pipeline/completed/944-open-and-connect-as-the-board.spec.md)
 - **Source ticket:** the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/G-system.md, board OpenConnect)
 - **Boards:** OpenConnect
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

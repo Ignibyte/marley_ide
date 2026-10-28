@@ -13,6 +13,13 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Remote folders, the layouts and About as the boards draw them** (#944, 2026-10-28). The
+  remote-folder dialog takes an address: type `ssh://user@host/path` and its first row opens that
+  folder on that host, through the saved host when you have one. Each saved host has a dot that
+  turns green while it is connected, and the add row reads "Add a host…". Connecting a host shows
+  "Uploading Marley's server for this build · 40 MB" while it copies. The Settings window shows the
+  Marley and Zed layouts as two small pictures. About shows Marley's own build line, how Marley
+  updates, and buttons to copy `git pull && just install` and to open the log.
 - **Empty states and theme details as the boards draw them** (#943, 2026-10-28). A window with no
   folder open shows "No project open" with Open a Folder, on Home and in the Files panel. The rail's
   harness card says "The harness is stopped". The orange button a prompt will press when you hit

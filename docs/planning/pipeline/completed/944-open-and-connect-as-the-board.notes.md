@@ -88,7 +88,38 @@
   line carries both), so the extra lines fit.
 
 ## Phase 2 — Code
+- **Built:** as the design names, with the ledger rows written first. `recent_projects` re-exports
+  `MarleyRemoteLook`; the delegate keeps `marley` from when it was built, since `rebuild_matches`
+  has no `cx`. `render_layout_cards` reads the store with `cx.global::<SettingsStore>()`.
+- **Gate:** GREEN, and again on the final tree.
 
 ## Phase 3 — Test
+- **Scenario:** `script/e2e/944-open-and-connect-as-the-board.sh` (sway).
+  - It takes #445's `fake_host`, client wrappers and teardown, with `sftp` waiting five seconds.
+  - Both hosts are saved with `$USER`, and the staged server for HEAD is copied into the run's
+    profile.
+- **Red, the code's, fixed:** host two was connected but its dot was muted. The connection pool's
+  key is the whole `SshConnectionOptions`, nickname included, and the typed address had none
+  (F-claude-944-the-connection-pool-keys-on-the-whole-ssh-options-001). The address row now opens
+  through a matching saved host.
+- **Red, the code's, fixed:** the 200 px layout cards squeezed the row's title and description to a
+  column one word wide. The cards are now 132 px with shorter lines.
+- **Red, the scenario's own, fixed:** the Day layout shot came after three windows tiled, leaving
+  Settings about 370 px wide. It is now taken beside the Night one.
+- **Shots:**
+  - `944-01-remote`: the placeholder, "Add a host…", host-one and host-two with muted dots.
+  - `944-02-address`: "Open …/two/home/project on 127.0.0.1" first.
+  - `944-03-upload`: "Uploading Marley's server for this build · 40 MB".
+  - `944-04-connected`: host-two's dot green.
+  - `944-05-layouts`, `944-08-day-layouts`: the two cards, Marley's outlined in the accent.
+  - `944-06-about`, `944-08-day`: the mark, "Marley", "dev · f82596b · built 2026-10-28 13:57", the
+    cat line, the update line, Copy the command and Open the log.
+  - The check "Copy the command copied it" passed (`git pull && just install`).
+  - `944-07-log`: Marley's log in a tab.
 
 ## Phase 4 — Complete
+- **Documented:** `CHANGELOG.md`, `docs/marley/look-plan.md`, the architecture note, and the ledger
+  rows.
+- **Knowledge:** F-claude-944-the-connection-pool-keys-on-the-whole-ssh-options-001.
+- **Brain:** consultation 18255aaa1c9249b1acedeeb1750fccf0 closed with `brain no-decision`.
+- **Ticket:** closed.
