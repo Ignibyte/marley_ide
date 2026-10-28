@@ -213,6 +213,7 @@ pub(crate) fn answer_start(call: AppCall, cx: &App) {
             "When its turn ends, Marley types one line into the caller's terminal naming the \
              result.",
         ),
+        ..Asked::default()
     };
     let admitted =
         crate::agent_control::admit_asking(&call, Area::Agents, Level::Sensitive, asked, cx);

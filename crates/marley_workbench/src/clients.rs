@@ -943,8 +943,8 @@ impl BrowserClientsModal {
                     let name = client.name.clone();
                     let label = match power {
                         Power::Read => "Read",
-                        Power::Write => "Write",
-                        Power::Run => "Run",
+                        Power::Write => "Read and Write",
+                        Power::Run => "Read, Write and Run",
                     };
                     Button::new(
                         SharedString::from(format!(

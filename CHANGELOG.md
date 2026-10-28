@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **What agents may do, as the board draws it** (#938, 2026-10-28). When an agent asks to edit a
+  file, the question leads with the agent's tile and "wants to edit main.rs", says the terminal
+  and project it works in, and shows the change itself: the old lines with "−" on red and the new
+  ones with "+" on green. It ends with "One undo step, left unsaved. Saving asks again." Agent
+  Activity lists what is kept from agents: the file patterns no editor tool reads, and whether
+  keys and tokens in terminal output are redacted. The Settings window's editors mode reads "Ask
+  Every Time" (still stored as `ask_every`), and Outside Clients' levels read Read, Read and Write,
+  and Read, Write and Run.
 - **A System One page** (#937, 2026-10-28). `marley: open system one calls` opens a page titled
   "System One", with a line on what the layer is, the Provider and Today cards, and then each of
   the ten uses with Off / Shadow / Suggest / Act. A click sets the use's mode in your settings, as

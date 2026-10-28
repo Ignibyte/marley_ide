@@ -19,7 +19,8 @@ use util::ResultExt as _;
 use util::paths::{PathMatcher, PathStyle};
 use workspace::{MultiWorkspace, OpenOptions, OpenVisible, Workspace};
 
-use crate::agent_control::{Area, Level, admit};
+use crate::agent_control::{Area, Asked, EditAsked, Level, admit_asking};
+use crate::asks::{Change, Occurrences};
 
 /// The most editors `editor_list` names.
 const LISTED: usize = 200;
@@ -51,8 +52,8 @@ pub(crate) fn answer(mut call: AppCall, cx: &App) {
             after_admit(call, Level::Act, what, open, cx);
         }
         "editor_edit" => {
-            let what = edit_words(&call.arguments, cx);
-            after_admit(call, Level::Act, what, edit, cx);
+            let asked = edit_asked(&call.arguments, cx);
+            after_admit_asking(call, Level::Act, asked, edit, cx);
         }
         "editor_save" => {
             let what = save_words(&call.arguments, cx);
@@ -68,7 +69,22 @@ pub(crate) fn answer(mut call: AppCall, cx: &App) {
 
 /// Runs `then` once the editors area admits `call`, else answers the refusal.
 fn after_admit(call: AppCall, level: Level, what: String, then: fn(AppCall, &mut App), cx: &App) {
-    let admitted = admit(&call, Area::Editors, level, what, cx);
+    let asked = Asked {
+        what,
+        ..Asked::default()
+    };
+    after_admit_asking(call, level, asked, then, cx);
+}
+
+/// [`after_admit`], the question showing `asked`.
+fn after_admit_asking(
+    call: AppCall,
+    level: Level,
+    asked: Asked,
+    then: fn(AppCall, &mut App),
+    cx: &App,
+) {
+    let admitted = admit_asking(&call, Area::Editors, level, asked, cx);
     cx.spawn(async move |cx| match admitted.await {
         Ok(()) => cx.update(|cx| then(call, cx)),
         Err(refusal) => call.answer(Err(refusal)),
@@ -178,17 +194,21 @@ fn list(call: AppCall, cx: &mut App) {
     }));
 }
 
-/// The patterns a file's name may not match to be read: the user's, else Marley's defaults.
-pub(crate) fn secret_globs(cx: &App) -> PathMatcher {
-    let globs: Vec<String> = cx
-        .global::<SettingsStore>()
+/// The patterns a file's name may not match to be read, as written: the user's, else Marley's
+/// defaults. Agent Activity lists them (#938).
+pub(crate) fn secret_glob_list(cx: &App) -> Vec<String> {
+    cx.global::<SettingsStore>()
         .merged_settings()
         .marley
         .as_ref()
         .and_then(|marley| marley.agent_control.as_ref())
         .and_then(|agent_control| agent_control.secret_globs.clone())
-        .unwrap_or_else(|| SECRET_GLOBS.iter().map(ToString::to_string).collect());
-    PathMatcher::new_lenient(globs, PathStyle::local(), |error| {
+        .unwrap_or_else(|| SECRET_GLOBS.iter().map(ToString::to_string).collect())
+}
+
+/// [`secret_glob_list`] compiled.
+pub(crate) fn secret_globs(cx: &App) -> PathMatcher {
+    PathMatcher::new_lenient(secret_glob_list(cx), PathStyle::local(), |error| {
         log::warn!("marley.agent_control.secret_globs: {error}");
     })
 }
@@ -318,17 +338,41 @@ fn editor_words(arguments: &Value, cx: &App) -> String {
     )
 }
 
-/// What `editor_edit` would do, in words, for the question.
-fn edit_words(arguments: &Value, cx: &App) -> String {
-    let all = arguments
+/// What `editor_edit`'s question shows (#938): the file's name, the call's `old_text` and
+/// `new_text` as lines, and that the change is one undo step.
+fn edit_asked(arguments: &Value, cx: &App) -> Asked {
+    let words = editor_words(arguments, cx);
+    let file_name = Path::new(&words)
+        .file_name()
+        .map_or_else(|| words.clone(), |name| name.to_string_lossy().into_owned());
+    let lines_of = |name: &str| -> Vec<String> {
+        arguments
+            .get(name)
+            .and_then(Value::as_str)
+            .map(|text| text.lines().map(str::to_owned).collect())
+            .unwrap_or_default()
+    };
+    let occurrences = if arguments
         .get("replace_all")
         .and_then(Value::as_bool)
-        .unwrap_or(false);
-    format!(
-        "change {}{}",
-        editor_words(arguments, cx),
-        if all { ", every match" } else { "" }
-    )
+        .unwrap_or(false)
+    {
+        Occurrences::Every
+    } else {
+        Occurrences::One
+    };
+    Asked {
+        footnote: Some("One undo step, left unsaved. Saving asks again."),
+        edit: Some(EditAsked {
+            file_name,
+            change: Change {
+                removed: lines_of("old_text"),
+                added: lines_of("new_text"),
+                occurrences,
+            },
+        }),
+        ..Asked::default()
+    }
 }
 
 /// What `editor_save` would do, in words, for the question.

@@ -604,6 +604,9 @@ pub enum MarleyAgentControlMode {
     /// The area's tools refuse every agent, reads too.
     Off,
     /// Every tool that acts asks you each time.
+    // Marley: the Settings window's label reads "Ask Every Time" (#938); serde still stores
+    // `ask_every`.
+    #[strum(serialize = "AskEveryTime")]
     AskEvery,
     /// A tool that acts asks you once per agent session, unless you allowed the project for good.
     #[default]

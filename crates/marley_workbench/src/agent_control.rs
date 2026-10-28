@@ -8,6 +8,7 @@
 //! switch and the activity log are #703's.
 
 use std::collections::{BTreeSet, HashSet};
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -23,7 +24,8 @@ use util::ResultExt as _;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
 
-use crate::asks::Ask;
+use crate::asks::{Ask, Change};
+use crate::item_kind::AgentMark;
 use crate::prompts::Role;
 
 /// How long the user has to answer, under the 30 seconds the server waits for the app.
@@ -181,18 +183,27 @@ pub(crate) fn admit(
         level,
         Asked {
             what,
-            rows: Vec::new(),
-            footnote: None,
+            ..Asked::default()
         },
         cx,
     )
 }
 
 /// What a question shows beyond its headline: a line, the facts as rows, and a footnote.
+#[derive(Default)]
 pub(crate) struct Asked {
     pub(crate) what: String,
     pub(crate) rows: Vec<(&'static str, String)>,
     pub(crate) footnote: Option<&'static str>,
+    /// An edit's question (#938, D1): the headline names the file, the agent's tile and task lead
+    /// it, and the change shows as lines.
+    pub(crate) edit: Option<EditAsked>,
+}
+
+/// The file an edit changes and the change, for its question (#938).
+pub(crate) struct EditAsked {
+    pub(crate) file_name: String,
+    pub(crate) change: Change,
 }
 
 /// [`admit`], the question showing `asked`'s rows and footnote too (#871).
@@ -233,13 +244,31 @@ pub(crate) fn admit_asking(
     if !asks {
         return Task::ready(Ok(()));
     }
-    let who = crate::click_pause::Who::of(call, cx).words;
-    let question = Question {
-        headline: format!("{who} wants to use {}", call.tool),
-        what: asked.what,
-        rows: asked.rows,
-        footnote: asked.footnote,
-        project: session.2.clone(),
+    let who = crate::click_pause::Who::of(call, cx);
+    let question = match asked.edit {
+        Some(edit) => Question {
+            headline: format!("{} wants to edit {}", who.words, edit.file_name),
+            tile: Some(
+                who.mark
+                    .unwrap_or_else(|| AgentMark::Other(initial(&who.words))),
+            ),
+            task: Some(task_line(call, &session.2, cx)),
+            change: Some(edit.change),
+            what: asked.what,
+            rows: asked.rows,
+            footnote: asked.footnote,
+            project: session.2.clone(),
+        },
+        None => Question {
+            headline: format!("{} wants to use {}", who.words, call.tool),
+            tile: None,
+            task: None,
+            change: None,
+            what: asked.what,
+            rows: asked.rows,
+            footnote: asked.footnote,
+            project: session.2.clone(),
+        },
     };
     cx.spawn(async move |cx| match ask(question, cx).await {
         Some(Answer::Session) => {
@@ -270,6 +299,33 @@ pub(crate) fn admit_asking(
     })
 }
 
+/// The capital of a caller's first letter, for the tile of an agent Marley has no mark for.
+fn initial(words: &str) -> char {
+    words
+        .chars()
+        .next()
+        .map_or('A', |first| first.to_ascii_uppercase())
+}
+
+/// What the agent works on, for an edit's question (#938): the asking terminal's title and the
+/// project's folder name, or the project alone when the call comes from no Marley terminal.
+fn task_line(call: &AppCall, project: &str, cx: &App) -> String {
+    use workspace::item::Item as _;
+
+    let title = crate::mcp::caller_terminal(call.caller(), cx)
+        .map(|(_, view)| view.read(cx).tab_content_text(0, cx));
+    // The project key is the folder's path; the line names the folder, as the rail does.
+    let project = Path::new(project).file_name().map_or_else(
+        || project.to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    match title {
+        Some(title) if !project.is_empty() => format!("{title} · {project}"),
+        Some(title) => title.to_string(),
+        None => project,
+    }
+}
+
 /// Writes the projects allowed for good to the store.
 fn save(cx: &App) {
     let Some(text) = cx
@@ -287,6 +343,11 @@ fn save(cx: &App) {
 #[derive(Clone)]
 struct Question {
     headline: String,
+    /// The asking agent's tile, on an edit's question.
+    tile: Option<AgentMark>,
+    /// The terminal and project the agent works in, in place of the Project row.
+    task: Option<String>,
+    change: Option<Change>,
     what: String,
     rows: Vec<(&'static str, String)>,
     footnote: Option<&'static str>,
@@ -326,13 +387,22 @@ fn show(id: NotificationId, question: Question, slot: AnswerSlot, cx: &mut App) 
             move |_: &mut Window, _: &mut App| give(&slot, answer)
         };
         let mut ask = Ask::new(question.headline);
+        if let Some(mark) = question.tile {
+            ask = ask.tile(mark);
+        }
+        if let Some(task) = question.task.clone() {
+            ask = ask.subtitle(task);
+        }
         if !question.what.is_empty() {
             ask = ask.line(question.what);
+        }
+        if let Some(change) = question.change {
+            ask = ask.change(change);
         }
         for (label, value) in question.rows {
             ask = ask.row(label, value);
         }
-        if !question.project.is_empty() {
+        if question.task.is_none() && !question.project.is_empty() {
             ask = ask.row("Project", question.project);
         }
         if let Some(footnote) = question.footnote {

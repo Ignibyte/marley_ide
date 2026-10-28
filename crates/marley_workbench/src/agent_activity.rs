@@ -30,7 +30,7 @@ use marley_mcp::redact::Redactor;
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use serde::{Deserialize, Serialize};
 use settings::{Settings as _, SettingsStore};
-use ui::{ButtonStyle, Headline, HeadlineSize, prelude::*};
+use ui::{ButtonStyle, Chip, Headline, HeadlineSize, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
 use workspace::item::{Item, ItemEvent};
@@ -901,6 +901,37 @@ impl AgentActivityView {
     }
 }
 
+/// What is kept from agents, as the `AgentAccess` board draws it (#938): the files no editor tool
+/// reads, by `marley.agent_control.secret_globs`, and whether terminal output is redacted. The
+/// list stays in settings.json (#844).
+fn render_kept(cx: &App) -> impl IntoElement {
+    let redacting = MarleySettings::get_global(cx).redact_secrets;
+    let note = if redacting {
+        "Keys and tokens in terminal output become [redacted: token] before an agent reads them. \
+         Your terminal still shows them."
+    } else {
+        "Redaction is off: agents read terminal output as it is."
+    };
+    let globs = crate::editor_tools::secret_glob_list(cx);
+    v_flex()
+        .debug_selector(|| "marley-agent-activity-kept".into())
+        .gap_1p5()
+        .child(Headline::new("Kept from agents").size(HeadlineSize::XSmall))
+        .child(
+            h_flex().flex_wrap().gap_1().children(
+                globs
+                    .into_iter()
+                    .map(|glob| Chip::new(glob).label_size(LabelSize::XSmall)),
+            ),
+        )
+        .child(Label::new(note).size(LabelSize::Small))
+        .child(
+            Label::new("The list is marley.agent_control.secret_globs in settings.json.")
+                .size(LabelSize::XSmall)
+                .color(Color::Muted),
+        )
+}
+
 impl Render for AgentActivityView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
@@ -915,6 +946,7 @@ impl Render for AgentActivityView {
             .bg(colors.editor_background)
             .child(Headline::new("Agent Activity").size(HeadlineSize::Small))
             .child(render_state("marley-agent-activity-switch", cx))
+            .child(render_kept(cx))
             .child(render_rows(ROWS_KEPT, RowLayout::Card, cx))
     }
 }

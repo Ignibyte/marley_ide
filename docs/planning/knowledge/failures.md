@@ -4610,3 +4610,11 @@ whole width, leaving the panel none. #838 drew the strip only on the bottom dock
 never showed. Fixed: while the dock carries Marley's header it stacks its children in a column on
 every side.
 
+
+## F-claude-938-a-projects-key-is-its-path-not-its-name-001
+*found: 2026-10-28 · while: testing #938 · severity: low*
+
+The edit question's task line first read "repo — bash · /mnt/…/work.104gfK/repo": Agent Control's
+project key (`project_key`, the caller's project or folder) is the folder's whole path, kept that
+way because approvals are stored by it. The line now names the folder (`Path::file_name`), as the
+rail does. A value that keys a store is not a label; name it for the screen where it is shown.

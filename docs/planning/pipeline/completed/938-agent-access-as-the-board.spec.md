@@ -1,7 +1,7 @@
 ---
 pipeline_id: 85f61c07-82e9-4772-b920-dc5acc2c88c8
 ticket: docs/planning/tickets/open/TICKET-938-agent-access-as-the-board.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: What agents may do, as the board draws it
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -108,15 +108,15 @@ agent CLI.
 - `938-01-asked`: the client calls `editor_edit` replacing `let answer = 42;` with `let answer =
   43;`: the question with its tile, "wants to edit main.rs", the task line, "− let answer = 42;" and
   "+ let answer = 43;", the footnote and the three buttons (REQ-001, REQ-002, REQ-003, REQ-004).
-- `938-02-kept`: `marley: open agent activity`: "Kept from agents" with eight chips and the note
+- `938-02-day`: the question in Marley Day (REQ-001 to REQ-004).
+- `938-03-kept`: `marley: open agent activity`: "Kept from agents" with eight chips and the note
   (REQ-005).
-- `938-03-unredacted`: `marley.redact_secrets_for_agents` set false: the note says redaction is off
+- `938-04-unredacted`: `marley.redact_secrets_for_agents` set false: the note says redaction is off
   (REQ-005).
-- `938-04-modes`: the Settings window searched for "editors": the Agent Control row reads Off / Ask
+- `938-05-modes`: the Settings window searched for "editors": the Agent Control row reads Off / Ask
   Every Time / Ask First / Allow (REQ-006).
-- `938-05-clients`: `marley: outside clients`: the paired client's levels read Read / Read and
+- `938-06-clients`: `marley: outside clients`: the paired client's levels read Read / Read and
   Write / Read, Write and Run (REQ-007).
-- `938-06-day`: the question again in Marley Day (REQ-001 to REQ-004).
 
 ## Locked-In Decisions
 - D1 — Only `editor_edit` gets the edit headline, the diff and the footnote; every other tool's
@@ -135,13 +135,13 @@ agent CLI.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | WHEN an agent calls `editor_edit` and the editors' mode asks, the question shall lead with the agent's lettered tile and read "<who> wants to edit <file name>". | `938-01-asked`, `938-06-day` |
-| REQ-002 | WHEN the edit question shows, it shall show the asking terminal's title and the project as its task line. | `938-01-asked`, `938-06-day` |
-| REQ-003 | WHEN the edit question shows, it shall show `old_text`'s lines as "−" lines on the deleted background and `new_text`'s as "+" lines on the created background. | `938-01-asked`, `938-06-day` |
-| REQ-004 | WHEN the edit question shows, it shall end with "One undo step, left unsaved. Saving asks again." above its buttons. | `938-01-asked`, `938-06-day` |
-| REQ-005 | The Agent Activity tab shall show "Kept from agents" with each secret glob as a chip and the redaction note, which says redaction is off WHILE `marley.redact_secrets_for_agents` is false. | `938-02-kept`, `938-03-unredacted` |
-| REQ-006 | The Settings window shall label the `ask_every` mode "Ask Every Time", and a setting of `ask_every` shall keep its meaning. | `938-04-modes`, the review of the diff |
-| REQ-007 | Outside Clients shall label a paired client's levels Read, Read and Write, and Read, Write and Run. | `938-05-clients` |
+| REQ-001 | WHEN an agent calls `editor_edit` and the editors' mode asks, the question shall lead with the agent's lettered tile and read "<who> wants to edit <file name>". | `938-01-asked`, `938-02-day` |
+| REQ-002 | WHEN the edit question shows, it shall show the asking terminal's title and the project as its task line. | `938-01-asked`, `938-02-day` |
+| REQ-003 | WHEN the edit question shows, it shall show `old_text`'s lines as "−" lines on the deleted background and `new_text`'s as "+" lines on the created background. | `938-01-asked`, `938-02-day` |
+| REQ-004 | WHEN the edit question shows, it shall end with "One undo step, left unsaved. Saving asks again." above its buttons. | `938-01-asked`, `938-02-day` |
+| REQ-005 | The Agent Activity tab shall show "Kept from agents" with each secret glob as a chip and the redaction note, which says redaction is off WHILE `marley.redact_secrets_for_agents` is false. | `938-03-kept`, `938-04-unredacted` |
+| REQ-006 | The Settings window shall label the `ask_every` mode "Ask Every Time", and a setting of `ask_every` shall keep its meaning. | `938-05-modes`, the review of the diff |
+| REQ-007 | Outside Clients shall label a paired client's levels Read, Read and Write, and Read, Write and Run. | `938-06-clients` |
 
 ## Phase Plan
 - **P1 Plan** — this spec, and the design in the notes.

@@ -3290,6 +3290,21 @@ screen opens Home after `rusty_unavailable`.
 - `agent_control::admit_asking` takes an `Asked { what, rows, footnote }`; `admit` is it with no
   rows. `delegation::answer_start` gives Agent, Where and Prompt rows and the footnote on the line
   Marley types back.
+- **An edit's question (#938).** `Asked.edit` (`EditAsked { file_name, change }`) is set by
+  `editor_tools::edit_asked` alone (D1).
+  - With it, `admit_asking` titles the question "<who> wants to edit <file>". It gives it the
+    caller's tile (`Who.mark`, else `AgentMark::Other` of the words' capital) and `task_line` (the
+    caller terminal's title · the project folder's name) in place of the Project row, and the
+    `Change`.
+  - `Ask::render` draws the tile with `item_kind::square_tile` before the title and the task as a
+    muted subtitle. `render_change` draws `old_text`'s lines as "−" on `deleted_background` and
+    `new_text`'s as "+" on `created_background`, at most 12 lines, and `Occurrences::Every` as
+    "Every match in the file.".
+- **Kept from agents (#938).** `agent_activity::render_kept` follows the Stop row with the
+  `editor_tools::secret_glob_list` globs as `Chip`s, the redaction note from
+  `MarleySettings.redact_secrets`, and where the list lives. Outside Clients' level buttons read
+  Read, Read and Write, and Read, Write and Run. `MarleyAgentControlMode::AskEvery` shows as Ask
+  Every Time through strum.
 
 ## Prompts (`src/prompts.rs`, Zed's `ui_prompt.rs`, #870)
 
