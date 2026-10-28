@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #937 (feature, the Marley look, System One)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** [937-system-one-page.spec.md](../../pipeline/queued/937-system-one-page.spec.md)
+- **Pipeline doc:** [937-system-one-page.spec.md](../../pipeline/completed/937-system-one-page.spec.md)
 - **Source ticket:** the design review of 2026-10-23 (docs/marley/design-review-2026-10-23/F-tools.md, board SystemOne)
 - **Boards:** SystemOne
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

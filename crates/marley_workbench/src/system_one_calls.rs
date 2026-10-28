@@ -1,6 +1,10 @@
-//! System One calls (#565; named Decisions until #659): the System One layer's calls today, each
-//! with what it sent and what came back, the day's spend against the budget, and where the key
-//! comes from.
+//! The System One page (#937), the System One calls tab until then (#565; Decisions until #659).
+//!
+//! It shows what the layer is, its provider and the day's spend against the budget, each use with
+//! its mode, and the layer's calls today, each with what it sent and what came back.
+//!
+//! A use's mode is set on the page as in the Settings window: both write
+//! `marley.system_one.uses.<use>` in the user's settings, and both draw from them.
 //!
 //! The view reads today's file when it opens and follows the `SystemOne` global for the calls
 //! made after, so it polls nothing. A row opens to the masked state as sent, the answers as they
@@ -10,10 +14,11 @@
 use std::collections::HashSet;
 
 use editor::Editor;
+use fs::Fs;
 use gpui::{App, Entity, EventEmitter, FocusHandle, Focusable, Subscription, Task};
 use marley_system_one::files::{self, CallRow};
 use menu::Confirm;
-use settings::SystemOneProvider;
+use settings::{SystemOneMode, SystemOneProvider};
 use ui::{Button, Color, Label, LabelSize, prelude::*};
 use util::ResultExt as _;
 use workspace::Workspace;
@@ -22,7 +27,91 @@ use workspace::item::Item;
 use crate::SystemOneCheck;
 use crate::system_one::{self, KeySource, Slot, SystemOne};
 
-/// The System One calls view.
+/// A System One use as the page lists it (#937).
+struct SystemOneUse {
+    /// The use's key under `marley.system_one.uses`.
+    key: &'static str,
+    /// The use's name on the `SystemOne` board.
+    name: &'static str,
+}
+
+/// The uses in the board's order (D5).
+const USES: [SystemOneUse; 10] = [
+    SystemOneUse {
+        key: "check",
+        name: "The check",
+    },
+    SystemOneUse {
+        key: "stop_kind",
+        name: "Stop kind",
+    },
+    SystemOneUse {
+        key: "browser_find",
+        name: "Browser find",
+    },
+    SystemOneUse {
+        key: "terminal_find",
+        name: "Terminal find",
+    },
+    SystemOneUse {
+        key: "stall_kind",
+        name: "Stall kind",
+    },
+    SystemOneUse {
+        key: "click_consequence",
+        name: "Click consequence",
+    },
+    SystemOneUse {
+        key: "inbox",
+        name: "Inbox risk",
+    },
+    SystemOneUse {
+        key: "question_route",
+        name: "Question route",
+    },
+    SystemOneUse {
+        key: "running_error",
+        name: "Running error",
+    },
+    SystemOneUse {
+        key: "typed_line",
+        name: "Typed line",
+    },
+];
+
+/// A use's modes, in the order its track shows them.
+const MODES: [SystemOneMode; 4] = [
+    SystemOneMode::Off,
+    SystemOneMode::Shadow,
+    SystemOneMode::Suggest,
+    SystemOneMode::Act,
+];
+
+const fn mode_label(mode: SystemOneMode) -> &'static str {
+    match mode {
+        SystemOneMode::Off => "Off",
+        SystemOneMode::Shadow => "Shadow",
+        SystemOneMode::Suggest => "Suggest",
+        SystemOneMode::Act => "Act",
+    }
+}
+
+/// Writes a use's mode to the user's settings, never a project's (D3). The `SystemOne` global
+/// follows the settings, so the page and the Settings window both redraw from it (D2).
+fn set_use_mode(key: &'static str, mode: SystemOneMode, cx: &App) {
+    settings::update_settings_file(<dyn Fs>::global(cx), cx, move |content, _| {
+        content
+            .marley
+            .get_or_insert_default()
+            .system_one
+            .get_or_insert_default()
+            .uses
+            .get_or_insert_default()
+            .insert(key.to_owned(), mode);
+    });
+}
+
+/// The System One page.
 pub struct SystemOneCallsView {
     focus_handle: FocusHandle,
     /// Today's rows, newest first.
@@ -50,7 +139,7 @@ impl std::fmt::Debug for SystemOneCallsView {
     }
 }
 
-/// Opens System One calls in the workspace, or brings forward the one open there.
+/// Opens the System One page in the workspace, or brings forward the one open there.
 pub fn open(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let open = workspace.items_of_type::<SystemOneCallsView>(cx).next();
     if let Some(open) = open {
@@ -289,6 +378,61 @@ impl SystemOneCallsView {
             .child(Label::new(calls).size(LabelSize::Small).color(Color::Muted))
     }
 
+    /// Each use with its mode (#937): a track of Off / Shadow / Suggest / Act, the set one filled,
+    /// as #844's Marley rows draw a choice in the Settings window. The modes show as set while
+    /// System One is off (D4); the header's line says why nothing asks.
+    fn render_uses(cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let modes = cx
+            .try_global::<SystemOne>()
+            .map(|layer| &layer.settings().uses);
+        let rows = USES.iter().enumerate().map(|(use_index, system_one_use)| {
+            let set = modes
+                .and_then(|modes| modes.get(system_one_use.key))
+                .copied()
+                .unwrap_or(SystemOneMode::Off);
+            let key = system_one_use.key;
+            let buttons = MODES.into_iter().enumerate().map(|(mode_index, mode)| {
+                let picked = mode == set;
+                Button::new(
+                    ("system-one-use-mode", use_index * MODES.len() + mode_index),
+                    mode_label(mode),
+                )
+                .style(if picked {
+                    ButtonStyle::Filled
+                } else {
+                    ButtonStyle::Subtle
+                })
+                .color(if picked { Color::Default } else { Color::Muted })
+                .on_click(move |_, _, cx| {
+                    if !picked {
+                        set_use_mode(key, mode, cx);
+                    }
+                })
+            });
+            h_flex()
+                .justify_between()
+                .gap_4()
+                .child(Label::new(system_one_use.name).size(LabelSize::Small))
+                .child(
+                    h_flex()
+                        .p_0p5()
+                        .gap_0p5()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(colors.border)
+                        .bg(colors.editor_background)
+                        .children(buttons),
+                )
+        });
+        v_flex()
+            .debug_selector(|| "system-one-uses".into())
+            .max_w(px(720.))
+            .gap_1()
+            .child(Headline::new("Each use and its mode").size(HeadlineSize::XSmall))
+            .children(rows)
+    }
+
     fn render_buttons(cx: &Context<Self>) -> impl IntoElement {
         let from_environment = |slot: Slot| {
             cx.try_global::<SystemOne>().is_some_and(|layer| {
@@ -395,6 +539,9 @@ impl SystemOneCallsView {
             .gap_1()
             .rounded_sm()
             .cursor_pointer()
+            .when(row.failed, |this| {
+                this.bg(cx.theme().status().error_background)
+            })
             .hover(|style| style.bg(cx.theme().colors().element_hover))
             .on_click(cx.listener(move |view, _, _, cx| {
                 if !view.expanded.remove(&id) {
@@ -477,8 +624,20 @@ impl Render for SystemOneCallsView {
             .p_4()
             .gap_3()
             .bg(cx.theme().colors().editor_background)
-            .child(Label::new("System One calls").size(LabelSize::Large))
+            .child(
+                v_flex()
+                    .gap_1()
+                    .child(Label::new("System One").size(LabelSize::Large))
+                    .child(
+                        Label::new(
+                            "Small typed questions to a model about what Marley already knows. \
+                             Off, it asks nothing and reads no key.",
+                        )
+                        .color(Color::Muted),
+                    ),
+            )
             .child(self.render_header(cx))
+            .child(Self::render_uses(cx))
             .child(Self::render_buttons(cx))
             .when_some(self.key_field.clone(), |this, (slot, field)| {
                 this.child(
@@ -497,6 +656,18 @@ impl Render for SystemOneCallsView {
             .when_some(self.key_note.clone(), |this, note| {
                 this.child(Label::new(note).size(LabelSize::Small).color(Color::Muted))
             })
+            .child(
+                h_flex()
+                    .debug_selector(|| "system-one-calls-heading".into())
+                    .gap_2()
+                    .items_baseline()
+                    .child(Headline::new("System One calls").size(HeadlineSize::XSmall))
+                    .child(
+                        Label::new("newest first · what left the machine is shown whole")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
+            )
             .when(rows.is_empty(), |this| {
                 this.child(
                     Label::new("No calls today.")
@@ -549,6 +720,6 @@ impl Item for SystemOneCallsView {
     type Event = ();
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
-        SharedString::new_static("System One calls")
+        SharedString::new_static("System One")
     }
 }

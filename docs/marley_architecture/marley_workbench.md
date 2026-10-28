@@ -4887,6 +4887,19 @@ below describe what #743 retired.
   applies) and a Today card (the spend of the daily budget, a bar of the share in thousandths, the
   calls count); a muted note closes the tab on what leaves the machine. Settings' Marley rows take
   buttons for enums of up to four variants (the uses' Off / Shadow / Suggest / Act).
+- **The System One page (#937).** The tab and title read "System One", with an opening line.
+  - `render_uses` follows the cards. Under "Each use and its mode" it gives one row per `USES`
+    entry (`SystemOneUse { key, name }`, the board's order and names). Each row has a track of
+    `MODES` drawn as `settings_ui`'s Marley rows draw theirs, the set mode `Filled`.
+  - The modes come from the `SystemOne` global's merged `uses`, so they show while the layer is
+    off.
+  - A click runs `set_use_mode`, which writes `marley.system_one.uses.<key>` through
+    `settings::update_settings_file`. The view's observer of the global redraws it, and the
+    Settings window reads the same key.
+  - The calls follow a "System One calls" heading with "newest first · what left the machine is
+    shown whole". A failed row has `status().error_background`.
+  - `marley::OpenSystemOneCalls` keeps its name; the Settings link reads "System One" / "Open
+    System One".
 
 ## MCP Servers as cards (`src/mcp_servers.rs`, #846)
 

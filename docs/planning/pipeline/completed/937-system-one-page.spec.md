@@ -1,7 +1,7 @@
 ---
 pipeline_id: 1f5ad2b6-a469-4f3a-81ec-a97c4ff41ad3
 ticket: docs/planning/tickets/open/TICKET-937-system-one-page.md
-status: QUEUED — Phase 1 Plan drafted; ready to promote to active
+status: Phase 4 — Complete PASS
 title: A System One page
 type: feature
 slice: The Marley look, design review 2026-10-23 (docs/marley/design-review-2026-10-23/README.md)
@@ -82,9 +82,10 @@ folder `system_one/` holding three calls, one of them failed.
   uses with their modes, the calls subheading and three rows, the failed one tinted (REQ-001,
   REQ-002, REQ-004, REQ-005).
 - `937-02-changed`: Act clicked on Stop kind: Stop kind's Act filled (REQ-003).
-- `937-03-settings`: the Settings window searched for "stop kind": its row shows Act too, and the
-  System One link reads "Open System One" (REQ-003, REQ-006).
-- `937-04-day`: the page in Marley Day (REQ-001, REQ-002, REQ-004, REQ-005).
+- `937-03-settings`: the Settings window searched for "stop kind": its row shows Act too (REQ-003).
+- `937-04-link`: the Settings window searched for "system one" and scrolled to the section's end:
+  the link reads "System One" and "Open System One" (REQ-006).
+- `937-05-day`: the page in Marley Day (REQ-001, REQ-002, REQ-004, REQ-005).
 
 ## Locked-In Decisions
 - D1 — The calls tab becomes the page; no second tab. Its action keeps its name.
@@ -101,12 +102,12 @@ folder `system_one/` holding three calls, one of them failed.
 
 | # | EARS requirement (`shall`) | Verify |
 |---|---|---|
-| REQ-001 | The System One page shall be titled "System One", in the page and on its tab, with the opening line under the title. | `937-01-page`, `937-04-day` |
-| REQ-002 | The System One page shall show, after the Provider and Today cards, the ten uses in the board's order, each with Off / Shadow / Suggest / Act and the set mode filled. | `937-01-page`, `937-04-day` |
+| REQ-001 | The System One page shall be titled "System One", in the page and on its tab, with the opening line under the title. | `937-01-page`, `937-05-day` |
+| REQ-002 | The System One page shall show, after the Provider and Today cards, the ten uses in the board's order, each with Off / Shadow / Suggest / Act and the set mode filled. | `937-01-page`, `937-05-day` |
 | REQ-003 | WHEN the user clicks a mode on a use's row, the system shall write that mode to `marley.system_one.uses.<name>` in the user's settings, and the page and the Settings window shall show it. | `937-02-changed`, `937-03-settings` |
-| REQ-004 | The System One page shall head the calls with "System One calls" and "newest first · what left the machine is shown whole". | `937-01-page`, `937-04-day` |
-| REQ-005 | WHERE a call failed, its row shall have the error background. | `937-01-page`, `937-04-day` |
-| REQ-006 | The Settings window's System One link shall read "System One" and "Open System One". | `937-03-settings` |
+| REQ-004 | The System One page shall head the calls with "System One calls" and "newest first · what left the machine is shown whole". | `937-01-page`, `937-05-day` |
+| REQ-005 | WHERE a call failed, its row shall have the error background. | `937-01-page`, `937-05-day` |
+| REQ-006 | The Settings window's System One link shall read "System One" and "Open System One". | `937-04-link` |
 
 ## Phase Plan
 - **P1 Plan** — this spec, and the design in the notes.

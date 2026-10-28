@@ -10,7 +10,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | One line |
 |---|---|---|
-| [TICKET-937](open/TICKET-937-system-one-page.md) | feature | A System One page (design review 2026-10-23) |
 | [TICKET-938](open/TICKET-938-agent-access-as-the-board.md) | feature | What agents may do, as the board draws it (design review 2026-10-23) |
 | [TICKET-939](open/TICKET-939-rusty-tasks-knowledge-brain-as-the-board.md) | feature | Rusty's Tasks and brain pages as the board draws them (design review 2026-10-23) |
 | [TICKET-940](open/TICKET-940-rusty-server-and-forms-as-the-board.md) | feature | Rusty's Server, Secrets and Skills as the board draws them (design review 2026-10-23) |

@@ -6557,3 +6557,15 @@ shot of the current build: the review may have been taken against an older one.
   Write the text to a file in `$E2E_WORK`, `wl-copy` it on `$SWAY_DISPLAY`, select all and press
   Ctrl+V, as #799's `paste_into_scratch` does. Read the box's text in the shot before reading the
   error.
+
+## L-claude-937-the-settings-search-reads-an-action-links-title-only-001
+
+- **Ticket:** #937, 2026-10-28.
+- **What happened:** to show the System One link in the Settings window, the scenario first
+  searched for "open system one", which matched rows in other sections and left the link below
+  the fold. It then searched for words from the link's description, which matched nothing:
+  `settings_ui.rs` indexes an `ActionLink` by the page, its header and its title alone, not its
+  description or button text.
+- **Lesson:** to reach a Marley action link in the Settings window, search for its section's name
+  and scroll the results to the section's end (`pointer_to` over the content, `scroll 80`), or
+  search for its exact title.

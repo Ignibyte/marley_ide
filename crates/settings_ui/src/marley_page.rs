@@ -2179,9 +2179,9 @@ fn system_one_section() -> [SettingsPageItem; 20] {
             files: USER,
         }),
         SettingsPageItem::ActionLink(ActionLink {
-            title: "System One Calls".into(),
+            title: "System One".into(),
             description: Some("Every call the layer made today with what came back, the day's spend against the budget, and where the key comes from: MARLEY_SYSTEM_ONE_KEY or the keyring, never its value. The project lists (projects, metadata_only_projects) and each use's mode live under marley.system_one in settings.json.".into()),
-            button_text: "Open System One Calls".into(),
+            button_text: "Open System One".into(),
             on_click: Arc::new(|settings_window, window, cx| {
                 let Some(original_window) = settings_window.original_window else {
                     return;

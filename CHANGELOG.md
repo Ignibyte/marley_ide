@@ -13,6 +13,12 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **A System One page** (#937, 2026-10-28). `marley: open system one calls` opens a page titled
+  "System One", with a line on what the layer is, the Provider and Today cards, and then each of
+  the ten uses with Off / Shadow / Suggest / Act. A click sets the use's mode in your settings, as
+  the Settings window's rows do, and either place shows what the other set. The day's calls follow
+  under "System One calls · newest first · what left the machine is shown whole", and a failed
+  call's row is tinted red. The Settings window's link reads "Open System One".
 - **The Component Library's templates as chips** (#936, 2026-10-28). Under "Your templates" and a
   link to `components/` in Marley's config folder, each template file is a chip with its name and
   "loaded" in green, or its error in red, cut short with the whole of it in a tooltip. A loaded
