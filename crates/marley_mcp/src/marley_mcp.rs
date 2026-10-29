@@ -166,6 +166,19 @@ pub struct Caller {
     pub cwd: Option<String>,
     /// The name the client gave at `initialize` (#571), such as `Zed`, which its session keeps.
     pub client: Option<String>,
+    /// How the bridge was reached (#947), from its `Marley-Via` header; words only.
+    pub reach: Reach,
+}
+
+/// How a caller's bridge was reached, as it says in `Marley-Via` (#947). A process can claim
+/// either, so it names the caller and never grants anything.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Reach {
+    /// Run on this machine, or nothing said.
+    #[default]
+    Local,
+    /// Run in an SSH session, as a client on another machine runs it.
+    Ssh,
 }
 
 /// What [`AnswerHook`] runs with a call's answer.

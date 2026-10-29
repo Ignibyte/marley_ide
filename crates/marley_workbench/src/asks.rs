@@ -6,8 +6,10 @@
 //! its buttons in a row at the right, weighted as #870's prompts.
 //!
 //! An edit's question (#938) also leads with the agent's tile, says its task under the title, and
-//! shows the change as removed and added lines.
+//! shows the change as removed and added lines. A pairing's (#947) shows its code in digit boxes
+//! and the grants as a radio list, whose pick its Pair button reads.
 
+use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{AnyElement, App, FontWeight, Hsla, Window};
@@ -40,6 +42,21 @@ pub(crate) struct Change {
 /// One of the question's buttons.
 type OnClick = Rc<dyn Fn(&mut Window, &mut App)>;
 
+/// One choice in a question's radio list (#947).
+#[derive(Clone, Debug)]
+pub(crate) struct Choice {
+    pub(crate) label: SharedString,
+    /// What the choice allows, under its label.
+    pub(crate) line: SharedString,
+}
+
+/// A radio list and the index of its pick, which a button reads when it is clicked.
+#[derive(Clone, Debug)]
+pub(crate) struct Choices {
+    pub(crate) items: Vec<Choice>,
+    pub(crate) chosen: Rc<Cell<usize>>,
+}
+
 /// A question as the card draws it.
 #[derive(Clone)]
 pub(crate) struct Ask {
@@ -48,6 +65,8 @@ pub(crate) struct Ask {
     subtitle: Option<SharedString>,
     change: Option<Change>,
     lines: Vec<SharedString>,
+    code: Option<SharedString>,
+    choices: Option<Choices>,
     rows: Vec<(SharedString, SharedString)>,
     footnote: Option<SharedString>,
     buttons: Vec<(SharedString, Role, OnClick)>,
@@ -61,6 +80,8 @@ impl Ask {
             subtitle: None,
             change: None,
             lines: Vec::new(),
+            code: None,
+            choices: None,
             rows: Vec::new(),
             footnote: None,
             buttons: Vec::new(),
@@ -88,6 +109,18 @@ impl Ask {
     /// A line of text under the title.
     pub(crate) fn line(mut self, text: impl Into<SharedString>) -> Self {
         self.lines.push(text.into());
+        self
+    }
+
+    /// A code to compare, each digit in a box of its own, drawn under the lines.
+    pub(crate) fn code(mut self, code: impl Into<SharedString>) -> Self {
+        self.code = Some(code.into());
+        self
+    }
+
+    /// A radio list under the code; a click on a choice picks it.
+    pub(crate) fn choices(mut self, choices: Choices) -> Self {
+        self.choices = Some(choices);
         self
     }
 
@@ -148,6 +181,12 @@ impl Ask {
                     .map(|line| Label::new(line.clone()).size(LabelSize::Small)),
             )
             .children(self.change.as_ref().map(|change| render_change(change, cx)))
+            .children(self.code.as_ref().map(|code| render_code(code, cx)))
+            .children(
+                self.choices
+                    .as_ref()
+                    .map(|choices| render_choices(choices, cx)),
+            )
             .when(!self.rows.is_empty(), |card| {
                 card.child(
                     v_flex()
@@ -191,6 +230,106 @@ impl Ask {
             })
             .into_any_element()
     }
+}
+
+/// A code as the `AgentAccess` board draws it: each digit in a bordered box in the buffer font, a
+/// space between groups kept as a gap.
+fn render_code(code: &str, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let mut boxes: Vec<AnyElement> = Vec::new();
+    for character in code.chars() {
+        if character.is_whitespace() {
+            boxes.push(div().w_2().into_any_element());
+            continue;
+        }
+        boxes.push(
+            div()
+                .w(px(28.))
+                .h(px(34.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.editor_background)
+                .child(
+                    Label::new(character.to_string())
+                        .size(LabelSize::Large)
+                        .buffer_font(cx),
+                )
+                .into_any_element(),
+        );
+    }
+    h_flex()
+        .debug_selector(|| "marley-ask-code".into())
+        .gap_1()
+        .py_1()
+        .children(boxes)
+        .into_any_element()
+}
+
+/// A radio list: a row per choice, its dot filled in the accent when picked, its line muted
+/// under the label. A click picks the row and redraws the window, since the card is drawn by a
+/// notification that holds no state of its own.
+fn render_choices(choices: &Choices, cx: &App) -> AnyElement {
+    let colors = cx.theme().colors();
+    let picked = choices.chosen.get();
+    let rows = choices
+        .items
+        .iter()
+        .enumerate()
+        .map(|(index, choice)| {
+            let chosen = Rc::clone(&choices.chosen);
+            let is_picked = index == picked;
+            let dot = div()
+                .mt(px(3.))
+                .size(px(12.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .border_1()
+                .border_color(if is_picked {
+                    colors.text_accent
+                } else {
+                    colors.border
+                })
+                .when(is_picked, |dot| {
+                    dot.child(div().size(px(6.)).rounded_full().bg(colors.text_accent))
+                });
+            h_flex()
+                .id(("marley-ask-choice", index))
+                .items_start()
+                .gap_2()
+                .px_1p5()
+                .py_1()
+                .rounded_sm()
+                .cursor_pointer()
+                .when(is_picked, |row| row.bg(colors.element_selected))
+                .hover(|row| row.bg(colors.element_hover))
+                .child(dot)
+                .child(
+                    v_flex()
+                        .child(Label::new(choice.label.clone()).size(LabelSize::Small))
+                        .child(
+                            Label::new(choice.line.clone())
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .on_click(move |_, window, _| {
+                    chosen.set(index);
+                    window.refresh();
+                })
+        })
+        .collect::<Vec<_>>();
+    v_flex()
+        .debug_selector(|| "marley-ask-choices".into())
+        .gap_0p5()
+        .children(rows)
+        .into_any_element()
 }
 
 /// A change as removed lines on the deleted background and added lines on the created one, the

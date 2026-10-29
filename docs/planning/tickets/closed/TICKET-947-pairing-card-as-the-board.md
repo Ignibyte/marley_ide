@@ -2,12 +2,12 @@
 
 - **Ticket:** LOCAL #947 (feature, the Marley look, AgentAccess)
 - **Owner:** 065ccd79-6425-4f2c-bdc5-39a3e181e7f8
-- **Pipeline doc:** none yet
+- **Pipeline doc:** [947-pairing-card-as-the-board.spec.md](../../pipeline/completed/947-pairing-card-as-the-board.spec.md)
 - **Source ticket:** split from #938 (its Out and D6); the design review of 2026-10-23
   (docs/marley/design-review-2026-10-23/F-tools.md, board AgentAccess)
 - **Boards:** AgentAccess
 - **Size:** M
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 

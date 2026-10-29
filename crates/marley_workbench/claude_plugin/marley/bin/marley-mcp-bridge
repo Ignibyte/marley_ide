@@ -200,6 +200,10 @@ def caller_headers():
                         ("Marley-Cwd", cwd)):
         if value.startswith("/") and len(value.encode("utf-8", "replace")) <= MAX_PATH:
             headers[name] = urllib.parse.quote(value, safe="/")
+    # Run in an SSH session, as a client on another machine runs it (#947): Marley's pairing card
+    # says so. A label like the others, never a grant.
+    if os.environ.get("SSH_CONNECTION"):
+        headers["Marley-Via"] = "ssh"
     return headers
 
 
@@ -439,7 +443,7 @@ def pair(name):
                 session)
         asked = call_tool(endpoint, session, 2, "client_pair", {"name": name})
         print(f'Marley asks you to pair "{name}". Check that Marley shows the code '
-              f'{asked["code"]}, then choose what it may do.', flush=True)
+              f'{asked["code"]}, then pick what it may do and press Pair.', flush=True)
         deadline = time.monotonic() + asked.get("expires_in_seconds", 120) + 10
         number = 3
         while time.monotonic() < deadline:

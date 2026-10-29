@@ -14,7 +14,9 @@
 //! never taken here.
 
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -28,20 +30,21 @@ use gpui::{
     Focusable, Global, Render, Task, Window,
 };
 use marley_mcp::{
-    AppCall, ClientError, ClientInfo, Power, Refusal, ToolAnswer, check_client_name, discovery,
-    transport,
+    AppCall, ClientError, ClientInfo, Power, Reach, Refusal, ToolAnswer, check_client_name,
+    discovery, transport,
 };
 use rand::Rng as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ui::{Checkbox, TintColor, ToggleState, prelude::*};
 use util::ResultExt as _;
+use util::paths::PathExt as _;
 use util::shell::ShellKind;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
 use workspace::{ModalView, Workspace};
 
-use crate::asks::Ask;
+use crate::asks::{Ask, Choice, Choices};
 use crate::browser::BrowserHub;
 use crate::prompts::Role;
 use crate::{AllowBrowserClient, BrowserClients, OutsideClients};
@@ -464,7 +467,34 @@ struct PairQuestion {
     name: String,
     code: String,
     folder: Option<String>,
+    reach: Reach,
 }
+
+/// One grant the pairing card offers, as the `AgentAccess` board words it (#947).
+struct Grant {
+    power: Power,
+    label: &'static str,
+    line: &'static str,
+}
+
+/// The pairing card's grants, the least first: the card opens with it picked.
+const GRANTS: [Grant; 3] = [
+    Grant {
+        power: Power::Read,
+        label: "Read",
+        line: "The read tools only, as before pairing.",
+    },
+    Grant {
+        power: Power::Write,
+        label: "Read and Write",
+        line: "Also editors, the Browser tab, threads, palette actions, settings proposals.",
+    },
+    Grant {
+        power: Power::Run,
+        label: "Read, Write and Run",
+        line: "Also typing and running in terminals, harness seats, starting agents.",
+    },
+];
 
 /// The pairing notifications' kind; each has its own id within it.
 struct PairingQuestion;
@@ -570,6 +600,7 @@ fn begin_pairing(name: &str, call: &AppCall, cx: &mut App) -> Result<(String, St
         name: name.to_string(),
         code: code.clone(),
         folder: call.caller().cwd.clone(),
+        reach: call.caller().reach,
     };
     let waiting_for_user = cx.spawn({
         let (id, name) = (id.clone(), name.to_string());
@@ -679,34 +710,45 @@ fn show_pairing(id: NotificationId, question: PairQuestion, slot: PairSlot, cx: 
             let slot = Arc::clone(&slot);
             move |_: &mut Window, _: &mut App| give_pairing(&slot, answer)
         };
-        let mut ask = Ask::new(format!(
-            "A program asks to pair with Marley as \"{}\"",
+        let chosen = Rc::new(Cell::new(0));
+        let pair = {
+            let slot = Arc::clone(&slot);
+            let chosen = Rc::clone(&chosen);
+            move |_: &mut Window, _: &mut App| {
+                let power = GRANTS
+                    .get(chosen.get())
+                    .map_or(Power::Read, |grant| grant.power);
+                give_pairing(&slot, PairAnswer::Trust(power));
+            }
+        };
+        let check = "Check the code matches what the command printed.";
+        let from = question.folder.as_deref().map(|folder| {
+            let folder = Path::new(folder).compact();
+            match question.reach {
+                Reach::Ssh => format!("From {} over SSH. {check}", folder.display()),
+                Reach::Local => format!("From {}. {check}", folder.display()),
+            }
+        });
+        let choices = Choices {
+            items: GRANTS
+                .iter()
+                .map(|grant| Choice {
+                    label: grant.label.into(),
+                    line: grant.line.into(),
+                })
+                .collect(),
+            chosen,
+        };
+        let ask = Ask::new(format!(
+            "\u{201c}{}\u{201d} asks to pair with Marley",
             question.name
         ))
-        .line(format!(
-            "Check that it shows the code {}, then choose what it may do.",
-            question.code
-        ));
-        if let Some(folder) = question.folder.clone() {
-            ask = ask.footnote(format!("Asked from {folder}"));
-        }
-        let ask = ask
-            .button("Refuse", Role::Quiet, answer(PairAnswer::Refuse))
-            .button(
-                "Read, Write and Run",
-                Role::Plain,
-                answer(PairAnswer::Trust(Power::Run)),
-            )
-            .button(
-                "Read and Write",
-                Role::Plain,
-                answer(PairAnswer::Trust(Power::Write)),
-            )
-            .button(
-                "Read",
-                Role::Primary,
-                answer(PairAnswer::Trust(Power::Read)),
-            );
+        .line(from.unwrap_or_else(|| check.to_string()))
+        .code(question.code.clone())
+        .choices(choices)
+        .footnote("No answer in two minutes pairs nothing.")
+        .button("Refuse", Role::Quiet, answer(PairAnswer::Refuse))
+        .button("Pair", Role::Primary, pair);
         cx.new(|cx| MessageNotification::new_from_builder(cx, move |_, cx| ask.render(cx)))
     });
 }

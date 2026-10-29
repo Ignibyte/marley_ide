@@ -2821,9 +2821,10 @@ run, pair it:
    `~/.local/share/marley/mcp/marley-mcp-bridge pair laptop`, or from another machine over SSH,
    `ssh <you>@<this machine> '~/.local/share/marley/mcp/marley-mcp-bridge pair laptop'`. A name is
    1 to 32 letters, digits, `-` and `_`.
-2. The command prints a six-digit code, and Marley shows a notification in every window:
-   `A program asks to pair with Marley as "laptop"`, the code, and the folder it asked from.
-3. Check that the codes match, then choose what it may do:
+2. The command prints a six-digit code, and Marley shows a card in every window: “laptop” asks to
+   pair with Marley, the folder it asked from (with "over SSH" when it came over SSH), and the code
+   in six boxes.
+3. Check that the codes match, pick what it may do, and press **Pair**:
    - **Read**: the read tools, as before pairing.
    - **Read and Write**: also every tool that acts without running anything: the editors, the
      Browser tab, threads, palette actions, settings and keymap proposals, drafts and review
@@ -2831,6 +2832,8 @@ run, pair it:
    - **Read, Write and Run**: also `terminal_type` and `terminal_run`, the harness's seats,
      `agent_start` and `thread_answer`.
    - **Refuse**, or no answer within two minutes, pairs nothing.
+
+   Read is picked when the card opens.
 4. The command prints `Paired: laptop may …` and the line its MCP client runs as its stdio server:
    `MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge` here, or `ssh -T -o BatchMode=yes <you>@<this
    machine> 'env MARLEY_MCP_ENDPOINT=… …/marley-mcp-bridge'` from another machine. For Claude

@@ -13,6 +13,11 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **The pairing card as the board draws it** (#947, 2026-10-29). When a program outside Marley asks
+  to pair, the card names it in its title, says the folder it asked from and "over SSH" when it
+  came over SSH, and shows the code in six boxes. Pick Read, Read and Write, or Read, Write and Run
+  from the list, each with a line on what it allows, then press Pair; Refuse, or no answer in two
+  minutes, pairs nothing.
 - **The System tab's pages as the board draws them** (#945, 2026-10-28). `just install` writes
   `install.json` into Marley's data folder, and Install and update lists its steps: the
   toolchain, the build with its time, the remote server and the desktop entry (the app on a Mac).

@@ -5680,13 +5680,19 @@ below describe what #743 retired.
   (`already_paired`), one already waiting (`pairing_pending`) and a fourth waiting pairing
   (`too_many_pairings`, `MAX_PAIRINGS`), then mints a 32-hex id and a six-digit code (`rand`),
   shows the notification in every window (`show_pairing`, `show_app_notification`: the name, the
-  code, "Asked from" the caller's `cwd`, and Read, Read and Write, Read Write and Run, Refuse) and
+  code and the caller's `cwd`, drawn as the AgentAccess board since #947) and
   keeps a `Pairing` in `ClientsState::pairings`. Its task waits on a one-shot slot or `PAIR_WAIT`
   (two minutes), dismisses the notification, and on a power runs `allow(name, false,
   Some(power))`; the state becomes `Trusted { power, file }`, `Refused` or `Expired`.
   `pairing_status` answers `waiting`, or the final state once (the trusted one with the endpoint
   file and `client_lines`' two commands) and drops the pairing; an unread final state is dropped
   at the next pairing once twice `PAIR_WAIT` old.
+- **The pairing card (#947).** `show_pairing` draws an `Ask` titled "“<name>” asks to pair with
+  Marley": a line with the caller's `cwd` (`PathExt::compact`) and " over SSH" when its `reach` is
+  `Reach::Ssh`, the code through `Ask::code` (a box per digit), `GRANTS` through `Ask::choices` (a
+  radio row each with its line, Read picked; a click sets the shared `Rc<Cell<usize>>` and
+  refreshes the window), "No answer in two minutes pairs nothing.", Refuse and Pair. Pair gives
+  `PairAnswer::Trust` with the picked grant's power.
 - `RegisteredClient::power` (`Option<Power>`, left out of the file when none) marks a paired
   client; `start` and `allow` pass it to `transport::allow_client`. `set_power` changes the
   registry on the main thread, then the server's table (`transport::set_client_power`) and the

@@ -236,6 +236,9 @@ OR Apache-2.0, with the Marley crates' lint table.
   (`gate`) names it on the new session (`SessionRegistry::name_client`), and `serve_post` reads it
   under the same lock for each request (`client_of`) into `Caller::client`, a courtesy that sorts
   callers, such as Zed's agent, which names itself `Zed`.
+- Since #947 `Marley-Via: ssh`, which the bridge sends when `SSH_CONNECTION` is set, makes
+  `Caller::reach` `Reach::Ssh` (else `Reach::Local`). The pairing card says "over SSH" by it; it
+  grants nothing, since any process can send it.
 
 ## The agent socket (`agent_socket.rs`, #652, Unix only)
 

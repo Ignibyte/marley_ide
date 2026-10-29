@@ -25,8 +25,8 @@ use crate::permission::GrantTable;
 use crate::session::{SessionDecision, SessionRegistry, client_name_of, session_gate};
 use crate::{
     APP_CALL_TIMEOUT_SECONDS, AppCall, AppCaller, AppOutcome, Caller, Effect, Outgoing,
-    PendingCall, RequestCtx, Subscriptions, auth, deferred_response, handle_message, mint_secret,
-    parse_request, snapshot_changed,
+    PendingCall, Reach, RequestCtx, Subscriptions, auth, deferred_response, handle_message,
+    mint_secret, parse_request, snapshot_changed,
 };
 
 /// The shared server state the app updates each pump tick: the current snapshot, the permission
@@ -784,6 +784,12 @@ fn read_http_request<R: Read>(
             caller.project = caller_path(value);
         } else if let Some(value) = header_value(line, "marley-cwd") {
             caller.cwd = caller_path(value);
+        } else if let Some(value) = header_value(line, "marley-via") {
+            caller.reach = if value.eq_ignore_ascii_case("ssh") {
+                Reach::Ssh
+            } else {
+                Reach::Local
+            };
         } else if let Some(value) = header_value(line, "content-length") {
             content_length = value.parse().unwrap_or(0);
         }
