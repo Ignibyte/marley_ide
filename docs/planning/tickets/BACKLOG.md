@@ -13,7 +13,6 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 | [TICKET-946](open/TICKET-946-forge-as-the-board.md) | feature | Forge's board and online agents as the board draws them (design review 2026-10-23) |
 | [TICKET-947](open/TICKET-947-pairing-card-as-the-board.md) | feature | The pairing card as the board draws it (split from #938) |
 | [TICKET-948](open/TICKET-948-knowledge-panel-as-the-board.md) | feature | The Knowledge panel as the board draws it (split from #939) |
-| [TICKET-794](open/TICKET-794-home-missing-after-a-restored-tab.md) | bug | Home goes missing when the Default group restores a tab on start (seen on the Mac with Onboarding) |
 
 ## Deliberate (picked explicitly, never auto-next)
 

@@ -6613,3 +6613,12 @@ shot of the current build: the review may have been taken against an older one.
 - **Lesson:** a System page row that looks at the disk gets its answer once, on the background
   executor, when the page opens (`cx.background_spawn(futures::future::lazy(…))`, as
   `count` and `check` do), and keeps it on the entity. The row reads only fields.
+
+## L-claude-794-a-scenario-restores-a-session-only-when-the-launch-names-no-folder-001
+
+- **Ticket:** #794, 2026-10-29.
+- **What happened:** the first scenario quit Marley and called `launch_marley`, which opens the run's
+  folder again. That launch restored no session: the Default group came back empty and the bug did
+  not show.
+- **Lesson:** to see what a relaunch restores, quit and start again with `launch_marley_with` and no
+  folder, as #912's next start does.

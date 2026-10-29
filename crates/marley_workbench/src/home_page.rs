@@ -45,14 +45,14 @@ pub(crate) fn init(cx: &App) {
         let Some(window) = window else {
             return;
         };
-        // Its last tab closed.
+        // Its last tab closed, or a relaunch put its saved tabs in place of the pane Home was in.
         cx.subscribe_in(
             &cx.entity(),
             window,
-            |workspace, _, event: &workspace::Event, window, cx| {
-                if let workspace::Event::ItemRemoved { .. } = event {
-                    fill_emptied(workspace, window, cx);
-                }
+            |workspace, _, event: &workspace::Event, window, cx| match event {
+                workspace::Event::ItemRemoved { .. } => fill_emptied(workspace, window, cx),
+                workspace::Event::CenterRestored => fill_restored(workspace, window, cx),
+                _ => {}
             },
         )
         .detach();
@@ -147,6 +147,14 @@ pub(crate) fn new_page(
 fn fill_emptied(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     if crate::groups::is_home_workspace(cx.entity_id(), cx) && workspace.items(cx).next().is_none()
     {
+        ensure(workspace, window, cx);
+    }
+}
+
+/// Home's page in the Home group once a relaunch restored its saved tabs (#794): the restore drops
+/// the pane Home went into when the rail adopted the group.
+fn fill_restored(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    if crate::groups::is_home_workspace(cx.entity_id(), cx) {
         ensure(workspace, window, cx);
     }
 }

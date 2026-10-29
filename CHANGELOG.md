@@ -2347,6 +2347,9 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Fixed
 
+- **Home after a relaunch** (#794, 2026-10-29). When Marley starts again and brings back the tabs
+  you had open in the Default group, Home is back too, first in the group's tabs and in the rail.
+  Before, the restored tabs took its place and Home was gone until the group was emptied.
 - **A thread finished in front no longer reads as unseen** (#910, 2026-10-25). In the Marley
   layout, a thread tab in front counts as shown, so a run that ends there leaves no attention
   dot.

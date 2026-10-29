@@ -4645,3 +4645,14 @@ The macOS call to `write_install_record` passed `$app`, which `install_mac` decl
 the function returns it is empty, so the record would have named "/Contents/MacOS/marley" as the
 binary and Install and update could never see the running build as the installed one. Fixed: the
 call names `$app_dir/Marley.app`. Code after a bash function reads only that function's globals.
+
+## F-claude-794-zeds-restore-dropped-the-pane-home-was-in-001
+*found: 2026-10-29 · while: planning #794 (seen on the Mac 2026-10-16) · severity: medium*
+
+A relaunch that restored saved tabs into the Default group showed them without Home, in the tabs
+and the rail. Home went into the workspace's first pane when the rail adopted the group; Zed's
+`load_workspace` then awaited the saved center, called `remove_panes` on the old one and installed
+the restored group, and no event Marley heard came after the swap (`PaneAdded` fires before it,
+`ActiveItemChanged` on every tab change). Fixed: `workspace::Event::CenterRestored`, emitted after
+the swap, and Home's `ensure` on it. An item Marley puts in a workspace Zed restores must be put
+back after the restore, not only when the workspace first appears.

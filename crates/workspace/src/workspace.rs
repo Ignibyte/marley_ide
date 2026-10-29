@@ -1579,6 +1579,9 @@ pub enum Event {
     Activate,
     PanelAdded(AnyView),
     WorktreeCreationChanged,
+    // Marley: `load_workspace` installed a restored center group in place of the panes the
+    // workspace was made with, so an item put in those panes is gone (#794).
+    CenterRestored,
 }
 
 /// Controls which types of items should be made visible in the project panel
@@ -8106,6 +8109,8 @@ impl Workspace {
                     } else {
                         workspace.set_active_pane(&workspace.center.first_pane(), window, cx);
                     }
+                    // Marley: see `Event::CenterRestored`.
+                    cx.emit(Event::CenterRestored);
                 }
 
                 let docks = serialized_workspace.docks;

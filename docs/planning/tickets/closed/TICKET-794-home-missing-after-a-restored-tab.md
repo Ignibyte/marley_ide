@@ -2,11 +2,11 @@
 
 - **Ticket:** LOCAL #794 (bug, Home)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [794-home-after-a-restored-tab.spec.md](../../pipeline/completed/794-home-after-a-restored-tab.spec.md)
 - **Source ticket:** seen on the Mac on 2026-10-16 (#787's notes; again in #791's Mac shot): a
   relaunch restored only the first-run Onboarding tab in the Default group, and the rail had no
   Home.
-- **Status:** open
+- **Status:** closed
 
 ## Summary
 Marley puts its Home page first in the Default group's workspace (`home_page::fill_shown`, on

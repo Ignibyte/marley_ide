@@ -2323,6 +2323,10 @@ alike.
     `fill_shown` calls `ensure` when the shown workspace is Home (`groups::is_home_workspace`).
     Since #782 `home_page::init` registers both, just before `rusty::init`, where
     `rusty::home_tab::init` did.
+  - Since #794 the workspace subscription also takes `workspace::Event::CenterRestored`, which
+    `Workspace::load_workspace` emits once it installs a restored center group: the restore drops
+    the pane Home went into when the rail adopted the group, so `fill_restored` calls `ensure` again
+    in the Home workspace.
   - `ensure` runs inside the workspace's or the `MultiWorkspace`'s update, so `MarleyHome::new`
     reads neither: `ensure` hands it the `Fs`, and the rail is looked up in `render`.
 - The cards:
