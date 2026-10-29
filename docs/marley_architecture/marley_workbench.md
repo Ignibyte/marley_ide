@@ -3998,9 +3998,11 @@ below describe what #743 retired.
   close; `StopFailure` closes as failed. `agent_events::end` calls `on_end`, and `forget` calls
   `turns::forget`, which closes and drops the seat. A session id that is not ASCII letters,
   digits, `-` and `_` opens no turn, since it names the refs.
-- A close takes `Repository::checkpoint` in the repository's job queue and spawns the record,
-  which awaits the seat's record before it, so each takes the next number and lists in order: both
-  checkpoints, `compare_checkpoints` (equal ends it), `turn_git::turn_refs_in` for the session's
+- A close takes `turns::checkpoint_of`, `Repository::create_archive_checkpoint` in the
+  repository's job queue with its full-state commit kept as a `CheckpointSha` (Zed removed its
+  agent checkpoints upstream, #950), and spawns the record, which awaits the seat's record before
+  it, so each takes the next number and lists in order: both checkpoints,
+  `turn_git::same_tree_in` (`git diff-tree --quiet`; equal ends it), `turn_git::turn_refs_in` for the session's
   highest number, `turn_git::commit_tree_in` of `<end>^{tree}` on the start with the title and
   the `Marley-Session` and `Marley-Turn` trailers, `Repository::update_ref`, the file count from
   `diff_tree(Since)`, and on the session's first pin, `delete_ref` for each turn ref whose commit

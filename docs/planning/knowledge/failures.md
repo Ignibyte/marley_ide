@@ -4656,3 +4656,13 @@ the restored group, and no event Marley heard came after the swap (`PaneAdded` f
 `ActiveItemChanged` on every tab change). Fixed: `workspace::Event::CenterRestored`, emitted after
 the swap, and Home's `ensure` on it. An item Marley puts in a workspace Zed restores must be put
 back after the restore, not only when the workspace first appears.
+
+## F-claude-950-the-merge-filter-took-upstreams-unsafe-line-for-marleys-001
+*found: 2026-10-29 · while: #950's Code phase (gate:13, run 1) · severity: low · prevented by: PR-claude-950-a-text-match-filter-matches-the-same-kind-of-line-001*
+
+During the merge of upstream Zed, gate:13 failed on `#[ctor::ctor(unsafe)]` without a SAFETY note,
+a line upstream added to `multi_buffer_tests.rs`. The gate drops upstream's lines by matching
+their text against the lines Marley adds against `MERGE_HEAD` (#695), and Marley's test crate
+holds the same text, justified by the SAFETY note above it. Fixed: the filter matches against
+Marley's unjustified `unsafe` lines only (`unjustified_unsafe_since`), so a justified line of
+Marley's no longer claims upstream's identical one.

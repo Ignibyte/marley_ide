@@ -103,6 +103,31 @@ pub(crate) async fn numstat_in(
         .collect())
 }
 
+/// Whether the commits `left` and `right` in the repository at `work_dir` hold the same tree,
+/// from `git diff-tree --quiet`, which exits 1 for a difference.
+///
+/// # Errors
+///
+/// When `git` cannot run, or refuses.
+pub(crate) async fn same_tree_in(work_dir: &Path, left: &str, right: &str) -> anyhow::Result<bool> {
+    let output = crate::process::output(
+        "git",
+        ["diff-tree", "--quiet", left, right],
+        Some(work_dir),
+        &[],
+    )
+    .await
+    .context("running git diff-tree")?;
+    match output.status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => anyhow::bail!(
+            "git diff-tree refused: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+    }
+}
+
 /// One turn ref: its name, its commit and when that commit was made, in seconds since the epoch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TurnRef {

@@ -411,8 +411,9 @@ fn check_binding(
             refusal.next(format!("actions with a name like it: {}", close.join(", ")))
         });
     }
+    let os = cx.platform_info().os;
     for step in typed.split_whitespace() {
-        Keystroke::parse(step).map_err(|error| {
+        Keystroke::parse_with_os(step, os).map_err(|error| {
             Refusal::new(
                 "bad_argument",
                 format!("`{step}` is not a keystroke: {error}"),
@@ -444,10 +445,11 @@ async fn propose_binding(
     let text = load(&fs, &path, &absent).await?;
     let changed = cx.update(|cx| {
         let mapper = std::rc::Rc::clone(cx.keyboard_mapper());
+        let os = cx.platform_info().os;
         let keystrokes: Vec<KeybindingKeystroke> = binding
             .typed
             .split_whitespace()
-            .filter_map(|step| Keystroke::parse(step).ok())
+            .filter_map(|step| Keystroke::parse_with_os(step, os).ok())
             .map(|keystroke| {
                 KeybindingKeystroke::new_with_mapper(keystroke, false, mapper.as_ref())
             })
@@ -467,6 +469,7 @@ async fn propose_binding(
             TAB_SIZE,
             mapper.as_ref(),
             cx.deprecated_actions_to_preferred_actions(),
+            os,
         )
     });
     let changed = changed.map_err(|error| {

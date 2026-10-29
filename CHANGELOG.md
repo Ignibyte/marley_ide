@@ -13,6 +13,29 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Upstream Zed through 2026-10-29** (#950). Marley now carries the 190 upstream commits since
+  #797, which includes everything in Zed v1.26.2 and v1.27.0-pre. Upstream's changes that show:
+  - Git can fetch in the background (`git.auto_fetch.enabled`, off until you turn it on), and the
+    Git panel says when a push fails because the branch is behind.
+  - The debugger's hover shows a tree you can open with the arrow keys.
+  - The project panel can sort by extension, and `"on_new_window": "readme"` opens a project's
+    root README in a preview tab when nothing else is open.
+  - In the Agent Panel, subagents of ACP agents show as their own cards, model and option search
+    is better, and an option set as a default applies only to new sessions.
+  - Zed's agent no longer takes a checkpoint before each message, and its Restore Checkpoint
+    button is gone. Undo a Claude Code or Codex turn from its row in the rail instead.
+
+  Marley's turns now take their checkpoint from the commit Zed writes when it archives a worktree,
+  since the checkpoint they used went with Zed's. A turn's commit is unchanged, but its checkpoint
+  now also holds untracked files over 2 MB, and a repository with no commit yet keeps no turns.
+  An edit card's "+N −M" in a thread reloaded from history appears once the card's diff is
+  loaded. The Plan / Act switch leaves a subagent's mode alone, as Zed's own menus do.
+
+  Underneath: ACP SDK 3.6, Taffy 0.15, and minidump-writer at a git commit for a crash on quit.
+  The gate's lint step turns one std feature on for the two upstream crates that need it on its
+  older nightly, and its unsafe check no longer takes an upstream line for Marley's when a
+  Marley file has the same text.
+
 - **The pairing card as the board draws it** (#947, 2026-10-29). When a program outside Marley asks
   to pair, the card names it in its title, says the folder it asked from and "over SSH" when it
   came over SSH, and shows the code in six boxes. Pick Read, Read and Write, or Read, Write and Run

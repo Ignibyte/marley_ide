@@ -23,7 +23,7 @@ use futures::{FutureExt, future::Shared};
 use gpui::{AppContext as _, Entity, Global, Subscription, Task, TaskExt};
 pub use project::WorktreePaths;
 use project::{AgentId, linked_worktree_short_name};
-use remote::{RemoteConnectionOptions, same_remote_connection_identity};
+use remote::RemoteConnectionOptions;
 use ui::{App, Context, SharedString, ThreadItemWorktreeInfo, WorktreeKind};
 use util::{ResultExt as _, paths::PathStyle};
 use workspace::{PathList, SerializedWorkspaceLocation, WorkspaceDb};
@@ -359,7 +359,8 @@ impl ThreadMetadata {
         &self,
         remote_connection: Option<&RemoteConnectionOptions>,
     ) -> bool {
-        same_remote_connection_identity(self.remote_connection.as_ref(), remote_connection)
+        self.remote_connection.as_ref().map(|o| o.identity())
+            == remote_connection.map(|o| o.identity())
     }
 }
 
@@ -989,13 +990,9 @@ impl ThreadMetadataStore {
             .into_iter()
             .flatten()
             .filter(|id| {
-                self.threads.get(id).is_some_and(|t| {
-                    !t.archived
-                        && same_remote_connection_identity(
-                            t.remote_connection.as_ref(),
-                            remote_connection,
-                        )
-                })
+                self.threads
+                    .get(id)
+                    .is_some_and(|t| !t.archived && t.matches_remote_connection(remote_connection))
             })
             .copied()
             .collect();
@@ -1317,6 +1314,8 @@ impl ThreadMetadataStore {
                 )
             } else {
                 let project = thread_ref.project().read(cx);
+                let worktree_paths = project.worktree_paths(cx);
+                let remote_connection = project.remote_connection_options(cx).cloned();
                 // Marley: a thread Marley starts on folders of its choosing (#734) is filed under
                 // them; the project's visible folders may not hold them, or may be none.
                 let own_folders = view
@@ -1325,9 +1324,8 @@ impl ThreadMetadataStore {
                     .flatten();
                 let worktree_paths = match own_folders {
                     Some(folders) => WorktreePaths::from_folder_paths(&folders),
-                    None => project.worktree_paths(cx),
+                    None => worktree_paths,
                 };
-                let remote_connection = project.remote_connection_options(cx);
 
                 (worktree_paths, remote_connection)
             };

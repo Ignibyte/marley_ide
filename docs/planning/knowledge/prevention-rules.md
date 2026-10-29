@@ -3263,3 +3263,21 @@ transcripts, a tmux server, a CLI's home, a socket), `script/e2e.sh` points it a
 copy in the same change, with an export beside #877's and #880's. A setting a scenario has to
 remember is not enough: the old scenarios never set it, and a stale click in one of them then
 acts on the user's live sessions.
+
+## PR-claude-950-a-text-match-filter-matches-the-same-kind-of-line-001
+*severity: low · prevents: F-claude-950-the-merge-filter-took-upstreams-unsafe-line-for-marleys-001*
+
+A gate check that tells Marley's lines from upstream's by text compares a finding only with the
+findings on Marley's side, never with all of Marley's lines. A short line (an attribute, a
+closing brace, a common call) is often in both trees; matched against everything, a line Marley
+holds for a good reason claims upstream's copy of it.
+
+## PR-claude-950-a-lint-nightly-gap-in-upstream-code-is-closed-in-the-gate-001
+*severity: low · refines: PR-claude-797-a-lint-nightly-gap-is-fixed-at-its-call-001*
+
+When upstream code calls a std API that is stable on the tree's toolchain and not on the nightly
+`tooling/lints` pins, leave upstream's call as it is (upstream is right in a merge, Chad,
+2026-10-29) and switch the feature on for that one package in gate:21's `DYLINT_CRATE_FEATURES`
+(`profile.dev.package.<crate>.rustflags`, under `-Zprofile-rustflags`), naming the commit and when
+the entry goes. Never for every crate: `no_std` crates refuse a std feature (E0635). A Marley
+crate's own call still changes at the call.

@@ -1996,10 +1996,10 @@ fn changes_from(
         .fold((0, 0), |(added, removed), (old, new)| {
             (added + new.len(), removed + old.len())
         });
-    let diff = cx.new(|cx| {
-        acp_thread::Diff::finalized("plan.md".to_string(), Some(before), after, languages, cx)
+    let diff = cx.new(|_| {
+        acp_thread::Diff::finalized("plan.md".to_string(), Some(before), after, languages)
     });
-    let multibuffer = diff.read(cx).multibuffer().clone();
+    let multibuffer = diff.update(cx, acp_thread::Diff::multibuffer);
     let editor = cx.new(|cx| {
         let mut editor = Editor::new(EditorMode::full(), multibuffer, None, window, cx);
         editor.set_show_gutter(false, cx);

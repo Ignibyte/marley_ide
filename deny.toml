@@ -49,4 +49,7 @@ github = [
   # wgpu (and naga, wgpu-core, wgpu-hal, wgpu-types) at a git rev: upstream 402675e805
   # (#65649) pins it for the Vulkan surface-teardown fix 30.0.1 lacks. Added at #797.
   "gfx-rs",
+  # crash-context at a git rev: upstream 087340e2d7 (#66158) pins minidump-writer's PR 249,
+  # which stops the crash handler crashing on cmd-q. Added at #950.
+  "rust-minidump",
 ]

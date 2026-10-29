@@ -135,14 +135,15 @@ steps() {
   for ref in $(thread_refs); do
     echo "$ref: $(repo_git log -1 --format='%an <%ae> | %s' "$ref") | parent: $(repo_git log -1 --format=%s "$ref^") | $(turn_files "$ref")"
   done | tee "$E2E_WORK/turns.txt"
+  # A checkpoint is Zed's worktree archive commit since #950, titled `WIP unstaged`.
   expect "each turn is Marley's, on a checkpoint" \
-    test "$(grep -c ': Marley <marley@localhost> | .* | parent: Checkpoint |' "$E2E_WORK/turns.txt")" -eq 3
+    test "$(grep -c ': Marley <marley@localhost> | .* | parent: WIP unstaged |' "$E2E_WORK/turns.txt")" -eq 3
   expect "turn 1 holds the README and the sed" \
-    bash -c "grep -q '/1: Marley <marley@localhost> | Add a README | parent: Checkpoint | README.md src/lib.txt$' '$E2E_WORK/turns.txt'"
+    bash -c "grep -q '/1: Marley <marley@localhost> | Add a README | parent: WIP unstaged | README.md src/lib.txt$' '$E2E_WORK/turns.txt'"
   expect "turn 2 is the interrupted fix, alone" \
-    bash -c "grep -q '/2: Marley <marley@localhost> | Fix the typo in util | parent: Checkpoint | src/util.txt$' '$E2E_WORK/turns.txt'"
+    bash -c "grep -q '/2: Marley <marley@localhost> | Fix the typo in util | parent: WIP unstaged | src/util.txt$' '$E2E_WORK/turns.txt'"
   expect "turn 3 is the failed refactor" \
-    bash -c "grep -q '/3: Marley <marley@localhost> | Refactor the parser | parent: Checkpoint | src/util.txt$' '$E2E_WORK/turns.txt'"
+    bash -c "grep -q '/3: Marley <marley@localhost> | Refactor the parser | parent: WIP unstaged | src/util.txt$' '$E2E_WORK/turns.txt'"
 
   echo "== the user's index and HEAD, untouched"
   user_state | tee "$E2E_WORK/after.txt"

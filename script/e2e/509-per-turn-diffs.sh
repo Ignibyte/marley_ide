@@ -244,8 +244,9 @@ steps() {
     echo "$ref: $(repo_git log -1 --format='%an <%ae> | %s' "$ref") | parent: $(repo_git log -1 --format=%s "$ref^") | $(turn_files "$ref")"
     repo_git log -1 --format=%b "$ref"
   done | tee "$E2E_WORK/turns.txt"
+  # A checkpoint is Zed's worktree archive commit since #950, titled `WIP unstaged`.
   expect "each turn is Marley's, on a checkpoint" \
-    test "$(grep -c '^refs/.*: Marley <marley@localhost> | .* | parent: Checkpoint |' "$E2E_WORK/turns.txt")" -eq 4
+    test "$(grep -c '^refs/.*: Marley <marley@localhost> | .* | parent: WIP unstaged |' "$E2E_WORK/turns.txt")" -eq 4
   expect "turn 1 holds the README and the sed" \
     test "$(turn_files refs/marley/turns/s-turns/1)" = "README.md src/lib.txt"
   expect "turn 2 holds the typo's fix alone" \

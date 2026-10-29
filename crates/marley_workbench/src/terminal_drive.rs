@@ -27,7 +27,7 @@ use futures::channel::oneshot;
 use futures::future::{self, Either};
 use gpui::{
     AnyElement, App, Context, Entity, EntityId, FocusHandle, Focusable as _, Global, Keystroke,
-    SharedString, Task,
+    OperatingSystem, SharedString, Task,
 };
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
 use marley_terminal::agent_commands::{self, Verdict};
@@ -325,6 +325,8 @@ struct Typing {
     who: String,
     text: Option<String>,
     keys: Vec<Keystroke>,
+    /// The system the keys are named for, as `secondary-` reads.
+    os: OperatingSystem,
     submit: bool,
     bytes: usize,
     ask: bool,
@@ -404,9 +406,10 @@ fn check_in(call: &AppCall, view: Entity<TerminalView>, cx: &mut App) -> Result<
         .get("submit")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let os = cx.platform_info().os;
     let keys = names
         .iter()
-        .map(|name| key(name))
+        .map(|name| key(name, os))
         .collect::<Result<Vec<_>, _>>()?;
     let bytes = text.as_ref().map_or(0, String::len) + keys.len() + usize::from(submit);
     if bytes == 0 {
@@ -468,16 +471,18 @@ fn check_in(call: &AppCall, view: Entity<TerminalView>, cx: &mut App) -> Result<
         who,
         text,
         keys,
+        os,
         submit,
         bytes,
         ask,
     })
 }
 
-/// A key by Zed's name, such as `escape`, `ctrl-c` or `up`. A lone character with no modifier is
-/// text, which goes in `text`.
-fn key(name: &str) -> Result<Keystroke, String> {
-    let keystroke = Keystroke::parse(name).map_err(|error| format!("key {name:?}: {error}"))?;
+/// A key by Zed's name, such as `escape`, `ctrl-c` or `up`, with `secondary-` read for `os`. A
+/// lone character with no modifier is text, which goes in `text`.
+fn key(name: &str, os: OperatingSystem) -> Result<Keystroke, String> {
+    let keystroke =
+        Keystroke::parse_with_os(name, os).map_err(|error| format!("key {name:?}: {error}"))?;
     let modified = keystroke.modifiers.control || keystroke.modifiers.alt;
     if keystroke.key.chars().count() == 1 && !modified {
         return Err(format!("key {name:?} is a character: put it in `text`"));
@@ -502,7 +507,12 @@ fn shown(typing: &Typing) -> String {
             .collect();
         parts.push(format!("{clean:?}"));
     }
-    parts.extend(typing.keys.iter().map(|key| format!("<{}>", key.unparse())));
+    parts.extend(
+        typing
+            .keys
+            .iter()
+            .map(|key| format!("<{}>", key.unparse(typing.os))),
+    );
     if typing.submit {
         parts.push("<enter>".to_string());
     }

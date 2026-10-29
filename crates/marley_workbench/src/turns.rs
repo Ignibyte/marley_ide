@@ -1,13 +1,13 @@
 //! Per-turn diffs for Claude Code in a terminal (#509), and for Codex on its App Server (#753).
 //!
 //! Each turn of a terminal's Claude Code, from #519's events, opens and closes with a checkpoint
-//! of the repository it works in: Zed's own, which takes the tree with the shell's edits as well
-//! as the agent's, through a temporary index that leaves the user's alone. A turn that changed
-//! the tree becomes a commit of the close's tree whose parent is the open's checkpoint, pinned
-//! under `refs/marley/turns/<session>/<n>`, so Zed's commit view, which diffs against the first
-//! parent, shows that turn and nothing else. The rail lists the turns under the terminal's row.
-//! A Codex turn opens at its lead thread's `turn/started` and closes at that turn's
-//! `turn/completed` (`on_codex`), its refs named by the thread's id.
+//! of the repository it works in: Zed's worktree archive commit, which takes the tree with the
+//! shell's edits as well as the agent's, through a temporary index that leaves the user's alone.
+//! A turn that changed the tree becomes a commit of the close's tree whose parent is the open's
+//! checkpoint, pinned under `refs/marley/turns/<session>/<n>`, so Zed's commit view, which diffs
+//! against the first parent, shows that turn and nothing else. The rail lists the turns under the
+//! terminal's row. A Codex turn opens at its lead thread's `turn/started` and closes at that
+//! turn's `turn/completed` (`on_codex`), its refs named by the thread's id.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -16,7 +16,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::Context as _;
 use futures::FutureExt as _;
 use futures::future::Shared;
-use git::repository::GitRepositoryCheckpoint;
 use git::status::DiffTreeType;
 use gpui::{App, AppContext as _, AsyncApp, Entity, Global, SharedString, Task, WeakEntity};
 use marley_agent::claude_events::{
@@ -55,8 +54,13 @@ pub struct Turn {
     pub mark: Option<TurnMark>,
 }
 
+/// A commit of a repository's whole working state: its index, its unstaged changes and its
+/// untracked files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CheckpointSha(pub(crate) String);
+
 /// A checkpoint being taken, shared so a turn's close waits for its open.
-type Checkpoint = Shared<Task<Option<GitRepositoryCheckpoint>>>;
+type Checkpoint = Shared<Task<Option<CheckpointSha>>>;
 
 /// A turn being recorded, shared so the terminal's next turn waits for it.
 type Recording = Shared<Task<()>>;
@@ -385,9 +389,30 @@ fn repository_for<'a>(
 }
 
 /// A checkpoint of `repository`, taken in its job queue after what is queued there already.
+///
+/// Zed removed its agent checkpoints (upstream #65989); its worktree archive commit, the second
+/// of the two it writes, holds the same working state.
+///
+/// # Errors
+///
+/// When the repository drops the job, or `git` refuses, as in a repository with no commit yet.
+pub(crate) fn checkpoint_of(
+    repository: &Entity<Repository>,
+    cx: &mut App,
+) -> impl Future<Output = anyhow::Result<CheckpointSha>> + use<> {
+    let receiver = repository.update(cx, |repository, _| repository.create_archive_checkpoint());
+    async move {
+        let (_staged, working_state) = receiver
+            .await
+            .context("the repository dropped the checkpoint")??;
+        Ok(CheckpointSha(working_state))
+    }
+}
+
+/// A checkpoint of `repository`, shared, as `checkpoint_of` takes it.
 fn take_checkpoint(repository: &Entity<Repository>, cx: &mut App) -> Checkpoint {
-    let receiver = repository.update(cx, |repository, _| repository.checkpoint());
-    cx.background_spawn(async move { receiver.await.ok()?.log_err() })
+    let checkpoint = checkpoint_of(repository, cx);
+    cx.background_spawn(async move { checkpoint.await.log_err() })
         .shared()
 }
 
@@ -455,13 +480,9 @@ async fn record(
         .await
         .context("the turn's start has no checkpoint")?;
     let end = turn.end.await.context("the turn's end has no checkpoint")?;
-    let start_sha = start.commit_sha.to_string();
-    let end_sha = end.commit_sha.to_string();
-    let unchanged = repository
-        .update(cx, move |repository, _| {
-            repository.compare_checkpoints(start, end)
-        })?
-        .await??;
+    let CheckpointSha(start_sha) = start;
+    let CheckpointSha(end_sha) = end;
+    let unchanged = turn_git::same_tree_in(&turn.work_dir, &start_sha, &end_sha).await?;
     if unchanged {
         return Ok(());
     }

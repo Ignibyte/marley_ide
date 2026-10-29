@@ -5718,3 +5718,28 @@ excerpts editor cannot draw. The drawer stays the dock with a strip (AD-claude-8
 its place is `debugger.dock`, which Problems follows, and at the bottom it draws as a card through
 `MarleyDockShape`. Zed's layout keeps Zed's diagnostics tab and flush dock.
 
+
+## AD-claude-950-upstream-wins-a-merge-conflict-001
+*decided: 2026-10-29 · while: #950 · by: Chad ("lets fix the conflicts in terms of assuming zed is right and working around it")*
+
+In an upstream merge, upstream Zed's side of every conflict is kept as upstream wrote it. A Marley
+hunk comes back only as an addition beside upstream's lines; where it would change them, the
+behavior moves around upstream's code: into a Marley crate, a caller, a new read-only accessor, or
+the gate's tooling. A hunk that cannot be an addition is the exception, named in the pipeline
+notes with its reason.
+
+Rejected: re-applying each hunk as it stood, which carries Marley's edits of upstream's lines
+forward and makes every later merge conflict in the same places.
+
+## AD-claude-950-turn-checkpoints-are-zeds-archive-commit-001
+*decided: 2026-10-29 · while: #950*
+
+Marley's turn checkpoints (#509, #714, #753) are the full-state commit of Zed's
+`Repository::create_archive_checkpoint`, taken in the repository's job queue, and two
+checkpoints compare with `git diff-tree --quiet` in `turn_git.rs`. Upstream removed the agent
+checkpoint API the turns used (`eee7501970`). The archive commit holds untracked files of any
+size and needs a commit on `HEAD`.
+
+Rejected: a Zed hunk restoring the removed API (a large revert, against
+AD-claude-950-upstream-wins-a-merge-conflict-001), and Marley's own checkpoint in `turn_git.rs`
+(a second copy of what Zed's job queue already does).

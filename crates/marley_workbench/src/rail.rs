@@ -659,7 +659,7 @@ fn archived_threads(key: &ProjectGroupKey, cx: &App) -> Vec<ArchivedThread> {
         .archived_entries()
         .filter(|thread| {
             thread.main_worktree_paths() == key.path_list()
-                && thread.matches_remote_connection(host.as_ref())
+                && thread.matches_remote_connection(host)
         })
         .collect();
     found.sort_by_key(|thread| Reverse(thread.updated_at));
@@ -4627,7 +4627,7 @@ impl Rail {
         let opened = multi_workspace.update(cx, |multi_workspace, cx| {
             multi_workspace.find_or_create_workspace(
                 paths,
-                key.host(),
+                key.host().cloned(),
                 Some(key.clone()),
                 move |options, window, cx| {
                     remote_connection::connect_with_modal(&modal_workspace, options, window, cx)
@@ -9679,13 +9679,13 @@ fn group_threads(
         Vec::new()
     } else {
         store
-            .entries_for_main_worktree_path(group.key.path_list(), host.as_ref())
-            .chain(store.entries_for_path(group.key.path_list(), host.as_ref()))
+            .entries_for_main_worktree_path(group.key.path_list(), host)
+            .chain(store.entries_for_path(group.key.path_list(), host))
             .chain(
                 members
                     .iter()
                     .filter(|(paths, _)| !paths.paths().is_empty())
-                    .flat_map(|(paths, _)| store.entries_for_path(paths, host.as_ref())),
+                    .flat_map(|(paths, _)| store.entries_for_path(paths, host)),
             )
             .filter(|row| seen.insert(row.thread_id))
             .filter(|row| match tab_member(&row.thread_id) {

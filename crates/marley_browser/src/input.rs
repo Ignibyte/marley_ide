@@ -8,7 +8,7 @@
 
 use std::time::Instant;
 
-use gpui::{Keystroke, Modifiers, MouseButton, NavigationDirection};
+use gpui::{Keystroke, Modifiers, MouseButton, NavigationDirection, OperatingSystem};
 use serde_json::{Value, json};
 
 /// The two halves of a key press, as `Input.dispatchKeyEvent` parameters.
@@ -233,7 +233,8 @@ pub fn chord(chord: &str) -> Result<KeyPress, String> {
             |(_, gpui)| (*gpui).to_string(),
         );
     source.push_str(&key_name);
-    let mut keystroke = Keystroke::parse(&source)
+    // The source names no `secondary-`, the one part of a keystroke the operating system decides.
+    let mut keystroke = Keystroke::parse_with_os(&source, OperatingSystem::Unknown)
         .map_err(|error| format!("{chord:?} is not a key Marley knows: {error}"))?;
     let modifiers = &mut keystroke.modifiers;
     if let Some(character) = single_char(key)

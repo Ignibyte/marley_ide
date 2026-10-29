@@ -251,9 +251,9 @@ unjustified_unsafe() {
 
 # The same for the lines a tracked edit under crates/ adds, read with one line of
 # context so the line above an added `unsafe` is known.
-added_unjustified_unsafe() {
-  local found merging
-  found=$(git diff HEAD -U1 -- crates 2>/dev/null | awk -v re="$UNSAFE_RE" '
+# The unjustified `unsafe` lines the working tree adds against the commit $1.
+unjustified_unsafe_since() {
+  git diff "$1" -U1 -- crates 2>/dev/null | awk -v re="$UNSAFE_RE" '
     /^(\+\+\+|---) / || /^@@/ { previous = ""; next }
     /^-/ { next }
     {
@@ -261,11 +261,18 @@ added_unjustified_unsafe() {
       if ($0 ~ /^\+/ && line ~ re && line !~ /SAFETY:/ && previous !~ /SAFETY:/) print line
       previous = line
     }
-  ')
+  '
+}
+
+added_unjustified_unsafe() {
+  local found merging
+  found=$(unjustified_unsafe_since HEAD)
   [ -n "$found" ] || return 0
-  # While upstream is being merged in, upstream's own lines are not the change's (#695).
+  # While upstream is being merged in, upstream's own lines are not the change's (#695). The
+  # match is by text, so it is made against Marley's unjustified lines, not all its lines: a
+  # justified line of Marley's must not claim upstream's identical unjustified one (#950).
   if merging=$(upstream_merge_head); then
-    LC_ALL=C grep -Fx -f <(lines_added_since "$merging") <<<"$found" || true
+    LC_ALL=C grep -Fx -f <(unjustified_unsafe_since "$merging") <<<"$found" || true
     return 0
   fi
   printf '%s\n' "$found"
@@ -374,10 +381,24 @@ semgrep_g() {
 # the check and the verdict stays cargo's exit code. A lint the library adds warns until it
 # joins those lists. The library builds on the nightly its package pins, and the check keeps
 # its own target directory under $CARGO_TARGET_DIR/dylint.
+#
+# That nightly lags the tree's stable toolchain. A std API stable on the one and not on the
+# other is switched on for the one upstream crate that calls it, never for every crate: a
+# `no_std` crate refuses a std feature (E0635, #797). Each entry names its feature and why;
+# one goes when the lint library's nightly passes that feature's stabilization.
+#   path: `Path::is_empty` in `path_component.rs` (upstream 9521840152, #950).
+#   agent: `Path::is_empty` in `tools/terminal_tool.rs` (upstream a4a3a968d1, #950).
+DYLINT_CRATE_FEATURES=(
+  'profile.dev.package.path.rustflags=["-Zcrate-attr=feature(path_is_empty)"]'
+  'profile.dev.package.agent.rustflags=["-Zcrate-attr=feature(path_is_empty)"]'
+)
 dylint_g() {
   need cargo-dylint "cargo install cargo-dylint dylint-link --locked" || return 1
   need dylint-link "cargo install cargo-dylint dylint-link --locked" || return 1
-  cargo dylint --all -- --all-targets "${MARLEY_PKG_ARGS[@]}"
+  local -a features=(-Zprofile-rustflags)
+  local feature
+  for feature in "${DYLINT_CRATE_FEATURES[@]}"; do features+=(--config "$feature"); done
+  cargo dylint --all -- "${features[@]}" --all-targets "${MARLEY_PKG_ARGS[@]}"
 }
 
 # ── 22. spawn sites — processes start only in the adapter modules listed ─────

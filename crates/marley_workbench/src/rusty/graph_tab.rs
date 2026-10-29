@@ -28,7 +28,7 @@ use editor::{Editor, EditorEvent};
 use gpui::{
     AnyElement, App, Bounds, ContentMask, Context, ElementId, Entity, EventEmitter, FocusHandle,
     Focusable, Font, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PathBuilder,
-    PinchEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent, SharedString, Subscription, Task,
+    PinchEvent, Pixels, Point, ScrollDelta, ScrollEvent, SharedString, Subscription, Task,
     TextAlign, TextRun, WeakEntity, Window, actions, canvas, fill, point, px, size,
 };
 use marley_rusty::graph::{
@@ -1114,7 +1114,7 @@ impl GraphView {
         cx.notify();
     }
 
-    fn scroll(&mut self, event: &ScrollWheelEvent, cx: &mut Context<Self>) {
+    fn scroll(&mut self, event: &ScrollEvent, cx: &mut Context<Self>) {
         let lines = match event.delta {
             ScrollDelta::Lines(lines) => lines.y,
             ScrollDelta::Pixels(pixels) => f32::from(pixels.y) / 20.0,
@@ -1354,7 +1354,7 @@ impl GraphView {
                 MouseButton::Left,
                 cx.listener(|this, _: &MouseUpEvent, window, cx| this.mouse_up(window, cx)),
             )
-            .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, _, cx| {
+            .on_scroll(cx.listener(|this, event: &ScrollEvent, _, cx| {
                 this.scroll(event, cx);
             }))
             .on_pinch(cx.listener(|this, event: &PinchEvent, _, cx| this.pinch(event, cx)))

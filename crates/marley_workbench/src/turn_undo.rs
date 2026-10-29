@@ -12,15 +12,12 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use anyhow::Context as _;
-use futures::channel::oneshot;
-use git::repository::GitRepositoryCheckpoint;
 use gpui::{App, AppContext as _, AsyncWindowContext, Global, PromptLevel, Window};
 use marley_agent::claude_events::CWD_LABEL;
 
 use crate::launch::verbatim;
 use crate::turn_git::{self, PathChange, UndoMerge, UndoWrite};
-use crate::turns::{Turn, Turns};
+use crate::turns::{self, CheckpointSha, Turn, Turns};
 use marley_rail::TurnMark;
 
 /// The work directories an undo runs in, so each takes one at a time.
@@ -64,7 +61,7 @@ pub(crate) fn undo(view: u64, sha: &str, window: &mut Window, cx: &mut App) {
         );
         return;
     }
-    let checkpoint = repository.update(cx, |repository, _| repository.checkpoint());
+    let checkpoint = turns::checkpoint_of(&repository, cx);
     window
         .spawn(cx, async move |cx| {
             let outcome = run(view, &turn, &work_dir, checkpoint, cx).await;
@@ -92,14 +89,10 @@ async fn run(
     view: u64,
     turn: &Turn,
     work_dir: &Path,
-    checkpoint: oneshot::Receiver<anyhow::Result<GitRepositoryCheckpoint>>,
+    checkpoint: impl Future<Output = anyhow::Result<CheckpointSha>>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<()> {
-    let now = checkpoint
-        .await
-        .context("the repository dropped the checkpoint")??
-        .commit_sha
-        .to_string();
+    let CheckpointSha(now) = checkpoint.await?;
     let merged = match turn_git::undo_merge_in(work_dir, &turn.sha, &now).await? {
         UndoMerge::Merged(tree) => tree,
         UndoMerge::Conflict(files) => {

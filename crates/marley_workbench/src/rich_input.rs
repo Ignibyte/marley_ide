@@ -917,7 +917,7 @@ pub fn element(context: &MarleyFooterContext, frame: PromptFrame, cx: &App) -> O
         context.view.clone(),
     );
     // The shell's editor answers a few keys of its own (#627).
-    let mut key_context = gpui::KeyContext::new_with_defaults();
+    let mut key_context = gpui::KeyContext::new_with_defaults(cx.platform_info().os);
     key_context.add("MarleyRichInput");
     if matches!(prompt.target, Target::Shell) {
         key_context.add("MarleyShellInput");

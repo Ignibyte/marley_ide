@@ -1699,7 +1699,8 @@ With the plugin connected, Marley keeps each turn of a terminal's Claude Code th
 repository's tree (#509). A turn runs from a prompt to its stop: Claude Code's `Stop`, an API
 error, a manual `/compact`, an interrupt, the next prompt, a new session, or Claude Code leaving
 the terminal. At the prompt and at the turn's end Marley takes a checkpoint of the innermost
-repository that holds Claude Code's directory, as Zed's agent does, through a temporary index. A
+repository that holds Claude Code's directory, the commit Zed writes when it archives a worktree,
+through a temporary index. A
 turn whose tree changed becomes a commit of its end on its start, pinned under
 `refs/marley/turns/<session>/<n>` with Marley as its author; your index, your branches and `HEAD`
 are never touched, and a turn that changed nothing leaves nothing.
@@ -1750,8 +1751,9 @@ When the files already match the turn's start, it says there is nothing to undo.
 
 Worth knowing:
 
-- The checkpoint leaves out what Zed's checkpoints do: ignored files, untracked files of 2 MB or
-  more, and untracked binaries, archives and media.
+- The checkpoint holds every file `git status` would show, untracked ones of any size included,
+  and leaves out ignored files (#950).
+- A repository with no commit yet keeps no turns: the checkpoint is a commit on `HEAD`.
 - The turn is the tree's change, whoever made it: your own edits while a turn runs, or another
   agent's in the same checkout, land in it.
 - A remote project's terminals get no turns.

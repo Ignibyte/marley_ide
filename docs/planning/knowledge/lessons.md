@@ -6635,3 +6635,31 @@ shot of the current build: the review may have been taken against an older one.
   endpoint (allow `workspace::NewTerminal` in `marley.agent_control` for the check, then restore
   the file), drive it with `terminal_run`, and shoot through iTerm's `screencapture -l`; the screen
   locks once the display sleeps, so ask Chad to unlock it and keep it awake with `caffeinate -d`.
+
+## L-claude-950-merging-upstream-zed-001
+*category: process · topic: upstream merges · from: pipeline 950*
+
+How the 2026-10-29 merge of 190 upstream commits went, after #695's and #797's:
+- **Upstream is right in a conflict** (Chad, 2026-10-29). Each conflicted file starts from
+  upstream's side, and Marley's lines go back only as additions beside it: a shadowing `let`
+  after upstream's (`thread_metadata_store.rs`), a separate `update` after upstream's guard
+  (`markdown.rs`), a branch before upstream's request (`wayland/window.rs`). Of ten conflicts,
+  only one could not be a pure addition (`terminal.rs`, a choice between upstream's `open_url`
+  and Marley's event), and one hunk of #797's went for good (`terminal_tool.rs`).
+- **Upstream removes code Marley calls.** `eee7501970` took Zed's agent checkpoints and the git
+  API under them; Marley's turns moved to `create_archive_checkpoint`, which upstream kept for
+  worktree archives, with no Zed hunk. A grep of the Marley crates for every removed symbol in
+  the range's large deletions finds this in the plan, before the build does.
+- **API breaks this time:** `Keystroke::parse` takes `&'static str` (`parse_with_os` for runtime
+  text), `KeyContext::new_with_defaults` and `update_keybinding` take the OS, `host()` returns a
+  reference, `ScrollWheelEvent` is `ScrollEvent`, and a finalized ACP `Diff` resolves lazily.
+- **A scenario can check a detail the merge changes on purpose.** 509 and 753 checked the
+  checkpoint commit's subject; the checks moved with D4 and kept their meaning.
+- **The gate's own filters need the merge in mind**
+  (PR-claude-950-a-text-match-filter-matches-the-same-kind-of-line-001), and the lint nightly's
+  gap moves into the gate when upstream's call stays
+  (PR-claude-950-a-lint-nightly-gap-in-upstream-code-is-closed-in-the-gate-001).
+- **Prose in a Bash command can trip the commit-gate hook.** `enforce-commit-gate.sh` matches a
+  `git` token followed later by a `commit` token with no `;`, `&` or `|` between them, so a
+  heredoc with "`git auto fetch`" and then "no commit yet" was taken for a commit. Write such
+  prose with Edit.

@@ -48,9 +48,8 @@ use gpui::{
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global, GlobalElementId, Hitbox,
     HitboxBehavior, Image, ImageSource, InspectorElementId, KeyDownEvent, LayoutId, Modifiers,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, PathPromptOptions,
-    Pixels, Point, PromptLevel, RenderImage, ScrollWheelEvent, Size, Style, StyledImage,
-    Subscription, Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point,
-    relative,
+    Pixels, Point, PromptLevel, RenderImage, ScrollEvent, Size, Style, StyledImage, Subscription,
+    Task, UTF16Selection, WeakEntity, WindowHandle, anchored, deferred, img, point, relative,
 };
 use marley_browser::cdp::{self, CdpError, Connection, Event};
 use marley_browser::consequence::Class;
@@ -9857,7 +9856,7 @@ impl PageElement {
         window.on_mouse_event({
             let hub = self.hub.clone();
             let hitbox = hitbox.clone();
-            move |event: &ScrollWheelEvent, phase, window, cx| {
+            move |event: &ScrollEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble || !hitbox.is_hovered(window) {
                     return;
                 }
