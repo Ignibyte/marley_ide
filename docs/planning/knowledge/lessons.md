@@ -6622,3 +6622,16 @@ shot of the current build: the review may have been taken against an older one.
   not show.
 - **Lesson:** to see what a relaunch restores, quit and start again with `launch_marley_with` and no
   folder, as #912's next start does.
+
+## L-claude-795-check-a-mac-bug-on-the-macs-current-build-first-001
+
+- **Ticket:** #795, 2026-10-29.
+- **What happened:** a first-command header missing on the Mac's build of 2026-10-16 was chased on
+  Linux through five scenario variants (iTerm2's hooks, restored histories, an agent's
+  `terminal_run`), none of which showed it. Built on the Mac at the current commit, the first
+  command was a block under its header: it had been fixed in between.
+- **Lesson:** a bug seen only on the Mac is checked first on the Mac with the current build (15
+  minutes there), before Linux work. Over SSH, open a terminal there with `action_run` on the own
+  endpoint (allow `workspace::NewTerminal` in `marley.agent_control` for the check, then restore
+  the file), drive it with `terminal_run`, and shoot through iTerm's `screencapture -l`; the screen
+  locks once the display sleeps, so ask Chad to unlock it and keep it awake with `caffeinate -d`.

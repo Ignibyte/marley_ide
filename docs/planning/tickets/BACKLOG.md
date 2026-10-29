@@ -17,5 +17,4 @@ or `/pipeline:plan`); keep each section ordered by intent, not number.
 
 | Ticket | Type | Why it waits |
 |---|---|---|
-| [TICKET-795](open/TICKET-795-the-first-zsh-command-on-a-mac-has-no-header.md) | bug | Not seen on Linux (2026-10-29); needs the current build on the Mac |
 | [TICKET-949](open/TICKET-949-a-zsh-given-with-arguments-loses-the-integration.md) | bug | Found checking #795; a choice of what a shell with arguments gets |

@@ -2,10 +2,10 @@
 
 - **Ticket:** LOCAL #795 (bug, the block terminal, macOS)
 - **Owner:** c70cc71d-da30-4123-80da-1db398eb7911
-- **Pipeline doc:** (set at Plan)
+- **Pipeline doc:** [795-the-first-zsh-command-has-its-header.spec.md](../../pipeline/completed/795-the-first-zsh-command-has-its-header.spec.md)
 - **Source ticket:** #792's visual check on the Mac, 2026-10-16 ("Seen, not in scope" in its
   notes).
-- **Status:** open (waits on a Mac check; not seen on Linux, 2026-10-29)
+- **Status:** closed (fixed since 2026-10-16; checked on the Mac at `94bb105044`, 2026-10-29)
 
 ## Summary
 In a new zsh terminal on the Mac (a login shell since #792), the first command drew without
@@ -35,3 +35,8 @@ command, in the same order as for the second.
 So what #792 saw is either macOS's own (its zsh, its PTY) or fixed since the Mac's build of
 2026-10-16. Deciding needs the current build on the Mac, then a new terminal there and its first
 command. The scenario used is kept beside the notes of that session, not in `script/e2e/`.
+
+## Mac check, 2026-10-29
+At `94bb105044`, installed on the Mac, a new zsh terminal's first command (`terminal_run "echo
+one"`) was block 0 under its header and the second block 1, shot through iTerm. Nothing to fix;
+see the pipeline notes.
