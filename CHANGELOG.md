@@ -13,6 +13,14 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Open File… on the rail's `+`** (#951). A project's `+` opens any file on the disk in that
+  project's pane, not only the project's own files: a Markdown file as its formatted page, anything
+  else in the editor or Zed's viewer for it. The file gets a row under the project's Files, which
+  names the folder it came from when that is outside the project, and a Markdown page is listed
+  there too. A right-click on the rail's empty space offers Open File in Default… for the window's
+  Default group. The chooser is Zed's, so `use_system_path_prompts` decides between the system
+  dialog and Zed's typed one. `Cargo.lock` moves wasmtime to 48.0.8 for four advisories published
+  on 2026-10-29.
 - **Upstream Zed through 2026-10-29** (#950). Marley now carries the 190 upstream commits since
   #797, which includes everything in Zed v1.26.2 and v1.27.0-pre. Upstream's changes that show:
   - Git can fetch in the background (`git.auto_fetch.enabled`, off until you turn it on), and the

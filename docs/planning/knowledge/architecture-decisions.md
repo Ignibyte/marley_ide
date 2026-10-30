@@ -5743,3 +5743,16 @@ size and needs a commit on `HEAD`.
 Rejected: a Zed hunk restoring the removed API (a large revert, against
 AD-claude-950-upstream-wins-a-merge-conflict-001), and Marley's own checkpoint in `turn_git.rs`
 (a second copy of what Zed's job queue already does).
+
+## AD-claude-951-open-file-opens-anywhere-in-the-project-that-asked-001
+*decided: 2026-10-30 · while: #951*
+
+The rail's Open File… asks for any file on the project's machine through Zed's path prompt and
+opens it in the workspace whose `+` was pressed, with `OpenVisible::None`, so a file outside the
+project never joins its folders; a Markdown file shows as Zed's preview. Chad: "zed is project
+oriented but marley goes up another level where its not. so i want to be able to open files
+outside a project".
+
+Rejected: Zed's `workspace::OpenFiles`, whose window routing (`WorkspaceMatching`) can send a file
+to another project or a new window in Marley's multi-workspace window; and a file tree in the rail
+(Chad chose the chooser).

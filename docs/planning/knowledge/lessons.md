@@ -6663,3 +6663,14 @@ How the 2026-10-29 merge of 190 upstream commits went, after #695's and #797's:
   `git` token followed later by a `commit` token with no `;`, `&` or `|` between them, so a
   heredoc with "`git auto fetch`" and then "no commit yet" was taken for a commit. Write such
   prose with Edit.
+
+## L-claude-951-a-file-outside-the-project-reads-differently-001
+*category: gpui · topic: files outside the project · from: pipeline 951*
+
+`Project::open_local_buffer` and `Workspace::open_abs_path` with `OpenVisible::None` open a file
+outside the project in a hidden worktree rooted at the file: its `ProjectPath::path` is empty, its
+`tab_content_text` is the full path, and `Worktree::absolutize` gives the file back. Read its
+name and folder from the absolute path, never from the project path's parent. A Markdown preview
+has no project path of its own; `act_as::<Editor>` hands out the editor it shows, with no Zed hunk.
+To ask for a path, `Workspace::prompt_for_open_path` honours `use_system_path_prompts` (and so
+lets a scenario type the path); `cx.prompt_for_paths` always opens the system dialog.

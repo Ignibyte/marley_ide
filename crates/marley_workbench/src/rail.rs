@@ -27,10 +27,11 @@ use git_ui::branch_diff::BranchDiff;
 use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, AnyView, App, BoxShadow, ClickEvent,
     ClipboardItem, Context, DismissEvent, Div, ElementId, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, FontWeight, Hsla, Image, MouseButton, MouseDownEvent, Pixels, Point,
-    PromptLevel, Render, Stateful, Subscription, Task, WeakEntity, Window, anchored, deferred, img,
-    point, px,
+    FocusHandle, Focusable, FontWeight, Hsla, Image, MouseButton, MouseDownEvent,
+    PathPromptOptions, Pixels, Point, PromptLevel, Render, Stateful, Subscription, Task,
+    WeakEntity, Window, anchored, deferred, img, point, px,
 };
+use markdown_preview::markdown_preview_view::MarkdownPreviewView;
 use marley_agent::risk::{self, Action, Chip, ChipKind, ChipSource, ToolClass};
 use marley_agent::route::{self, Route, RouteMark, RouteSource};
 use marley_agent::{AgentKind, AgentStatus, WAITING_AFTER, claude_events, codex_events};
@@ -51,7 +52,8 @@ use menu::{
 };
 use project::git_store::{GitStoreEvent, Repository, RepositoryEvent};
 use project::{
-    AgentServerStore, AgentServersUpdated, Project, ProjectGroupKey, UpdatedEntriesSet, WorktreeId,
+    AgentServerStore, AgentServersUpdated, DirectoryLister, Project, ProjectGroupKey, ProjectPath,
+    UpdatedEntriesSet, WorktreeId,
 };
 use recent_projects::sidebar_recent_projects::SidebarRecentProjects;
 use settings::{Settings as _, SystemOneMode};
@@ -66,13 +68,15 @@ use ui::{
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
+use util::paths::PathExt as _;
 use util::shell::ShellKind;
 use uuid::Uuid;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, OpenMode, Pane, ProjectGroup, RemovalIntent, SaveIntent,
-    Sidebar, SidebarEvent, SidebarSide, SplitDirection, Toast, Workspace, WorkspaceId,
+    MultiWorkspace, MultiWorkspaceEvent, OpenMode, OpenOptions, OpenVisible, Pane, ProjectGroup,
+    RemovalIntent, SaveIntent, Sidebar, SidebarEvent, SidebarSide, SplitDirection, Toast,
+    Workspace, WorkspaceId,
     dock::DockPosition,
-    item::{Item as _, ItemBufferKind, ItemEvent, WeakItemHandle},
+    item::{Item as _, ItemBufferKind, ItemEvent, ItemHandle, WeakItemHandle},
     notifications::{DetachAndPromptErr as _, NotificationId},
 };
 use zed_actions::agents_sidebar::FocusSidebarFilter;
@@ -3435,6 +3439,42 @@ impl Rail {
         Ok(())
     }
 
+    /// Shows `workspace` and asks for files anywhere on its machine (#951), then opens each in
+    /// its active pane without adding the file's folder to the project.
+    fn open_files(
+        &self,
+        workspace: &WeakEntity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let workspace = self.activate_workspace(workspace, window, cx)?;
+        let paths = workspace.update(cx, |workspace, cx| {
+            // The project's lister, so a remote project's chooser lists the machine it runs on.
+            let lister = DirectoryLister::Project(workspace.project().clone());
+            workspace.prompt_for_open_path(
+                PathPromptOptions {
+                    files: true,
+                    directories: false,
+                    multiple: true,
+                    prompt: Some(SharedString::new_static("Open")),
+                },
+                lister,
+                window,
+                cx,
+            )
+        });
+        let workspace = workspace.downgrade();
+        cx.spawn_in(window, async move |_, cx| {
+            let Some(paths) = paths.await.context("the file prompt closed")? else {
+                return anyhow::Ok(());
+            };
+            let workspace = workspace.upgrade().context("the project was closed")?;
+            cx.update(|window, cx| open_chosen(&workspace, paths, window, cx))
+        })
+        .detach_and_prompt_err("Could not open the file", window, cx, |_, _, _| None);
+        Ok(())
+    }
+
     /// The project's launch configs (#527), under a Launch header in the file's order, or one
     /// disabled entry naming the file and why it could not be read; nothing without the file.
     fn launch_entries(
@@ -4883,6 +4923,7 @@ impl Rail {
             let group_rail = rail.clone();
             let terminal_rail = rail.clone();
             let browser_rail = rail.clone();
+            let files_rail = rail.clone();
             let picker_rail = rail.clone();
             let menu = menu
                 .entry("New Group…", None, move |window, cx| {
@@ -4918,6 +4959,24 @@ impl Rail {
                                 rail.in_home(
                                     |rail, workspace, window, cx| {
                                         rail.new_browser_tab(workspace, window, cx)
+                                    },
+                                    window,
+                                    cx,
+                                )
+                            })
+                            .flatten()
+                            .log_err();
+                    },
+                )
+                .entry(
+                    format!("Open File in {}…", groups::DEFAULT),
+                    None,
+                    move |window, cx| {
+                        files_rail
+                            .update(cx, |rail, cx| {
+                                rail.in_home(
+                                    |rail, workspace, window, cx| {
+                                        rail.open_files(workspace, window, cx)
                                     },
                                     window,
                                     cx,
@@ -6310,8 +6369,8 @@ impl Rail {
     }
 
     /// What a header's `+` offers, which its right-click menu starts with too (#820): New
-    /// Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent in Worktree and the
-    /// project's Launch entries.
+    /// Terminal, New Browser Tab, Open File… (#951), New Agent…, Reopen Thread…, New Agent in
+    /// Worktree and the project's Launch entries.
     fn new_entries(
         menu: ContextMenu,
         rail: &WeakEntity<Self>,
@@ -6363,6 +6422,15 @@ impl Rail {
                 .update(cx, |rail, cx| {
                     rail.new_browser_tab(&browser_workspace, window, cx)
                 })
+                .flatten()
+                .log_err();
+        });
+        let files_rail = rail.clone();
+        let files_workspace = workspace.clone();
+        // Any file on the project's machine, not only the project's own (#951).
+        let menu = menu.entry("Open File…", None, move |window, cx| {
+            files_rail
+                .update(cx, |rail, cx| rail.open_files(&files_workspace, window, cx))
                 .flatten()
                 .log_err();
         });
@@ -11050,10 +11118,10 @@ fn member_tabs(
                 continue;
             }
             let id = item.item_id().as_u64();
-            let title = item.tab_content_text(0, cx).to_string();
             let path = item
                 .project_path(cx)
-                .filter(|_| item.buffer_kind(cx) == ItemBufferKind::Singleton);
+                .filter(|_| item.buffer_kind(cx) == ItemBufferKind::Singleton)
+                .or_else(|| previewed_path(item.as_ref(), cx));
             let kind = if item.downcast::<crate::home_page::MarleyHome>().is_some() {
                 TabKind::Home
             } else if path.is_some() {
@@ -11061,12 +11129,13 @@ fn member_tabs(
             } else {
                 TabKind::Other
             };
-            let folder = path.as_ref().and_then(|path| {
-                path.path
-                    .parent()
-                    .filter(|folder| !folder.is_empty())
-                    .map(|folder| folder.as_unix_str().to_string())
-            });
+            let FilePlace {
+                outside_name,
+                folder,
+            } = path
+                .as_ref()
+                .map_or_else(FilePlace::default, |path| file_place(member, path, cx));
+            let title = outside_name.unwrap_or_else(|| item.tab_content_text(0, cx).to_string());
             snapshot.tabs.insert(
                 id,
                 TabEntry {
@@ -11086,6 +11155,84 @@ fn member_tabs(
         }
     }
     tabs
+}
+
+/// The file a Markdown preview shows, which Zed gives the preview's editor and not the preview
+/// (#951), so the preview is listed under Files with the file's other tabs.
+fn previewed_path(item: &dyn ItemHandle, cx: &App) -> Option<ProjectPath> {
+    item.downcast::<MarkdownPreviewView>()?;
+    item.act_as::<Editor>(cx)?.project_path(cx)
+}
+
+/// Where a file row's file lives, as its two lines read it.
+#[derive(Default)]
+struct FilePlace {
+    /// The file's name when it is outside the project (#951): its tab's text is then the whole
+    /// path, the name Zed gives the hidden folder it opens the file in.
+    outside_name: Option<String>,
+    /// The second line: the file's folder inside its project, or for a file outside it the
+    /// folder's full path, from `~` when it is under the home folder.
+    folder: Option<String>,
+}
+
+fn file_place(member: &Entity<Workspace>, path: &ProjectPath, cx: &App) -> FilePlace {
+    let worktree = member
+        .read(cx)
+        .project()
+        .read(cx)
+        .worktree_for_id(path.worktree_id, cx);
+    let Some(worktree) = worktree
+        .map(|worktree| worktree.read(cx))
+        .filter(|worktree| !worktree.is_visible())
+    else {
+        let folder = path
+            .path
+            .parent()
+            .filter(|folder| !folder.is_empty())
+            .map(|folder| folder.as_unix_str().to_string());
+        return FilePlace {
+            outside_name: None,
+            folder,
+        };
+    };
+    let file = worktree.absolutize(&path.path);
+    FilePlace {
+        outside_name: file
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned()),
+        folder: file
+            .parent()
+            .map(|folder| folder.compact().to_string_lossy().into_owned()),
+    }
+}
+
+/// Opens each of `paths` in `workspace`'s active pane, focused (#951): a Markdown file as Zed's
+/// formatted preview, any other through Zed's own opener, which picks the editor or a viewer.
+fn open_chosen(
+    workspace: &Entity<Workspace>,
+    paths: Vec<PathBuf>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let languages = Arc::clone(workspace.read(cx).project().read(cx).languages());
+    let pane = workspace.read(cx).active_pane().downgrade();
+    for path in paths {
+        let opened = if MarkdownPreviewView::is_markdown_path(&path, &languages) {
+            crate::terminal_show::open_markdown_in(workspace, &path, Some(pane.clone()), window, cx)
+        } else {
+            let options = OpenOptions {
+                visible: Some(OpenVisible::None),
+                focus: Some(true),
+                ..OpenOptions::default()
+            };
+            let item = workspace.update(cx, |workspace, cx| {
+                workspace.open_abs_path(path, options, window, cx)
+            });
+            // The tab holds the item; a handle kept here would outlive its close.
+            cx.spawn(async move |_| item.await.map(drop))
+        };
+        opened.detach_and_prompt_err("Could not open the file", window, cx, |_, _, _| None);
+    }
 }
 
 /// The Browser tabs of `member` as rows show them (#504), each tab's entities and page icon kept

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use editor::Editor;
-use gpui::{AnyWindowHandle, App, AppContext as _, Entity, TaskExt as _, Window};
+use gpui::{AnyWindowHandle, App, AppContext as _, Entity, Task, TaskExt as _, WeakEntity, Window};
 use markdown_preview::markdown_preview_view::MarkdownPreviewView;
 use marley_agent::report::{self, Refusal, ShowKind};
 use marley_components::{Templates, Tree, parse_str_with};
@@ -21,7 +21,7 @@ use marley_terminal::tables::{self, Table};
 use terminal_view::TerminalView;
 use ui::SharedString;
 use util::ResultExt as _;
-use workspace::{OpenOptions, OpenVisible, Workspace};
+use workspace::{OpenOptions, OpenVisible, Pane, Workspace};
 
 /// The largest file `show` reads.
 const MOST_BYTES: u64 = 16 * 1024 * 1024;
@@ -176,7 +176,7 @@ fn open(
         .log_err();
 }
 
-/// Opens Zed's markdown preview of `path` in the terminal's pane, over an editor no pane shows.
+/// Opens Zed's markdown preview of `path` in the terminal's pane.
 fn open_markdown(
     workspace: &Entity<Workspace>,
     view: &Entity<TerminalView>,
@@ -184,21 +184,34 @@ fn open_markdown(
     window: &Window,
     cx: &mut App,
 ) {
+    let pane = workspace
+        .read(cx)
+        .pane_for(view)
+        .map(|pane| pane.downgrade());
+    open_markdown_in(workspace, path, pane, window, cx).detach_and_log_err(cx);
+}
+
+/// Opens Zed's markdown preview of `path` in `pane`, or in the active pane once `pane` is gone,
+/// over an editor no pane shows. A file outside the project gets a hidden folder of its own, which
+/// the preview's buffer keeps while its tab is open (#951).
+pub(crate) fn open_markdown_in(
+    workspace: &Entity<Workspace>,
+    path: &Path,
+    pane: Option<WeakEntity<Pane>>,
+    window: &Window,
+    cx: &mut App,
+) -> Task<anyhow::Result<()>> {
     let project = workspace.read(cx).project().clone();
     let buffer = project.update(cx, |project, cx| project.open_local_buffer(path, cx));
     let workspace = workspace.downgrade();
-    let view = view.downgrade();
-    window
-        .spawn(cx, async move |cx| {
-            let buffer = buffer.await?;
-            workspace.update_in(cx, |workspace, window, cx| {
-                let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
-                let pane = view
-                    .upgrade()
-                    .and_then(|view| workspace.pane_for(&view))
-                    .unwrap_or_else(|| workspace.active_pane().clone());
-                MarkdownPreviewView::open_preview_in_pane(workspace, editor, pane, window, cx);
-            })
+    window.spawn(cx, async move |cx| {
+        let buffer = buffer.await?;
+        workspace.update_in(cx, |workspace, window, cx| {
+            let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
+            let pane = pane
+                .and_then(|pane| pane.upgrade())
+                .unwrap_or_else(|| workspace.active_pane().clone());
+            MarkdownPreviewView::open_preview_in_pane(workspace, editor, pane, window, cx);
         })
-        .detach_and_log_err(cx);
+    })
 }

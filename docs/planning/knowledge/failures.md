@@ -4666,3 +4666,13 @@ their text against the lines Marley adds against `MERGE_HEAD` (#695), and Marley
 holds the same text, justified by the SAFETY note above it. Fixed: the filter matches against
 Marley's unjustified `unsafe` lines only (`unjustified_unsafe_since`), so a justified line of
 Marley's no longer claims upstream's identical one.
+
+## F-claude-951-an-outside-files-row-was-titled-by-its-full-path-001
+*found: 2026-10-30 · while: testing #951 · severity: low*
+
+A file opened from outside the project got a rail row titled "/mnt/fast/tmp/claude-1000/…" and its
+Markdown preview "Preview /mnt/fast/tmp/…" (run 1, `951-02-markdown`, `951-03-text`), while their
+tabs read "todo.txt" and "Preview plan.md". Zed opens such a file in a hidden worktree rooted at the
+file and names that worktree by its full path, so `tab_content_text` is the whole path; the tab
+draws only the file name. Fixed: `member_tabs` titles a file in a hidden worktree by its file name
+(`file_place`) and puts its absolute folder on the second line.

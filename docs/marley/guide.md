@@ -529,12 +529,13 @@ A project's `+` ("New in this project") starts things in that project.
 |---|---|
 | New Terminal | A shell in the project's directory, in the main area |
 | New Browser Tab | Shows the project and opens a blank page in a new Browser tab, the cursor in the address bar, starting Chromium if it must |
+| Open File… | Asks for files anywhere on the project's machine, in or out of the project, and opens each in the project's pane: a Markdown file as its formatted page, any other in the editor. Each gets a row under Files; one from outside the project names its folder there and is not added to the project (#951) |
 | New Agent… | The New Agent picker, below, opened on this project: the one way to start an agent, a thread or a CLI. It replaced New Agent Thread and the list of agent CLIs (#744) |
 | Reopen Thread… | A picker over your saved conversations ("Reopen a conversation…"), newest first, each with its agent, folder and time; Enter opens one in a tab here, with its earlier turns, or brings its tab forward (#772) |
 | New Agent in Worktree | For a local git repository, a submenu of the installed agent CLIs (see [Worktree agents](#worktree-agents)) |
 | Launch | The project's launch configs, when it has any (see [Launch configs](#launch-configs)) |
 
-A group with no folder has the first four. Ctrl+Alt+N opens the New Agent picker ("Start an
+A group with no folder has the first five. Ctrl+Alt+N opens the New Agent picker ("Start an
 agent…") in either layout. So does every pane's `+` (New Agent… at its head, then Reopen Thread…),
 and in the Marley layout the status bar's sparkle, Ctrl+? and Zed's `agent: new thread` too, in
 place of Zed's Agent Panel, which starts nothing in a group with no folder (#744). Each agent is a
@@ -580,8 +581,8 @@ A right-click on the rail's empty space (under the last row, or beside PROJECTS 
 the projects show) opens a menu:
 New Group… asks for a name and makes a group with no folder, listed after the window's projects
 with a group icon, a chevron and a `+`. A group's terminals and agent CLIs start in the home
-folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab and
-the agent CLIs in the same menu open in the window's Default group. A group's `+` has no New
+folder, and its Browser tabs use a Chromium of the group's own. New Terminal, New Browser Tab, Open
+File (#951) and the agent CLIs in the same menu open in the window's Default group. A group's `+` has no New
 Agent in Worktree or Launch, which need a folder; its New Agent… starts a thread in a tab of the
 group, or a CLI in a terminal, in your home folder (#734, #744). Right-click a group's header for
 Rename Group… and Remove Group. Groups come back after a restart with their

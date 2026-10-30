@@ -317,10 +317,15 @@ since gpui's registration calls return `&mut App` for chaining and `.log_err()` 
   (#507: `MultiWorkspace::remove_project_group`, as Zed's sidebar's Remove calls it), which closes
   the project's workspaces after their save prompts and so stops its Chromium.
   `project_context_menu` builds it. Since #820 every open header's right-click starts with what its
-  `+` offers, `new_entries` (New Terminal, New Browser Tab, New Agent…, Reopen Thread…, New Agent
-  in Worktree, Launch), which `render_project_menu` builds the `+` from too; `group_context_menu`
-  does the same for groups and Default, and the empty space's menu offers New Agent… and Reopen
-  Thread… in Default in place of its old list of agent CLIs. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
+  `+` offers, `new_entries` (New Terminal, New Browser Tab, Open File…, New Agent…, Reopen
+  Thread…, New Agent in Worktree, Launch), which `render_project_menu` builds the `+` from too;
+  `group_context_menu` does the same for groups and Default, and the empty space's menu offers
+  Open File, New Agent… and Reopen Thread… in Default in place of its old list of agent CLIs.
+  Open File… (#951) is `open_files`: `Workspace::prompt_for_open_path` with the project's
+  `DirectoryLister` (so the user's `use_system_path_prompts` applies, and a remote project lists
+  its machine), then `open_chosen` outside any workspace update: a path the language registry
+  calls Markdown goes to `terminal_show::open_markdown_in` on the active pane, any other to
+  `open_abs_path` with `OpenVisible::None`, its item handle dropped once opened. Zed's `multi_workspace::FocusWorkspaceSidebar` (`ctrl-alt-;`) focuses
   the rail as it does Zed's sidebar.
 - **The filter (#457).** A single-line editor under the header ("Filter…") narrows the rail as
   Zed's Threads Sidebar's filter does. `build_snapshot` matches each project's name and each
@@ -3645,8 +3650,11 @@ below describe what #743 retired.
   its project's Files row, so a file folded away highlights Files. `parent` puts a file under
   Files and Files under its project; `cycle_row` reaches tabs; `run` gives them no drag.
 - **The rail.** `member_tabs` reads each pane's items in the panes' order, skipping terminals and
-  Browser tabs: a file is an item with a project path and a single buffer (`ItemBufferKind`), its
-  folder the path's parent. `TabEntry` keeps the workspace, the item weakly and its `tab_icon`.
+  Browser tabs: a file is an item with a project path and a single buffer (`ItemBufferKind`), or
+  a `MarkdownPreviewView`, whose path is its editor's (`previewed_path`, `act_as::<Editor>`;
+  #951). `file_place` gives the row's lines: in a visible folder the tab's text and the path's
+  parent; in a hidden worktree (a file opened from outside the project, whose worktree Zed names
+  by its full path) the file's name and its absolute folder, compacted to `~`. `TabEntry` keeps the workspace, the item weakly and its `tab_icon`.
   `follow_panes` subscribes to every pane of every workspace, since a title or dirty change
   outside the active pane reaches no workspace event (`Workspace::handle_pane_event`).
   `active_rows` returns the active item's id when it is neither a terminal nor a Browser tab.
@@ -3838,7 +3846,8 @@ below describe what #743 retired.
   table or a tree, and opens the tab through the window: `block_tables::open_file` (no block key),
   `block_tables::show_table` (a `BlockTable` of the same title reused), `component_tools::open_tab`,
   Zed's `MarkdownPreviewView::open_preview_in_pane` over an `Editor::for_buffer` no pane shows, or
-  `open_abs_path` with an invisible worktree for an image.
+  `open_abs_path` with an invisible worktree for an image. `open_markdown_in` (the terminal's
+  pane, or any pane) is shared with the rail's Open File… (#951).
 - Marley's bash, zsh and fish integrations define `show` as `"$MARLEY_BIN" show` when `MARLEY_BIN`
   is set and the shell has no `show` (`type -t`, `whence`, `type -q`); fish's is replaced by a
   user's own function defined after it.

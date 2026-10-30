@@ -413,7 +413,8 @@ CLIs, recent projects, the agents at work and the settings, in place of Zed's We
 gone, and lists Home's row first under Default in the rail; #785 opens Home, not a new shell,
 in the pane a terminal's split opens, splits Home into another Home, gives every center tab's
 menu Split Right, Left, Up and Down, which move the tab, and makes the split button's menu reach
-its pane.
+its pane; #951 adds Open File… to a project's `+` and the empty space's menu, for a file anywhere
+on the disk, a Markdown file shown formatted, with its row under the project's Files.
 W5 shipped as #441:
 in the Marley layout
 tasks, New Terminal and Open in Terminal open center terminals, and nothing opens the bottom
