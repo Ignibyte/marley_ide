@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use acp_thread::{AcpThread, AgentThreadEntry, AssistantMessageChunk};
-use agent_client_protocol::schema::v2 as acp_v2;
+use agent_client_protocol::v2::schema as acp_v2;
 use agent_ui::{Agent, AgentInitialContent, AgentPanel, ConversationView};
 use anyhow::Context as _;
 use gpui::{

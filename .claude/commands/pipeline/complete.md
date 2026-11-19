@@ -39,7 +39,7 @@ ticket", "archive", "commit". Resolve them all before Stop.
    `README.md` review marker stays; only the human removes it. Commit with a subject, a body
    that says why, the ticket id, and the attribution trailer the harness gives. Commit only
    when the user asked for the work; push or open a PR only when asked, following Zed's PR
-   hygiene in `.rules`.
+   hygiene in `AGENTS.md`.
 
 ## Closeout
 - Every task you created is resolved.

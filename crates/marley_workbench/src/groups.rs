@@ -248,8 +248,13 @@ pub(crate) fn reopen(
         if held.contains(&database_id) || !pending {
             continue;
         }
-        let opened =
-            workspace::open_workspace_by_id(database_id, Arc::clone(&app_state), handle, cx);
+        let opened = workspace::open_workspace_by_id(
+            database_id,
+            Arc::clone(&app_state),
+            handle,
+            /* keeps_saved_state_while_restoring */ false,
+            cx,
+        );
         cx.spawn(async move |cx| {
             if let Err(error) = opened.await {
                 log::warn!(

@@ -47,7 +47,7 @@ pub(crate) fn thread_activity(
     let view = view.read(cx);
     let thread = view.thread.read(cx);
     let status = marley_rail::thread_status(
-        conversation.root_thread_has_pending_tool_call(cx),
+        conversation.root_thread_is_waiting_for_input(cx),
         thread.had_error(),
         thread.status() == acp_thread::ThreadStatus::Generating,
     );

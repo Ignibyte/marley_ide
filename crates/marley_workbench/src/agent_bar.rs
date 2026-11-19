@@ -21,7 +21,7 @@ use terminal_view::{MarleyFooterContext, MarleyTerminalFooter, TerminalView};
 use ui::{Button, Icon, IconButton, IconName, IconSize, Label, LabelSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use util::paths::PathExt as _;
-use workspace::Workspace;
+use workspace::{OpenPathPromptMode, Workspace};
 
 use crate::agents::cli_icon;
 use crate::blocks::focused_terminal;
@@ -65,11 +65,12 @@ fn attach(
             prompt: Some(SharedString::new_static("Attach")),
         },
         lister,
+        OpenPathPromptMode::SelectPath,
         window,
         cx,
     );
     cx.spawn_in(window, async move |_, cx| {
-        let Some(paths) = paths.await.log_err().flatten() else {
+        let Some(paths) = paths.await.log_err().flatten().map(|chosen| chosen.paths) else {
             return;
         };
         view.update_in(cx, |view, window, cx| {

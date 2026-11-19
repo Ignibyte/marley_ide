@@ -3281,3 +3281,12 @@ When upstream code calls a std API that is stable on the tree's toolchain and no
 (`profile.dev.package.<crate>.rustflags`, under `-Zprofile-rustflags`), naming the commit and when
 the entry goes. Never for every crate: `no_std` crates refuse a std feature (E0635). A Marley
 crate's own call still changes at the call.
+
+## PR-claude-952-an-upstream-merge-reads-the-startup-changes-against-the-harness-001
+*severity: medium · prevents: F-claude-952-a-scenarios-first-start-restored-the-users-session-001*
+
+An upstream merge's plan lists the range's commits that change startup or restore
+(`git log <base>..upstream/main -- crates/zed/src/main.rs crates/workspace/src/persistence.rs`)
+and checks each against what `script/e2e.sh` copies from the user's profile (the database, the
+threads, the settings). A start that reads more of that copy than before shows the user's state in
+a run. The harness decides what a run starts with; it never asks the scenario to work around it.

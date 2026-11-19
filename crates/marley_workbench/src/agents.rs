@@ -39,8 +39,8 @@ use ui::{ContextMenu, HighlightedLabel, IconName, ListItem, ListItemSpacing, pre
 use util::ResultExt as _;
 use workspace::notifications::DetachAndPromptErr as _;
 use workspace::{
-    MarleyNewItemMenu, ModalView, MultiWorkspace, SerializedWorkspaceLocation, Workspace,
-    WorkspaceDb,
+    MarleyNewItemMenu, ModalView, MultiWorkspace, OpenPathPromptMode, SerializedWorkspaceLocation,
+    Workspace, WorkspaceDb,
 };
 use zed_actions::assistant;
 
@@ -1342,6 +1342,7 @@ impl NewAgentDelegate {
                     prompt: Some(SharedString::new_static("Start Here")),
                 },
                 lister,
+                OpenPathPromptMode::SelectPath,
                 window,
                 cx,
             );
@@ -1350,7 +1351,7 @@ impl NewAgentDelegate {
                     .await
                     .log_err()
                     .flatten()
-                    .and_then(|paths| paths.into_iter().next())
+                    .and_then(|chosen| chosen.paths.into_iter().next())
                 else {
                     return;
                 };

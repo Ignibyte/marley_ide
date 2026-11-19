@@ -74,7 +74,7 @@ checklist in the notes' Phase 1 entry.
 7. **The design, in the notes.**
    - **Approach:** how the change fits Marley and which modules and types it touches. §14
      applies: typed errors, no panics on input or response paths, testable `*_in(dir)` IO,
-     spawns kept in adapters, Zed's `.rules` and its Google Rust style section (a planned type
+     spawns kept in adapters, Zed's `AGENTS.md` and its Google Rust style section (a planned type
      with named fields, not a tuple; an `enum`, not an unclear `bool`). A change to a Zed crate
      is the smallest additive diff, and each path outside the Marley-owned set will need its
      ledger row.

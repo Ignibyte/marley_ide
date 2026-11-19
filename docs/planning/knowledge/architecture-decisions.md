@@ -5756,3 +5756,15 @@ outside a project".
 Rejected: Zed's `workspace::OpenFiles`, whose window routing (`WorkspaceMatching`) can send a file
 to another project or a new window in Marley's multi-workspace window; and a file tree in the rail
 (Chad chose the chooser).
+
+## AD-claude-952-claude-md-links-to-upstreams-agents-md-001
+*decided: 2026-11-19 · while: #952*
+
+Upstream moved its agent rules from `.rules` into a real `AGENTS.md` and deleted its `CLAUDE.md`
+and `GEMINI.md` links (#66716). Marley's two sections (the "Marley" section on top, Google's Rust
+style after Zed's Rust coding guidelines) live in `AGENTS.md`, beside upstream's lines kept
+verbatim, and `CLAUDE.md` is a Marley link to it, since Claude Code reads that name and Zed's
+agent and Codex read `AGENTS.md`. One text serves every agent. `GEMINI.md` stays deleted.
+
+Rejected: a Marley-only `CLAUDE.md` with its own copy of the rules, which would drift from Zed's
+at every merge.

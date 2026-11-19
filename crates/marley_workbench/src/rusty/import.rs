@@ -19,7 +19,7 @@ use marley_rusty::capture::{
 use project::DirectoryLister;
 use ui::prelude::*;
 use util::ResultExt as _;
-use workspace::{DismissDecision, ModalView, Workspace};
+use workspace::{DismissDecision, ModalView, OpenPathPromptMode, Workspace};
 
 actions!(
     rusty,
@@ -58,6 +58,7 @@ fn choose_folder(workspace: &mut Workspace, window: &mut Window, cx: &mut Contex
             prompt: Some(SharedString::new_static("Import")),
         },
         lister,
+        OpenPathPromptMode::SelectPath,
         window,
         cx,
     );
@@ -66,7 +67,7 @@ fn choose_folder(workspace: &mut Workspace, window: &mut Window, cx: &mut Contex
             .await
             .log_err()
             .flatten()
-            .and_then(|paths| paths.into_iter().next())
+            .and_then(|chosen| chosen.paths.into_iter().next())
         else {
             return;
         };

@@ -271,21 +271,6 @@ impl Branch {
             .strip_prefix("refs/remotes/")
             .and_then(|stripped| stripped.split("/").next())
     }
-
-    pub fn tracking_status(&self) -> Option<UpstreamTrackingStatus> {
-        self.upstream
-            .as_ref()
-            .and_then(|upstream| upstream.tracking.status())
-    }
-
-    pub fn priority_key(&self) -> (bool, Option<i64>) {
-        (
-            self.is_head,
-            self.most_recent_commit
-                .as_ref()
-                .map(|commit| commit.commit_timestamp),
-        )
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -445,10 +430,6 @@ impl Upstream {
             .and_then(|stripped| stripped.split("/").next())
     }
 
-    pub fn stripped_ref_name(&self) -> Option<&str> {
-        self.ref_name.strip_prefix("refs/remotes/")
-    }
-
     pub fn branch_name(&self) -> Option<&str> {
         self.ref_name
             .strip_prefix("refs/remotes/")
@@ -479,10 +460,6 @@ impl From<UpstreamTrackingStatus> for UpstreamTracking {
 }
 
 impl UpstreamTracking {
-    pub fn is_gone(&self) -> bool {
-        matches!(self, UpstreamTracking::Gone)
-    }
-
     pub fn status(&self) -> Option<UpstreamTrackingStatus> {
         match self {
             UpstreamTracking::Gone => None,
@@ -1824,11 +1801,13 @@ impl GitRepository for RealGitRepository {
                     );
                 }
 
+                // `git` blocks once an unread stderr pipe fills, for example with one ambiguity
+                // warning per `HEAD` lookup when `refs/tags/HEAD` exists.
                 let mut process = git
                     .build_command(&["cat-file", "--batch"])
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
+                    .stderr(Stdio::null())
                     .kill_on_drop(true)
                     .spawn()?;
 
@@ -2789,7 +2768,7 @@ impl GitRepository for RealGitRepository {
         async move {
             let git = git?;
             git.run_remote_command(Some(askpass), &env, &["commit", "--quiet", "-m"], |cmd| {
-                cmd.arg(&message.to_string())
+                cmd.arg(message.as_str())
                     .arg("--cleanup=strip")
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped());
@@ -3783,7 +3762,6 @@ impl GitBinary {
         Ok(String::from_utf8(output.stdout)?)
     }
 
-    #[allow(clippy::disallowed_methods)]
     pub(crate) fn build_command<S>(&self, args: &[S]) -> util::command::Command
     where
         S: AsRef<OsStr>,
@@ -5867,6 +5845,33 @@ mod tests {
     }
 
     #[gpui::test]
+    async fn test_load_revisions_with_ambiguous_head(cx: &mut TestAppContext) {
+        disable_git_global_config();
+        cx.executor().allow_parking();
+
+        let repo_dir = tempfile::tempdir().unwrap();
+        git_init_repo(repo_dir.path());
+        fs::write(repo_dir.path().join("file"), "contents").unwrap();
+        git_command(repo_dir.path(), ["add", "file"]);
+        git_command(repo_dir.path(), ["commit", "-m", "Initial commit"]);
+        git_command(repo_dir.path(), ["update-ref", "refs/tags/HEAD", "HEAD"]);
+        let repo = RealGitRepository::new(
+            &repo_dir.path().join(".git"),
+            None,
+            Some("git".into()),
+            cx.executor(),
+        )
+        .unwrap();
+
+        // Writes about 150 KB of warnings to stderr, more than a pipe buffer holds.
+        let results = repo
+            .load_revisions(vec!["HEAD:file".to_string(); 4000])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some(b"contents".to_vec()); 4000]);
+    }
+
+    #[gpui::test]
     async fn test_blame_at_revision(cx: &mut TestAppContext) {
         disable_git_global_config();
         cx.executor().allow_parking();
@@ -5932,6 +5937,36 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(first_sha.clone(), 0..1)]
         );
+    }
+
+    #[gpui::test]
+    async fn test_blame_untracked_path_with_large_contents(cx: &mut TestAppContext) {
+        disable_git_global_config();
+        cx.executor().allow_parking();
+
+        let repo_dir = tempfile::tempdir().unwrap();
+        git_init_repo(repo_dir.path());
+        fs::write(repo_dir.path().join("committed.txt"), "line one\n").unwrap();
+        git_command(repo_dir.path(), ["add", "-A"]);
+        git_command(repo_dir.path(), ["commit", "-m", "First commit"]);
+        let repo = RealGitRepository::new(
+            &repo_dir.path().join(".git"),
+            None,
+            Some("git".into()),
+            cx.executor(),
+        )
+        .unwrap();
+
+        // Git exits without reading stdin for a path that isn't in HEAD.
+        let blame = repo
+            .blame(
+                repo_path("untracked.txt"),
+                Rope::from("line\n".repeat(1 << 20)),
+                LineEnding::Unix,
+            )
+            .await
+            .unwrap();
+        assert_eq!(blame.entries, Vec::new());
     }
 
     #[gpui::test]

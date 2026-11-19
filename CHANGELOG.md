@@ -13,6 +13,31 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
 
 ### Added
 
+- **Upstream Zed through 2026-11-19** (#952). Marley now carries the 266 upstream commits since
+  #950, which includes everything in Zed v1.27 to v1.29.2 and v1.30.1-pre. Upstream's changes
+  that show:
+  - Starting Marley by opening a file or folder, with Marley closed, brings back the last
+    session's windows first; the requested one opens in front of them.
+  - The Git panel has a branch mode that lists every file changed since a base branch such as
+    `origin/main`, and opening a commit from git blame scrolls to the blamed line.
+  - A picker lists every bookmark in the workspace.
+  - A setting hides the title bar, always or only in full screen.
+  - An ACP agent's options sit in the message editor the way Zed's own agent's do: the thought
+    level by the editor's left controls, the mode and model on the right.
+  - Large projects scan, diff and refresh their git status faster, and the editor stays
+    responsive under heavy file activity.
+
+  Agent instructions moved with upstream from `.rules` to `AGENTS.md`; `CLAUDE.md` links to it,
+  so Claude Code sessions in the repository still read Marley's rules beside Zed's. The guide's
+  file chips and an agent's review notes open the project diff through upstream's own entry
+  point, since the one they used is gone. A Marley thread tile shows "waiting" for an open
+  question form as well as a permission, as Zed's sidebar does. In the file finder, a typed path
+  outside every project keeps Zed's row.
+
+  Underneath: ACP SDK 5.4; ammonia, quinn-proto and quinn-udp take patch releases for advisories
+  published after #950, and the audit list drops seven ids the tree no longer has. The scenario
+  harness gives each run's copy of the database a fresh session id, so a run's first start no
+  longer restores the user's windows.
 - **Open File… on the rail's `+`** (#951). A project's `+` opens any file on the disk in that
   project's pane, not only the project's own files: a Markdown file as its formatted page, anything
   else in the editor or Zed's viewer for it. The file gets a row under the project's Files, which

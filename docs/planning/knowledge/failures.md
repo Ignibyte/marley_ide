@@ -4676,3 +4676,16 @@ tabs read "todo.txt" and "Preview plan.md". Zed opens such a file in a hidden wo
 file and names that worktree by its full path, so `tab_content_text` is the whole path; the tab
 draws only the file name. Fixed: `member_tabs` titles a file in a hidden worktree by its file name
 (`file_place`) and puts its absolute folder on the second line.
+
+## F-claude-952-a-scenarios-first-start-restored-the-users-session-001
+*found: 2026-11-19 · while: #952's Test phase (the merged build's first runs) · severity: medium · prevented by: PR-claude-952-an-upstream-merge-reads-the-startup-changes-against-the-harness-001*
+
+On the merged build, every scenario's window came up in its sway beside two or three Marley
+windows holding copies of Chad's session: his rail's groups, from the run's copy of his database.
+Upstream's `f99c53f4f6` (#65463) restores the last session when a start opens a path, and every
+scenario's first launch opens one; before it, a path start restored nothing. The narrower tiled
+window moved 733's chip off its click point and drew 730's diff without its proposals. Deleting
+`session_id` from the copy only moved the fault: with no last session, `restore_on_startup`'s
+`last_session` falls back to the last workspace (his most recent project came up). Fixed in `script/e2e.sh`: the
+copy's `session_id` is a fresh UUID, a session with no windows, so nothing restores on the first
+start and a relaunch in the run restores the run's own session.

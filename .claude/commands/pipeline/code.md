@@ -9,12 +9,12 @@ the plan's design names, review it, and run the gate. Gate: Phase 1 must be PASS
 (`enforce-phase-gate.sh`).
 
 Read [CONSTITUTION.md](../../../CONSTITUTION.md) §0 (the gate), §7 (no tests) and §14 (code
-conventions), binding together with Zed's `.rules`.
+conventions), binding together with Zed's `AGENTS.md`.
 
 ## Before you write code
 - Recall (§18.3): the prevention rules and failures for this subsystem, and the
   completed-pipeline notes on the same seams.
-- The `README.md` review marker (the `.rules` HARD RULE) is present before the first source
+- The `README.md` review marker (the `AGENTS.md` HARD RULE) is present before the first source
   edit.
 - For each path outside the Marley-owned set, its row in `docs/marley/zed-touchpoints.md`
   comes first (§14); `enforce-zed-ledger.sh` blocks the write until it exists.
@@ -40,7 +40,7 @@ resolve them all before Stop. Without it, keep the checklist in the notes.
    - provenance (§20): nothing derived from Warp's source, and nothing carried over from a
      GPL Zed function body into a Marley crate;
    - upstream discipline: each Zed hunk additive and minimal, each row written;
-   - Google's Rust style guide as `.rules` applies it, in every Marley file the diff touches.
+   - Google's Rust style guide as `AGENTS.md` applies it, in every Marley file the diff touches.
      Check each point:
      - imports: one module per `use`, types unqualified, functions called through their module,
        no new glob imports;

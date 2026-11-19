@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use db::kvp::KeyValueStore;
-use fuzzy_nucleo::{Case, LengthPenalty, StringMatch, StringMatchCandidate};
+use fuzzy_nucleo::{MaxResults, StringMatch, StringMatchCandidate, StringMatchOptions};
 use gpui::{
     App, AppContext as _, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     Global, SharedString, Task, WeakEntity, Window,
@@ -374,27 +374,16 @@ impl PickerDelegate for PagePickerDelegate {
         let executor = cx.background_executor().clone();
         cx.spawn_in(window, async move |picker, cx| {
             let cancelled = AtomicBool::new(false);
-            let case = Case::smart_if_uppercase_in(&query);
-            let by_title = fuzzy_nucleo::match_strings_async(
-                &titles,
-                &query,
-                case,
-                LengthPenalty::On,
-                switcher::MATCH_CAP,
-                &cancelled,
-                executor.clone(),
-            )
-            .await;
-            let by_slug = fuzzy_nucleo::match_strings_async(
-                &slugs,
-                &query,
-                case,
-                LengthPenalty::On,
-                switcher::MATCH_CAP,
-                &cancelled,
-                executor,
-            )
-            .await;
+            // Smart case: a query with no capital matches either case.
+            let options = StringMatchOptions {
+                max_results: MaxResults::limit::<{ switcher::MATCH_CAP }>(),
+                cancel_flag: Some(&cancelled),
+                ..StringMatchOptions::default()
+            };
+            let by_title =
+                fuzzy_nucleo::match_strings_async(&titles, &query, options, executor.clone()).await;
+            let by_slug =
+                fuzzy_nucleo::match_strings_async(&slugs, &query, options, executor).await;
             let hits = switcher::merge(
                 by_title.into_iter().map(matched).collect(),
                 by_slug.into_iter().map(matched).collect(),

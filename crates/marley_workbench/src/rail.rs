@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use acp_thread::{AcpThread, AcpThreadEvent, SelectedPermissionOutcome};
-use agent_client_protocol::schema::v2 as acp;
+use agent_client_protocol::v2::schema as acp;
 use agent_ui::thread_metadata_store::{ThreadId, ThreadMetadata, ThreadMetadataStore};
 use agent_ui::thread_worktree_archive::{self, RootPlan};
 use agent_ui::threads_archive_view::fuzzy_match_positions;
@@ -72,9 +72,9 @@ use util::paths::PathExt as _;
 use util::shell::ShellKind;
 use uuid::Uuid;
 use workspace::{
-    MultiWorkspace, MultiWorkspaceEvent, OpenMode, OpenOptions, OpenVisible, Pane, ProjectGroup,
-    RemovalIntent, SaveIntent, Sidebar, SidebarEvent, SidebarSide, SplitDirection, Toast,
-    Workspace, WorkspaceId,
+    MultiWorkspace, MultiWorkspaceEvent, OpenMode, OpenOptions, OpenPathPromptMode, OpenVisible,
+    Pane, ProjectGroup, RemovalIntent, SaveIntent, Sidebar, SidebarEvent, SidebarSide,
+    SplitDirection, Toast, Workspace, WorkspaceId,
     dock::DockPosition,
     item::{Item as _, ItemBufferKind, ItemEvent, ItemHandle, WeakItemHandle},
     notifications::{DetachAndPromptErr as _, NotificationId},
@@ -3459,15 +3459,17 @@ impl Rail {
                     prompt: Some(SharedString::new_static("Open")),
                 },
                 lister,
+                OpenPathPromptMode::SelectPath,
                 window,
                 cx,
             )
         });
         let workspace = workspace.downgrade();
         cx.spawn_in(window, async move |_, cx| {
-            let Some(paths) = paths.await.context("the file prompt closed")? else {
+            let Some(chosen) = paths.await.context("the file prompt closed")? else {
                 return anyhow::Ok(());
             };
+            let paths = chosen.paths;
             let workspace = workspace.upgrade().context("the project was closed")?;
             cx.update(|window, cx| open_chosen(&workspace, paths, window, cx))
         })
@@ -4209,6 +4211,7 @@ impl Rail {
                             project,
                             repository,
                             pending.base.into(),
+                            None,
                             None,
                             window,
                             cx,
@@ -5147,8 +5150,7 @@ impl Rail {
             sha,
             repository,
             workspace.downgrade(),
-            None,
-            None,
+            git_ui::commit_view::CommitViewOptions::default(),
             window,
             cx,
         );
@@ -9374,7 +9376,7 @@ fn mark(entry: &mut InboxEntry, waiting: &Waiting, scope: &RiskScope, snapshot: 
 /// label as plain text, the paths it names, and a terminal tool's `cd`.
 fn thread_waiting(call: &acp_thread::ToolCall, agent: &str, cx: &App) -> Waiting {
     // A tool call's kind is ACP's v2 schema's since upstream's move to it.
-    use agent_client_protocol::schema::v2::ToolKind;
+    use agent_client_protocol::v2::schema::ToolKind;
     let tool = match call.kind() {
         ToolKind::Read | ToolKind::Search | ToolKind::Fetch | ToolKind::Think => ToolClass::Read,
         ToolKind::Edit | ToolKind::Move => ToolClass::Write,

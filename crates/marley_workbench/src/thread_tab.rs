@@ -37,7 +37,7 @@ use std::time::Duration;
 
 use acp_thread::{AgentSessionListRequest, AgentThreadEntry};
 use agent::ThreadStore;
-use agent_client_protocol::schema::v2 as acp;
+use agent_client_protocol::v2::schema as acp;
 use agent_settings::AgentProfileId;
 use agent_ui::thread_metadata_store::{
     ThreadId, ThreadMetadata, ThreadMetadataStore, ThreadMetadataStoreEvent,
@@ -1078,7 +1078,7 @@ fn plan_of(thread: &acp_thread::AcpThread) -> Vec<(String, acp::PlanEntryStatus)
     thread
         .plan()
         .map(|plan| {
-            plan.entries
+            plan.entries()
                 .iter()
                 .map(|entry| (entry.source.content.clone(), entry.source.status.clone()))
                 .collect()

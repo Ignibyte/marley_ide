@@ -12,7 +12,7 @@ use std::{
 
 use acp_thread::{AcpThread, AcpThreadEvent, MentionUri, line_range_suffix};
 use agent::{ContextServerRegistry, SharedThread, ThreadStore};
-use agent_client_protocol::schema::v2 as acp_v2;
+use agent_client_protocol::v2::schema as acp_v2;
 use agent_servers::AgentServer;
 use agent_settings::UserAgentsMd;
 use collections::HashSet;
@@ -102,6 +102,7 @@ use workspace::{
     ToggleWorkspaceSidebar, ToggleZoom, ToolbarItemView, Workspace, WorkspaceId,
     dock::{DockPosition, Panel, PanelEvent},
     item::{ItemEvent, ItemHandle},
+    notifications::NotifyTaskExt as _,
 };
 
 const AGENT_PANEL_KEY: &str = "agent_panel";
@@ -248,18 +249,59 @@ fn project_agents_md_path(
         })
 }
 
-fn open_global_rules(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    workspace
-        .open_abs_path(
-            paths::agents_file().clone(),
-            workspace::OpenOptions {
-                focus: Some(true),
-                ..Default::default()
-            },
-            window,
-            cx,
-        )
-        .detach_and_log_err(cx);
+pub(crate) fn open_global_rules(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    let agents_file = paths::agents_file().clone();
+    if workspace.project().read(cx).is_local() {
+        workspace
+            .open_abs_path(
+                agents_file,
+                workspace::OpenOptions {
+                    focus: Some(true),
+                    ..Default::default()
+                },
+                window,
+                cx,
+            )
+            .detach_and_log_err(cx);
+        return;
+    }
+
+    // The global rules are on this machine, and `open_abs_path` would look for
+    // them on the project's machine, so show them read-only.
+    let fs = workspace.app_state().fs.clone();
+    cx.spawn_in(window, async move |workspace, cx| {
+        // A local project opens the missing file so it can be created, but a
+        // read-only buffer can't create it.
+        if !fs.is_file(&agents_file).await {
+            return workspace.update(cx, |workspace, cx| {
+                struct NoGlobalRulesToast;
+                workspace.show_toast(
+                    workspace::Toast::new(
+                        workspace::notifications::NotificationId::unique::<NoGlobalRulesToast>(),
+                        format!(
+                            "No global rules yet. Create {} on this machine to add them.",
+                            agents_file.display()
+                        ),
+                    )
+                    .autohide(),
+                    cx,
+                );
+            });
+        }
+        let content = fs.load(&agents_file).await?;
+        let title = agents_file
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        workspace.update_in(cx, |workspace, window, cx| {
+            crate::ui::open_read_only_markdown_buffer(workspace, title, content, window, cx);
+        })
+    })
+    .detach_and_notify_err(workspace.weak_handle(), window, cx);
 }
 
 fn open_project_rules(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
@@ -3529,10 +3571,15 @@ impl AgentPanel {
             .read(cx)
             .entries()
             .find(|t| t.id == session_id)?;
+        // The native thread store has no title for threads whose title was
+        // never generated, e.g. with `auto_generate_thread_titles` off.
+        let title = ThreadMetadataStore::try_global(cx)
+            .and_then(|store| store.read(cx).entry_by_session(&session_id)?.title())
+            .unwrap_or(thread.title);
 
         Some(AgentInitialContent::ThreadSummary {
             session_id: thread.id,
-            title: Some(thread.title),
+            title: Some(title),
         })
     }
 
@@ -4552,9 +4599,18 @@ impl AgentPanel {
         // also seed the message editor with any prompt text the user had
         // typed before closing the window (persisted in the scoped kvp
         // draft-prompt store).
-        let is_draft = ThreadMetadataStore::try_global(cx)
-            .and_then(|store| store.read(cx).entry(thread_id).map(|m| m.is_draft()))
-            .unwrap_or(false);
+        let (is_draft, saved_title) = ThreadMetadataStore::try_global(cx)
+            .and_then(|store| {
+                store
+                    .read(cx)
+                    .entry(thread_id)
+                    .map(|metadata| (metadata.is_draft(), metadata.title.clone()))
+            })
+            .unwrap_or((false, None));
+        // Callers such as thread mentions pass a title captured when they were
+        // created, which can be stale or the default title. Restoring that on
+        // load would overwrite the title this thread last showed.
+        let title = saved_title.or(title);
         let initial_content = is_draft
             .then(|| crate::draft_prompt_store::read(thread_id, cx))
             .flatten()
@@ -7007,7 +7063,7 @@ mod tests {
     };
     use acp_thread::{AgentConnection, StubAgentConnection, ThreadStatus};
     use action_log::ActionLog;
-    use agent_client_protocol::schema::v1 as acp;
+    use agent_client_protocol::v1::schema as acp;
     use anyhow::{Result, anyhow};
     use feature_flags::FeatureFlagAppExt;
     use fs::FakeFs;
@@ -11707,6 +11763,78 @@ mod tests {
     }
 
     #[gpui::test]
+    async fn test_load_agent_thread_prefers_sidebar_title_over_caller_title(
+        cx: &mut TestAppContext,
+    ) {
+        let (panel, mut cx) = setup_panel(cx).await;
+        cx.run_until_parked();
+
+        panel.update(&mut cx, |panel, cx| {
+            panel.connection_store.update(cx, |store, cx| {
+                store.restart_connection(
+                    Agent::Stub,
+                    Rc::new(StubAgentServer::new(
+                        StubAgentConnection::new().with_supports_load_session(true),
+                    )),
+                    cx,
+                );
+            });
+        });
+        cx.run_until_parked();
+
+        let thread_id = ThreadId::new();
+        cx.update(|_window, cx| {
+            ThreadMetadataStore::global(cx).update(cx, |store, cx| {
+                store.save(
+                    crate::thread_metadata_store::ThreadMetadata {
+                        thread_id,
+                        session_id: Some(acp_v2::SessionId::new("saved-session")),
+                        agent_id: Agent::Stub.id(),
+                        title: Some("Sidebar title".into()),
+                        title_override: None,
+                        updated_at: Utc::now(),
+                        created_at: Some(Utc::now()),
+                        interacted_at: None,
+                        worktree_paths: WorktreePaths::from_folder_paths(&PathList::default()),
+                        remote_connection: None,
+                        archived: false,
+                    },
+                    cx,
+                );
+            });
+        });
+
+        panel.update_in(&mut cx, |panel, window, cx| {
+            panel.load_agent_thread(
+                Agent::Stub,
+                thread_id,
+                None,
+                Some(crate::DEFAULT_THREAD_TITLE.into()),
+                true,
+                AgentThreadSource::AgentPanel,
+                window,
+                cx,
+            );
+        });
+        cx.run_until_parked();
+
+        panel.read_with(&cx, |panel, cx| {
+            let thread = panel
+                .active_agent_thread(cx)
+                .expect("saved thread should load");
+            assert_eq!(thread.read(cx).title(), Some("Sidebar title".into()));
+        });
+        cx.update(|_window, cx| {
+            let metadata = ThreadMetadataStore::global(cx)
+                .read(cx)
+                .entry(thread_id)
+                .cloned()
+                .expect("sidebar entry should still exist");
+            assert_eq!(metadata.title, Some("Sidebar title".into()));
+        });
+    }
+
+    #[gpui::test]
     async fn test_initial_content_for_thread_summary_uses_own_session_id(cx: &mut TestAppContext) {
         init_test(cx);
         cx.update(|cx| {
@@ -11776,6 +11904,36 @@ mod tests {
             }
             _ => panic!("expected AgentInitialContent::ThreadSummary"),
         }
+
+        cx.update(|cx| {
+            ThreadMetadataStore::global(cx).update(cx, |store, cx| {
+                store.save(
+                    crate::thread_metadata_store::ThreadMetadata {
+                        thread_id: ThreadId::new(),
+                        session_id: Some(source_session_id.clone()),
+                        agent_id: Agent::NativeAgent.id(),
+                        title: Some("Sidebar title".into()),
+                        title_override: None,
+                        updated_at: Utc::now(),
+                        created_at: Some(Utc::now()),
+                        interacted_at: None,
+                        worktree_paths: WorktreePaths::from_folder_paths(&PathList::default()),
+                        remote_connection: None,
+                        archived: false,
+                    },
+                    cx,
+                );
+            });
+        });
+        let content = cx
+            .update(|cx| {
+                AgentPanel::initial_content_for_thread_summary(source_session_id.clone(), cx)
+            })
+            .expect("initial content should be produced for a root thread");
+        let AgentInitialContent::ThreadSummary { title, .. } = content else {
+            panic!("expected AgentInitialContent::ThreadSummary");
+        };
+        assert_eq!(title, Some("Sidebar title".into()));
 
         // Unknown session ids should still produce no content.
         let missing = cx.update(|cx| {

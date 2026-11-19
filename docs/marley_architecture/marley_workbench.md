@@ -3946,7 +3946,7 @@ below describe what #743 retired.
 - `guide_tab::open` replaces the sections of an open `GuideTab` with the same title (ticks cleared)
   or adds a new one to the center. Summaries are `Markdown::new` entities (HTML not parsed), drawn
   with `MarkdownStyle::themed(Preview)`. A section's Reviewed `Checkbox` folds it to its title and
-  counts it; a chip runs `ProjectDiff::deploy_at_project_path` when the repository reports a status
+  counts it; a chip runs `review_tools::open_project_diff_at` when the repository reports a status
   for the file (`in_project_diff`), else `open_abs_path` and `go_to_singleton_buffer_point`. Ticks
   live with the tab.
 
@@ -3978,8 +3978,10 @@ below describe what #743 retired.
   (absolute paths, lines from 1, at most 50, comments cut at 4,000 characters), takes the source
   from the call or the caller's name, finds the first note's project (`editor_tools::project_holding`)
   and is admitted through `agent_control::admit(Area::Editors, Level::Act, …)`.
-- `place` activates the project's workspace, runs `ProjectDiff::deploy_at_project_path` for the
-  first file, and takes the diff's `rhs_editor()`. The diff loads its files a few at a time with no
+- `place` activates the project's workspace, runs `open_project_diff_at` for the first file, and
+  takes the diff's `rhs_editor()`. `open_project_diff_at` is upstream's `ProjectDiff::deploy_at`
+  (open or bring forward the diff on the active repository) followed by `move_to_project_path`
+  on the diff it opened, since upstream removed `deploy_at_project_path` at #952's merge. The diff loads its files a few at a time with no
   event at the end, so each note's range is tried every 100 ms for up to three seconds:
   `range_in_diff` finds the file's buffer among the multibuffer's, anchors the lines in the buffer,
   and maps them with `anchor_in_excerpt`, which is none outside the diff's excerpts. Each found

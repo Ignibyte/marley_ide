@@ -86,8 +86,8 @@ use util::rel_path::RelPath;
 use workspace::item::{Item, ItemEvent, SerializableItem};
 use workspace::notifications::{DetachAndPromptErr as _, NotificationId};
 use workspace::{
-    ItemId, MultiWorkspace, MultiWorkspaceEvent, OpenOptions, Pane, SplitDirection, Toast,
-    Workspace, WorkspaceId,
+    ItemId, MultiWorkspace, MultiWorkspaceEvent, OpenOptions, OpenPathPromptMode, Pane,
+    SplitDirection, Toast, Workspace, WorkspaceId,
 };
 
 use crate::playwright_scripts::{self, LastRun, RunResult, RunTarget, Scope, Script};
@@ -5884,13 +5884,14 @@ impl BrowserView {
                     prompt: Some(SharedString::new_static("Upload")),
                 },
                 lister,
+                OpenPathPromptMode::SelectPath,
                 window,
                 cx,
             )
         });
         let hub = self.hub.clone();
         cx.spawn_in(window, async move |_, cx| {
-            let chosen = paths.await.log_err().flatten();
+            let chosen = paths.await.log_err().flatten().map(|chosen| chosen.paths);
             let Some(paths) = chosen else {
                 hub.update(cx, |hub, cx| hub.cancel_chooser(&target, cx));
                 return;
@@ -9626,14 +9627,6 @@ struct PageElement {
     metadata: Option<FrameMetadata>,
     /// Whether a drag draws an annotation rather than reaching the page (#498).
     annotating: bool,
-}
-
-impl IntoElement for PageElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
 }
 
 impl Element for PageElement {

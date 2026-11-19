@@ -41,7 +41,7 @@ use crate::{
     git_store::GitStore,
     lsp_store::{SymbolLocation, log_store::LogKind},
     project_search::SearchResultsHandle,
-    trusted_worktrees::{PathTrust, RemoteHostLocation, TrustedWorktrees},
+    trusted_worktrees::{PathTrust, TrustedWorktrees},
     worktree_store::WorktreeIdCounter,
 };
 pub use agent_registry_store::{AgentRegistryStore, RegistryAgent};
@@ -447,6 +447,8 @@ pub enum Event {
     },
     WorkspaceEditApplied(ProjectTransaction),
     AgentLocationChanged,
+    /// The remote server's `~/.agents/skills` changed.
+    GlobalSkillsChanged,
     BufferEdited {
         source: BufferEditSource,
     },
@@ -1128,11 +1130,22 @@ impl DirectoryLister {
         project
             .visible_worktrees(cx)
             .next()
-            .map(|worktree| worktree.read(cx).abs_path().to_string_lossy().into_owned())
+            .map(|worktree| {
+                let worktree = worktree.read(cx);
+                let abs_path = worktree.abs_path();
+                let directory = if worktree.root_entry().is_some_and(|entry| entry.is_file()) {
+                    path_style.parent(&abs_path).unwrap_or(&abs_path)
+                } else {
+                    &abs_path
+                };
+                directory.to_string_lossy().into_owned()
+            })
             .or_else(|| std::env::home_dir().map(|dir| dir.to_string_lossy().into_owned()))
-            .map(|mut s| {
-                s.push_str(path_style.primary_separator());
-                s
+            .map(|mut query| {
+                if !query.ends_with(path_style.separators_ch()) {
+                    query.push_str(path_style.primary_separator());
+                }
+                query
             })
             .unwrap_or_else(|| {
                 if path_style.is_windows() {
@@ -1515,7 +1528,7 @@ impl Project {
                 (
                     remote.proto_client(),
                     remote.path_style(),
-                    RemoteHostLocation::from(remote.connection_options()),
+                    remote.connection_options().identity().into_owned(),
                 )
             });
             let worktree_store = cx.new(|cx| {
@@ -1752,6 +1765,7 @@ impl Project {
             remote_proto.add_entity_message_handler(Self::handle_update_worktree);
             remote_proto.add_entity_message_handler(Self::handle_update_project);
             remote_proto.add_entity_message_handler(Self::handle_toast);
+            remote_proto.add_entity_message_handler(Self::handle_global_skills_changed);
             remote_proto.add_entity_message_handler(Self::handle_telemetry_event);
             remote_proto.add_entity_request_handler(Self::handle_language_server_prompt_request);
             remote_proto
@@ -2629,13 +2643,13 @@ impl Project {
     #[inline]
     pub fn visibility_for_paths(
         &self,
-        paths: &[PathBuf],
+        paths: &[impl AsRef<Path>],
         exclude_sub_dirs: bool,
         cx: &App,
     ) -> Option<bool> {
         paths
             .iter()
-            .filter_map(|path| self.visibility_for_path(path, exclude_sub_dirs, cx))
+            .filter_map(|path| self.visibility_for_path(path.as_ref(), exclude_sub_dirs, cx))
             .max()
     }
 
@@ -2671,10 +2685,10 @@ impl Project {
             .max()
     }
 
-    pub fn visibility_for_subpaths(&self, paths: &[PathBuf], cx: &App) -> Option<bool> {
+    pub fn visibility_for_subpaths(&self, paths: &[impl AsRef<Path>], cx: &App) -> Option<bool> {
         paths
             .iter()
-            .filter_map(|path| self.visibility_for_subpath(path, cx))
+            .filter_map(|path| self.visibility_for_subpath(path.as_ref(), cx))
             .max()
     }
 
@@ -5857,6 +5871,15 @@ impl Project {
             });
             Ok(())
         })
+    }
+
+    async fn handle_global_skills_changed(
+        this: Entity<Self>,
+        _: TypedEnvelope<proto::GlobalSkillsChanged>,
+        mut cx: AsyncApp,
+    ) -> Result<()> {
+        this.update(&mut cx, |_, cx| cx.emit(Event::GlobalSkillsChanged));
+        Ok(())
     }
 
     async fn handle_telemetry_event(

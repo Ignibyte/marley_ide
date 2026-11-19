@@ -741,6 +741,13 @@ for db in "$E2E_PROFILE"/db/*/db.sqlite; do
   [[ -e $db ]] || continue
   sqlite3 "$db" "delete from scoped_kv_store where namespace = 'marley-rusty-graph'" \
     2>/dev/null || true
+  # Nor the user's last session (#952): since Zed's #65463 a start that opens a path restores the
+  # last session's windows first, so the run's first window would come up beside copies of the
+  # user's. A fresh session id names a session with no windows, so the first start restores none;
+  # a deleted one would fall back to the user's last workspace. A relaunch in the run restores
+  # the run's own session.
+  sqlite3 "$db" "update kv_store set value = '$(cat /proc/sys/kernel/random/uuid)' \
+    where key = 'session_id'" 2>/dev/null || true
 done
 if [[ -d $data/threads && -z $FIRST_RUN ]]; then
   cp -r "$data/threads" "$E2E_PROFILE/threads"

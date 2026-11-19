@@ -9,7 +9,7 @@
 //! Reject Once, never for a sandbox escalation.
 
 use acp_thread::{SelectedPermissionOutcome, ThreadStatus};
-use agent_client_protocol::schema::v2 as acp;
+use agent_client_protocol::v2::schema as acp;
 use agent_ui::{AgentPanel, ConversationView};
 use gpui::{App, Entity};
 use marley_mcp::{AppCall, Refusal, ToolAnswer};

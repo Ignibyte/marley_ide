@@ -1098,8 +1098,8 @@ pub(crate) fn start_with_task(
         return;
     };
     let initial = (!task.is_empty()).then(|| agent_ui::AgentInitialContent::ContentBlock {
-        blocks: vec![agent_client_protocol::schema::v2::ContentBlock::Text(
-            agent_client_protocol::schema::v2::TextContent::new(task.to_string()),
+        blocks: vec![agent_client_protocol::v2::schema::ContentBlock::Text(
+            agent_client_protocol::v2::schema::TextContent::new(task.to_string()),
         )],
         auto_submit: true,
     });
@@ -1122,8 +1122,8 @@ pub(crate) fn ask_beside(
         .map(|(agent, _)| agent)?;
     let (agent, _) = thread_agent_of(Entry::Marley, agent == MarleyAssistantAgent::Zed);
     let content = agent_ui::AgentInitialContent::ContentBlock {
-        blocks: vec![agent_client_protocol::schema::v2::ContentBlock::Text(
-            agent_client_protocol::schema::v2::TextContent::new(text),
+        blocks: vec![agent_client_protocol::v2::schema::ContentBlock::Text(
+            agent_client_protocol::v2::schema::TextContent::new(text),
         )],
         auto_submit: false,
     };

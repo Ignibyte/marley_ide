@@ -164,7 +164,7 @@ fn open_file_in(
     };
     if let Some(project_path) = in_project_diff(&workspace, &file.path, cx) {
         workspace.update(cx, |workspace, cx| {
-            ProjectDiff::deploy_at_project_path(workspace, project_path, window, cx);
+            crate::review_tools::open_project_diff_at(workspace, &project_path, window, cx);
         });
         return;
     }

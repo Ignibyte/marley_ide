@@ -761,10 +761,12 @@ impl PickerDelegate for CommandPaletteDelegate {
                 let mut matches = fuzzy_nucleo::match_strings_async(
                     &candidates,
                     &query,
-                    case,
-                    fuzzy_nucleo::LengthPenalty::On,
-                    10000,
-                    &Default::default(),
+                    fuzzy_nucleo::StringMatchOptions {
+                        max_results: fuzzy_nucleo::MaxResults::limit::<10_000>(),
+                        // Marley: see `case` above (#920).
+                        case,
+                        ..Default::default()
+                    },
                     executor,
                 )
                 .await;
@@ -856,9 +858,6 @@ impl PickerDelegate for CommandPaletteDelegate {
 
     fn confirm(&mut self, secondary: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         if secondary {
-            if self.matches.is_empty() {
-                return;
-            }
             let Some(selected_command) = self.selected_command() else {
                 return;
             };

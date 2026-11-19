@@ -1635,7 +1635,8 @@ fn a_thread_rows_second_line_says_what_it_does_in_its_states_words() {
 
 mod threads {
     use acp_thread::{PermissionOptions, StubAgentConnection};
-    use agent_client_protocol::schema::{v1 as acp_v1, v2 as acp};
+    use agent_client_protocol::v1::schema as acp_v1;
+    use agent_client_protocol::v2::schema as acp;
     use agent_ui::test_support::{
         active_session_id, active_thread_id, open_thread_with_connection, send_message,
     };

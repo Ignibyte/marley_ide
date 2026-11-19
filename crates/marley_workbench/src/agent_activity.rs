@@ -324,7 +324,8 @@ fn on_thread_entry(thread: &AcpThread, index: usize, cx: &mut Context<AcpThread>
     let outcome = match call.status() {
         ToolCallStatus::Pending
         | ToolCallStatus::WaitingForConfirmation
-        | ToolCallStatus::InProgress => {
+        | ToolCallStatus::InProgress
+        | ToolCallStatus::Paused => {
             cx.default_global::<RustyCalls>()
                 .open
                 .entry(thread_id)

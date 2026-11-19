@@ -6674,3 +6674,28 @@ name and folder from the absolute path, never from the project path's parent. A 
 has no project path of its own; `act_as::<Editor>` hands out the editor it shows, with no Zed hunk.
 To ask for a path, `Workspace::prompt_for_open_path` honours `use_system_path_prompts` (and so
 lets a scenario type the path); `cx.prompt_for_paths` always opens the system dialog.
+
+## L-claude-952-merging-upstream-zed-001
+*category: process · topic: upstream merges · from: pipeline 952*
+
+How the 2026-11-19 merge of 266 upstream commits went, after #950's:
+- **The removed-symbol sweep pays.** Diffing `pub` items a `-` line removes and no `+` line adds,
+  then grepping the Marley crates, found `deploy_at_project_path`, `smart_if_uppercase_in` and a
+  rename before the build. It misses private helpers a Marley hunk calls inside a Zed file
+  (`first_config_option_id_matching`, `current_path`) and changed signatures; `cargo check -p zed`
+  finds those, a crate at a time, so expect four or five runs.
+- **"Dead code" upstream can be Marley's seam.** Upstream's dead-code sweeps (#67149, #67150,
+  #67151) removed items only Marley used. The fix is a call to upstream's public API that remains
+  (`deploy_at` plus `move_to_project_path`), or a private Marley helper beside the hunk, never the
+  item restored.
+- **Some conflicts become additions only after a rewrite.** A Marley hunk that wrapped upstream's
+  expression (`marley_default_mode(...).or_else(upstream)`) became an `if let` after upstream's
+  unchanged call; one inside a struct literal became one added field line.
+- **The audit list is regenerated, not appended.** `cargo audit --json` run from a directory
+  without `.cargo/audit.toml` lists what the tree has now: seven listed ids had gone, and three
+  new ones had patch releases in range (`cargo update -p <crate> --precise <version>`).
+- **`git diff Cargo.lock` during a merge compares against the index**, which holds the lock as
+  the first `cargo check` rewrote it; compare with `git diff HEAD -- Cargo.lock`.
+- **A scenario's click points drift with the UI between merges** (733, 730: the ask's buttons,
+  the guide's chips). Read the first shot, override the scenario's `*_X`/`*_Y` from the
+  environment, and run before and after with the same values.

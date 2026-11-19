@@ -13,9 +13,10 @@ use std::time::{Duration, Instant};
 
 use editor::{Anchor, Editor};
 use git_ui::project_diff::ProjectDiff;
-use gpui::{AnyWindowHandle, App, AsyncApp, Entity, SharedString, WindowHandle};
+use gpui::{AnyWindowHandle, App, AsyncApp, Context, Entity, SharedString, Window, WindowHandle};
 use language::Point;
 use marley_mcp::{AppCall, Refusal, ToolAnswer};
+use project::ProjectPath;
 use serde_json::{Value, json};
 use workspace::{MultiWorkspace, Workspace};
 
@@ -188,7 +189,7 @@ async fn place(
                 });
             }
             workspace.update(cx, |workspace, cx| {
-                ProjectDiff::deploy_at_project_path(workspace, project_path, window, cx);
+                open_project_diff_at(workspace, &project_path, window, cx);
             });
         })
         .map_err(|_| Refusal::new("no_window", "the project's window is gone"))?;
@@ -319,6 +320,26 @@ fn in_project(workspace: &Entity<Workspace>, path: &Path, cx: &App) -> bool {
         .read(cx)
         .visible_worktrees(cx)
         .any(|worktree| path.starts_with(worktree.read(cx).abs_path()))
+}
+
+/// Opens `workspace`'s project diff, or brings its open one forward, at `project_path`.
+///
+/// Upstream's `ProjectDiff::deploy_at` opens the diff on the active repository; the move to the
+/// file follows on the diff it opened, since upstream took out its own entry point for a path
+/// (#952).
+pub(crate) fn open_project_diff_at(
+    workspace: &mut Workspace,
+    project_path: &ProjectPath,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    ProjectDiff::deploy_at(workspace, None, window, cx);
+    let opened = workspace.items_of_type::<ProjectDiff>(cx).next();
+    if let Some(diff) = opened {
+        diff.update(cx, |diff, cx| {
+            diff.move_to_project_path(project_path, window, cx);
+        });
+    }
 }
 
 /// The most sections a guide holds.

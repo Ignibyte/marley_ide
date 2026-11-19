@@ -1850,8 +1850,7 @@ impl PlanReview {
             sha,
             repository,
             workspace.downgrade(),
-            None,
-            None,
+            git_ui::commit_view::CommitViewOptions::default(),
             window,
             cx,
         );

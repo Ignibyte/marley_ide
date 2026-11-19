@@ -179,7 +179,7 @@ gate is satisfied.
 - **Application code** = `crates/*/src/**/*.rs` and `crates/*/examples/**/*.rs`, Zed's crates
   included. Docs, `.claude/`, `docs/planning/`, config, `crates/*/tests/**`, and the
   milestone ticket lists are not gated.
-- The `README.md` review marker rule in `.rules` stands: before the first source change of a
+- The `README.md` review marker rule in `AGENTS.md` stands: before the first source change of a
   piece of work the two `> [!IMPORTANT]` lines are present at the top of `README.md`, and only
   the human removes them.
 
@@ -229,12 +229,12 @@ product is finished.
 
 **Rust** (`crates/`):
 
-- Zed's `.rules` applies to every crate: no `unwrap()`/`expect()` on paths an input or an
+- Zed's `AGENTS.md` applies to every crate: no `unwrap()`/`expect()` on paths an input or an
   external response can reach, never `let _ =` on a fallible call, no `mod.rs`, a library
   root named after the crate, full words for names, the GPUI entity and task rules, executor
   timers in tests. `expect()` is acceptable only for a genuine invariant, with a message that
   states it.
-- Google's Rust style guide binds new and changed code in the Marley crates, as `.rules` applies
+- Google's Rust style guide binds new and changed code in the Marley crates, as `AGENTS.md` applies
   it in its section "Google's Rust style guide, as Marley applies it" (Chad, 2026-10-23). That
   section names the guide's rules a reviewer checks by eye, and where Marley departs from it
   (GPUI's shared ownership and async; Zed's file layout). A hunk in a Zed crate follows the
