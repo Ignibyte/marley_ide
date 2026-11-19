@@ -3290,3 +3290,7 @@ An upstream merge's plan lists the range's commits that change startup or restor
 and checks each against what `script/e2e.sh` copies from the user's profile (the database, the
 threads, the settings). A start that reads more of that copy than before shows the user's state in
 a run. The harness decides what a run starts with; it never asks the scenario to work around it.
+The same read covers the build outputs Marley's own scripts take from upstream's crates
+(`script/install-marley`'s remote server against `script/bundle-linux`): a renamed binary or
+path shows only when the install runs, so an upstream merge runs the install before it is called
+done.

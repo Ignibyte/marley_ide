@@ -4689,3 +4689,12 @@ window moved 733's chip off its click point and drew 730's diff without its prop
 `last_session` falls back to the last workspace (his most recent project came up). Fixed in `script/e2e.sh`: the
 copy's `session_id` is a fresh UUID, a session with no windows, so nothing restores on the first
 start and a relaunch in the run restores the run's own session.
+
+## F-claude-952-the-install-looked-for-the-remote-server-by-its-old-name-001
+*found: 2026-11-19 · while: #952's install, after the commit · severity: medium · prevented by: PR-claude-952-an-upstream-merge-reads-the-startup-changes-against-the-harness-001*
+
+`script/install-marley` built the musl remote server, then failed: `llvm-objcopy` found no
+`target/x86_64-unknown-linux-musl/release/remote_server`. Upstream's `2c2f737ab2` (#66165) named
+the crate's binary `remote-server`, and Zed's `script/bundle-linux` moved with it; Marley's copy of
+the step did not. The gate and the scenarios never run the install, so only the install found it.
+Fixed: the script strips `release/remote-server`.

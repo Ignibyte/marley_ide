@@ -426,8 +426,9 @@ stage_remote_server() {
   server_stripped=$platform_dir/.remote_server.$$
   server_packed=$platform_dir/.$commit.gz.$$
   trap 'rm -f "$server_stripped" "$server_packed"' EXIT
+  # The crate is remote_server; its binary is remote-server since Zed's 2c2f737ab2 (#952).
   llvm-objcopy --strip-debug --discard-all \
-    "${CARGO_TARGET_DIR:-$root/target}/$target/release/remote_server" "$server_stripped"
+    "${CARGO_TARGET_DIR:-$root/target}/$target/release/remote-server" "$server_stripped"
   gzip --best --stdout "$server_stripped" >"$server_packed"
   mv -f "$server_packed" "$platform_dir/$commit.gz"
   rm -f "$server_stripped"

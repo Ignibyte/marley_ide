@@ -290,3 +290,12 @@
   `decisions/marleys-agent-rules-live-in-upstreams-agentsmd-with-claudemd-a-link-to-it`,
   follow-up by 2026-12-19.
 - **Gate:** run 3 before the commit, for `script/e2e.sh` and the docs changed since run 2.
+- **Commit:** `76148f22b3`, the merge (parents `cacf1f61d8` and `3d3bd04fad`), after gate run 3
+  (**GATE GREEN [diff]**); the range scanned for private content (two project names in the
+  notes and a failure block were taken out before the push); `marley/workbench-shell`
+  fast-forwarded and pushed (`cacf1f61d8..76148f22b3`).
+- **Install, a red:** `script/install-marley` failed at the remote server: upstream's
+  `2c2f737ab2` named the binary `remote-server`, and the script stripped `release/remote_server`.
+  Fixed in the script (F-claude-952-the-install-looked-for-the-remote-server-by-its-old-name-001;
+  PR-claude-952 now covers Marley's scripts' build outputs too), committed on its own, and the
+  install run again.

@@ -37,7 +37,8 @@ archived verbatim as [`docs/marley/history/CHANGELOG-gpui-era.md`](docs/marley/h
   Underneath: ACP SDK 5.4; ammonia, quinn-proto and quinn-udp take patch releases for advisories
   published after #950, and the audit list drops seven ids the tree no longer has. The scenario
   harness gives each run's copy of the database a fresh session id, so a run's first start no
-  longer restores the user's windows.
+  longer restores the user's windows. `just install` stages the remote server under its binary's
+  new name, `remote-server`.
 - **Open File… on the rail's `+`** (#951). A project's `+` opens any file on the disk in that
   project's pane, not only the project's own files: a Markdown file as its formatted page, anything
   else in the editor or Zed's viewer for it. The file gets a row under the project's Files, which
